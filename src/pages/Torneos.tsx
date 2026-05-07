@@ -86,12 +86,22 @@ const emptyForm: FormState = {
   cupo_maximo: "",
 };
 
+const generateSlug = (nombre: string) => {
+  return nombre
+    .toLowerCase()
+    .trim()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // quitar acentos
+    .replace(/[^a-z0-9]+/g, "-") // reemplazar no-alfanumericos por guion
+    .replace(/^-+|-+$/g, ""); // limpiar guiones al inicio/fin
+};
+
 export default function Torneos() {
-  const [torneos, setTorneos] = useState<Torneo[]>([]);
+  const [torneos, setTorneos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editing, setEditing] = useState<Torneo | null>(null);
+  const [editing, setEditing] = useState<any | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const fetchAll = async () => {
@@ -117,7 +127,7 @@ export default function Torneos() {
     setDialogOpen(true);
   };
 
-  const openEdit = (t: Torneo) => {
+  const openEdit = (t: any) => {
     setEditing(t);
     setForm({
       nombre: t.nombre,
@@ -157,8 +167,12 @@ export default function Torneos() {
       return;
     }
 
-    const payload = {
+    // Generamos el slug si no existe o si cambió el nombre
+    const slug = generateSlug(form.nombre);
+
+    const payload: any = {
       nombre: form.nombre.trim(),
+      slug,
       tipo: form.tipo,
       categoria_id: form.tipo === "oficial" ? form.categoria_id : null,
       categoria_libre: form.tipo === "americano" ? form.categoria_libre.trim() : null,
@@ -195,7 +209,7 @@ export default function Torneos() {
     fetchAll();
   };
 
-  const handleQuickEstado = async (t: Torneo, estado: EstadoTorneo) => {
+  const handleQuickEstado = async (t: any, estado: EstadoTorneo) => {
     const { error } = await supabase.from("torneos").update({ estado }).eq("id", t.id);
     if (error) return toast.error("Error: " + error.message);
     // Si pasa a finalizado, calcular ranking automáticamente
@@ -212,7 +226,7 @@ export default function Torneos() {
     fetchAll();
   };
 
-  const handleRecalcularRanking = async (t: Torneo) => {
+  const handleRecalcularRanking = async (t: any) => {
     const res = await calcularRankingTorneo(t.id);
     if (res.ok) {
       toast.success(`Ranking recalculado: ${res.jugadoresConPuntos} registros.`);
@@ -224,8 +238,10 @@ export default function Torneos() {
   // URL dinámica: usa la dirección actual (Vercel) para el link de inscripción
   const SHARE_BASE_URL = `${window.location.origin}/inscribirse`;
 
-  const handleCopiarLink = async (t: Torneo) => {
-    const url = `${SHARE_BASE_URL}/${t.id}`;
+  const handleCopiarLink = async (t: any) => {
+    // Si el torneo tiene slug, usamos el slug. Si no, usamos el ID (por retrocompatibilidad)
+    const identificador = t.slug || t.id;
+    const url = `${SHARE_BASE_URL}/${identificador}`;
     try {
       await navigator.clipboard.writeText(url);
       toast.success("Link público copiado");

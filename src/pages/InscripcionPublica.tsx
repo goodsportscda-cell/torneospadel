@@ -40,11 +40,19 @@ export default function InscripcionPublica() {
         setLoading(false);
         return;
       }
-      const { data, error } = await supabase
-        .from("torneos")
-        .select("*")
-        .eq("id", torneoId)
-        .maybeSingle();
+      
+      // Intentamos buscar por ID o por Slug
+      // Validamos si es un UUID para evitar errores en la consulta
+      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(torneoId);
+      
+      let query = supabase.from("torneos").select("*");
+      if (isUUID) {
+        query = query.or(`id.eq.${torneoId},slug.eq.${torneoId}`);
+      } else {
+        query = query.eq("slug", torneoId);
+      }
+      
+      const { data, error } = await query.maybeSingle();
       if (error) console.error(error);
       setTorneo(data ?? null);
       setLoading(false);
@@ -121,14 +129,14 @@ export default function InscripcionPublica() {
   };
 
   const enviar = async () => {
-    if (!torneoId) return;
+    if (!torneo) return;
     setEnviando(true);
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/inscripcion-publica`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          torneo_id: torneoId,
+          torneo_id: torneo.id, // Usamos el ID real del torneo cargado
           jugador1: { ...j1, dni: j1.dni.trim(), email: j1.email.trim() || undefined, club: j1.club.trim() || undefined },
           jugador2: {
             ...j2,
