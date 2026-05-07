@@ -221,9 +221,8 @@ export default function Torneos() {
     }
   };
 
-  // URL servida por edge function: devuelve meta tags por torneo (WhatsApp/OG)
-  // y redirige a usuarios reales a /inscribirse/:id
-  const SHARE_BASE_URL = `https://pocket-claude-buddy.lovable.app/inscribirse`;
+  // URL dinámica: usa la dirección actual (Vercel) para el link de inscripción
+  const SHARE_BASE_URL = `${window.location.origin}/inscribirse`;
 
   const handleCopiarLink = async (t: Torneo) => {
     const url = `${SHARE_BASE_URL}/${t.id}`;
