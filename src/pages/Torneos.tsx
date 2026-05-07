@@ -239,8 +239,9 @@ export default function Torneos() {
   const SHARE_BASE_URL = `${window.location.origin}/inscribirse`;
 
   const handleCopiarLink = async (t: any) => {
-    // Si el torneo tiene slug, usamos el slug. Si no, usamos el ID (por retrocompatibilidad)
-    const identificador = t.slug || t.id;
+    // Si el torneo tiene slug, usamos el slug. 
+    // Si no lo tiene (torneos viejos), lo generamos al vuelo para el link.
+    const identificador = t.slug || generateSlug(t.nombre);
     const url = `${SHARE_BASE_URL}/${identificador}`;
     try {
       await navigator.clipboard.writeText(url);
