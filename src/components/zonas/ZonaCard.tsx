@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -19,9 +19,10 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Trash2, GripVertical, X, ArrowUpDown, ChevronDown } from "lucide-react";
+import { Trash2, GripVertical, X, ArrowUpDown, ChevronDown, Download, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import html2canvas from "html2canvas";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
 import { PartidoCard } from "./PartidoCard";
 import { TablaPosiciones } from "./TablaPosiciones";
@@ -132,7 +133,9 @@ function ParejaDraggable({
 }
 
 export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
+  const cardRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
+  const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [partidosCargados, setPartidosCargados] = useState(false);
@@ -140,6 +143,37 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
   const [setsByPartido, setSetsByPartido] = useState<
     Record<string, { numero_set: number; games_local: number; games_visitante: number }[]>
   >({});
+
+  const descargarImagen = async () => {
+    if (!cardRef.current) return;
+    setDescargando(true);
+    try {
+      const wasClosed = !isOpen;
+      if (wasClosed) {
+        setIsOpen(true);
+        // Esperamos un momento a que se complete la animación de apertura
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
+
+      const canvas = await html2canvas(cardRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        logging: false,
+      });
+
+      const link = document.createElement("a");
+      link.download = `Zona-${zona.nombre}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      toast.success("Imagen descargada");
+    } catch (error) {
+      console.error("Error al descargar imagen:", error);
+      toast.error("Error al generar la imagen");
+    } finally {
+      setDescargando(false);
+    }
+  };
 
   const cargar = useCallback(async () => {
     const [{ data: zp }, { data: parts }] = await Promise.all([
@@ -368,7 +402,7 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
   const clasifican = zona.tamanio === 4 ? 3 : 2;
 
   return (
-    <Card className="overflow-hidden">
+    <Card className="overflow-hidden" ref={cardRef}>
       <Collapsible open={isOpen} onOpenChange={setIsOpen}>
         <div className="flex items-center justify-between p-4 border-b bg-muted/30">
           <CollapsibleTrigger asChild>
@@ -383,6 +417,20 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
             </button>
           </CollapsibleTrigger>
           <div className="flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8 text-primary"
+              onClick={descargarImagen}
+              disabled={descargando}
+              title="Descargar imagen de la zona"
+            >
+              {descargando ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Download className="h-4 w-4" />
+              )}
+            </Button>
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="ghost" size="icon" className="h-8 w-8" title={`Cambiar a zona de ${zona.tamanio === 3 ? 4 : 3}`}>
