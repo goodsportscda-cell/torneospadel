@@ -14,7 +14,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
-import { Trash2, GripVertical, X, ArrowUpDown } from "lucide-react";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import { Trash2, GripVertical, X, ArrowUpDown, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
@@ -127,6 +132,7 @@ function ParejaDraggable({
 }
 
 export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
+  const [isOpen, setIsOpen] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [partidosCargados, setPartidosCargados] = useState(false);
@@ -134,8 +140,6 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
   const [setsByPartido, setSetsByPartido] = useState<
     Record<string, { numero_set: number; games_local: number; games_visitante: number }[]>
   >({});
-
-  
 
   const cargar = useCallback(async () => {
     const [{ data: zp }, { data: parts }] = await Promise.all([
@@ -364,60 +368,67 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
   const clasifican = zona.tamanio === 4 ? 3 : 2;
 
   return (
-    <Card>
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between">
-            <CardTitle className="text-lg flex items-center gap-2">
-              Zona {zona.nombre}
-              <Badge variant="outline">{zona.tamanio} parejas</Badge>
-            </CardTitle>
-            <div className="flex items-center gap-1">
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title={`Cambiar a zona de ${zona.tamanio === 3 ? 4 : 3}`}>
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      ¿Convertir Zona {zona.nombre} en zona de {zona.tamanio === 3 ? 4 : 3}?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Se regenera el fixture y se borran los resultados cargados de esta zona.
-                      {zona.tamanio === 4 && " La pareja en la posición 4 (si hay) volverá al panel de disponibles."}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={cambiarTamanio}>Convertir</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Eliminar Zona {zona.nombre}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Se borrarán todos los partidos y resultados de esta zona. Las parejas vuelven al panel de
-                      disponibles.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={eliminarZona}>Eliminar</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+    <Card className="overflow-hidden">
+      <Collapsible open={isOpen} onOpenChange={setIsOpen}>
+        <div className="flex items-center justify-between p-4 border-b bg-muted/30">
+          <CollapsibleTrigger asChild>
+            <button className="flex items-center gap-3 flex-1 text-left group">
+              <div className={`p-1 rounded-full transition-colors ${isOpen ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground group-hover:bg-primary/5"}`}>
+                <ChevronDown className={`h-4 w-4 transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`} />
+              </div>
+              <CardTitle className="text-lg flex items-center gap-2 m-0">
+                Zona {zona.nombre}
+                <Badge variant="outline" className="font-normal">{zona.tamanio} parejas</Badge>
+              </CardTitle>
+            </button>
+          </CollapsibleTrigger>
+          <div className="flex items-center gap-1">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8" title={`Cambiar a zona de ${zona.tamanio === 3 ? 4 : 3}`}>
+                  <ArrowUpDown className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>
+                    ¿Convertir Zona {zona.nombre} en zona de {zona.tamanio === 3 ? 4 : 3}?
+                  </AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se regenera el fixture y se borran los resultados cargados de esta zona.
+                    {zona.tamanio === 4 && " La pareja en la posición 4 (si hay) volverá al panel de disponibles."}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={cambiarTamanio}>Convertir</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="ghost" size="icon" className="h-8 w-8">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Eliminar Zona {zona.nombre}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    Se borrarán todos los partidos y resultados de esta zona. Las parejas vuelven al panel de
+                    disponibles.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                  <AlertDialogAction onClick={eliminarZona}>Eliminar</AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
+        </div>
+        <CollapsibleContent>
+          <CardContent className="p-4 space-y-4 pt-4">
           {/* Slots de siembra */}
           <div className="space-y-2">
             <p className="text-xs font-medium text-muted-foreground uppercase">Sembrado</p>
@@ -493,6 +504,8 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
             <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} />
           </div>
         </CardContent>
-      </Card>
+      </CollapsibleContent>
+    </Collapsible>
+  </Card>
   );
 }
