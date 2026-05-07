@@ -1,0 +1,10 @@
+project_id = "ijhxmckhntfquhxmussa"
+
+[functions.og-inscripcion]
+verify_jwt = false
+
+[functions.inscripcion-publica]
+verify_jwt = false
+
+[functions.buscar-jugador-publico]
+verify_jwt = false

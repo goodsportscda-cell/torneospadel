@@ -1,0 +1,1 @@
+ALTER TABLE public.jugadores ALTER COLUMN dni DROP NOT NULL;

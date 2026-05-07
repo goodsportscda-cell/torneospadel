@@ -1,0 +1,1 @@
+ALTER TYPE public.estado_torneo ADD VALUE IF NOT EXISTS 'proximamente' BEFORE 'inscripciones_abiertas';
