@@ -44,19 +44,13 @@ export function AppSidebar() {
               height={40}
             />
             <div className="min-w-0">
-              <h2 className="text-sm font-bold leading-tight truncate">Good Padel</h2>
-              <p className="text-xs text-muted-foreground truncate">Panel Admin</p>
+              <h2 className="text-sm font-bold leading-tight truncate text-primary">Padel ID</h2>
+              <p className="text-[10px] text-muted-foreground truncate uppercase tracking-wider font-semibold">Anita Quiroga</p>
             </div>
           </div>
         ) : (
           <div className="flex items-center justify-center">
-            <img
-              src={goodPadelLogo}
-              alt="Good Padel"
-              className="h-6 w-6 object-contain"
-              width={24}
-              height={24}
-            />
+             <Trophy className="h-6 w-6 text-primary" />
           </div>
         )}
       </SidebarHeader>

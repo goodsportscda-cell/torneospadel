@@ -395,12 +395,13 @@ function Wrapper({ children, torneo }: { children: React.ReactNode; torneo?: Tor
     <div className="min-h-screen bg-background">
       <header className="border-b bg-card">
         <div className="max-w-2xl mx-auto px-4 py-4 flex items-center gap-3">
-          <img src={logo} alt="Good Padel" className="h-10 w-auto" />
+          <div className="bg-primary p-2 rounded-lg">
+            <Trophy className="h-6 w-6 text-primary-foreground" />
+          </div>
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Inscripción a torneo</p>
+            <p className="text-xs text-muted-foreground font-semibold uppercase tracking-wider">Padel ID</p>
             {torneo && (
               <h1 className="text-base font-semibold truncate flex items-center gap-1.5">
-                <Trophy className="h-4 w-4 shrink-0 text-primary" />
                 {torneo.nombre}
               </h1>
             )}
@@ -408,10 +409,9 @@ function Wrapper({ children, torneo }: { children: React.ReactNode; torneo?: Tor
         </div>
       </header>
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">{children}</main>
-      <footer className="max-w-2xl mx-auto px-4 py-6 text-center">
-        <Link to="/" className="text-xs text-muted-foreground hover:underline">
-          Good Padel
-        </Link>
+      <footer className="max-w-2xl mx-auto px-4 py-6 text-center text-xs text-muted-foreground border-t mt-8">
+        <p>© {new Date().getFullYear()} Padel ID</p>
+        <p className="mt-1">Sistema de Gestión por <span className="font-semibold text-primary">Anita Quiroga</span></p>
       </footer>
     </div>
   );
