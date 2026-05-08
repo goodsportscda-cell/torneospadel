@@ -22,6 +22,7 @@ type PartidoLlaveRow = Database["public"]["Tables"]["partidos_llave"]["Row"];
 export default function TorneoPublico() {
   const { slug } = useParams<{ slug: string }>();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
+  const [categoriaNombre, setCategoriaNombre] = useState<string>("");
   const [loading, setLoading] = useState(true);
   
   // Data for Zonas and Llaves
@@ -79,6 +80,12 @@ export default function TorneoPublico() {
         });
         setSetsLlave(map);
       }
+    }
+
+    // Fetch Category Name if official
+    if (tData.tipo === "oficial" && tData.categoria_id) {
+      const { data: cData } = await supabase.from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
+      if (cData) setCategoriaNombre(cData.nombre);
     }
     
     setLoading(false);
@@ -206,12 +213,16 @@ export default function TorneoPublico() {
                   )}
                   <div className="grid grid-cols-2 gap-4 pt-2">
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Categoría</p>
-                      <p className="text-sm capitalize">{torneo.categoria_libre || "Oficial"}</p>
+                      <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Torneo</p>
+                      <p className="text-sm capitalize">{torneo.tipo || "Oficial"}</p>
                     </div>
                     <div>
-                      <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Género</p>
-                      <p className="text-sm capitalize">{torneo.genero || "Libre"}</p>
+                      <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Categoría</p>
+                      <p className="text-sm capitalize">{torneo.categoria_libre || categoriaNombre || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase font-bold mb-1">Puntaje</p>
+                      <p className="text-sm">{torneo.multiplicador_puntos === 2 ? "Doble" : "Simple"}</p>
                     </div>
                   </div>
                 </CardContent>
