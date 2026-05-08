@@ -33,11 +33,16 @@ export default function TorneoPublico() {
   const fetchTorneo = useCallback(async () => {
     if (!slug) return;
     
-    // 1. Fetch Torneo by slug (or ID)
+    // 1. Fetch Torneo by slug or ID
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+    
     let tQuery = supabase.from("torneos").select("*");
-    if (isUUID) tQuery = tQuery.or(`id.eq.${slug},slug.eq.${slug}`);
-    else tQuery = tQuery.eq("slug", slug);
+    
+    if (isUUID) {
+      tQuery = tQuery.or(`id.eq.${slug},slug.eq.${slug}`);
+    } else {
+      tQuery = tQuery.eq("slug", slug);
+    }
     
     const { data: tData, error: tErr } = await tQuery.maybeSingle();
     if (tErr || !tData) {
