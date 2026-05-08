@@ -158,11 +158,21 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     if (!storyRef.current) return;
     setDescargando(true);
     try {
-      const canvas = await html2canvas(storyRef.current, { scale: 2 });
+      const canvas = await html2canvas(storyRef.current, {
+        scale: 3,
+        useCORS: true,
+        backgroundColor: "#ffffff",
+        width: 450,
+        height: 800,
+      });
       const link = document.createElement("a");
-      link.download = `Zona-${zona.nombre}.png`;
-      link.href = canvas.toDataURL();
+      link.download = `Historia-Zona-${zona.nombre}.png`;
+      link.href = canvas.toDataURL("image/png");
       link.click();
+      toast.success("Imagen generada");
+    } catch (error) {
+      console.error("Error al generar imagen:", error);
+      toast.error("Error al generar la imagen");
     } finally {
       setDescargando(false);
     }
@@ -268,9 +278,43 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         </Collapsible>
       </Card>
 
-      <div ref={storyRef} style={{ position: 'fixed', top: '-9999px', width: '400px', padding: '20px', background: 'white' }}>
-         <h1 style={{ fontSize: '24px' }}>Zona {zona.nombre}</h1>
-         <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} />
+      <div 
+        ref={storyRef}
+        style={{
+          width: '450px',
+          height: '800px',
+          position: 'fixed',
+          top: '-9999px',
+          left: '-9999px',
+          background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)',
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '40px 24px',
+          color: '#0f172a',
+          zIndex: -100,
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '30px' }}>
+          <img src={goodPadelLogo} alt="Logo" style={{ width: '110px' }} />
+        </div>
+        
+        <div style={{ textAlign: 'center', marginBottom: '35px' }}>
+          <p style={{ fontSize: '14px', fontWeight: '600', letterSpacing: '0.1em', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Resultados Clasificación
+          </p>
+          <h1 style={{ fontSize: '48px', fontWeight: '800', color: '#ef4444', lineHeight: '1' }}>
+            Zona {zona.nombre}
+          </h1>
+        </div>
+
+        <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '12px', padding: '10px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', color: '#0f172a' }}>
+            <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} />
+        </div>
+
+        <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '30px' }}>
+           <p style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444', marginBottom: '4px' }}>GOOD PADEL</p>
+           <p style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>@goodsports.jb</p>
+        </div>
       </div>
     </>
   );
