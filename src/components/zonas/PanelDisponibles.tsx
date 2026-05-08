@@ -1,4 +1,5 @@
 import { useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { GripVertical } from "lucide-react";
 
@@ -8,18 +9,22 @@ type Pareja = {
 };
 
 function ParejaDraggable({ inscripcionId, label }: { inscripcionId: string; label: string }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `disponible-${inscripcionId}`,
-    data: { inscripcionId },
+    data: { inscripcionId, label },
   });
+
+  const style = transform ? {
+    transform: CSS.Translate.toString(transform),
+  } : undefined;
   return (
     <div
       ref={setNodeRef}
       {...attributes}
       {...listeners}
-      style={{ touchAction: "none" }}
-      className={`flex items-center gap-2 rounded border bg-card px-2 py-1.5 text-sm cursor-grab active:cursor-grabbing select-none ${
-        isDragging ? "opacity-50" : ""
+      style={{ ...style, touchAction: "none" }}
+      className={`flex items-center gap-2 rounded border bg-card px-2 py-1.5 text-sm cursor-grab active:cursor-grabbing select-none transition-shadow ${
+        isDragging ? "opacity-30 shadow-sm" : "shadow-sm hover:shadow-md"
       }`}
     >
       <GripVertical className="h-3 w-3 text-muted-foreground" />

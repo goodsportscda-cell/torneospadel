@@ -14,6 +14,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useDroppable, useDraggable } from "@dnd-kit/core";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Collapsible,
   CollapsibleContent,
@@ -27,6 +28,7 @@ import goodPadelLogo from "@/assets/good-padel-logo.png";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
 import { PartidoCard } from "./PartidoCard";
 import { TablaPosiciones } from "./TablaPosiciones";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type Zona = {
   id: string;
@@ -107,15 +109,20 @@ function ParejaDraggable({
   label: string;
   onRemove: () => void;
 }) {
-  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: `pareja-${zonaParejaId}`,
-    data: { inscripcionId, zonaParejaId },
+    data: { inscripcionId, zonaParejaId, label },
   });
+
+  const style = transform ? {
+    transform: CSS.Translate.toString(transform),
+  } : undefined;
   return (
     <div
       ref={setNodeRef}
-      className={`flex items-center gap-1 rounded bg-card border px-2 py-1 text-xs ${
-        isDragging ? "opacity-50" : ""
+      style={{ ...style, touchAction: "none" }}
+      className={`flex items-center gap-1 rounded bg-card border px-2 py-1 text-xs transition-shadow ${
+        isDragging ? "opacity-30 shadow-none" : "shadow-sm hover:shadow-md"
       }`}
     >
       <button
@@ -345,6 +352,32 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted, readOnly = f
   }, [zona.id, cargar]);
 
 
+  const asignarParejaManual = async (inscripcionId: string, posicion: number) => {
+    try {
+      // Si el slot ya está ocupado, la lógica de handleDropPareja o similar debería ser replicada
+      // Pero aquí lo hacemos simple: insertar o actualizar.
+      const existente = zonaParejas.find(zp => zp.posicion_siembra === posicion);
+      if (existente) {
+        if (existente.inscripcion_id === inscripcionId) return;
+        await supabase.from("zonas_parejas").delete().eq("id", existente.id);
+      }
+
+      const { error } = await supabase.from("zonas_parejas").insert({
+        zona_id: zona.id,
+        inscripcion_id: inscripcionId,
+        posicion_siembra: posicion,
+      });
+
+      if (error) throw error;
+      toast.success("Pareja asignada");
+      await cargar();
+      onChanged();
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al asignar pareja");
+    }
+  };
+
   const quitarPareja = async (zonaParejaId: string) => {
     await supabase.from("zonas_parejas").delete().eq("id", zonaParejaId);
     await cargar();
@@ -502,7 +535,21 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted, readOnly = f
                               onRemove={() => quitarPareja(ocupado.id)}
                             />
                           ) : (
-                            <span className="text-xs text-muted-foreground">Arrastrá una pareja aquí</span>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] text-muted-foreground flex-1">Arrastrá aquí o</span>
+                              <Select onValueChange={(val) => asignarParejaManual(val, pos)}>
+                                <SelectTrigger className="h-7 py-0 px-2 text-[10px] w-[100px] bg-background">
+                                  <SelectValue placeholder="Elegir..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {parejasDisponibles.map((p) => (
+                                    <SelectItem key={p.inscripcion_id} value={p.inscripcion_id} className="text-[10px]">
+                                      {p.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </div>
                           )}
                         </SlotDroppable>
                       )}

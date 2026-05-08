@@ -68,6 +68,24 @@ function llave12(): PartidoLlavePlantilla[] {
   ];
 }
 
+// 14 parejas (2 zonas de 4 + 2 zonas de 3 = A,B de 4, C,D de 3) → 10 clasificados
+// Manual APA pág 130: 1°A y 1°B pasan a cuartos.
+// Previa: 3°A vs 2°B (#1), 2°A vs 3°B (#2)
+// Cuartos: 1°A vs G:1 (#3), 2°C vs 1°D (#4), 1°C vs 2°D (#5), G:2 vs 1°B (#6)
+function llave14(): PartidoLlavePlantilla[] {
+  return [
+    { numero: 1, ronda: "previa", ref_local: "3°A", ref_visitante: "2°B" },
+    { numero: 2, ronda: "previa", ref_local: "2°A", ref_visitante: "3°B" },
+    { numero: 3, ronda: "cuartos", ref_local: "1°A", ref_visitante: "G:1" },
+    { numero: 4, ronda: "cuartos", ref_local: "2°C", ref_visitante: "1°D" },
+    { numero: 5, ronda: "cuartos", ref_local: "1°C", ref_visitante: "2°D" },
+    { numero: 6, ronda: "cuartos", ref_local: "G:2", ref_visitante: "1°B" },
+    { numero: 7, ronda: "semifinal", ref_local: "G:3", ref_visitante: "G:4" },
+    { numero: 8, ronda: "semifinal", ref_local: "G:5", ref_visitante: "G:6" },
+    { numero: 9, ronda: "final", ref_local: "G:7", ref_visitante: "G:8" },
+  ];
+}
+
 // 16 parejas (5 o 6 zonas) → distintas configuraciones según APA.
 // Caso típico APA pág 132: 5 zonas (3 de 3 + 2 de 4) → ~10 clasificados → ronda previa + octavos
 // Por simplicidad implemento el cuadro con 8 cabezas: cuartos directos con cruce APA.
@@ -292,6 +310,7 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   6: llave6(),
   8: llave8(),
   12: llave12(),
+  14: llave14(),
   16: llave16(),
   18: llave18(),
   24: llave24(),

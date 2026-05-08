@@ -15,16 +15,17 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Wand2, Plus, Trash2 } from "lucide-react";
+import { Wand2, Plus, Trash2, GripVertical } from "lucide-react";
 import { toast } from "sonner";
 import {
   DndContext,
   PointerSensor,
-  TouchSensor,
   useSensor,
   useSensors,
   closestCenter,
   type DragEndEvent,
+  type DragStartEvent,
+  DragOverlay,
 } from "@dnd-kit/core";
 import { calcularDistribucionZonas, nombreZona } from "@/lib/zonas";
 import { ZonaCard, type Zona, type ParejaInscripta } from "@/components/zonas/ZonaCard";
@@ -46,6 +47,7 @@ export default function Zonas() {
   const [zonaParejasGlobal, setZonaParejasGlobal] = useState<
     { id: string; inscripcion_id: string; zona_id: string; posicion_siembra: number }[]
   >([]);
+  const [activeItem, setActiveItem] = useState<{ id: string; label: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   // Cargar torneos al inicio
@@ -91,11 +93,31 @@ export default function Zonas() {
   };
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } }),
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 5,
+      },
+    }),
   );
 
+  const onDragStart = (event: DragStartEvent) => {
+    try {
+      const { active } = event;
+      const data = active.data.current as { inscripcionId: string; label?: string } | undefined;
+      console.log("[Zonas] drag start", { id: active.id, data });
+      if (data) {
+        setActiveItem({
+          id: active.id as string,
+          label: data.label || parejaLabel(data.inscripcionId),
+        });
+      }
+    } catch (e) {
+      console.error("[Zonas] Error in onDragStart", e);
+    }
+  };
+
   const onDragEnd = async (event: DragEndEvent) => {
+    setActiveItem(null);
     console.log("[Zonas] drag end", {
       active: event.active?.id,
       over: event.over?.id,
@@ -203,7 +225,6 @@ export default function Zonas() {
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
     <div className="p-4 md:p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Zonas</h1>
@@ -212,7 +233,6 @@ export default function Zonas() {
         </p>
       </div>
 
-      {/* Selector de torneo */}
       <Card>
         <CardContent className="p-4 space-y-3">
           <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
@@ -244,17 +264,11 @@ export default function Zonas() {
                   {distribucionSugerida.join(" + ")})
                 </span>
               )}
-              {Number(torneoSeleccionado.multiplicador_puntos) >= 2 && (
-                <span className="inline-flex items-center gap-1 rounded bg-primary text-primary-foreground px-1.5 py-0.5 text-xs font-semibold">
-                  x{Number(torneoSeleccionado.multiplicador_puntos)} puntos
-                </span>
-              )}
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Tabs: Zonas / Cronograma */}
       {torneoId && (
         <Tabs defaultValue="zonas" className="space-y-4">
           <TabsList>
@@ -263,75 +277,90 @@ export default function Zonas() {
           </TabsList>
 
           <TabsContent value="zonas" className="space-y-4">
-            {/* Acciones */}
-            <div className="flex flex-wrap gap-2">
-              {zonas.length === 0 ? (
-                <Button onClick={generarZonasAuto} disabled={inscripciones.length < 3}>
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  Generar zonas automáticamente
-                </Button>
-              ) : (
-                <>
-                  <Button variant="outline" onClick={() => agregarZonaManual(3)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Zona de 3
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragCancel={() => setActiveItem(null)}
+            >
+              <div className="flex flex-wrap gap-2">
+                {zonas.length === 0 ? (
+                  <Button onClick={generarZonasAuto} disabled={inscripciones.length < 3}>
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Generar zonas automáticamente
                   </Button>
-                  <Button variant="outline" onClick={() => agregarZonaManual(4)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Zona de 4
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" className="ml-auto">
-                        <Trash2 className="h-4 w-4 mr-2" />
-                        Borrar todas las zonas
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Borrar todas las zonas?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Se eliminarán todas las zonas, partidos y resultados de este torneo.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={borrarTodasLasZonas}>Borrar todo</AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </>
-              )}
-            </div>
-
-            {/* Layout: panel izq + zonas */}
-            {zonas.length > 0 && (
-              <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
-                <div>
-                  <PanelDisponibles parejas={parejasDisponibles} />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {zonas.map((zona) => (
-                    <ZonaCard
-                      key={zona.id}
-                      zona={zona}
-                      parejasDisponibles={parejasDisponibles}
-                      parejaLabel={parejaLabel}
-                      onChanged={cargarDatos}
-                      onDeleted={cargarDatos}
-                    />
-                  ))}
-                </div>
+                ) : (
+                  <>
+                    <Button variant="outline" onClick={() => agregarZonaManual(3)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Zona de 3
+                    </Button>
+                    <Button variant="outline" onClick={() => agregarZonaManual(4)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Zona de 4
+                    </Button>
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="destructive" className="ml-auto">
+                          <Trash2 className="h-4 w-4 mr-2" />
+                          Borrar todas las zonas
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>¿Borrar todas las zonas?</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Se eliminarán todas las zonas, partidos y resultados de este torneo.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                          <AlertDialogAction onClick={borrarTodasLasZonas}>Borrar todo</AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  </>
+                )}
               </div>
-            )}
 
-            {zonas.length === 0 && inscripciones.length === 0 && (
-              <Card>
-                <CardContent className="p-8 text-center text-muted-foreground">
-                  Este torneo todavía no tiene parejas inscriptas.
-                </CardContent>
-              </Card>
-            )}
+              {zonas.length > 0 && (
+                <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
+                  <div>
+                    <PanelDisponibles parejas={parejasDisponibles} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {zonas.map((zona) => (
+                      <ZonaCard
+                        key={zona.id}
+                        zona={zona}
+                        parejasDisponibles={parejasDisponibles}
+                        parejaLabel={parejaLabel}
+                        onChanged={cargarDatos}
+                        onDeleted={cargarDatos}
+                      />
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {zonas.length === 0 && inscripciones.length === 0 && (
+                <Card>
+                  <CardContent className="p-8 text-center text-muted-foreground">
+                    Este torneo todavía no tiene parejas inscriptas.
+                  </CardContent>
+                </Card>
+              )}
+
+              <DragOverlay zIndex={1000}>
+                {activeItem ? (
+                  <div className="flex items-center gap-2 rounded border bg-primary text-primary-foreground px-3 py-2 text-sm shadow-2xl opacity-90 cursor-grabbing pointer-events-none">
+                    <GripVertical className="h-4 w-4" />
+                    <span className="font-medium">{activeItem.label}</span>
+                  </div>
+                ) : null}
+              </DragOverlay>
+            </DndContext>
           </TabsContent>
 
           <TabsContent value="cronograma">
@@ -348,6 +377,5 @@ export default function Zonas() {
         </Tabs>
       )}
     </div>
-    </DndContext>
   );
 }
