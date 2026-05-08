@@ -241,8 +241,16 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                   partidoId={p.id}
                   orden={p.orden}
                   tipo={p.tipo}
-                  parejaLocal={p.pareja_local_id ? { label: parejaLabel(p.pareja_local_id) } : null}
-                  parejaVisitante={p.pareja_visitante_id ? { label: parejaLabel(p.pareja_visitante_id) } : null}
+                  parejaLocal={p.pareja_local_id ? { 
+                    inscripcion_id: p.pareja_local_id, 
+                    posicion_siembra: p.posicion_local ?? 0,
+                    label: parejaLabel(p.pareja_local_id) 
+                  } : null}
+                  parejaVisitante={p.pareja_visitante_id ? { 
+                    inscripcion_id: p.pareja_visitante_id, 
+                    posicion_siembra: p.posicion_visitante ?? 0,
+                    label: parejaLabel(p.pareja_visitante_id) 
+                  } : null}
                   estado={p.estado}
                   ganadorId={p.ganador_id}
                   setsExistentes={setsByPartido[p.id] ?? []}
