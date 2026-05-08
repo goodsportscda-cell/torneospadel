@@ -20,6 +20,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Trophy, Medal, Star, Search, Filter, Loader2, Award } from "lucide-react";
+import { ModeToggle } from "@/components/mode-toggle";
 import { toast } from "sonner";
 
 type RankingRow = {
@@ -206,7 +207,10 @@ export default function RankingPublico() {
               <p className="text-[10px] text-muted-foreground uppercase font-medium">Ranking Oficial</p>
             </div>
           </div>
-          <Link to="/auth" className="text-xs font-medium hover:text-primary transition-colors">Admin Login</Link>
+          <div className="flex items-center gap-2">
+            <ModeToggle />
+            <Link to="/auth" className="text-xs font-medium hover:text-primary transition-colors">Admin Login</Link>
+          </div>
         </div>
       </header>
 

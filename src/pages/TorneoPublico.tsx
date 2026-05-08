@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Trophy, Calendar, MapPin, Loader2, AlertCircle, Users, LayoutGrid, GitBranch } from "lucide-react";
+import { ModeToggle } from "@/components/mode-toggle";
 import { ZonaCard, type Zona } from "@/components/zonas/ZonaCard";
 import { PartidoCard } from "@/components/zonas/PartidoCard";
 import { TablaPosiciones } from "@/components/zonas/TablaPosiciones";
@@ -141,7 +142,10 @@ export default function TorneoPublico() {
               <p className="text-[10px] text-muted-foreground uppercase font-medium">Anita Quiroga</p>
             </div>
           </div>
-          <Badge variant="outline" className="capitalize">{torneo.estado.replace(/_/g, " ")}</Badge>
+          <div className="flex items-center gap-2">
+            <ModeToggle />
+            <Badge variant="outline" className="capitalize">{torneo.estado.replace(/_/g, " ")}</Badge>
+          </div>
         </div>
       </header>
 

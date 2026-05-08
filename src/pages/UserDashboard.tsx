@@ -20,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
+import { ModeToggle } from "@/components/mode-toggle";
 
 type Torneo = {
   id: string;
@@ -250,6 +251,7 @@ export default function UserDashboard() {
             <h1 className="text-sm font-bold leading-none">Padel ID</h1>
             <p className="text-[10px] text-muted-foreground uppercase">Anita Quiroga</p>
           </div>
+          <ModeToggle />
           <Button variant="ghost" size="icon" onClick={handleSignOut} title="Cerrar sesión">
             <LogOut className="h-4 w-4" />
           </Button>

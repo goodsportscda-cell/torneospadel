@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
+import { ModeToggle } from "./mode-toggle";
 
 export default function AppLayout() {
   const { signOut, user, isAdmin } = useAuth();
@@ -30,6 +31,7 @@ export default function AppLayout() {
                     Admin
                   </span>
                 )}
+                <ModeToggle />
                 <Button variant="ghost" size="icon" onClick={handleSignOut} title="Cerrar sesión">
                   <LogOut className="h-4 w-4" />
                 </Button>
