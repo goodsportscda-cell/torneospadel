@@ -21,6 +21,8 @@ import Posiciones from "./pages/Posiciones.tsx";
 import Ranking from "./pages/Ranking.tsx";
 import Master from "./pages/Master.tsx";
 import InscripcionPublica from "./pages/InscripcionPublica.tsx";
+import TorneoPublico from "./pages/TorneoPublico.tsx";
+import RankingPublico from "./pages/RankingPublico.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -35,6 +37,8 @@ const App = () => (
           <Routes>
             <Route path="/auth" element={<Auth />} />
             <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
+            <Route path="/torneo/:slug" element={<TorneoPublico />} />
+            <Route path="/ranking-publico" element={<RankingPublico />} />
             {/* User dashboard - authenticated but not admin */}
             <Route
               path="/mi-panel"

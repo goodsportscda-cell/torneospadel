@@ -43,6 +43,7 @@ type Props = {
   fechaHora?: string | null;
   cancha?: string | null;
   showProgramacion?: boolean;
+  readOnly?: boolean;
 };
 
 export function PartidoCard({
@@ -60,6 +61,7 @@ export function PartidoCard({
   fechaHora,
   cancha,
   showProgramacion = false,
+  readOnly = false,
 }: Props) {
   const [sets, setSets] = useState<SetRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -291,7 +293,7 @@ export function PartidoCard({
           </div>
         </div>
 
-        {showProgramacion && (
+        {showProgramacion && !readOnly && (
           <div className="pt-2 border-t">
             {!showProgEditor ? (
               <Button
@@ -372,44 +374,60 @@ export function PartidoCard({
 
         {!sinParejas && (
           <div className="space-y-2 pt-2 border-t">
-            {sets.map((s, idx) => (
-              <div key={idx} className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground w-8">Set {s.numero_set}</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="9"
-                  value={s.games_local}
-                  onChange={(e) => updateSet(idx, "games_local", e.target.value)}
-                  className="h-8 w-14 text-center"
-                />
-                <span className="text-muted-foreground">-</span>
-                <Input
-                  type="number"
-                  min="0"
-                  max="9"
-                  value={s.games_visitante}
-                  onChange={(e) => updateSet(idx, "games_visitante", e.target.value)}
-                  className="h-8 w-14 text-center"
-                />
-                {sets.length > 1 && (
-                  <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => removeSet(idx)}>
-                    ×
-                  </Button>
+            {readOnly ? (
+              <div className="flex flex-wrap gap-2 justify-center">
+                {setsExistentes.length > 0 ? (
+                  setsExistentes.map((s, idx) => (
+                    <Badge key={idx} variant="secondary" className="font-bold">
+                      {s.games_local}-{s.games_visitante}
+                    </Badge>
+                  ))
+                ) : (
+                  <span className="text-[10px] text-muted-foreground italic">Sin resultados</span>
                 )}
               </div>
-            ))}
-            <div className="flex gap-2">
-              {sets.length < 5 && (
-                <Button variant="outline" size="sm" onClick={addSet} className="text-xs">
-                  + Set
-                </Button>
-              )}
-              <Button size="sm" onClick={guardar} disabled={saving} className="ml-auto">
-                <Save className="h-3 w-3 mr-1" />
-                Guardar
-              </Button>
-            </div>
+            ) : (
+              <>
+                {sets.map((s, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground w-8">Set {s.numero_set}</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="9"
+                      value={s.games_local}
+                      onChange={(e) => updateSet(idx, "games_local", e.target.value)}
+                      className="h-8 w-14 text-center"
+                    />
+                    <span className="text-muted-foreground">-</span>
+                    <Input
+                      type="number"
+                      min="0"
+                      max="9"
+                      value={s.games_visitante}
+                      onChange={(e) => updateSet(idx, "games_visitante", e.target.value)}
+                      className="h-8 w-14 text-center"
+                    />
+                    {sets.length > 1 && (
+                      <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => removeSet(idx)}>
+                        ×
+                      </Button>
+                    )}
+                  </div>
+                ))}
+                <div className="flex gap-2">
+                  {sets.length < 5 && (
+                    <Button variant="outline" size="sm" onClick={addSet} className="text-xs">
+                      + Set
+                    </Button>
+                  )}
+                  <Button size="sm" onClick={guardar} disabled={saving} className="ml-auto">
+                    <Save className="h-3 w-3 mr-1" />
+                    Guardar
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         )}
       </CardContent>

@@ -68,6 +68,7 @@ type Props = {
   parejaLabel: (id: string) => string;
   onChanged: () => void;
   onDeleted: () => void;
+  readOnly?: boolean;
 };
 
 function SlotDroppable({
@@ -133,7 +134,7 @@ function ParejaDraggable({
   );
 }
 
-export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
+export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted, readOnly = false }: Props) {
   const cardRef = useRef<HTMLDivElement>(null);
   const storyRef = useRef<HTMLDivElement>(null);
   const [isOpen, setIsOpen] = useState(false);
@@ -415,88 +416,96 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
                 </CardTitle>
               </button>
             </CollapsibleTrigger>
-            <div className="flex items-center gap-1">
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-8 w-8 text-primary"
-                onClick={descargarImagen}
-                disabled={descargando}
-                title="Generar imagen para historia"
-              >
-                {descargando ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Share2 className="h-4 w-4" />
-                )}
-              </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8" title={`Cambiar a zona de ${zona.tamanio === 3 ? 4 : 3}`}>
-                    <ArrowUpDown className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>
-                      ¿Convertir Zona {zona.nombre} en zona de {zona.tamanio === 3 ? 4 : 3}?
-                    </AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Se regenera el fixture y se borran los resultados cargados de esta zona.
-                      {zona.tamanio === 4 && " La pareja en la posición 4 (si hay) volverá al panel de disponibles."}
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={cambiarTamanio}>Convertir</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8">
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Eliminar Zona {zona.nombre}</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Se borrarán todos los partidos y resultados de esta zona. Las parejas vuelven al panel de
-                      disponibles.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={eliminarZona}>Eliminar</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </div>
+            {!readOnly && (
+              <div className="flex items-center gap-1">
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 text-primary"
+                  onClick={descargarImagen}
+                  disabled={descargando}
+                  title="Generar imagen para historia"
+                >
+                  {descargando ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Share2 className="h-4 w-4" />
+                  )}
+                </Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8" title={`Cambiar a zona de ${zona.tamanio === 3 ? 4 : 3}`}>
+                      <ArrowUpDown className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        ¿Convertir Zona {zona.nombre} en zona de {zona.tamanio === 3 ? 4 : 3}?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se regenera el fixture y se borran los resultados cargados de esta zona.
+                        {zona.tamanio === 4 && " La pareja en la posición 4 (si hay) volverá al panel de disponibles."}
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={cambiarTamanio}>Convertir</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon" className="h-8 w-8">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Eliminar Zona {zona.nombre}</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se borrarán todos los partidos y resultados de esta zona. Las parejas vuelven al panel de
+                        disponibles.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={eliminarZona}>Eliminar</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </div>
+            )}
           </div>
           <CollapsibleContent>
             <CardContent className="p-4 space-y-4 pt-4">
             {/* Slots de siembra */}
             <div className="space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase">Sembrado</p>
+              <p className="text-xs font-medium text-muted-foreground uppercase">Parejas</p>
               {Array.from({ length: zona.tamanio }, (_, i) => i + 1).map((pos) => {
                 const ocupado = slotsLlenos.get(pos);
                 return (
                   <div key={pos} className="flex items-center gap-2">
                     <span className="text-xs font-semibold w-4">{pos}.</span>
                     <div className="flex-1">
-                      <SlotDroppable zonaId={zona.id} posicion={pos}>
-                        {ocupado ? (
-                          <ParejaDraggable
-                            inscripcionId={ocupado.inscripcion_id}
-                            zonaParejaId={ocupado.id}
-                            label={parejaLabel(ocupado.inscripcion_id)}
-                            onRemove={() => quitarPareja(ocupado.id)}
-                          />
-                        ) : (
-                          <span className="text-xs text-muted-foreground">Arrastrá una pareja aquí</span>
-                        )}
-                      </SlotDroppable>
+                      {readOnly ? (
+                        <div className="rounded-md border p-2 bg-muted/20 text-xs">
+                          {ocupado ? parejaLabel(ocupado.inscripcion_id) : "—"}
+                        </div>
+                      ) : (
+                        <SlotDroppable zonaId={zona.id} posicion={pos}>
+                          {ocupado ? (
+                            <ParejaDraggable
+                              inscripcionId={ocupado.inscripcion_id}
+                              zonaParejaId={ocupado.id}
+                              label={parejaLabel(ocupado.inscripcion_id)}
+                              onRemove={() => quitarPareja(ocupado.id)}
+                            />
+                          ) : (
+                            <span className="text-xs text-muted-foreground">Arrastrá una pareja aquí</span>
+                          )}
+                        </SlotDroppable>
+                      )}
                     </div>
                   </div>
                 );
@@ -538,6 +547,7 @@ export function ZonaCard({ zona, parejaLabel, onChanged, onDeleted }: Props) {
                     showProgramacion
                     fechaHora={p.fecha_hora}
                     cancha={p.cancha}
+                    readOnly={readOnly}
                   />
                 ))}
               </div>

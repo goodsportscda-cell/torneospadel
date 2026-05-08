@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,12 +14,12 @@ import {
   User,
   LogOut,
   Search,
+  ExternalLink,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
 
 type Torneo = {
   id: string;
@@ -243,8 +243,13 @@ export default function UserDashboard() {
       {/* Header */}
       <header className="sticky top-0 z-10 bg-background border-b">
         <div className="max-w-2xl mx-auto px-4 h-14 flex items-center gap-3">
-          <img src={goodPadelLogo} alt="Good Padel" className="h-8 w-8 object-contain" />
-          <h1 className="text-base font-bold flex-1">Good Padel</h1>
+          <div className="bg-primary p-1 rounded-md">
+            <Trophy className="h-5 w-5 text-primary-foreground" />
+          </div>
+          <div className="flex-1">
+            <h1 className="text-sm font-bold leading-none">Padel ID</h1>
+            <p className="text-[10px] text-muted-foreground uppercase">Anita Quiroga</p>
+          </div>
           <Button variant="ghost" size="icon" onClick={handleSignOut} title="Cerrar sesión">
             <LogOut className="h-4 w-4" />
           </Button>
@@ -276,7 +281,7 @@ export default function UserDashboard() {
                 <Card className="border-dashed">
                   <CardContent className="pt-4 space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Vinculá tu cuenta con tu ficha de jugador para ver tu rendimiento y ranking.
+                      Vinculá tu cuenta con tu ficha de jugador en Padel ID para ver tu rendimiento y ranking.
                     </p>
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
@@ -329,6 +334,15 @@ export default function UserDashboard() {
                     )}
                   </CardContent>
                 </Card>
+              )}
+              {jugadorId && miRanking.length > 0 && (
+                <div className="flex justify-end">
+                  <Button variant="outline" size="sm" className="h-8 gap-1.5 text-xs font-bold" asChild>
+                    <Link to="/ranking-publico">
+                      Ver ranking completo <Award className="h-3.5 w-3.5" />
+                    </Link>
+                  </Button>
+                </div>
               )}
             </div>
 
@@ -415,7 +429,7 @@ export default function UserDashboard() {
                     {torneos.map((t) => (
                       <li
                         key={t.id}
-                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/30"
+                        className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 group"
                       >
                         <div className="flex flex-col items-center justify-center bg-muted rounded-md w-12 h-12 shrink-0">
                           <span className="text-[10px] uppercase text-muted-foreground leading-none">
@@ -426,13 +440,25 @@ export default function UserDashboard() {
                           </span>
                         </div>
                         <div className="min-w-0 flex-1 space-y-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-sm">{t.nombre}</span>
-                            {t.numero_fecha != null && (
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0">
-                                Fecha {t.numero_fecha}
-                              </Badge>
-                            )}
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-sm">{t.nombre}</span>
+                              {t.numero_fecha != null && (
+                                <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                                  Fecha {t.numero_fecha}
+                                </Badge>
+                              )}
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 text-[10px] gap-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                              asChild
+                            >
+                              <Link to={`/torneo/${t.id}`}>
+                                Ver muro <ExternalLink className="h-3 w-3" />
+                              </Link>
+                            </Button>
                           </div>
                           {t.sede && (
                             <div className="text-xs text-muted-foreground flex items-center gap-1">

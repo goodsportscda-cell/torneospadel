@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
 import { calcularRankingTorneo } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
@@ -235,19 +235,29 @@ export default function Torneos() {
     }
   };
 
-  // URL dinámica: usa la dirección actual (Vercel) para el link de inscripción
-  const SHARE_BASE_URL = `${window.location.origin}/inscribirse`;
+  // URLs dinámicas
+  const SHARE_INSCRIPCION_URL = `${window.location.origin}/inscribirse`;
+  const SHARE_TORNEO_URL = `${window.location.origin}/torneo`;
 
-  const handleCopiarLink = async (t: any) => {
-    // Si el torneo tiene slug, usamos el slug. 
-    // Si no lo tiene (torneos viejos), lo generamos al vuelo para el link.
+  const handleCopiarLinkInscripcion = async (t: any) => {
     const identificador = t.slug || generateSlug(t.nombre);
-    const url = `${SHARE_BASE_URL}/${identificador}`;
+    const url = `${SHARE_INSCRIPCION_URL}/${identificador}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("Link público copiado");
+      toast.success("Link de inscripción copiado");
     } catch {
-      window.prompt("Copiá el link:", url);
+      window.prompt("Copiá el link de inscripción:", url);
+    }
+  };
+
+  const handleCopiarLinkPublico = async (t: any) => {
+    const identificador = t.slug || generateSlug(t.nombre);
+    const url = `${SHARE_TORNEO_URL}/${identificador}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link del muro (resultados) copiado");
+    } catch {
+      window.prompt("Copiá el link del muro:", url);
     }
   };
 
@@ -577,10 +587,18 @@ export default function Torneos() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleCopiarLink(t)}
-                    title="Copiar link público de inscripción"
+                    onClick={() => handleCopiarLinkInscripcion(t)}
+                    title="Copiar link de inscripción"
                   >
                     <Link2 className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => handleCopiarLinkPublico(t)}
+                    title="Copiar link del muro de resultados"
+                  >
+                    <Globe className="h-3.5 w-3.5" />
                   </Button>
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
