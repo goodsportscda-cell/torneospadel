@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -50,95 +50,71 @@ export default function Zonas() {
   const [activeItem, setActiveItem] = useState<{ id: string; label: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
+  // Cargar datos del torneo seleccionado
+  const cargarDatos = useCallback(async () => {
+    if (!torneoId) return;
+    try {
+      const [{ data: ins }, { data: jugs }, { data: zs }] = await Promise.all([
+        supabase.from("inscripciones").select("*").eq("torneo_id", torneoId),
+        supabase.from("jugadores").select("*"),
+        supabase.from("zonas").select("*").eq("torneo_id", torneoId).order("orden"),
+      ]);
+      setInscripciones((ins ?? []) as Inscripcion[]);
+      setJugadores((jugs ?? []) as Jugador[]);
+      setZonas((zs ?? []) as Zona[]);
+
+      if (zs && zs.length > 0) {
+        const ids = zs.map((z) => z.id);
+        const { data: zp } = await supabase
+          .from("zonas_parejas")
+          .select("id, inscripcion_id, zona_id, posicion_siembra")
+          .in("zona_id", ids);
+        setZonaParejasGlobal(zp ?? []);
+      } else {
+        setZonaParejasGlobal([]);
+      }
+    } catch (error) {
+      console.error("Error al cargar datos:", error);
+    }
+  }, [torneoId]);
+
   // Cargar torneos al inicio
   useEffect(() => {
     const cargar = async () => {
-      const { data: ts } = await supabase
-        .from("torneos")
-        .select("*")
-        .eq("tipo", "oficial")
-        .order("fecha_inicio", { ascending: false });
-      setTorneos((ts ?? []) as Torneo[]);
-      if (ts && ts.length > 0 && !torneoId) {
-        setTorneoId(ts[0].id);
+      try {
+        const { data: ts } = await supabase
+          .from("torneos")
+          .select("*")
+          .eq("tipo", "oficial")
+          .order("fecha_inicio", { ascending: false });
+        setTorneos((ts ?? []) as Torneo[]);
+        if (ts && ts.length > 0 && !torneoId) {
+          setTorneoId(ts[0].id);
+        }
+      } catch (error) {
+        console.error("Error al cargar torneos:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     cargar();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // Cargar datos del torneo seleccionado
-  const cargarDatos = async () => {
-    if (!torneoId) return;
-    const [{ data: ins }, { data: jugs }, { data: zs }] = await Promise.all([
-      supabase.from("inscripciones").select("*").eq("torneo_id", torneoId),
-      supabase.from("jugadores").select("*"),
-      supabase.from("zonas").select("*").eq("torneo_id", torneoId).order("orden"),
-    ]);
-    setInscripciones((ins ?? []) as Inscripcion[]);
-    setJugadores((jugs ?? []) as Jugador[]);
-    setZonas((zs ?? []) as Zona[]);
-
-    if (zs && zs.length > 0) {
-      const ids = zs.map((z) => z.id);
-      const { data: zp } = await supabase
-        .from("zonas_parejas")
-        .select("id, inscripcion_id, zona_id, posicion_siembra")
-        .in("zona_id", ids);
-      setZonaParejasGlobal(zp ?? []);
-    } else {
-      setZonaParejasGlobal([]);
-    }
-  };
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, {
-      activationConstraint: {
-        distance: 5,
-      },
-    }),
-  );
-
-  const onDragStart = (event: DragStartEvent) => {
-    try {
-      const { active } = event;
-      const data = active.data.current as { inscripcionId: string; label?: string } | undefined;
-      console.log("[Zonas] drag start", { id: active.id, data });
-      if (data) {
-        setActiveItem({
-          id: active.id as string,
-          label: data.label || parejaLabel(data.inscripcionId),
-        });
-      }
-    } catch (e) {
-      console.error("[Zonas] Error in onDragStart", e);
-    }
-  };
-
-  const onDragEnd = async (event: DragEndEvent) => {
-    setActiveItem(null);
-    console.log("[Zonas] drag end", {
-      active: event.active?.id,
-      over: event.over?.id,
-      activeData: event.active?.data?.current,
-      overData: event.over?.data?.current,
-    });
-    const res = await handleDropPareja(event, zonaParejasGlobal);
-    if (res.ok) {
-      window.dispatchEvent(new CustomEvent("zonas:changed", { detail: { zonaId: res.zonaId } }));
-      cargarDatos();
-    }
-  };
+  }, [torneoId]);
 
   useEffect(() => {
     cargarDatos();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [torneoId]);
+  }, [cargarDatos]);
+
+  const pointerSensor = useSensor(PointerSensor, {
+    activationConstraint: {
+      distance: 5,
+    },
+  });
+
+  const sensors = useSensors(pointerSensor);
 
   const jugadorMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores]);
 
-  const parejaLabel = (inscripcionId: string): string => {
+  const parejaLabel = useCallback((inscripcionId: string): string => {
     const ins = inscripciones.find((i) => i.id === inscripcionId);
     if (!ins) return "—";
     const j1 = jugadorMap.get(ins.jugador1_id);
@@ -146,7 +122,7 @@ export default function Zonas() {
     const n1 = j1 ? `${j1.apellido}` : "?";
     const n2 = j2 ? `${j2.apellido}` : "?";
     return `${n1} / ${n2}`;
-  };
+  }, [inscripciones, jugadorMap]);
 
   const todasLasParejas: ParejaInscripta[] = useMemo(
     () =>
@@ -154,8 +130,7 @@ export default function Zonas() {
         inscripcion_id: ins.id,
         label: parejaLabel(ins.id),
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [inscripciones, jugadorMap],
+    [inscripciones, parejaLabel],
   );
 
   const idsAsignados = useMemo(
@@ -167,6 +142,26 @@ export default function Zonas() {
     () => todasLasParejas.filter((p) => !idsAsignados.has(p.inscripcion_id)),
     [todasLasParejas, idsAsignados],
   );
+
+  const onDragStart = (event: DragStartEvent) => {
+    const { active } = event;
+    const data = active.data.current as { inscripcionId: string; label?: string } | undefined;
+    if (data) {
+      setActiveItem({
+        id: active.id as string,
+        label: data.label || parejaLabel(data.inscripcionId),
+      });
+    }
+  };
+
+  const onDragEnd = async (event: DragEndEvent) => {
+    setActiveItem(null);
+    const res = await handleDropPareja(event, zonaParejasGlobal);
+    if (res.ok) {
+      window.dispatchEvent(new CustomEvent("zonas:changed", { detail: { zonaId: res.zonaId } }));
+      cargarDatos();
+    }
+  };
 
   const generarZonasAuto = async () => {
     const total = inscripciones.length;
@@ -184,7 +179,6 @@ export default function Zonas() {
     const { error } = await supabase.from("zonas").insert(toInsert);
     if (error) {
       toast.error("Error al crear zonas");
-      console.error(error);
       return;
     }
     toast.success(`${distribucion.length} zonas creadas`);
@@ -225,65 +219,65 @@ export default function Zonas() {
   }
 
   return (
-    <div className="p-4 md:p-6 space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold">Zonas</h1>
-        <p className="text-sm text-muted-foreground">
-          Armado de grupos para la fase clasificatoria.
-        </p>
-      </div>
+    <DndContext
+      sensors={sensors}
+      collisionDetection={closestCenter}
+      onDragStart={onDragStart}
+      onDragEnd={onDragEnd}
+      onDragCancel={() => setActiveItem(null)}
+    >
+      <div className="p-4 md:p-6 space-y-4">
+        <div>
+          <h1 className="text-2xl font-bold">Zonas</h1>
+          <p className="text-sm text-muted-foreground">
+            Armado de grupos para la fase clasificatoria.
+          </p>
+        </div>
 
-      <Card>
-        <CardContent className="p-4 space-y-3">
-          <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
-            <div className="flex-1 space-y-1">
-              <label className="text-xs font-medium text-muted-foreground">Torneo</label>
-              <Select value={torneoId} onValueChange={setTorneoId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Seleccioná un torneo oficial" />
-                </SelectTrigger>
-                <SelectContent>
-                  {torneos.map((t) => (
-                    <SelectItem key={t.id} value={t.id}>
-                      {t.nombre}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <Card>
+          <CardContent className="p-4 space-y-3">
+            <div className="flex flex-col sm:flex-row gap-3 sm:items-end">
+              <div className="flex-1 space-y-1">
+                <label className="text-xs font-medium text-muted-foreground">Torneo</label>
+                <Select value={torneoId} onValueChange={setTorneoId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Seleccioná un torneo oficial" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {torneos.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        {t.nombre}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
-          </div>
 
-          {torneoSeleccionado && (
-            <div className="flex flex-wrap items-center gap-3 text-sm pt-2 border-t">
-              <span>
-                <strong>{inscripciones.length}</strong> parejas inscriptas
-              </span>
-              {inscripciones.length >= 3 && (
-                <span className="text-muted-foreground">
-                  Sugerido: {distribucionSugerida.length} zonas (
-                  {distribucionSugerida.join(" + ")})
+            {torneoSeleccionado && (
+              <div className="flex flex-wrap items-center gap-3 text-sm pt-2 border-t">
+                <span>
+                  <strong>{inscripciones.length}</strong> parejas inscriptas
                 </span>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                {inscripciones.length >= 3 && (
+                  <span className="text-muted-foreground">
+                    Sugerido: {distribucionSugerida.length} zonas (
+                    {distribucionSugerida.join(" + ")})
+                  </span>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
 
-      {torneoId && (
-        <Tabs defaultValue="zonas" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="zonas">Zonas</TabsTrigger>
-            <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
-          </TabsList>
+        {torneoId && (
+          <Tabs defaultValue="zonas" className="space-y-4">
+            <TabsList>
+              <TabsTrigger value="zonas">Zonas</TabsTrigger>
+              <TabsTrigger value="cronograma">Cronograma</TabsTrigger>
+            </TabsList>
 
-          <TabsContent value="zonas" className="space-y-4">
-            <DndContext
-              sensors={sensors}
-              collisionDetection={closestCenter}
-              onDragStart={onDragStart}
-              onDragEnd={onDragEnd}
-              onDragCancel={() => setActiveItem(null)}
-            >
+            <TabsContent value="zonas" className="space-y-4">
               <div className="flex flex-wrap gap-2">
                 {zonas.length === 0 ? (
                   <Button onClick={generarZonasAuto} disabled={inscripciones.length < 3}>
@@ -351,31 +345,31 @@ export default function Zonas() {
                   </CardContent>
                 </Card>
               )}
+            </TabsContent>
 
-              <DragOverlay zIndex={1000}>
-                {activeItem ? (
-                  <div className="flex items-center gap-2 rounded border bg-primary text-primary-foreground px-3 py-2 text-sm shadow-2xl opacity-90 cursor-grabbing pointer-events-none">
-                    <GripVertical className="h-4 w-4" />
-                    <span className="font-medium">{activeItem.label}</span>
-                  </div>
-                ) : null}
-              </DragOverlay>
-            </DndContext>
-          </TabsContent>
+            <TabsContent value="cronograma">
+              <CronogramaPartidos
+                torneoId={torneoId}
+                inscripciones={inscripciones.map((i) => ({
+                  id: i.id,
+                  jugador1_id: i.jugador1_id,
+                  jugador2_id: i.jugador2_id,
+                }))}
+                jugadorMap={jugadorMap}
+              />
+            </TabsContent>
+          </Tabs>
+        )}
+      </div>
 
-          <TabsContent value="cronograma">
-            <CronogramaPartidos
-              torneoId={torneoId}
-              inscripciones={inscripciones.map((i) => ({
-                id: i.id,
-                jugador1_id: i.jugador1_id,
-                jugador2_id: i.jugador2_id,
-              }))}
-              jugadorMap={jugadorMap}
-            />
-          </TabsContent>
-        </Tabs>
-      )}
-    </div>
+      <DragOverlay zIndex={1000}>
+        {activeItem ? (
+          <div className="flex items-center gap-2 rounded border bg-primary text-primary-foreground px-3 py-2 text-sm shadow-2xl opacity-90 cursor-grabbing pointer-events-none">
+            <GripVertical className="h-4 w-4" />
+            <span className="font-medium">{activeItem.label}</span>
+          </div>
+        ) : null}
+      </DragOverlay>
+    </DndContext>
   );
 }
