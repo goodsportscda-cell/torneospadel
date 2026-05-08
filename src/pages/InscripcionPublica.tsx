@@ -41,18 +41,12 @@ export default function InscripcionPublica() {
         return;
       }
       
-      // Intentamos buscar por ID o por Slug
-      // Validamos si es un UUID para evitar errores en la consulta
-      const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(torneoId);
-      
-      let query = supabase.from("torneos").select("*");
-      if (isUUID) {
-        query = query.or(`id.eq.${torneoId},slug.eq.${torneoId}`);
-      } else {
-        query = query.eq("slug", torneoId);
-      }
-      
-      const { data, error } = await query.maybeSingle();
+      // Buscamos solo por ID para evitar el error de cache del slug
+      const { data, error } = await supabase
+        .from("torneos")
+        .select("*")
+        .eq("id", torneoId)
+        .maybeSingle();
       if (error) console.error(error);
       setTorneo(data ?? null);
       setLoading(false);

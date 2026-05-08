@@ -172,7 +172,7 @@ export default function Torneos() {
 
     const payload: any = {
       nombre: form.nombre.trim(),
-      slug,
+      // slug, // Temporalmente deshabilitado por error de cache en Supabase
       tipo: form.tipo,
       categoria_id: form.tipo === "oficial" ? form.categoria_id : null,
       categoria_libre: form.tipo === "americano" ? form.categoria_libre.trim() : null,
@@ -240,24 +240,25 @@ export default function Torneos() {
   const SHARE_TORNEO_URL = `${window.location.origin}/torneo`;
 
   const handleCopiarLinkInscripcion = async (t: any) => {
-    const identificador = t.slug || generateSlug(t.nombre);
+    // Si hay error con el slug, usamos el ID para asegurar que funcione
+    const identificador = t.id; 
     const url = `${SHARE_INSCRIPCION_URL}/${identificador}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("Link de inscripción copiado");
+      toast.success("Link de inscripción (por ID) copiado");
     } catch {
-      window.prompt("Copiá el link de inscripción:", url);
+      window.prompt("Copiá el link:", url);
     }
   };
 
   const handleCopiarLinkPublico = async (t: any) => {
-    const identificador = t.slug || generateSlug(t.nombre);
+    const identificador = t.id;
     const url = `${SHARE_TORNEO_URL}/${identificador}`;
     try {
       await navigator.clipboard.writeText(url);
-      toast.success("Link del muro (resultados) copiado");
+      toast.success("Link del muro (por ID) copiado");
     } catch {
-      window.prompt("Copiá el link del muro:", url);
+      window.prompt("Copiá el link:", url);
     }
   };
 
