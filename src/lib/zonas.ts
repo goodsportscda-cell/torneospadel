@@ -148,7 +148,41 @@ export function calcularTabla(
     difGames: s.gamesAFavor - s.gamesEnContra,
   }));
 
-  // Identificar tiers de bracket para zonas de 4
+  // --- ZONAS DE 4: clasificación por bracket (no por puntos) ---
+  // En formato 1v4 / 2v3 / Ganadores / Perdedores, el resultado del bracket
+  // define la clasificación final. Los puntos no son confiables porque el
+  // ganador de perdedores puede igualar o superar los puntos del perdedor de ganadores.
+  const ganadorMatch = partidos.find((p) => p.tipo === "ganadores");
+  const perdedoresMatch = partidos.find((p) => p.tipo === "perdedores");
+
+  if (ganadorMatch?.ganador_id && perdedoresMatch?.ganador_id) {
+    // Bracket completo → clasificación por resultado de bracket
+    const g1 = ganadorMatch.ganador_id; // 1°
+    const g2 = ganadorMatch.pareja_local_id === g1
+      ? ganadorMatch.pareja_visitante_id
+      : ganadorMatch.pareja_local_id; // 2°
+    const g3 = perdedoresMatch.ganador_id; // 3°
+    const g4 = perdedoresMatch.pareja_local_id === g3
+      ? perdedoresMatch.pareja_visitante_id
+      : perdedoresMatch.pareja_local_id; // 4°
+
+    const bracketRank = new Map<string, number>();
+    if (g1) bracketRank.set(g1, 1);
+    if (g2) bracketRank.set(g2, 2);
+    if (g3) bracketRank.set(g3, 3);
+    if (g4) bracketRank.set(g4, 4);
+
+    arr.sort((a, b) => {
+      const rankA = bracketRank.get(a.inscripcion_id) ?? 99;
+      const rankB = bracketRank.get(b.inscripcion_id) ?? 99;
+      return rankA - rankB;
+    });
+
+    return arr;
+  }
+
+  // --- ZONAS DE 3 o bracket incompleto: clasificación por puntos ---
+  // Identificar tiers intermedios para el desempate mientras no termina el bracket
   const bracketTier = new Map<string, number>();
   partidos.forEach((p) => {
     if (p.tipo === "ganadores") {
@@ -160,11 +194,9 @@ export function calcularTabla(
     }
   });
 
-  // Ordena por: puntos, tier (para zonas de 4), dif sets, dif games, games a favor, head-to-head
   arr.sort((a, b) => {
     if (b.puntos !== a.puntos) return b.puntos - a.puntos;
 
-    // Desempate por bracket (específico para formato de 4 parejas)
     const tierA = bracketTier.get(a.inscripcion_id) || 3;
     const tierB = bracketTier.get(b.inscripcion_id) || 3;
     if (tierA !== tierB) return tierA - tierB;
@@ -172,8 +204,7 @@ export function calcularTabla(
     if (b.difSets !== a.difSets) return b.difSets - a.difSets;
     if (b.difGames !== a.difGames) return b.difGames - a.difGames;
     if (b.gamesAFavor !== a.gamesAFavor) return b.gamesAFavor - a.gamesAFavor;
-    
-    // Head-to-head: buscar partido entre ellos
+
     const partidoDirecto = partidos.find(
       (p) =>
         p.estado === "finalizado" &&
