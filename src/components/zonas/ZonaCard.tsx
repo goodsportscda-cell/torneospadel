@@ -112,24 +112,81 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     cargar();
   }, [cargar]);
 
+  // Generar fixture si no existe
   useEffect(() => {
     if (!partidosCargados || partidos.length > 0 || generandoFixture) return;
+    
     const generar = async () => {
       setGenerandoFixture(true);
-      const fixture = generarFixture(zona.tamanio as 3 | 4);
-      const toInsert = fixture.map((f) => ({
-        zona_id: zona.id,
-        orden: f.orden,
-        tipo: f.tipo,
-        posicion_local: f.posicion_local,
-        posicion_visitante: f.posicion_visitante,
-      }));
-      await supabase.from("partidos_zona").insert(toInsert);
-      setGenerandoFixture(false);
-      cargar();
+      try {
+        const fixture = generarFixture(zona.tamanio as 3 | 4);
+        const inserts = fixture.map(f => ({
+          zona_id: zona.id,
+          orden: f.orden,
+          tipo: f.tipo,
+          posicion_local: f.posicion_local,
+          posicion_visitante: f.posicion_visitante,
+          estado: "pendiente"
+        }));
+        const { error } = await supabase.from("partidos_zona").insert(inserts);
+        if (error) throw error;
+        cargar();
+      } catch (e: any) {
+        toast.error("Error al generar fixture: " + e.message);
+      } finally {
+        setGenerandoFixture(false);
+      }
     };
     generar();
-  }, [zona.id, partidosCargados, partidos.length, generandoFixture, zona.tamanio, cargar]);
+  }, [partidosCargados, partidos.length, zona.id, zona.tamanio, generandoFixture, cargar]);
+
+  // Sincronizar parejas en los partidos según posiciones asignadas
+  useEffect(() => {
+    if (!partidosCargados || partidos.length === 0 || readOnly) return;
+
+    const sync = async () => {
+      let changed = false;
+      for (const p of partidos) {
+        let newLocalId = p.pareja_local_id;
+        let newVisiId = p.pareja_visitante_id;
+
+        if (p.tipo === "directo") {
+          const l = zonaParejas.find(zp => zp.posicion_siembra === p.posicion_local)?.inscripcion_id || null;
+          const v = zonaParejas.find(zp => zp.posicion_siembra === p.posicion_visitante)?.inscripcion_id || null;
+          if (l !== p.pareja_local_id || v !== p.pareja_visitante_id) {
+            newLocalId = l;
+            newVisiId = v;
+            changed = true;
+          }
+        } else if (zona.tamanio === 4 && (p.tipo === "ganadores" || p.tipo === "perdedores")) {
+          const m1 = partidos.find(x => x.orden === 1);
+          const m2 = partidos.find(x => x.orden === 2);
+          if (m1?.estado === "finalizado" && m2?.estado === "finalizado") {
+            if (p.tipo === "ganadores") {
+              newLocalId = m1.ganador_id;
+              newVisiId = m2.ganador_id;
+            } else {
+              newLocalId = m1.ganador_id === m1.pareja_local_id ? m1.pareja_visitante_id : m1.pareja_local_id;
+              newVisiId = m2.ganador_id === m2.pareja_local_id ? m2.pareja_visitante_id : m2.pareja_local_id;
+            }
+            if (newLocalId !== p.pareja_local_id || newVisiId !== p.pareja_visitante_id) {
+              changed = true;
+            }
+          }
+        }
+
+        if (changed) {
+          await supabase.from("partidos_zona").update({
+            pareja_local_id: newLocalId,
+            pareja_visitante_id: newVisiId
+          }).eq("id", p.id);
+        }
+      }
+      if (changed) cargar();
+    };
+
+    sync();
+  }, [zonaParejas, partidos, partidosCargados, readOnly, zona.tamanio, cargar]);
 
   const slotsLlenos = useMemo(() => {
     const map = new Map<number, ZonaPareja>();

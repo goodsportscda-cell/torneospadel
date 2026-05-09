@@ -89,13 +89,27 @@ export default function Zonas() {
   };
 
   const handleUpdateZona = async (id: string, updates: Partial<Zona>) => {
+    const toastId = toast.loading("Actualizando zona...");
     try {
+      // Si cambia el tamaño, borramos los partidos para forzar regeneración
+      if (updates.tamanio !== undefined) {
+        const { data: currentZona } = await supabase.from("zonas").select("tamanio").eq("id", id).maybeSingle();
+        if (currentZona && currentZona.tamanio !== updates.tamanio) {
+          const { data: parts } = await supabase.from("partidos_zona").select("id").eq("zona_id", id);
+          if (parts && parts.length > 0) {
+            const pIds = parts.map(p => p.id);
+            await supabase.from("sets_partido").delete().in("partido_id", pIds);
+            await supabase.from("partidos_zona").delete().in("id", pIds);
+          }
+        }
+      }
+
       const { error } = await supabase.from("zonas").update(updates).eq("id", id);
       if (error) throw error;
-      toast.success("Zona actualizada");
+      toast.success("Zona actualizada", { id: toastId });
       cargarDatos();
     } catch (e: any) {
-      toast.error("Error al actualizar: " + e.message);
+      toast.error("Error al actualizar: " + e.message, { id: toastId });
     }
   };
 
