@@ -373,7 +373,7 @@ export default function Llaves() {
 
   // Recalcula las parejas iniciales (las que dependen de zona) usando el ranking actual.
   // Sólo modifica partidos cuyo ref es de zona (no "G:N") y que NO tengan ganador todavía.
-  const recalcularDesdeZonas = async () => {
+  const recalcularDesdeZonas = useCallback(async (silencioso = false) => {
     if (!llave || partidosLlave.length === 0) return;
     try {
       const updates: Promise<unknown>[] = [];
@@ -409,17 +409,24 @@ export default function Llaves() {
         }
       }
       if (updates.length === 0) {
-        toast.info("Los cruces ya están correctos según los resultados de zona");
+        if (!silencioso) toast.info("Los cruces ya están correctos según los resultados de zona");
         return;
       }
       await Promise.all(updates);
-      toast.success(`${cambios} cruce${cambios === 1 ? "" : "s"} actualizado${cambios === 1 ? "" : "s"} desde zonas`);
+      if (!silencioso) toast.success(`${cambios} cruce${cambios === 1 ? "" : "s"} actualizado${cambios === 1 ? "" : "s"} desde zonas`);
       cargarTodo();
     } catch (e) {
       console.error(e);
-      toast.error("Error al recalcular cruces");
+      if (!silencioso) toast.error("Error al recalcular cruces");
     }
-  };
+  }, [llave, partidosLlave, rankingPorZona, cargarTodo]);
+
+  // Auto-recalcular desde zonas cuando cambia el ranking
+  useEffect(() => {
+    if (llave && partidosLlave.length > 0 && Object.keys(rankingPorZona).length > 0) {
+      recalcularDesdeZonas(true);
+    }
+  }, [rankingPorZona, llave, partidosLlave.length, recalcularDesdeZonas]);
 
   // Agrupar partidos por ronda
   const partidosPorRonda = useMemo(() => {

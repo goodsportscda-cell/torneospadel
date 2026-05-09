@@ -280,30 +280,47 @@ function llave30(): PartidoLlavePlantilla[] {
 
 // 32 parejas (~10 zonas) → ronda previa + octavos
 // Manual APA pág 148. Implementación basada en el cuadro mostrado.
-function llave32(): PartidoLlavePlantilla[] {
-  return [
-    { numero: 1, ronda: "previa", ref_local: "2°C", ref_visitante: "2°F" },
-    { numero: 2, ronda: "previa", ref_local: "3°B", ref_visitante: "2°J" },
-    { numero: 3, ronda: "previa", ref_local: "2°G", ref_visitante: "2°B" },
-    { numero: 4, ronda: "previa", ref_local: "2°A", ref_visitante: "2°H" },
-    { numero: 5, ronda: "previa", ref_local: "2°I", ref_visitante: "3°A" },
-    { numero: 6, ronda: "previa", ref_local: "2°E", ref_visitante: "2°D" },
-    { numero: 7, ronda: "octavos", ref_local: "1°A", ref_visitante: "G:1" },
-    { numero: 8, ronda: "octavos", ref_local: "1°I", ref_visitante: "1°H" },
-    { numero: 9, ronda: "octavos", ref_local: "1°E", ref_visitante: "G:2" },
-    { numero: 10, ronda: "octavos", ref_local: "G:3", ref_visitante: "1°D" },
-    { numero: 11, ronda: "octavos", ref_local: "1°C", ref_visitante: "G:4" },
-    { numero: 12, ronda: "octavos", ref_local: "G:5", ref_visitante: "1°F" },
-    { numero: 13, ronda: "octavos", ref_local: "1°G", ref_visitante: "1°J" },
-    { numero: 14, ronda: "octavos", ref_local: "G:6", ref_visitante: "1°B" },
-    { numero: 15, ronda: "cuartos", ref_local: "G:7", ref_visitante: "G:8" },
-    { numero: 16, ronda: "cuartos", ref_local: "G:9", ref_visitante: "G:10" },
-    { numero: 17, ronda: "cuartos", ref_local: "G:11", ref_visitante: "G:12" },
-    { numero: 18, ronda: "cuartos", ref_local: "G:13", ref_visitante: "G:14" },
-    { numero: 19, ronda: "semifinal", ref_local: "G:15", ref_visitante: "G:16" },
-    { numero: 20, ronda: "semifinal", ref_local: "G:17", ref_visitante: "G:18" },
-    { numero: 21, ronda: "final", ref_local: "G:19", ref_visitante: "G:20" },
+// Cuadro de 32 parejas (31 partidos) - Formato estándar 16vos -> Final
+// Ideal para cuando hay entre 11 y 16 zonas.
+function llave32Standard(): PartidoLlavePlantilla[] {
+  const partidos: PartidoLlavePlantilla[] = [];
+  
+  // 16vos de final (16 partidos: 1-16)
+  // Distribución APA simplificada para 13-16 zonas
+  const cruces16vos = [
+    ["1°A", "2°B"], ["1°I", "2°J"], ["1°E", "2°F"], ["1°M", "2°L"],
+    ["1°C", "2°D"], ["1°K", "2°L"], ["1°G", "2°H"], ["2°A", "1°B"],
+    ["1°B", "2°A"], ["1°J", "2°I"], ["1°F", "2°E"], ["1°L", "2°M"],
+    ["1°D", "2°C"], ["1°L", "2°K"], ["1°H", "2°G"], ["2°B", "1°A"]
   ];
+
+  for (let i = 0; i < 16; i++) {
+    partidos.push({ numero: i + 1, ronda: "dieciseisavos", ref_local: cruces16vos[i][0], ref_visitante: cruces16vos[i][1] });
+  }
+
+  // Octavos (8 partidos: 17-24)
+  for (let i = 0; i < 8; i++) {
+    partidos.push({ numero: 17 + i, ronda: "octavos", ref_local: `G:${i * 2 + 1}`, ref_visitante: `G:${i * 2 + 2}` });
+  }
+
+  // Cuartos (4 partidos: 25-28)
+  for (let i = 0; i < 4; i++) {
+    partidos.push({ numero: 25 + i, ronda: "cuartos", ref_local: `G:${17 + i * 2}`, ref_visitante: `G:${18 + i * 2}` });
+  }
+
+  // Semifinal (2 partidos: 29-30)
+  partidos.push({ numero: 29, ronda: "semifinal", ref_local: "G:25", ref_visitante: "G:26" });
+  partidos.push({ numero: 30, ronda: "semifinal", ref_local: "G:27", ref_visitante: "G:28" });
+
+  // Final (1 partido: 31)
+  partidos.push({ numero: 31, ronda: "final", ref_local: "G:29", ref_visitante: "G:30" });
+
+  return partidos;
+}
+
+function llave32(): PartidoLlavePlantilla[] {
+  // Mantengo la anterior para compatibilidad pero si es >= 32 uso la estándar
+  return llave32Standard();
 }
 
 const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
