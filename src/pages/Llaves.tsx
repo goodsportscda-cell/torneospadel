@@ -206,6 +206,7 @@ export default function Llaves() {
         .filter((p) => p.zona_id === z.id)
         .map<PartidoConSets>((p) => ({
           id: p.id,
+          tipo: p.tipo as any,
           pareja_local_id: p.pareja_local_id,
           pareja_visitante_id: p.pareja_visitante_id,
           ganador_id: p.ganador_id,

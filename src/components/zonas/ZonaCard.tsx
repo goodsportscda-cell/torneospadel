@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -68,10 +69,11 @@ type Props = {
   parejaLabel: (id: string) => string;
   onChanged: () => void;
   onDeleted: () => void;
+  onUpdate?: (updates: Partial<Zona>) => void;
   readOnly?: boolean;
 };
 
-export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, readOnly = false }: Props) {
+export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
@@ -196,18 +198,62 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
       <Card className="overflow-hidden">
         <Collapsible open={isOpen} onOpenChange={setIsOpen}>
           <div className="flex items-center justify-between p-4 border-b bg-muted/30">
-            <CollapsibleTrigger asChild>
-              <button className="flex items-center gap-3 flex-1 text-left">
-                <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
-                <CardTitle className="text-lg">Zona {zona.nombre}</CardTitle>
-              </button>
-            </CollapsibleTrigger>
+            <div className="flex items-center gap-3 flex-1">
+              <CollapsibleTrigger asChild>
+                <button className="flex items-center gap-3 text-left">
+                  <ChevronDown className={`h-4 w-4 transition-transform ${isOpen ? "rotate-180" : ""}`} />
+                  <CardTitle className="text-lg">Zona {zona.nombre}</CardTitle>
+                </button>
+              </CollapsibleTrigger>
+              
+              {!readOnly && onUpdate && (
+                <div className="flex items-center gap-2 ml-4">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold">Orden:</span>
+                    <Input 
+                      type="number" 
+                      value={zona.orden} 
+                      onChange={(e) => onUpdate({ orden: parseInt(e.target.value) || 0 })}
+                      className="w-12 h-7 text-xs px-1"
+                    />
+                  </div>
+                  <Input 
+                    type="text" 
+                    value={zona.nombre} 
+                    onChange={(e) => onUpdate({ nombre: e.target.value })}
+                    className="w-14 h-7 text-xs px-1"
+                    placeholder="Nombre"
+                  />
+                </div>
+              )}
+            </div>
             {!readOnly && (
               <div className="flex gap-1">
                 <Button variant="ghost" size="icon" onClick={descargarImagen} disabled={descargando}>
                   {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
                 </Button>
-                <Button variant="ghost" size="icon" onClick={() => onDeleted()}><Trash2 className="h-4 w-4" /></Button>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="icon">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar esta zona?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se eliminarán todos los partidos y resultados de la zona {zona.nombre}. 
+                        Esta acción no se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={onDeleted} className="bg-destructive text-destructive-foreground">
+                        Eliminar
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               </div>
             )}
           </div>

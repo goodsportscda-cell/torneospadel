@@ -4,8 +4,19 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wand2, Plus, Trash2 } from "lucide-react";
+import { Wand2, Plus, Trash2, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { ZonaCard, type Zona } from "@/components/zonas/ZonaCard";
 import { PanelDisponibles } from "@/components/zonas/PanelDisponibles";
 import { CronogramaPartidos } from "@/components/zonas/CronogramaPartidos";
@@ -53,6 +64,138 @@ export default function Zonas() {
       setError(e.message || "Error cargando datos");
     }
   }, [torneoId]);
+
+  const handleBorrarZona = async (id: string) => {
+    const toastId = toast.loading("Eliminando zona...");
+    try {
+      // 1. Delete sets
+      const { data: parts } = await supabase.from("partidos_zona").select("id").eq("zona_id", id);
+      if (parts && parts.length > 0) {
+        await supabase.from("sets_partido").delete().in("partido_id", parts.map(p => p.id));
+      }
+      // 2. Delete matches
+      await supabase.from("partidos_zona").delete().eq("zona_id", id);
+      // 3. Delete pairings
+      await supabase.from("zonas_parejas").delete().eq("zona_id", id);
+      // 4. Delete zone
+      const { error } = await supabase.from("zonas").delete().eq("id", id);
+      
+      if (error) throw error;
+      toast.success("Zona eliminada", { id: toastId });
+      cargarDatos();
+    } catch (e: any) {
+      toast.error("Error al eliminar zona: " + e.message, { id: toastId });
+    }
+  };
+
+  const handleUpdateZona = async (id: string, updates: Partial<Zona>) => {
+    try {
+      const { error } = await supabase.from("zonas").update(updates).eq("id", id);
+      if (error) throw error;
+      toast.success("Zona actualizada");
+      cargarDatos();
+    } catch (e: any) {
+      toast.error("Error al actualizar: " + e.message);
+    }
+  };
+
+  const handleAddZona = async () => {
+    if (!torneoId) return;
+    try {
+      const nuevoOrden = zonas.length > 0 ? Math.max(...zonas.map(z => z.orden)) + 1 : 0;
+      const { error } = await supabase.from("zonas").insert({
+        torneo_id: torneoId,
+        nombre: nombreZona(zonas.length),
+        tamanio: 3,
+        orden: nuevoOrden,
+      });
+      if (error) throw error;
+      toast.success("Zona añadida");
+      cargarDatos();
+    } catch (e: any) {
+      toast.error("Error al añadir zona: " + e.message);
+    }
+  };
+
+  const handleBorrarTodo = async () => {
+    if (!torneoId) return;
+    const toastId = toast.loading("Borrando todos los datos...");
+    setLoading(true);
+    try {
+      const { data: zs } = await supabase.from("zonas").select("id").eq("torneo_id", torneoId);
+      if (zs && zs.length > 0) {
+        const ids = zs.map(z => z.id);
+        
+        // 1. Delete sets
+        const { data: parts } = await supabase.from("partidos_zona").select("id").in("zona_id", ids);
+        if (parts && parts.length > 0) {
+          await supabase.from("sets_partido").delete().in("partido_id", parts.map(p => p.id));
+        }
+        
+        // 2. Delete matches
+        await supabase.from("partidos_zona").delete().in("zona_id", ids);
+        
+        // 3. Delete pairings
+        await supabase.from("zonas_parejas").delete().in("zona_id", ids);
+        
+        // 4. Delete zones
+        await supabase.from("zonas").delete().eq("torneo_id", torneoId);
+      }
+      
+      toast.success("Datos de zonas eliminados", { id: toastId });
+      cargarDatos();
+    } catch (e: any) {
+      toast.error("Error al borrar datos: " + e.message, { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGenerarZonas = async () => {
+    if (!torneoId) return;
+    const toastId = toast.loading("Generando zonas...");
+    const { data: ins } = await supabase
+      .from("inscripciones")
+      .select("*")
+      .eq("torneo_id", torneoId)
+      .eq("estado", "confirmada");
+
+    if (!ins || ins.length === 0) {
+      toast.error("No hay inscripciones confirmadas para este torneo", { id: toastId });
+      return;
+    }
+
+    if (zonas.length > 0) {
+      toast.error("Ya existen zonas. Borralas primero.", { id: toastId });
+      return;
+    }
+
+    const distribucion = calcularDistribucionZonas(ins.length);
+    if (distribucion.length === 0) {
+      toast.error("Mínimo 3 parejas para armar zonas", { id: toastId });
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const inserts = distribucion.map((tamanio, i) => ({
+        torneo_id: torneoId,
+        nombre: nombreZona(i),
+        tamanio,
+        orden: i,
+      }));
+
+      const { error } = await supabase.from("zonas").insert(inserts);
+      if (error) throw error;
+      
+      toast.success("Zonas generadas!", { id: toastId });
+      cargarDatos();
+    } catch (e: any) {
+      toast.error("Error: " + e.message, { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     const start = async () => {
@@ -139,9 +282,48 @@ export default function Zonas() {
           
           <TabsContent value="zonas" className="space-y-4 pt-4">
             <div className="flex flex-wrap gap-2">
-               {zonas.length > 0 && (
-                 <Button variant="outline" onClick={() => cargarDatos()}>Actualizar</Button>
-               )}
+              <Button variant="outline" size="sm" onClick={() => {
+                const id = toast.loading("Actualizando...");
+                cargarDatos().then(() => toast.success("Datos actualizados", { id }));
+              }}>
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Actualizar
+              </Button>
+
+              <Button variant="secondary" size="sm" onClick={handleAddZona}>
+                <Plus className="h-4 w-4 mr-2" />
+                Añadir Zona
+              </Button>
+
+              {zonas.length === 0 ? (
+                <Button size="sm" onClick={handleGenerarZonas}>
+                  <Wand2 className="h-4 w-4 mr-2" />
+                  Generar Automáticamente
+                </Button>
+              ) : (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" size="sm">
+                      <Trash2 className="h-4 w-4 mr-2" />
+                      Borrar Todo
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Borrar todas las zonas?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Eliminará todas las zonas, partidos y resultados. No se puede deshacer.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleBorrarTodo} className="bg-destructive text-destructive-foreground">
+                        Confirmar Borrado
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
@@ -154,7 +336,8 @@ export default function Zonas() {
                     parejasDisponibles={parejasDisponibles}
                     parejaLabel={parejaLabel}
                     onChanged={cargarDatos}
-                    onDeleted={cargarDatos}
+                    onDeleted={() => handleBorrarZona(z.id)}
+                    onUpdate={(updates) => handleUpdateZona(z.id, updates)}
                   />
                 ))}
               </div>

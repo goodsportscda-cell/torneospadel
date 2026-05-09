@@ -72,6 +72,7 @@ export type StatsPareja = {
 
 export type PartidoConSets = {
   id: string;
+  tipo?: "directo" | "ganadores" | "perdedores";
   pareja_local_id: string | null;
   pareja_visitante_id: string | null;
   ganador_id: string | null;
@@ -147,12 +148,31 @@ export function calcularTabla(
     difGames: s.gamesAFavor - s.gamesEnContra,
   }));
 
-  // Ordena por: puntos, dif sets, dif games, games a favor, head-to-head
+  // Identificar tiers de bracket para zonas de 4
+  const bracketTier = new Map<string, number>();
+  partidos.forEach((p) => {
+    if (p.tipo === "ganadores") {
+      if (p.pareja_local_id) bracketTier.set(p.pareja_local_id, 1);
+      if (p.pareja_visitante_id) bracketTier.set(p.pareja_visitante_id, 1);
+    } else if (p.tipo === "perdedores") {
+      if (p.pareja_local_id) bracketTier.set(p.pareja_local_id, 2);
+      if (p.pareja_visitante_id) bracketTier.set(p.pareja_visitante_id, 2);
+    }
+  });
+
+  // Ordena por: puntos, tier (para zonas de 4), dif sets, dif games, games a favor, head-to-head
   arr.sort((a, b) => {
     if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+
+    // Desempate por bracket (específico para formato de 4 parejas)
+    const tierA = bracketTier.get(a.inscripcion_id) || 3;
+    const tierB = bracketTier.get(b.inscripcion_id) || 3;
+    if (tierA !== tierB) return tierA - tierB;
+
     if (b.difSets !== a.difSets) return b.difSets - a.difSets;
     if (b.difGames !== a.difGames) return b.difGames - a.difGames;
     if (b.gamesAFavor !== a.gamesAFavor) return b.gamesAFavor - a.gamesAFavor;
+    
     // Head-to-head: buscar partido entre ellos
     const partidoDirecto = partidos.find(
       (p) =>
