@@ -678,6 +678,10 @@ export default function Llaves() {
                       fechaHora={p.fecha_hora}
                       cancha={p.cancha}
                       showProgramacion
+                      parejasZona={inscripciones.map((i) => ({
+                        inscripcion_id: i.id,
+                        label: parejaLabel(i.id),
+                      }))}
                     />
                   ))}
                 </div>

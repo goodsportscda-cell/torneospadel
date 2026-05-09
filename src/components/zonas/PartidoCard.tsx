@@ -175,7 +175,7 @@ export function PartidoCard({
     setSavingEquipos(true);
     try {
       const { error } = await supabase
-        .from("partidos_zona")
+        .from(tabla)
         .update({ pareja_local_id: editLocalId, pareja_visitante_id: editVisiId })
         .eq("id", partidoId);
       if (error) throw error;
