@@ -477,6 +477,10 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                   setsExistentes={setsByPartido[p.id] ?? []}
                   onUpdated={cargar}
                   readOnly={readOnly}
+                  parejasZona={zonaParejas.map(zp => ({
+                    inscripcion_id: zp.inscripcion_id,
+                    label: parejaLabel(zp.inscripcion_id),
+                  }))}
                 />
               ))}
             </div>

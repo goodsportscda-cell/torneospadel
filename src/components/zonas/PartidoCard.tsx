@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Trophy, Save, CalendarClock, MapPin } from "lucide-react";
+import { Trophy, Save, CalendarClock, MapPin, Pencil, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -44,6 +44,8 @@ type Props = {
   cancha?: string | null;
   showProgramacion?: boolean;
   readOnly?: boolean;
+  // Parejas de la zona para edición manual de equipos
+  parejasZona?: { inscripcion_id: string; label: string }[];
 };
 
 export function PartidoCard({
@@ -62,6 +64,7 @@ export function PartidoCard({
   cancha,
   showProgramacion = false,
   readOnly = false,
+  parejasZona,
 }: Props) {
   const [sets, setSets] = useState<SetRow[]>([]);
   const [saving, setSaving] = useState(false);
@@ -71,6 +74,10 @@ export function PartidoCard({
   const [progHora, setProgHora] = useState<string>("");
   const [progCancha, setProgCancha] = useState<string>("");
   const [progEstado, setProgEstado] = useState<string>(estado);
+  const [editingEquipos, setEditingEquipos] = useState(false);
+  const [editLocalId, setEditLocalId] = useState<string>("");
+  const [editVisiId, setEditVisiId] = useState<string>("");
+  const [savingEquipos, setSavingEquipos] = useState(false);
 
   useEffect(() => {
     if (setsExistentes.length > 0) {
@@ -142,6 +149,38 @@ export function PartidoCard({
         minute: "2-digit",
       })
     : null;
+
+  const abrirEditorEquipos = () => {
+    setEditLocalId(parejaLocal?.inscripcion_id ?? "");
+    setEditVisiId(parejaVisitante?.inscripcion_id ?? "");
+    setEditingEquipos(true);
+  };
+
+  const guardarEquipos = async () => {
+    if (!editLocalId || !editVisiId) {
+      toast.error("Seleccioná ambas parejas");
+      return;
+    }
+    if (editLocalId === editVisiId) {
+      toast.error("Las dos parejas no pueden ser la misma");
+      return;
+    }
+    setSavingEquipos(true);
+    try {
+      const { error } = await supabase
+        .from("partidos_zona")
+        .update({ pareja_local_id: editLocalId, pareja_visitante_id: editVisiId })
+        .eq("id", partidoId);
+      if (error) throw error;
+      toast.success("Equipos actualizados");
+      setEditingEquipos(false);
+      onUpdated();
+    } catch (e: any) {
+      toast.error("Error: " + e.message);
+    } finally {
+      setSavingEquipos(false);
+    }
+  };
 
   const updateSet = (idx: number, field: "games_local" | "games_visitante", value: string) => {
     const num = parseInt(value, 10);
@@ -254,8 +293,63 @@ export function PartidoCard({
                 {estadoLabel(estado)}
               </Badge>
             )}
+            {/* Botón editar equipos: solo en partidos_zona y no readOnly */}
+            {!readOnly && tabla === "partidos_zona" && parejasZona && parejasZona.length > 0 && (
+              <button
+                onClick={abrirEditorEquipos}
+                title="Editar equipos manualmente"
+                className="ml-1 text-muted-foreground hover:text-primary transition-colors"
+              >
+                <Pencil className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
+
+        {/* Editor manual de equipos */}
+        {editingEquipos && parejasZona && (
+          <div className="rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-blue-800">Editar equipos del partido</p>
+              <button onClick={() => setEditingEquipos(false)} className="text-blue-500 hover:text-blue-800">
+                <X className="h-3 w-3" />
+              </button>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-blue-700 uppercase font-bold">Local</label>
+              <Select value={editLocalId} onValueChange={setEditLocalId}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Seleccionar pareja..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {parejasZona.map(p => (
+                    <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] text-blue-700 uppercase font-bold">Visitante</label>
+              <Select value={editVisiId} onValueChange={setEditVisiId}>
+                <SelectTrigger className="h-8 text-xs">
+                  <SelectValue placeholder="Seleccionar pareja..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {parejasZona.map(p => (
+                    <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>{p.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex gap-2 justify-end pt-1">
+              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingEquipos(false)}>Cancelar</Button>
+              <Button size="sm" className="h-7 text-xs" onClick={guardarEquipos} disabled={savingEquipos}>
+                <Save className="h-3 w-3 mr-1" />
+                Guardar
+              </Button>
+            </div>
+          </div>
+        )}
 
         {showProgramacion && (fechaHoraLabel || cancha) && (
           <div className="flex items-center gap-3 text-xs text-muted-foreground -mt-1">
