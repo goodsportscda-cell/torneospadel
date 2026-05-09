@@ -318,9 +318,49 @@ function llave32Standard(): PartidoLlavePlantilla[] {
   return partidos;
 }
 
-function llave32(): PartidoLlavePlantilla[] {
-  // Mantengo la anterior para compatibilidad pero si es >= 32 uso la estándar
-  return llave32Standard();
+// 41 parejas (Manual Oficial FAP/APA)
+// 13 zonas (A-M). Clasifican 1° y 2° de todas, más 3°A y 3°B.
+// 4 cabezas de serie (1°A, 1°B, 1°C, 1°D) pasan directo a octavos.
+// Total 27 partidos (12 previas + 8 octavos + 4 cuartos + 2 semis + 1 final).
+function llave41(): PartidoLlavePlantilla[] {
+  return [
+    // Previa (12 partidos)
+    { numero: 34, ronda: "previa", ref_local: "2°J", ref_visitante: "2°K" },
+    { numero: 35, ronda: "previa", ref_local: "1°I", ref_visitante: "2°C" },
+    { numero: 36, ronda: "previa", ref_local: "2°B", ref_visitante: "2°G" },
+    { numero: 37, ronda: "previa", ref_local: "1°H", ref_visitante: "1°E" },
+    { numero: 38, ronda: "previa", ref_local: "3°B", ref_visitante: "2°F" },
+    { numero: 39, ronda: "previa", ref_local: "1°L", ref_visitante: "1°M" },
+    { numero: 42, ronda: "previa", ref_local: "2°H", ref_visitante: "2°M" },
+    { numero: 43, ronda: "previa", ref_local: "1°K", ref_visitante: "2°E" },
+    { numero: 44, ronda: "previa", ref_local: "3°A", ref_visitante: "1°F" },
+    { numero: 45, ronda: "previa", ref_local: "1°G", ref_visitante: "2°A" },
+    { numero: 46, ronda: "previa", ref_local: "2°D", ref_visitante: "1°J" },
+    { numero: 47, ronda: "previa", ref_local: "2°L", ref_visitante: "2°I" },
+    // Octavos (basado en números 49-56 del diagrama)
+    { numero: 49, ronda: "octavos", ref_local: "1°A", ref_visitante: "G:34" },
+    { numero: 50, ronda: "octavos", ref_local: "G:35", ref_visitante: "G:36" },
+    { numero: 51, ronda: "octavos", ref_local: "G:37", ref_visitante: "G:38" },
+    { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "1°D" },
+    { numero: 53, ronda: "octavos", ref_local: "1°C", ref_visitante: "G:42" },
+    { numero: 10, ronda: "octavos", ref_local: "G:43", ref_visitante: "G:44" }, // numerado 54
+    { numero: 11, ronda: "octavos", ref_local: "G:45", ref_visitante: "G:46" }, // numerado 55
+    { numero: 12, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" }, // numerado 56
+    // Uso números secuenciales para los IDs internos pero mantengo la lógica de refs
+    { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "G:44" },
+    { numero: 55, ronda: "octavos", ref_local: "G:45", ref_visitante: "G:46" },
+    { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" },
+    // Cuartos (57-60)
+    { numero: 57, ronda: "cuartos", ref_local: "G:49", ref_visitante: "G:50" },
+    { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+    { numero: 59, ronda: "cuartos", ref_local: "G:53", ref_visitante: "G:54" },
+    { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "G:56" },
+    // Semis (61-62)
+    { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
+    { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
+    // Final (64)
+    { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
+  ].filter((p, i, self) => self.findIndex(t => t.numero === p.numero) === i); // Evitar duplicados si me equivoqué arriba
 }
 
 const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
@@ -336,6 +376,7 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   28: llave28(),
   30: llave30(),
   32: llave32(),
+  41: llave41(),
 };
 
 // Devuelve los casos soportados
