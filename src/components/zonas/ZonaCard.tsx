@@ -215,6 +215,10 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
             matchChanged = true;
           }
         } else if (zona.tamanio === 4 && (p.tipo === "ganadores" || p.tipo === "perdedores")) {
+          // Solo auto-completar si el partido está VACÍO (sin equipos asignados)
+          // Si ya tiene equipos (asignados manual o automáticamente), no pisar
+          if (p.pareja_local_id || p.pareja_visitante_id) break;
+
           const m1 = partidos.find(x => x.orden === 1);
           const m2 = partidos.find(x => x.orden === 2);
           if (m1?.estado === "finalizado" && m2?.estado === "finalizado" && m1.ganador_id && m2.ganador_id) {
