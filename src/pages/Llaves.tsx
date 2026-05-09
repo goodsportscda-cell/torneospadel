@@ -421,12 +421,9 @@ export default function Llaves() {
     }
   }, [llave, partidosLlave, rankingPorZona, cargarTodo]);
 
-  // Auto-recalcular desde zonas cuando cambia el ranking
-  useEffect(() => {
-    if (llave && partidosLlave.length > 0 && Object.keys(rankingPorZona).length > 0) {
-      recalcularDesdeZonas(true);
-    }
-  }, [rankingPorZona, llave, partidosLlave.length, recalcularDesdeZonas]);
+  // Se eliminó el auto-recalcular desde zonas automático para evitar que
+  // sobrescriba las ediciones manuales de los cruces de la llave.
+  // El usuario debe usar el botón "Recalcular desde zonas" si desea sincronizar.
 
   // Agrupar partidos por ronda
   const partidosPorRonda = useMemo(() => {
