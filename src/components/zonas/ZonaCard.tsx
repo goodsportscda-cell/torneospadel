@@ -174,6 +174,27 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     }
   };
 
+  // Agrega el partido faltante (para zonas de 4 que solo tienen 3 partidos)
+  const handleAgregarPartidoFaltante = async (tipo: "ganadores" | "perdedores") => {
+    const toastId = toast.loading("Agregando partido...");
+    try {
+      const maxOrden = partidos.reduce((max, p) => Math.max(max, p.orden), 0);
+      const { error } = await supabase.from("partidos_zona").insert({
+        zona_id: zona.id,
+        orden: maxOrden + 1,
+        tipo,
+        posicion_local: null,
+        posicion_visitante: null,
+        estado: "pendiente",
+      });
+      if (error) throw error;
+      toast.success(`Partido "${tipo === "ganadores" ? "Ganadores" : "Perdedores"}" agregado`, { id: toastId });
+      cargar();
+    } catch (e: any) {
+      toast.error("Error: " + e.message, { id: toastId });
+    }
+  };
+
   // Sincronizar parejas en los partidos según posiciones asignadas
   useEffect(() => {
     if (!partidosCargados || partidos.length === 0 || readOnly) return;
@@ -408,6 +429,33 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
 
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase text-muted-foreground">Fixture</p>
+              
+              {/* Aviso si faltan partidos en zona de 4 */}
+              {!readOnly && zona.tamanio === 4 && partidosCargados && partidos.length > 0 && partidos.length < 4 && (() => {
+                const tiposExistentes = partidos.map(p => p.tipo);
+                const faltaGanadores = !tiposExistentes.includes("ganadores");
+                const faltaPerdedores = !tiposExistentes.includes("perdedores");
+                return (
+                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-amber-800">
+                      ⚠️ Zona de 4: faltan {4 - partidos.length} partido{4 - partidos.length > 1 ? "s" : ""}.
+                    </p>
+                    <div className="flex gap-2 flex-wrap">
+                      {faltaGanadores && (
+                        <Button size="sm" variant="outline" className="text-xs h-7 border-amber-400 text-amber-800 hover:bg-amber-100" onClick={() => handleAgregarPartidoFaltante("ganadores")}>
+                          + Agregar partido Ganadores
+                        </Button>
+                      )}
+                      {faltaPerdedores && (
+                        <Button size="sm" variant="outline" className="text-xs h-7 border-amber-400 text-amber-800 hover:bg-amber-100" onClick={() => handleAgregarPartidoFaltante("perdedores")}>
+                          + Agregar partido Perdedores
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {partidos.map(p => (
                 <PartidoCard
                   key={p.id}
