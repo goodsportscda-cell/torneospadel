@@ -140,15 +140,50 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     generar();
   }, [partidosCargados, partidos.length, zona.id, zona.tamanio, generandoFixture, cargar]);
 
+  const handleRegenerarFixture = async () => {
+    const confirm = window.confirm("¿Seguro que quieres regenerar el fixture? Se borrarán todos los partidos y resultados de esta zona.");
+    if (!confirm) return;
+
+    const toastId = toast.loading("Regenerando fixture...");
+    try {
+      // 1. Borrar partidos y sets
+      const { data: parts } = await supabase.from("partidos_zona").select("id").eq("zona_id", zona.id);
+      if (parts && parts.length > 0) {
+        const pIds = parts.map(p => p.id);
+        await supabase.from("sets_partido").delete().in("partido_id", pIds);
+        await supabase.from("partidos_zona").delete().in("id", pIds);
+      }
+      
+      // 2. Generar nuevos
+      const fixture = generarFixture(zona.tamanio as 3 | 4);
+      const inserts = fixture.map(f => ({
+        zona_id: zona.id,
+        orden: f.orden,
+        tipo: f.tipo,
+        posicion_local: f.posicion_local,
+        posicion_visitante: f.posicion_visitante,
+        estado: "pendiente"
+      }));
+      const { error } = await supabase.from("partidos_zona").insert(inserts);
+      if (error) throw error;
+      
+      toast.success("Fixture regenerado", { id: toastId });
+      cargar();
+    } catch (e: any) {
+      toast.error("Error: " + e.message, { id: toastId });
+    }
+  };
+
   // Sincronizar parejas en los partidos según posiciones asignadas
   useEffect(() => {
     if (!partidosCargados || partidos.length === 0 || readOnly) return;
 
     const sync = async () => {
-      let changed = false;
+      let anyChanged = false;
       for (const p of partidos) {
         let newLocalId = p.pareja_local_id;
         let newVisiId = p.pareja_visitante_id;
+        let matchChanged = false;
 
         if (p.tipo === "directo") {
           const l = zonaParejas.find(zp => zp.posicion_siembra === p.posicion_local)?.inscripcion_id || null;
@@ -156,12 +191,12 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           if (l !== p.pareja_local_id || v !== p.pareja_visitante_id) {
             newLocalId = l;
             newVisiId = v;
-            changed = true;
+            matchChanged = true;
           }
         } else if (zona.tamanio === 4 && (p.tipo === "ganadores" || p.tipo === "perdedores")) {
           const m1 = partidos.find(x => x.orden === 1);
           const m2 = partidos.find(x => x.orden === 2);
-          if (m1?.estado === "finalizado" && m2?.estado === "finalizado") {
+          if (m1?.estado === "finalizado" && m2?.estado === "finalizado" && m1.ganador_id && m2.ganador_id) {
             if (p.tipo === "ganadores") {
               newLocalId = m1.ganador_id;
               newVisiId = m2.ganador_id;
@@ -170,19 +205,20 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
               newVisiId = m2.ganador_id === m2.pareja_local_id ? m2.pareja_visitante_id : m2.pareja_local_id;
             }
             if (newLocalId !== p.pareja_local_id || newVisiId !== p.pareja_visitante_id) {
-              changed = true;
+              matchChanged = true;
             }
           }
         }
 
-        if (changed) {
+        if (matchChanged) {
+          anyChanged = true;
           await supabase.from("partidos_zona").update({
             pareja_local_id: newLocalId,
             pareja_visitante_id: newVisiId
           }).eq("id", p.id);
         }
       }
-      if (changed) cargar();
+      if (anyChanged) cargar();
     };
 
     sync();
@@ -300,7 +336,16 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
               )}
             </div>
             {!readOnly && (
-              <div className="flex gap-1">
+              <div className="flex items-center gap-1">
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="h-8 w-8 text-muted-foreground hover:text-primary"
+                  onClick={handleRegenerarFixture}
+                  title="Regenerar Fixture"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </Button>
                 <Button variant="ghost" size="icon" onClick={descargarImagen} disabled={descargando}>
                   {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
                 </Button>
