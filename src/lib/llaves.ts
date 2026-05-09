@@ -322,6 +322,14 @@ function llave32Standard(): PartidoLlavePlantilla[] {
 // 13 zonas (A-M). Clasifican 1° y 2° de todas, más 3°A y 3°B.
 // 4 cabezas de serie (1°A, 1°B, 1°C, 1°D) pasan directo a octavos.
 // Total 27 partidos (12 previas + 8 octavos + 4 cuartos + 2 semis + 1 final).
+function llave32(): PartidoLlavePlantilla[] {
+  return llave32Standard();
+}
+
+// 41 parejas (Manual Oficial FAP/APA)
+// 13 zonas (A-M). Clasifican 1° y 2° de todas, más 3°A y 3°B.
+// 4 cabezas de serie (1°A, 1°B, 1°C, 1°D) pasan directo a octavos.
+// Total 27 partidos (12 previas + 8 octavos + 4 cuartos + 2 semis + 1 final).
 function llave41(): PartidoLlavePlantilla[] {
   return [
     // Previa (12 partidos)
@@ -343,10 +351,6 @@ function llave41(): PartidoLlavePlantilla[] {
     { numero: 51, ronda: "octavos", ref_local: "G:37", ref_visitante: "G:38" },
     { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "1°D" },
     { numero: 53, ronda: "octavos", ref_local: "1°C", ref_visitante: "G:42" },
-    { numero: 10, ronda: "octavos", ref_local: "G:43", ref_visitante: "G:44" }, // numerado 54
-    { numero: 11, ronda: "octavos", ref_local: "G:45", ref_visitante: "G:46" }, // numerado 55
-    { numero: 12, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" }, // numerado 56
-    // Uso números secuenciales para los IDs internos pero mantengo la lógica de refs
     { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "G:44" },
     { numero: 55, ronda: "octavos", ref_local: "G:45", ref_visitante: "G:46" },
     { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" },
@@ -360,7 +364,7 @@ function llave41(): PartidoLlavePlantilla[] {
     { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
     // Final (64)
     { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
-  ].filter((p, i, self) => self.findIndex(t => t.numero === p.numero) === i); // Evitar duplicados si me equivoqué arriba
+  ];
 }
 
 const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
