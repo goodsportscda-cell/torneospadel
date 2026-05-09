@@ -78,6 +78,8 @@ export function PartidoCard({
   const [editLocalId, setEditLocalId] = useState<string>("");
   const [editVisiId, setEditVisiId] = useState<string>("");
   const [savingEquipos, setSavingEquipos] = useState(false);
+  // Selección explícita de ganador (tiene prioridad sobre cálculo por sets)
+  const [ganadorOverride, setGanadorOverride] = useState<string | null>(ganadorId);
 
   useEffect(() => {
     if (setsExistentes.length > 0) {
@@ -89,6 +91,11 @@ export function PartidoCard({
       ]);
     }
   }, [setsExistentes]);
+
+  // Sincronizar ganadorOverride cuando cambia ganadorId desde el padre (ej. al recargar)
+  useEffect(() => {
+    setGanadorOverride(ganadorId);
+  }, [ganadorId]);
 
   // Sincroniza valores de programación cuando llegan del padre
   useEffect(() => {
@@ -212,6 +219,8 @@ export function PartidoCard({
 
   const guardar = async () => {
     if (!parejaLocal || !parejaVisitante) return;
+    // Si no hay override explícito, intentar calcular por sets
+    const ganador = ganadorOverride ?? calcularGanador();
     setSaving(true);
     try {
       const fkColumn = tabla === "partidos_llave" ? "partido_llave_id" : "partido_id";
@@ -230,7 +239,6 @@ export function PartidoCard({
         const { error } = await supabase.from("sets_partido").insert(setsToInsert as never);
         if (error) throw error;
       }
-      const ganador = calcularGanador();
       const { error: updErr } = await supabase
         .from(tabla)
         .update({
@@ -482,6 +490,41 @@ export function PartidoCard({
               </div>
             ) : (
               <>
+                {/* Selector explícito de ganador */}
+                {parejaLocal && parejaVisitante && (
+                  <div className="space-y-1 pb-1">
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold">¿Quién ganó?</p>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setGanadorOverride(
+                          ganadorOverride === parejaLocal.inscripcion_id ? null : parejaLocal.inscripcion_id
+                        )}
+                        className={`flex-1 rounded-md border px-2 py-1 text-xs font-medium transition-all ${
+                          ganadorOverride === parejaLocal.inscripcion_id
+                            ? "bg-green-500 border-green-600 text-white shadow-sm"
+                            : "border-muted-foreground/30 hover:border-green-400 hover:bg-green-50"
+                        }`}
+                      >
+                        🏆 {parejaLocal.label}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGanadorOverride(
+                          ganadorOverride === parejaVisitante.inscripcion_id ? null : parejaVisitante.inscripcion_id
+                        )}
+                        className={`flex-1 rounded-md border px-2 py-1 text-xs font-medium transition-all ${
+                          ganadorOverride === parejaVisitante.inscripcion_id
+                            ? "bg-green-500 border-green-600 text-white shadow-sm"
+                            : "border-muted-foreground/30 hover:border-green-400 hover:bg-green-50"
+                        }`}
+                      >
+                        🏆 {parejaVisitante.label}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {sets.map((s, idx) => (
                   <div key={idx} className="flex items-center gap-2">
                     <span className="text-xs text-muted-foreground w-8">Set {s.numero_set}</span>
