@@ -491,7 +491,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
 
             <div className="space-y-2">
               <p className="text-xs font-bold uppercase text-muted-foreground">Posiciones</p>
-              <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} />
+              <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} zonaId={zona.id} readOnly={readOnly} />
             </div>
           </CollapsibleContent>
         </Collapsible>
@@ -527,7 +527,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         </div>
 
         <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '12px', padding: '10px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', color: '#0f172a' }}>
-            <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} />
+            <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} zonaId={zona.id} readOnly={true} />
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '30px' }}>
