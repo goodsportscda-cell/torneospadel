@@ -224,6 +224,21 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                     className="w-14 h-7 text-xs px-1"
                     placeholder="Nombre"
                   />
+                  <div className="flex items-center gap-1">
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold text-red-500">Tam:</span>
+                    <Select 
+                      value={zona.tamanio.toString()} 
+                      onValueChange={(val) => onUpdate({ tamanio: parseInt(val) })}
+                    >
+                      <SelectTrigger className="w-14 h-7 text-xs px-1 bg-red-50 border-red-200">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="3">3</SelectItem>
+                        <SelectItem value="4">4</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               )}
             </div>
