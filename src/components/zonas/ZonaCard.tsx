@@ -19,7 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2 } from "lucide-react";
+import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2, RefreshCw, Edit2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
