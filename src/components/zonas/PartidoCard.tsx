@@ -301,8 +301,8 @@ export function PartidoCard({
                 {estadoLabel(estado)}
               </Badge>
             )}
-            {/* Botón editar equipos: solo en partidos_zona y no readOnly */}
-            {!readOnly && tabla === "partidos_zona" && parejasZona && parejasZona.length > 0 && (
+            {/* Botón editar equipos: visible cuando hay parejas disponibles y no es readOnly */}
+            {!readOnly && parejasZona && parejasZona.length > 0 && (
               <button
                 onClick={abrirEditorEquipos}
                 title="Editar equipos manualmente"
