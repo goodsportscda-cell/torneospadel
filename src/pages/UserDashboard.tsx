@@ -21,6 +21,8 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
+import { PlayerStats } from "@/components/jugador/PlayerStats";
+import { HeadToHead } from "@/components/jugador/HeadToHead";
 
 type Torneo = {
   id: string;
@@ -348,6 +350,11 @@ export default function UserDashboard() {
               )}
             </div>
 
+            {/* Global Stats */}
+            {jugadorId && (
+              <PlayerStats jugadorId={jugadorId} />
+            )}
+
             {/* My Ranking */}
             {jugadorId && miRanking.length > 0 && (
               <Card>
@@ -411,6 +418,11 @@ export default function UserDashboard() {
                   </ul>
                 </CardContent>
               </Card>
+            )}
+
+            {/* Head to Head */}
+            {jugadorId && (
+              <HeadToHead jugadorId={jugadorId} jugadorNombre={jugadorNombre} />
             )}
 
             {/* Upcoming Tournaments */}
