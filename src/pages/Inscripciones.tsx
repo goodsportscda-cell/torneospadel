@@ -441,10 +441,22 @@ export default function Inscripciones() {
                         <p className="font-semibold text-sm truncate">
                           {jugadorLabel(i.jugador1_id)}
                         </p>
+                        {jugadorMap.get(i.jugador1_id)?.club && (
+                          <span className="text-[10px] text-muted-foreground truncate border rounded px-1 max-w-[80px]">
+                            {jugadorMap.get(i.jugador1_id)?.club}
+                          </span>
+                        )}
                       </div>
-                      <p className="font-semibold text-sm truncate ml-5">
-                        {jugadorLabel(i.jugador2_id)}
-                      </p>
+                      <div className="flex items-center gap-1.5 mt-0.5 ml-5">
+                        <p className="font-semibold text-sm truncate">
+                          {jugadorLabel(i.jugador2_id)}
+                        </p>
+                        {jugadorMap.get(i.jugador2_id)?.club && (
+                          <span className="text-[10px] text-muted-foreground truncate border rounded px-1 max-w-[80px]">
+                            {jugadorMap.get(i.jugador2_id)?.club}
+                          </span>
+                        )}
+                      </div>
                     </div>
                     <div className="flex flex-col items-end gap-1 shrink-0">
                       <Badge variant={PAGO_VARIANT[i.estado_pago]}>
