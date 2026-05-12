@@ -383,23 +383,170 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   41: llave41(),
 };
 
-// Devuelve los casos soportados
+// Devuelve los casos soportados por defecto
 export const CASOS_SOPORTADOS = Object.keys(PLANTILLAS).map(Number).sort((a, b) => a - b);
 
-// Encuentra la plantilla más cercana hacia abajo (si hay 13 parejas, usa 12; si hay 18, usa 16)
+export function generarCuadroGenerico(totalParejas: number): PartidoLlavePlantilla[] {
+  const Z = Math.floor(totalParejas / 3);
+  const zonesOf4 = totalParejas % 3;
+  
+  function getZoneName(index: number): string {
+    let name = "";
+    let i = index;
+    while (i >= 0) {
+      name = String.fromCharCode(65 + (i % 26)) + name;
+      i = Math.floor(i / 26) - 1;
+    }
+    return name;
+  }
+  
+  const firsts: string[] = [];
+  const seconds: string[] = [];
+  const thirds: string[] = [];
+  
+  for(let i=0; i<Z; i++) {
+    const zName = getZoneName(i);
+    firsts.push(`1°${zName}`);
+    seconds.push(`2°${zName}`);
+    if (i < zonesOf4) {
+      thirds.push(`3°${zName}`);
+    }
+  }
+  
+  if (seconds.length > 1) {
+    const shift = Math.floor(seconds.length / 2);
+    const spliced = seconds.splice(0, shift);
+    seconds.push(...spliced);
+  }
+  if (thirds.length > 1) {
+    thirds.unshift(thirds.pop()!);
+  }
+  
+  const seeds = [...firsts, ...seconds, ...thirds];
+  const Q = seeds.length;
+  
+  let N = 2;
+  while (N < Q) N *= 2;
+  
+  let rounds = [1, 2];
+  for (let i = 4; i <= N; i *= 2) {
+      let nextRounds = [];
+      for (let j = 0; j < rounds.length; j++) {
+          nextRounds.push(rounds[j]);
+          nextRounds.push(i + 1 - rounds[j]);
+      }
+      rounds = nextRounds;
+  }
+  
+  const partidos: PartidoLlavePlantilla[] = [];
+  let numPartido = 1;
+  let currentRefs: string[] = [];
+  
+  const standardRoundNames: RondaLlave[] = ["final", "semifinal", "cuartos", "octavos", "dieciseisavos", "previa"];
+  let numRounds = Math.log2(N);
+  let currentLevelRoundNameIndex = numRounds - 1;
+  
+  for (let i = 0; i < N; i += 2) {
+    const seedLocal = rounds[i];
+    const seedVisi = rounds[i+1];
+    
+    const localEsBye = seedLocal > Q;
+    const visiEsBye = seedVisi > Q;
+    
+    if (localEsBye && visiEsBye) {
+        currentRefs.push("BYE");
+    } else if (visiEsBye) {
+        currentRefs.push(seeds[seedLocal - 1]);
+    } else if (localEsBye) {
+        currentRefs.push(seeds[seedVisi - 1]);
+    } else {
+        const ronda = standardRoundNames[currentLevelRoundNameIndex] || "previa";
+        const p: PartidoLlavePlantilla = {
+            numero: numPartido++,
+            ronda: ronda as RondaLlave,
+            ref_local: seeds[seedLocal - 1],
+            ref_visitante: seeds[seedVisi - 1]
+        };
+        partidos.push(p);
+        currentRefs.push(`G:${p.numero}`);
+    }
+  }
+  
+  const firstRoundMatches = partidos.filter(p => !p.ref_local.startsWith("G:") && !p.ref_visitante.startsWith("G:"));
+  for (let i = 0; i < firstRoundMatches.length; i++) {
+     const p = firstRoundMatches[i];
+     if (p.ref_local !== "BYE" && p.ref_visitante !== "BYE") {
+         const localZone = p.ref_local.match(/°([A-Z]+)/)?.[1];
+         const visiZone = p.ref_visitante.match(/°([A-Z]+)/)?.[1];
+         if (localZone && visiZone && localZone === visiZone) {
+             for (let j = 0; j < firstRoundMatches.length; j++) {
+                 if (i === j) continue;
+                 const p2 = firstRoundMatches[j];
+                 if (p2.ref_local !== "BYE" && p2.ref_visitante !== "BYE") {
+                     const l2Zone = p2.ref_local.match(/°([A-Z]+)/)?.[1];
+                     const v2Zone = p2.ref_visitante.match(/°([A-Z]+)/)?.[1];
+                     if (localZone !== v2Zone && l2Zone !== visiZone) {
+                         const temp = p.ref_visitante;
+                         p.ref_visitante = p2.ref_visitante;
+                         p2.ref_visitante = temp;
+                         break;
+                     }
+                 }
+             }
+         }
+     }
+  }
+  
+  let nodesInCurrentRound = N / 2;
+  currentLevelRoundNameIndex--;
+  
+  while (nodesInCurrentRound > 1) {
+      const nextRefs: string[] = [];
+      const rondaActual = standardRoundNames[currentLevelRoundNameIndex] || "previa";
+      
+      for (let i = 0; i < nodesInCurrentRound; i += 2) {
+          const local = currentRefs[i];
+          const visi = currentRefs[i+1];
+          
+          if (local === "BYE" && visi === "BYE") {
+              nextRefs.push("BYE");
+          } else if (visi === "BYE") {
+              nextRefs.push(local);
+          } else if (local === "BYE") {
+              nextRefs.push(visi);
+          } else {
+              const p: PartidoLlavePlantilla = {
+                  numero: numPartido++,
+                  ronda: rondaActual as RondaLlave,
+                  ref_local: local,
+                  ref_visitante: visi
+              };
+              partidos.push(p);
+              nextRefs.push(`G:${p.numero}`);
+          }
+      }
+      currentRefs = nextRefs;
+      nodesInCurrentRound /= 2;
+      currentLevelRoundNameIndex--;
+  }
+  
+  return partidos;
+}
+
+// Encuentra la plantilla exacta o genera el cuadro dinámicamente según manual APA
 export function obtenerPlantilla(totalParejas: number): {
   cantidad: number;
   partidos: PartidoLlavePlantilla[];
 } | null {
-  // Buscamos exact match primero
+  if (totalParejas < 6) return null;
+  
+  // Buscamos exact match primero (para respetar estructuras especiales)
   if (PLANTILLAS[totalParejas]) {
     return { cantidad: totalParejas, partidos: PLANTILLAS[totalParejas] };
   }
-  // Buscamos la mayor cantidad ≤ totalParejas
-  const candidatos = CASOS_SOPORTADOS.filter((n) => n <= totalParejas);
-  if (candidatos.length === 0) return null;
-  const cantidad = Math.max(...candidatos);
-  return { cantidad, partidos: PLANTILLAS[cantidad] };
+  
+  // Generamos el cuadro dinámicamente para cualquier otra cantidad
+  return { cantidad: totalParejas, partidos: generarCuadroGenerico(totalParejas) };
 }
 
 // Resuelve referencia a inscripcion_id real, dado el ranking de clasificados por zona

@@ -453,6 +453,21 @@ export default function Inscripciones() {
                     </div>
                   </div>
 
+                  {i.disponibilidad_horaria && (
+                    <div className="flex items-start gap-1.5 mt-2">
+                      <Clock className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
+                      <p className="text-xs text-muted-foreground line-clamp-2" title={i.disponibilidad_horaria}>
+                        <span className="font-medium text-foreground">Disponibilidad:</span> {i.disponibilidad_horaria}
+                      </p>
+                    </div>
+                  )}
+
+                  {i.notas && (
+                    <div className="mt-1 bg-muted/30 p-2 rounded text-xs text-muted-foreground italic border border-muted">
+                      "{i.notas}"
+                    </div>
+                  )}
+
                   {(i.monto_pagado ?? 0) > 0 && (
                     <p className="text-xs text-muted-foreground">
                       Pagado: ${Number(i.monto_pagado).toLocaleString("es-AR")}
