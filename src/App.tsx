@@ -24,6 +24,7 @@ import Master from "./pages/Master.tsx";
 import InscripcionPublica from "./pages/InscripcionPublica.tsx";
 import TorneoPublico from "./pages/TorneoPublico.tsx";
 import RankingPublico from "./pages/RankingPublico.tsx";
+import CanchasEnVivo from "./pages/CanchasEnVivo.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -66,6 +67,7 @@ const App = () => (
               <Route path="/torneos" element={<Torneos />} />
               <Route path="/inscripciones" element={<Inscripciones />} />
               <Route path="/zonas" element={<Zonas />} />
+              <Route path="/canchas-en-vivo" element={<CanchasEnVivo />} />
               <Route path="/importar" element={<Importar />} />
               <Route path="/llaves" element={<Llaves />} />
               <Route path="/posiciones" element={<Posiciones />} />

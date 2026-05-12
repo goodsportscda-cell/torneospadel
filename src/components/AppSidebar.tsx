@@ -1,4 +1,4 @@
-import { Users, Calendar, Trophy, ClipboardList, LayoutGrid, Upload, GitBranch, BarChart3, Award, Star } from "lucide-react";
+import { Users, Calendar, Trophy, ClipboardList, LayoutGrid, Upload, GitBranch, BarChart3, Award, Star, Activity } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -20,6 +20,7 @@ const items = [
   { title: "Torneos", url: "/torneos", icon: Trophy },
   { title: "Inscripciones", url: "/inscripciones", icon: ClipboardList },
   { title: "Zonas", url: "/zonas", icon: LayoutGrid },
+  { title: "Canchas en vivo", url: "/canchas-en-vivo", icon: Activity },
   { title: "Importar inscriptos", url: "/importar", icon: Upload },
   { title: "Llaves", url: "/llaves", icon: GitBranch },
   { title: "Posiciones", url: "/posiciones", icon: BarChart3 },
