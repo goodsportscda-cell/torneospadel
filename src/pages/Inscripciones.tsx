@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/Combobox";
-import { Plus, Pencil, Trash2, Users, CheckCircle2, Clock, Hourglass } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, CheckCircle2, Clock, Hourglass, Copy } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -247,6 +247,35 @@ export default function Inscripciones() {
 
   const noHayDatos = torneos.length === 0 || jugadores.length === 0;
 
+  const copiarLista = () => {
+    if (filtered.length === 0) {
+      toast.error("No hay inscripciones para copiar");
+      return;
+    }
+
+    let texto = "";
+    if (filtroTorneo !== "todos") {
+      const torneo = torneoMap.get(filtroTorneo);
+      if (torneo) texto += `🏆 *${torneo.nombre}*\n`;
+    } else {
+      texto += `📋 *Lista de Inscriptos*\n`;
+    }
+    
+    texto += `Total: ${filtered.length} parejas\n\n`;
+
+    filtered.forEach((i, index) => {
+      const j1 = jugadorMap.get(i.jugador1_id);
+      const j2 = jugadorMap.get(i.jugador2_id);
+      const n1 = j1 ? `${j1.apellido} ${j1.nombre}` : "—";
+      const n2 = j2 ? `${j2.apellido} ${j2.nombre}` : "—";
+      texto += `${index + 1}. ${n1} / ${n2}\n`;
+    });
+
+    navigator.clipboard.writeText(texto)
+      .then(() => toast.success("Lista copiada al portapapeles"))
+      .catch(() => toast.error("Error al copiar al portapapeles"));
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex items-start justify-between gap-2 flex-wrap">
@@ -256,13 +285,18 @@ export default function Inscripciones() {
             {inscripciones.length} {inscripciones.length === 1 ? "pareja inscripta" : "parejas inscriptas"}.
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openCreate} disabled={noHayDatos}>
-              <Plus className="h-4 w-4" />
-              Nueva inscripción
-            </Button>
-          </DialogTrigger>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={copiarLista} disabled={filtered.length === 0}>
+            <Copy className="h-4 w-4" />
+            Copiar Lista
+          </Button>
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openCreate} disabled={noHayDatos}>
+                <Plus className="h-4 w-4" />
+                Nueva inscripción
+              </Button>
+            </DialogTrigger>
           <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>{editing ? "Editar inscripción" : "Nueva inscripción"}</DialogTitle>
