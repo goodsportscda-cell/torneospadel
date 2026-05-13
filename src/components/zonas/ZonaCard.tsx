@@ -129,7 +129,13 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           estado: "pendiente"
         }));
         const { error } = await supabase.from("partidos_zona").insert(inserts);
-        if (error) throw error;
+        if (error) {
+          if (error.code === '23505') {
+            // Ignorar error de duplicado (se generó en otro render/request simultáneo)
+          } else {
+            throw error;
+          }
+        }
         cargar();
       } catch (e: any) {
         toast.error("Error al generar fixture: " + e.message);
