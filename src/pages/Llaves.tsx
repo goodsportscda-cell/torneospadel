@@ -85,6 +85,7 @@ export default function Llaves() {
 
   const [llave, setLlave] = useState<Llave | null>(null);
   const [partidosLlave, setPartidosLlave] = useState<PartidoLlaveRow[]>([]);
+  const [autoAvance, setAutoAvance] = useState(true);
   const [setsLlave, setSetsLlave] = useState<
     Record<string, { numero_set: number; games_local: number; games_visitante: number }[]>
   >({});
@@ -336,6 +337,7 @@ export default function Llaves() {
 
   // Avanza ganadores cuando cambia el estado
   useEffect(() => {
+    if (!autoAvance) return;
     const sync = async () => {
       const updates: Promise<unknown>[] = [];
       for (const p of partidosLlave) {
@@ -362,7 +364,7 @@ export default function Llaves() {
     };
     if (partidosLlave.length > 0) sync();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [partidosLlave]);
+  }, [partidosLlave, autoAvance]);
 
   const eliminarLlave = async () => {
     if (!llave) return;
@@ -595,7 +597,19 @@ export default function Llaves() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" size="sm" onClick={recalcularDesdeZonas}>
+              <div className="flex items-center gap-2 mr-4 bg-muted/30 px-3 py-1.5 rounded-md border">
+                <input
+                  type="checkbox"
+                  id="autoAvance"
+                  checked={autoAvance}
+                  onChange={(e) => setAutoAvance(e.target.checked)}
+                  className="rounded border-gray-300 text-primary focus:ring-primary h-4 w-4"
+                />
+                <label htmlFor="autoAvance" className="text-sm font-medium cursor-pointer" title="Si se desactiva, el sistema no empujará automáticamente a los ganadores a la siguiente ronda (útil para hacer correcciones manuales)">
+                  Auto-avance de ganadores
+                </label>
+              </div>
+              <Button variant="outline" size="sm" onClick={() => recalcularDesdeZonas(false)}>
                 <Sparkles className="h-4 w-4 mr-1" />
                 Recalcular desde zonas
               </Button>
