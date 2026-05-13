@@ -486,6 +486,9 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                   ganadorId={p.ganador_id}
                   setsExistentes={setsByPartido[p.id] ?? []}
                   onUpdated={cargar}
+                  fechaHora={p.fecha_hora}
+                  cancha={p.cancha}
+                  showProgramacion
                   readOnly={readOnly}
                   parejasZona={zonaParejas.map(zp => ({
                     inscripcion_id: zp.inscripcion_id,
