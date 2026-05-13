@@ -391,6 +391,7 @@ export default function Inscripciones() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {noHayDatos && (
