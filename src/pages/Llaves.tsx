@@ -198,6 +198,14 @@ export default function Llaves() {
     [inscripciones],
   );
 
+  const formatRefLabel = useCallback((ref: string | null) => {
+    if (!ref) return "— por definir —";
+    const parsed = parseRef(ref);
+    if (parsed.tipo === "clasificado") return `${parsed.posicion}° Zona ${parsed.zona}`;
+    if (parsed.tipo === "ganador") return `Ganador P${parsed.numeroPartido}`;
+    return `(${ref})`;
+  }, []);
+
   // Calcula ranking por zona usando los resultados actuales
   const rankingPorZona = useMemo(() => {
     const map: Record<string, string[]> = {};
@@ -311,21 +319,24 @@ export default function Llaves() {
       await Promise.all(updates);
 
       // Resolver refs a clasificados de zona y rellenar parejas iniciales
-      const ganadoresMap: Record<number, string | null> = {};
-      const rellenoUpdates: Promise<unknown>[] = [];
-      for (const p of plantilla.partidos) {
-        const local = resolverRef(p.ref_local, rankingPorZona, ganadoresMap);
-        const visi = resolverRef(p.ref_visitante, rankingPorZona, ganadoresMap);
-        rellenoUpdates.push(
-          Promise.resolve(
-            supabase
-              .from("partidos_llave")
-              .update({ pareja_local_id: local, pareja_visitante_id: visi })
-              .eq("id", numeroToId.get(p.numero)!),
-          ),
-        );
+      // Sólo si las zonas están terminadas. Si no, se queda en blanco mostrando "1° Zona A"
+      if (todasZonasFinalizadas) {
+        const ganadoresMap: Record<number, string | null> = {};
+        const rellenoUpdates: Promise<unknown>[] = [];
+        for (const p of plantilla.partidos) {
+          const local = resolverRef(p.ref_local, rankingPorZona, ganadoresMap);
+          const visi = resolverRef(p.ref_visitante, rankingPorZona, ganadoresMap);
+          rellenoUpdates.push(
+            Promise.resolve(
+              supabase
+                .from("partidos_llave")
+                .update({ pareja_local_id: local, pareja_visitante_id: visi })
+                .eq("id", numeroToId.get(p.numero)!),
+            ),
+          );
+        }
+        await Promise.all(rellenoUpdates);
       }
-      await Promise.all(rellenoUpdates);
 
       toast.success(`Cuadro de ${plantilla.cantidad} parejas generado`);
       cargarTodo();
@@ -663,7 +674,7 @@ export default function Llaves() {
                             ? {
                                 inscripcion_id: "",
                                 posicion_siembra: 0,
-                                label: `(${p.ref_local})`,
+                                label: formatRefLabel(p.ref_local),
                               }
                             : null
                       }
@@ -678,7 +689,7 @@ export default function Llaves() {
                             ? {
                                 inscripcion_id: "",
                                 posicion_siembra: 0,
-                                label: `(${p.ref_visitante})`,
+                                label: formatRefLabel(p.ref_visitante),
                               }
                             : null
                       }
