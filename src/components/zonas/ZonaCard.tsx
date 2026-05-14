@@ -285,11 +285,9 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     setDescargando(true);
     try {
       const canvas = await html2canvas(storyRef.current, {
-        scale: 3,
+        scale: 2, // Scale 2 is enough for high-res 1080x1920 since base is 540x960
         useCORS: true,
-        backgroundColor: "#ffffff",
-        width: 450,
-        height: 800,
+        backgroundColor: "#09090b",
       });
       const link = document.createElement("a");
       link.download = `Historia-Zona-${zona.nombre}.png`;
