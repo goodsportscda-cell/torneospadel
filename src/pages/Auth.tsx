@@ -44,7 +44,7 @@ export default function Auth() {
       email,
       password,
       options: {
-        emailRedirectTo: `${window.location.origin}/`,
+        emailRedirectTo: `https://torneospadel-sigma.vercel.app`,
         data: { display_name: displayName || email.split("@")[0] },
       },
     });
@@ -111,7 +111,7 @@ export default function Auth() {
                     if (!email) return toast.error("Ingresa tu email primero para recuperar la contraseña");
                     setLoading(true);
                     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                      redirectTo: window.location.origin,
+                      redirectTo: "https://torneospadel-sigma.vercel.app",
                     });
                     setLoading(false);
                     if (error) toast.error(error.message);
