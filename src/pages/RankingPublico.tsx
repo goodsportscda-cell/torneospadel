@@ -215,10 +215,28 @@ export default function RankingPublico() {
       </header>
 
       <main className="max-w-4xl mx-auto px-4 py-6 space-y-6">
-        <div className="space-y-1">
-          <h2 className="text-3xl font-extrabold tracking-tight">Ranking {filtroAnio}</h2>
-          <p className="text-sm text-muted-foreground">Anita Quiroga — Gestión de Torneos</p>
-        </div>
+        {/* Hero Section */}
+        <section className="relative overflow-hidden rounded-3xl border dark:border-primary/20 bg-gradient-to-br from-primary/10 dark:from-primary/20 via-background to-background p-6 sm:p-10 shadow-sm mb-6 mt-2">
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 h-48 w-48 rounded-full bg-primary/20 dark:bg-primary/30 blur-3xl pointer-events-none"></div>
+          <div className="relative z-10 space-y-4">
+            <div className="flex items-center gap-2">
+              <Badge variant="default" className="bg-primary/20 text-primary dark:bg-primary/30 dark:text-primary-foreground hover:bg-primary/30 border-none px-3 py-1 text-[10px] uppercase tracking-widest font-black">
+                Oficial
+              </Badge>
+              <Badge variant="outline" className="border-primary/20 dark:border-primary/40 px-3 py-1 text-[10px] uppercase font-bold shadow-sm">
+                Temporada {filtroAnio}
+              </Badge>
+            </div>
+            
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter bg-gradient-to-br from-foreground to-muted-foreground dark:from-foreground dark:to-foreground/60 bg-clip-text text-transparent pb-1">
+              Ranking General
+            </h2>
+            
+            <p className="text-sm font-medium text-muted-foreground pt-1 max-w-lg">
+              Tabla de posiciones oficial del circuito. Los mejores jugadores de cada categoría clasificarán al Master de fin de año.
+            </p>
+          </div>
+        </section>
 
         {/* Filters */}
         <div className="grid gap-4 p-4 rounded-xl border bg-muted/20 sm:grid-cols-3">
@@ -271,14 +289,14 @@ export default function RankingPublico() {
         </div>
 
         {cupoActual !== null && (
-          <div className="flex items-center gap-3 p-4 rounded-xl border border-primary/20 bg-primary/5 text-sm animate-in fade-in slide-in-from-top-1">
-            <div className="bg-primary/10 p-2 rounded-full">
-              <Award className="h-5 w-5 text-primary" />
+          <div className="flex items-center gap-4 p-5 rounded-2xl border dark:border-primary/20 bg-gradient-to-r from-primary/10 to-transparent text-sm animate-in fade-in slide-in-from-top-1 mb-2">
+            <div className="bg-primary p-2.5 rounded-xl shadow-lg shadow-primary/20">
+              <Award className="h-6 w-6 text-primary-foreground" />
             </div>
             <div>
-              <p className="font-bold">Carrera al Master</p>
-              <p className="text-muted-foreground text-xs">
-                Clasifican los mejores <span className="text-primary font-bold">{cupoActual}</span> jugadores de esta categoría.
+              <p className="font-bold text-base">Carrera al Master</p>
+              <p className="text-muted-foreground text-xs mt-0.5">
+                Clasifican los mejores <span className="text-primary font-black text-sm">{cupoActual}</span> jugadores de la temporada.
               </p>
             </div>
           </div>
