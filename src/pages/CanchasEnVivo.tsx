@@ -66,50 +66,69 @@ export default function CanchasEnVivo() {
     if (!torneoId) return;
     setLoading(true);
     try {
+      const torneoIds = torneoId === "todos" ? torneos.map(t => t.id) : [torneoId];
+      if (torneoIds.length === 0) {
+        setPartidos([]);
+        setLoading(false);
+        return;
+      }
+
       const [{ data: ins }, { data: jugs }] = await Promise.all([
-        supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").eq("torneo_id", torneoId),
+        supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds),
         supabase.from("jugadores").select("id, nombre, apellido"),
       ]);
       setInscripciones((ins ?? []) as Inscripcion[]);
       setJugadores((jugs ?? []) as Jugador[]);
 
-      const { data: zs } = await supabase.from("zonas").select("id, nombre").eq("torneo_id", torneoId);
-      const { data: lls } = await supabase.from("llaves").select("id, tamanio_cuadro").eq("torneo_id", torneoId);
+      const { data: zs } = await supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds);
+      const { data: lls } = await supabase.from("llaves").select("id, tamanio_cuadro, torneo_id").in("torneo_id", torneoIds);
 
+      const tMap = new Map(torneos.map(t => [t.id, t.nombre]));
       let partsArr: Partido[] = [];
 
       if (zs && zs.length > 0) {
-        const zMap = new Map(zs.map(z => [z.id, z.nombre]));
+        const zMap = new Map(zs.map(z => [z.id, { nombre: z.nombre, torneo_id: z.torneo_id }]));
         const { data: pz } = await supabase.from("partidos_zona").select("*").in("zona_id", zs.map(z => z.id));
         if (pz) {
-          partsArr = partsArr.concat(pz.map(p => ({
-            id: p.id,
-            origen: "zona",
-            faseNombre: zMap.get(p.zona_id) || "Zona",
-            pareja_local_id: p.pareja_local_id,
-            pareja_visitante_id: p.pareja_visitante_id,
-            estado: p.estado,
-            cancha: p.cancha,
-            fecha_hora: p.fecha_hora,
-            ganador_id: p.ganador_id
-          })));
+          partsArr = partsArr.concat(pz.map(p => {
+            const zInfo = zMap.get(p.zona_id);
+            const tNombre = zInfo ? tMap.get(zInfo.torneo_id) : "";
+            const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
+            return {
+              id: p.id,
+              origen: "zona",
+              faseNombre: `${prefix}${zInfo?.nombre || "Zona"}`,
+              pareja_local_id: p.pareja_local_id,
+              pareja_visitante_id: p.pareja_visitante_id,
+              estado: p.estado,
+              cancha: p.cancha,
+              fecha_hora: p.fecha_hora,
+              ganador_id: p.ganador_id
+            };
+          }));
         }
       }
 
       if (lls && lls.length > 0) {
+        const llMap = new Map(lls.map(l => [l.id, l.torneo_id]));
         const { data: pl } = await supabase.from("partidos_llave").select("*").in("llave_id", lls.map(l => l.id));
         if (pl) {
-          partsArr = partsArr.concat(pl.map(p => ({
-            id: p.id,
-            origen: "llave",
-            faseNombre: p.ronda,
-            pareja_local_id: p.pareja_local_id,
-            pareja_visitante_id: p.pareja_visitante_id,
-            estado: p.estado,
-            cancha: p.cancha,
-            fecha_hora: p.fecha_hora,
-            ganador_id: p.ganador_id
-          })));
+          partsArr = partsArr.concat(pl.map(p => {
+            const tId = llMap.get(p.llave_id);
+            const tNombre = tId ? tMap.get(tId) : "";
+            const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
+            return {
+              id: p.id,
+              origen: "llave",
+              faseNombre: `${prefix}${p.ronda}`,
+              pareja_local_id: p.pareja_local_id,
+              pareja_visitante_id: p.pareja_visitante_id,
+              estado: p.estado,
+              cancha: p.cancha,
+              fecha_hora: p.fecha_hora,
+              ganador_id: p.ganador_id
+            };
+          }));
         }
       }
 
@@ -123,7 +142,7 @@ export default function CanchasEnVivo() {
 
   useEffect(() => {
     cargarDatos();
-  }, [torneoId]);
+  }, [torneoId, torneos]);
 
   const jugadorMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores]);
 
@@ -264,6 +283,7 @@ export default function CanchasEnVivo() {
               <SelectValue placeholder="Seleccioná un torneo" />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="todos">Todos los torneos</SelectItem>
               {torneos.map((t) => (
                 <SelectItem key={t.id} value={t.id}>{t.nombre}</SelectItem>
               ))}
