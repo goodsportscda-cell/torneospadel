@@ -232,8 +232,16 @@ export default function Inscripciones() {
     } else if (filtroEstado !== "todos") {
       arr = arr.filter((i) => (i as Inscripcion & { estado: EstadoInscripcion }).estado === filtroEstado);
     }
-    return arr;
-  }, [inscripciones, filtroTorneo, filtroEstado]);
+    
+    // Ordenar alfabéticamente por apellido del primer jugador
+    return [...arr].sort((a, b) => {
+      const j1A = jugadorMap.get(a.jugador1_id);
+      const j1B = jugadorMap.get(b.jugador1_id);
+      const nameA = j1A ? `${j1A.apellido} ${j1A.nombre}`.toLowerCase() : "";
+      const nameB = j1B ? `${j1B.apellido} ${j1B.nombre}`.toLowerCase() : "";
+      return nameA.localeCompare(nameB);
+    });
+  }, [inscripciones, filtroTorneo, filtroEstado, jugadorMap]);
 
   const pendientesCount = useMemo(
     () => inscripciones.filter((i) => (i as Inscripcion & { estado: EstadoInscripcion }).estado === "pendiente_confirmacion").length,
