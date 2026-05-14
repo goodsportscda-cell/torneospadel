@@ -164,36 +164,36 @@ export default function TorneoPublico() {
 
       <main className="max-w-5xl mx-auto px-4 py-6 space-y-6">
         {/* Tournament Hero */}
-        <section className="relative overflow-hidden rounded-3xl border bg-gradient-to-br from-primary/10 via-background to-background p-6 sm:p-10 shadow-sm mb-6 mt-2">
-          <div className="absolute top-0 right-0 -mt-8 -mr-8 h-48 w-48 rounded-full bg-primary/20 blur-3xl pointer-events-none"></div>
+        <section className="relative overflow-hidden rounded-3xl border dark:border-primary/20 bg-gradient-to-br from-primary/10 dark:from-primary/20 via-background to-background p-6 sm:p-10 shadow-sm mb-6 mt-2">
+          <div className="absolute top-0 right-0 -mt-8 -mr-8 h-48 w-48 rounded-full bg-primary/20 dark:bg-primary/30 blur-3xl pointer-events-none"></div>
           <div className="relative z-10 space-y-4">
             <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="default" className="bg-primary/20 text-primary hover:bg-primary/30 border-none px-3 py-1 text-[10px] uppercase tracking-widest font-black">
+              <Badge variant="default" className="bg-primary/20 text-primary dark:bg-primary/30 dark:text-primary-foreground hover:bg-primary/30 border-none px-3 py-1 text-[10px] uppercase tracking-widest font-black">
                 {torneo.tipo === 'oficial' ? 'Torneo Oficial' : 'Torneo Libre'}
               </Badge>
               {(torneo.categoria_libre || categoriaNombre) && (
-                <Badge variant="outline" className="border-primary/20 px-3 py-1 text-[10px] uppercase font-bold shadow-sm">
+                <Badge variant="outline" className="border-primary/20 dark:border-primary/40 px-3 py-1 text-[10px] uppercase font-bold shadow-sm">
                   {torneo.categoria_libre || categoriaNombre}
                 </Badge>
               )}
             </div>
             
-            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter bg-gradient-to-br from-foreground to-muted-foreground bg-clip-text text-transparent pb-1">
+            <h2 className="text-3xl sm:text-5xl font-black tracking-tighter bg-gradient-to-br from-foreground to-muted-foreground dark:from-foreground dark:to-foreground/60 bg-clip-text text-transparent pb-1">
               {torneo.nombre}
             </h2>
             
             <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-medium text-muted-foreground pt-2">
-              <div className="flex items-center gap-2 bg-background/60 rounded-full px-3 py-1.5 border shadow-sm backdrop-blur-sm">
+              <div className="flex items-center gap-2 bg-background/60 dark:bg-black/40 rounded-full px-3 py-1.5 border dark:border-primary/20 shadow-sm backdrop-blur-md">
                 <Calendar className="h-3.5 w-3.5 text-primary" />
                 {new Date(torneo.fecha_inicio + "T00:00:00").toLocaleDateString("es-AR", { day: 'numeric', month: 'long' })}
               </div>
               {torneo.sede && (
-                <div className="flex items-center gap-2 bg-background/60 rounded-full px-3 py-1.5 border shadow-sm backdrop-blur-sm">
+                <div className="flex items-center gap-2 bg-background/60 dark:bg-black/40 rounded-full px-3 py-1.5 border dark:border-primary/20 shadow-sm backdrop-blur-md">
                   <MapPin className="h-3.5 w-3.5 text-primary" />
                   {torneo.sede}
                 </div>
               )}
-              <div className="flex items-center gap-2 bg-background/60 rounded-full px-3 py-1.5 border shadow-sm backdrop-blur-sm">
+              <div className="flex items-center gap-2 bg-background/60 dark:bg-black/40 rounded-full px-3 py-1.5 border dark:border-primary/20 shadow-sm backdrop-blur-md">
                 <Users className="h-3.5 w-3.5 text-primary" />
                 {inscripciones.length} parejas
               </div>
