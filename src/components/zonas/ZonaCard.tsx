@@ -545,7 +545,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         </div>
 
         <div style={{ flex: 1, backgroundColor: '#18181b', borderRadius: '12px', padding: '10px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)', color: '#fafafa', border: '1px solid #27272a' }}>
-            <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} zonaId={zona.id} readOnly={true} />
+            <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} zonaId={zona.id} readOnly={true} hideDiferencias={true} />
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '30px' }}>

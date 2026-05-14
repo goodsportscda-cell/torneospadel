@@ -11,11 +11,12 @@ type Props = {
   clasifican: number;
   zonaId?: string;      // para persistir el orden en localStorage
   readOnly?: boolean;
+  hideDiferencias?: boolean;
 };
 
 const storageKey = (zonaId: string) => `zona-orden-manual-${zonaId}`;
 
-export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOnly = false }: Props) {
+export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOnly = false, hideDiferencias = false }: Props) {
   // orden es un array de inscripcion_id en el orden manual
   const [ordenManual, setOrdenManual] = useState<string[] | null>(null);
 
@@ -103,8 +104,12 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
               <TableHead className="text-center w-10">PG</TableHead>
               <TableHead className="text-center w-10">PP</TableHead>
               <TableHead className="text-center w-12">Pts</TableHead>
-              <TableHead className="text-center w-14">DifS</TableHead>
-              <TableHead className="text-center w-14">DifG</TableHead>
+              {!hideDiferencias && (
+                <>
+                  <TableHead className="text-center w-14">DifS</TableHead>
+                  <TableHead className="text-center w-14">DifG</TableHead>
+                </>
+              )}
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -149,12 +154,16 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
                   <TableCell className="text-center">{s.pg}</TableCell>
                   <TableCell className="text-center">{s.pp}</TableCell>
                   <TableCell className="text-center font-semibold">{s.puntos}</TableCell>
-                  <TableCell className="text-center">
-                    {s.difSets > 0 ? `+${s.difSets}` : s.difSets}
-                  </TableCell>
-                  <TableCell className="text-center">
-                    {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
-                  </TableCell>
+                  {!hideDiferencias && (
+                    <>
+                      <TableCell className="text-center">
+                        {s.difSets > 0 ? `+${s.difSets}` : s.difSets}
+                      </TableCell>
+                      <TableCell className="text-center">
+                        {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
+                      </TableCell>
+                    </>
+                  )}
                 </TableRow>
               );
             })}
