@@ -23,6 +23,7 @@ import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/
 import { ModeToggle } from "@/components/mode-toggle";
 import { PlayerStats } from "@/components/jugador/PlayerStats";
 import { HeadToHead } from "@/components/jugador/HeadToHead";
+import { PlayerInscriptions } from "@/components/jugador/PlayerInscriptions";
 
 type Torneo = {
   id: string;
@@ -353,6 +354,11 @@ export default function UserDashboard() {
             {/* Global Stats */}
             {jugadorId && (
               <PlayerStats jugadorId={jugadorId} />
+            )}
+
+            {/* Active Inscriptions and Matches */}
+            {jugadorId && (
+              <PlayerInscriptions jugadorId={jugadorId} />
             )}
 
             {/* My Ranking */}
