@@ -114,9 +114,10 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
                 <TableRow key={s.inscripcion_id} className={clasifica ? "bg-primary/5" : ""}>
                   <TableCell className="font-medium">
                     {clasifica ? (
-                      <div style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', textAlign: 'center', lineHeight: '20px', fontSize: '12px', fontWeight: 'bold' }}>
-                        {idx + 1}
-                      </div>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="hsl(var(--primary))" />
+                        <text x="12" y="16" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))" textAnchor="middle">{idx + 1}</text>
+                      </svg>
                     ) : (
                       <span className="text-muted-foreground">{idx + 1}</span>
                     )}

@@ -520,21 +520,21 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         ref={storyRef}
         className="dark"
         style={{
-          width: '450px',
-          height: '800px',
+          width: '540px',
+          height: '960px',
           position: 'fixed',
           top: '-9999px',
           left: '-9999px',
           background: 'radial-gradient(circle at top right, #1f1212 0%, #09090b 100%)',
           display: 'flex',
           flexDirection: 'column',
-          padding: '40px 24px',
+          padding: '60px 40px',
           color: '#fafafa',
           zIndex: -100,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '30px' }}>
-          <img src={goodPadelLogo} alt="Logo" style={{ width: '110px' }} />
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
+          <img src={goodPadelLogo} alt="Logo" style={{ width: '140px' }} />
         </div>
         
         <div style={{ textAlign: 'center', marginBottom: '35px' }}>
