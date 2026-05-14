@@ -518,17 +518,18 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
 
       <div 
         ref={storyRef}
+        className="dark"
         style={{
           width: '450px',
           height: '800px',
           position: 'fixed',
           top: '-9999px',
           left: '-9999px',
-          background: 'linear-gradient(180deg, #ffffff 0%, #f1f5f9 100%)',
+          background: 'radial-gradient(circle at top right, #1f1212 0%, #09090b 100%)',
           display: 'flex',
           flexDirection: 'column',
           padding: '40px 24px',
-          color: '#0f172a',
+          color: '#fafafa',
           zIndex: -100,
         }}
       >
@@ -537,7 +538,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         </div>
         
         <div style={{ textAlign: 'center', marginBottom: '35px' }}>
-          <p style={{ fontSize: '14px', fontWeight: '600', letterSpacing: '0.1em', color: '#64748b', textTransform: 'uppercase', marginBottom: '8px' }}>
+          <p style={{ fontSize: '14px', fontWeight: '600', letterSpacing: '0.1em', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
             Resultados Clasificación
           </p>
           <h1 style={{ fontSize: '48px', fontWeight: '800', color: '#ef4444', lineHeight: '1' }}>
@@ -545,13 +546,13 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           </h1>
         </div>
 
-        <div style={{ flex: 1, backgroundColor: 'white', borderRadius: '12px', padding: '10px', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', color: '#0f172a' }}>
+        <div style={{ flex: 1, backgroundColor: '#18181b', borderRadius: '12px', padding: '10px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)', color: '#fafafa', border: '1px solid #27272a' }}>
             <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} zonaId={zona.id} readOnly={true} />
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '30px' }}>
            <p style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444', marginBottom: '4px' }}>GOOD PADEL</p>
-           <p style={{ fontSize: '13px', color: '#94a3b8', fontWeight: '500' }}>@goodsports.jb</p>
+           <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>@goodsports.jb</p>
         </div>
       </div>
     </>

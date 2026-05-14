@@ -114,9 +114,9 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
                 <TableRow key={s.inscripcion_id} className={clasifica ? "bg-primary/5" : ""}>
                   <TableCell className="font-medium">
                     {clasifica ? (
-                      <Badge variant="default" className="h-5 w-5 p-0 flex items-center justify-center">
+                      <div style={{ display: 'inline-block', width: '20px', height: '20px', borderRadius: '50%', backgroundColor: 'hsl(var(--primary))', color: 'hsl(var(--primary-foreground))', textAlign: 'center', lineHeight: '20px', fontSize: '12px', fontWeight: 'bold' }}>
                         {idx + 1}
-                      </Badge>
+                      </div>
                     ) : (
                       <span className="text-muted-foreground">{idx + 1}</span>
                     )}
