@@ -366,44 +366,54 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                 </div>
               )}
             </div>
-            {!readOnly && (
-              <div className="flex items-center gap-1">
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="h-8 w-8 text-muted-foreground hover:text-primary"
-                  onClick={handleRegenerarFixture}
-                  title="Regenerar Fixture"
-                >
-                  <RefreshCw className="h-4 w-4" />
-                </Button>
-                <Button variant="ghost" size="icon" onClick={descargarImagen} disabled={descargando}>
-                  {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-                </Button>
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="ghost" size="icon">
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>¿Eliminar esta zona?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Se eliminarán todos los partidos y resultados de la zona {zona.nombre}. 
-                        Esta acción no se puede deshacer.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={onDeleted} className="bg-destructive text-destructive-foreground">
-                        Eliminar
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
-              </div>
-            )}
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={descargarImagen} 
+                disabled={descargando}
+                title="Descargar placa para Instagram"
+                className="text-primary hover:text-primary/80 hover:bg-primary/10"
+              >
+                {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
+              </Button>
+
+              {!readOnly && (
+                <>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="h-8 w-8 text-muted-foreground hover:text-primary"
+                    onClick={handleRegenerarFixture}
+                    title="Regenerar Fixture"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </Button>
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="ghost" size="icon">
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Eliminar esta zona?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Se eliminarán todos los partidos y resultados de la zona {zona.nombre}. 
+                          Esta acción no se puede deshacer.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={onDeleted} className="bg-destructive text-destructive-foreground">
+                          Eliminar
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </>
+              )}
+            </div>
           </div>
           <CollapsibleContent className="p-4 space-y-4">
             <div className="space-y-2">
