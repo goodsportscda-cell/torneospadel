@@ -326,7 +326,7 @@ export default function CanchasEnVivo() {
                     <div className="p-4 space-y-4 border-b-4 border-b-destructive/10 flex-1">
                       <div className="flex justify-between items-center mb-2">
                         <div className="text-[10px] uppercase font-bold text-muted-foreground tracking-wider bg-muted px-2 py-0.5 rounded">
-                          {enJuego.origen === "zona" ? "Zona " : "Llave "}{enJuego.faseNombre}
+                          {enJuego.faseNombre}
                         </div>
                         <Button variant="ghost" size="sm" className="h-5 text-[10px] px-1 text-muted-foreground" onClick={() => liberarCancha(enJuego)}>
                           Liberar
@@ -368,7 +368,7 @@ export default function CanchasEnVivo() {
                                 {p.fecha_hora ? new Date(p.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Sin hora'}
                               </span>
                               <span className="text-[9px] text-muted-foreground uppercase font-bold">
-                                {p.origen === "zona" ? "Zona" : "Llave"}
+                                {p.faseNombre}
                               </span>
                             </div>
                             <p className="truncate text-muted-foreground">{parejaLabel(p.pareja_local_id)}</p>
@@ -398,7 +398,7 @@ export default function CanchasEnVivo() {
               partidosLibres.map(p => (
                 <div key={p.id} className="border p-3 rounded-lg flex items-center justify-between gap-3 hover:bg-muted/50 transition-colors">
                   <div className="min-w-0 flex-1 space-y-1">
-                    <Badge variant="secondary" className="text-[9px] mb-1">{p.origen === "zona" ? "Zona" : "Llave"} {p.faseNombre}</Badge>
+                    <Badge variant="secondary" className="text-[9px] mb-1">{p.faseNombre}</Badge>
                     <p className="text-sm font-medium truncate">{parejaLabel(p.pareja_local_id)}</p>
                     <p className="text-sm font-medium truncate">{parejaLabel(p.pareja_visitante_id)}</p>
                   </div>
