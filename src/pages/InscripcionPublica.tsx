@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -24,6 +25,7 @@ type Resultado = {
 
 export default function InscripcionPublica() {
   const { torneoId } = useParams<{ torneoId: string }>();
+  const { user } = useAuth();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
   const [loading, setLoading] = useState(true);
   const [paso, setPaso] = useState<1 | 2 | 3 | 4>(1);
@@ -41,7 +43,6 @@ export default function InscripcionPublica() {
         return;
       }
       
-      // Buscamos solo por ID para evitar el error de cache del slug
       const { data, error } = await supabase
         .from("torneos")
         .select("*")
@@ -49,10 +50,44 @@ export default function InscripcionPublica() {
         .maybeSingle();
       if (error) console.error(error);
       setTorneo(data ?? null);
+      
+      // Auto-fill user if logged in
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("jugador_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+          
+        if (profile?.jugador_id) {
+          const { data: jug } = await supabase
+            .from("jugadores")
+            .select("*")
+            .eq("id", profile.jugador_id)
+            .maybeSingle();
+            
+          if (jug) {
+            setJ1({
+              dni: jug.dni || "",
+              nombre: jug.nombre || "",
+              apellido: jug.apellido || "",
+              telefono: jug.telefono || "",
+              email: jug.email || user.email || "",
+              club: jug.club || "",
+              categoria_id: jug.categoria_id || "ninguna",
+            });
+            // Auto skip step 1 since it's pre-filled
+            if (jug.dni && jug.nombre && jug.apellido && jug.telefono) {
+              setPaso(2);
+            }
+          }
+        }
+      }
+      
       setLoading(false);
     };
     load();
-  }, [torneoId]);
+  }, [torneoId, user]);
 
   // Título dinámico de la pestaña/preview al compartir
   useEffect(() => {

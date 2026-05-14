@@ -469,16 +469,28 @@ export default function UserDashboard() {
                                 </Badge>
                               )}
                             </div>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-7 text-[10px] gap-1 px-2 opacity-0 group-hover:opacity-100 transition-opacity"
-                              asChild
-                            >
-                              <Link to={`/torneo/${t.id}`}>
-                                Ver muro <ExternalLink className="h-3 w-3" />
-                              </Link>
-                            </Button>
+                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-[10px] gap-1 px-2"
+                                asChild
+                              >
+                                <Link to={`/torneo/${t.id}`}>
+                                  Ver muro <ExternalLink className="h-3 w-3" />
+                                </Link>
+                              </Button>
+                              {t.estado === "inscripciones_abiertas" && (
+                                <Button
+                                  variant="default"
+                                  size="sm"
+                                  className="h-7 text-[10px] px-2 bg-primary/90 hover:bg-primary"
+                                  asChild
+                                >
+                                  <Link to={`/inscribirse/${t.id}`}>Inscribirme</Link>
+                                </Button>
+                              )}
+                            </div>
                           </div>
                           {t.sede && (
                             <div className="text-xs text-muted-foreground flex items-center gap-1">
