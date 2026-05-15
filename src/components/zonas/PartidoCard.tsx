@@ -38,7 +38,8 @@ type Props = {
   onUpdated: () => void;
   // Tabla destino: 'partidos_zona' (default) o 'partidos_llave'
   tabla?: "partidos_zona" | "partidos_llave";
-  labelPartido?: string;
+  ref_local?: string | null;
+  ref_visitante?: string | null;
   // Programación (opcional, se muestra si se pasa showProgramacion)
   fechaHora?: string | null;
   cancha?: string | null;
@@ -60,6 +61,8 @@ export function PartidoCard({
   onUpdated,
   tabla = "partidos_zona",
   labelPartido,
+  ref_local,
+  ref_visitante,
   fechaHora,
   cancha,
   showProgramacion = false,
@@ -77,6 +80,8 @@ export function PartidoCard({
   const [editingEquipos, setEditingEquipos] = useState(false);
   const [editLocalId, setEditLocalId] = useState<string>("");
   const [editVisiId, setEditVisiId] = useState<string>("");
+  const [editRefLocal, setEditRefLocal] = useState<string>("");
+  const [editRefVisitante, setEditRefVisitante] = useState<string>("");
   const [savingEquipos, setSavingEquipos] = useState(false);
   // Selección explícita de ganador (tiene prioridad sobre cálculo por sets)
   const [ganadorOverride, setGanadorOverride] = useState<string | null>(ganadorId);
@@ -158,25 +163,24 @@ export function PartidoCard({
     : null;
 
   const abrirEditorEquipos = () => {
-    setEditLocalId(parejaLocal?.inscripcion_id ?? "");
-    setEditVisiId(parejaVisitante?.inscripcion_id ?? "");
+    setEditLocalId(parejaLocal?.inscripcion_id || "none");
+    setEditVisiId(parejaVisitante?.inscripcion_id || "none");
+    setEditRefLocal(ref_local ?? "");
+    setEditRefVisitante(ref_visitante ?? "");
     setEditingEquipos(true);
   };
 
   const guardarEquipos = async () => {
-    if (!editLocalId || !editVisiId) {
-      toast.error("Seleccioná ambas parejas");
-      return;
-    }
-    if (editLocalId === editVisiId) {
-      toast.error("Las dos parejas no pueden ser la misma");
-      return;
-    }
     setSavingEquipos(true);
     try {
       const { error } = await supabase
         .from(tabla)
-        .update({ pareja_local_id: editLocalId, pareja_visitante_id: editVisiId })
+        .update({ 
+          pareja_local_id: editLocalId === "none" ? null : editLocalId, 
+          pareja_visitante_id: editVisiId === "none" ? null : editVisiId,
+          ref_local: editRefLocal.trim() || null,
+          ref_visitante: editRefVisitante.trim() || null
+        })
         .eq("id", partidoId);
       if (error) throw error;
       toast.success("Equipos actualizados");
@@ -318,18 +322,44 @@ export function PartidoCard({
         {editingEquipos && parejasZona && (
           <div className="rounded-md border border-blue-200 bg-blue-50 p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-xs font-semibold text-blue-800">Editar equipos del partido</p>
+              <p className="text-xs font-semibold text-blue-800">Editar equipos/referencias</p>
               <button onClick={() => setEditingEquipos(false)} className="text-blue-500 hover:text-blue-800">
                 <X className="h-3 w-3" />
               </button>
             </div>
+            
+            <div className="space-y-2 pb-2 border-b border-blue-100">
+              <p className="text-[10px] font-bold text-blue-600 uppercase">Referencias (Manual APA)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-blue-700">Local (ej: 1°A)</label>
+                  <Input 
+                    value={editRefLocal} 
+                    onChange={(e) => setEditRefLocal(e.target.value)} 
+                    className="h-7 text-xs bg-white border-blue-200"
+                    placeholder="1°A"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-blue-700">Visitante (ej: G:34)</label>
+                  <Input 
+                    value={editRefVisitante} 
+                    onChange={(e) => setEditRefVisitante(e.target.value)} 
+                    className="h-7 text-xs bg-white border-blue-200"
+                    placeholder="2°B"
+                  />
+                </div>
+              </div>
+            </div>
+
             <div className="space-y-1">
-              <label className="text-[10px] text-blue-700 uppercase font-bold">Local</label>
+              <label className="text-[10px] text-blue-700 uppercase font-bold">Pareja Local (Fija)</label>
               <Select value={editLocalId} onValueChange={setEditLocalId}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs bg-white border-blue-200">
                   <SelectValue placeholder="Seleccionar pareja..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">— por definir —</SelectItem>
                   {parejasZona.map(p => (
                     <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>{p.label}</SelectItem>
                   ))}
@@ -337,12 +367,13 @@ export function PartidoCard({
               </Select>
             </div>
             <div className="space-y-1">
-              <label className="text-[10px] text-blue-700 uppercase font-bold">Visitante</label>
+              <label className="text-[10px] text-blue-700 uppercase font-bold">Pareja Visitante (Fija)</label>
               <Select value={editVisiId} onValueChange={setEditVisiId}>
-                <SelectTrigger className="h-8 text-xs">
+                <SelectTrigger className="h-8 text-xs bg-white border-blue-200">
                   <SelectValue placeholder="Seleccionar pareja..." />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="none">— por definir —</SelectItem>
                   {parejasZona.map(p => (
                     <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>{p.label}</SelectItem>
                   ))}
@@ -353,7 +384,7 @@ export function PartidoCard({
               <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingEquipos(false)}>Cancelar</Button>
               <Button size="sm" className="h-7 text-xs" onClick={guardarEquipos} disabled={savingEquipos}>
                 <Save className="h-3 w-3 mr-1" />
-                Guardar
+                Guardar cambios
               </Button>
             </div>
           </div>

@@ -203,6 +203,7 @@ export default function Llaves() {
     const parsed = parseRef(ref);
     if (parsed.tipo === "clasificado") return `${parsed.posicion}° Zona ${parsed.zona}`;
     if (parsed.tipo === "ganador") return `Ganador P${parsed.numeroPartido}`;
+    if (parsed.tipo === "manual") return parsed.label;
     return `(${ref})`;
   }, []);
 
@@ -663,6 +664,8 @@ export default function Llaves() {
                       orden={p.numero}
                       labelPartido={`Partido ${p.numero}`}
                       tabla="partidos_llave"
+                      ref_local={p.ref_local}
+                      ref_visitante={p.ref_visitante}
                       parejaLocal={
                         p.pareja_local_id
                           ? {

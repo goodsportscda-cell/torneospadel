@@ -28,9 +28,16 @@ export function parseRef(ref: string): RefParsed {
   }
   // formato "1°A" o "1A" o "2°B"
   const m = ref.match(/^(\d+)°?([A-Z]+)$/);
-  if (!m) throw new Error(`Referencia inválida: ${ref}`);
+  if (!m) return { tipo: "manual", label: ref };
   return { tipo: "clasificado", posicion: parseInt(m[1], 10), zona: m[2] };
 }
+
+// Actualizamos el tipo RefParsed
+export type RefParsed =
+  | { tipo: "clasificado"; posicion: number; zona: string }
+  | { tipo: "ganador"; numeroPartido: number }
+  | { tipo: "bye" }
+  | { tipo: "manual"; label: string };
 
 // 6 parejas (2 zonas de 3) → 4 clasificados → semis directas
 function llave6(): PartidoLlavePlantilla[] {
@@ -282,48 +289,41 @@ function llave30(): PartidoLlavePlantilla[] {
 // Manual APA pág 148. Implementación basada en el cuadro mostrado.
 // Cuadro de 32 parejas (31 partidos) - Formato estándar 16vos -> Final
 // Ideal para cuando hay entre 11 y 16 zonas.
-function llave32Standard(): PartidoLlavePlantilla[] {
-  const partidos: PartidoLlavePlantilla[] = [];
-  
-  // 16vos de final (16 partidos: 1-16)
-  // Distribución APA simplificada para 13-16 zonas
-  const cruces16vos = [
-    ["1°A", "2°B"], ["1°I", "2°J"], ["1°E", "2°F"], ["1°M", "2°L"],
-    ["1°C", "2°D"], ["1°K", "2°L"], ["1°G", "2°H"], ["2°A", "1°B"],
-    ["1°B", "2°A"], ["1°J", "2°I"], ["1°F", "2°E"], ["1°L", "2°M"],
-    ["1°D", "2°C"], ["1°L", "2°K"], ["1°H", "2°G"], ["2°B", "1°A"]
-  ];
-
-  for (let i = 0; i < 16; i++) {
-    partidos.push({ numero: i + 1, ronda: "dieciseisavos", ref_local: cruces16vos[i][0], ref_visitante: cruces16vos[i][1] });
-  }
-
-  // Octavos (8 partidos: 17-24)
-  for (let i = 0; i < 8; i++) {
-    partidos.push({ numero: 17 + i, ronda: "octavos", ref_local: `G:${i * 2 + 1}`, ref_visitante: `G:${i * 2 + 2}` });
-  }
-
-  // Cuartos (4 partidos: 25-28)
-  for (let i = 0; i < 4; i++) {
-    partidos.push({ numero: 25 + i, ronda: "cuartos", ref_local: `G:${17 + i * 2}`, ref_visitante: `G:${18 + i * 2}` });
-  }
-
-  // Semifinal (2 partidos: 29-30)
-  partidos.push({ numero: 29, ronda: "semifinal", ref_local: "G:25", ref_visitante: "G:26" });
-  partidos.push({ numero: 30, ronda: "semifinal", ref_local: "G:27", ref_visitante: "G:28" });
-
-  // Final (1 partido: 31)
-  partidos.push({ numero: 31, ronda: "final", ref_local: "G:29", ref_visitante: "G:30" });
-
-  return partidos;
-}
-
-// 41 parejas (Manual Oficial FAP/APA)
-// 13 zonas (A-M). Clasifican 1° y 2° de todas, más 3°A y 3°B.
-// 4 cabezas de serie (1°A, 1°B, 1°C, 1°D) pasan directo a octavos.
-// Total 27 partidos (12 previas + 8 octavos + 4 cuartos + 2 semis + 1 final).
+// 32 parejas (Manual Oficial APA - 10 zonas + mejores terceros)
+// Según imagen proporcionada: 6 previas + 8 octavos + 4 cuartos + 2 semis + 1 final.
 function llave32(): PartidoLlavePlantilla[] {
-  return llave32Standard();
+  return [
+    // Previas (6 partidos)
+    { numero: 34, ronda: "previa", ref_local: "2°C", ref_visitante: "2°F" },
+    { numero: 38, ronda: "previa", ref_local: "3°B", ref_visitante: "2°J" },
+    { numero: 39, ronda: "previa", ref_local: "2°G", ref_visitante: "2°B" },
+    { numero: 42, ronda: "previa", ref_local: "2°A", ref_visitante: "2°H" },
+    { numero: 43, ronda: "previa", ref_local: "2°I", ref_visitante: "3°A" },
+    { numero: 47, ronda: "previa", ref_local: "2°E", ref_visitante: "2°D" },
+    
+    // Octavos (8 partidos: 49-56)
+    { numero: 49, ronda: "octavos", ref_local: "1°A", ref_visitante: "G:34" },
+    { numero: 50, ronda: "octavos", ref_local: "1°I", ref_visitante: "1°H" },
+    { numero: 51, ronda: "octavos", ref_local: "1°E", ref_visitante: "G:38" },
+    { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "1°D" },
+    { numero: 53, ronda: "octavos", ref_local: "1°C", ref_visitante: "G:42" },
+    { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "1°F" },
+    { numero: 55, ronda: "octavos", ref_local: "1°G", ref_visitante: "1°J" },
+    { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" },
+    
+    // Cuartos (4 partidos: 57-60)
+    { numero: 57, ronda: "cuartos", ref_local: "G:49", ref_visitante: "G:50" },
+    { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+    { numero: 59, ronda: "cuartos", ref_local: "G:53", ref_visitante: "G:54" },
+    { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "G:56" },
+    
+    // Semifinales (2 partidos: 61-62)
+    { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
+    { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
+    
+    // Final (1 partido: 64)
+    { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
+  ];
 }
 
 // 41 parejas (Manual Oficial FAP/APA)
