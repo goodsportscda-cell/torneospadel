@@ -414,7 +414,14 @@ export function PartidoCard({
             }`}
           >
             {ganadorId === parejaLocal?.inscripcion_id && <Trophy className="h-3 w-3" />}
-            <span className="truncate">{parejaLocal?.label ?? "— por definir —"}</span>
+            <span className="truncate flex items-center gap-1.5">
+              {ref_local && (
+                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-bold text-muted-foreground border border-muted-foreground/20">
+                  {ref_local}
+                </span>
+              )}
+              {parejaLocal?.label ?? "— por definir —"}
+            </span>
           </div>
           <div
             className={`flex items-center gap-2 ${
@@ -422,7 +429,14 @@ export function PartidoCard({
             }`}
           >
             {ganadorId === parejaVisitante?.inscripcion_id && <Trophy className="h-3 w-3" />}
-            <span className="truncate">{parejaVisitante?.label ?? "— por definir —"}</span>
+            <span className="truncate flex items-center gap-1.5">
+              {ref_visitante && (
+                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-bold text-muted-foreground border border-muted-foreground/20">
+                  {ref_visitante}
+                </span>
+              )}
+              {parejaVisitante?.label ?? "— por definir —"}
+            </span>
           </div>
         </div>
 

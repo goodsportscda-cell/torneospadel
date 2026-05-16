@@ -198,6 +198,54 @@ export default function Llaves() {
     [inscripciones],
   );
 
+  const obtenerRankingsFinalizados = useCallback(() => {
+    const map: Record<string, string[]> = {};
+    zonas.forEach((z) => {
+      const partidosDeEstaZona = partidosZona.filter((p) => p.zona_id === z.id);
+      const estaFinalizada =
+        partidosDeEstaZona.length > 0 &&
+        partidosDeEstaZona.every((p) => p.estado === "finalizado");
+
+      if (estaFinalizada) {
+        const parejas = zonasParejas.filter((zp) => zp.zona_id === z.id);
+        const partidos = partidosDeEstaZona.map<PartidoConSets>((p) => ({
+          id: p.id,
+          tipo: p.tipo as any,
+          pareja_local_id: p.pareja_local_id,
+          pareja_visitante_id: p.pareja_visitante_id,
+          ganador_id: p.ganador_id,
+          estado: p.estado,
+          sets: setsZona[p.id] ?? [],
+        }));
+        const tabla = calcularTabla(
+          parejas.map((zp) => ({
+            inscripcion_id: zp.inscripcion_id,
+            posicion_siembra: zp.posicion_siembra,
+          })),
+          partidos,
+        );
+        map[z.nombre.trim()] = tabla.map((t) => t.inscripcion_id);
+      }
+    });
+    return map;
+  }, [zonas, partidosZona, zonasParejas, setsZona]);
+
+  const resolverRefSiFinalizada = useCallback((ref: string | null, rankings: Record<string, string[]>) => {
+    if (!ref) return null;
+    const parsed = parseRef(ref);
+    if (parsed.tipo !== "clasificado") return null;
+
+    // Buscar zona normalizando nombre
+    const zonaNombreNorm = parsed.zona.trim().toUpperCase();
+    const ranking = Object.entries(rankings).find(([nombre]) => {
+      const n = nombre.trim().toUpperCase().replace(/ZONA\s+/i, "");
+      return n === zonaNombreNorm;
+    })?.[1];
+
+    if (!ranking) return null;
+    return ranking[parsed.posicion - 1] || null;
+  }, []);
+
   const formatRefLabel = useCallback((ref: string | null) => {
     if (!ref) return "— por definir —";
     const parsed = parseRef(ref);
@@ -207,39 +255,6 @@ export default function Llaves() {
     return `(${ref})`;
   }, []);
 
-  // Calcula ranking por zona usando los resultados actuales
-  const rankingPorZona = useMemo(() => {
-    const map: Record<string, string[]> = {};
-    zonas.forEach((z) => {
-      const parejas = zonasParejas.filter((zp) => zp.zona_id === z.id);
-      const partidos = partidosZona
-        .filter((p) => p.zona_id === z.id)
-        .map<PartidoConSets>((p) => ({
-          id: p.id,
-          tipo: p.tipo as any,
-          pareja_local_id: p.pareja_local_id,
-          pareja_visitante_id: p.pareja_visitante_id,
-          ganador_id: p.ganador_id,
-          estado: p.estado,
-          sets: setsZona[p.id] ?? [],
-        }));
-      const tabla = calcularTabla(
-        parejas.map((zp) => ({
-          inscripcion_id: zp.inscripcion_id,
-          posicion_siembra: zp.posicion_siembra,
-        })),
-        partidos,
-      );
-      map[z.nombre] = tabla.map((t) => t.inscripcion_id);
-    });
-    return map;
-  }, [zonas, zonasParejas, partidosZona, setsZona]);
-
-  // Verifica si todos los partidos de zona finalizaron
-  const todasZonasFinalizadas = useMemo(() => {
-    if (zonas.length === 0) return false;
-    return partidosZona.length > 0 && partidosZona.every((p) => p.estado === "finalizado");
-  }, [zonas, partidosZona]);
 
   const totalParejas = inscripciones.length;
   const plantilla = useMemo(() => obtenerPlantilla(totalParejas), [totalParejas]);
@@ -321,21 +336,28 @@ export default function Llaves() {
 
       // Resolver refs a clasificados de zona y rellenar parejas iniciales
       // Sólo si las zonas están terminadas. Si no, se queda en blanco mostrando "1° Zona A"
-      if (todasZonasFinalizadas) {
-        const ganadoresMap: Record<number, string | null> = {};
-        const rellenoUpdates: Promise<unknown>[] = [];
-        for (const p of plantilla.partidos) {
-          const local = resolverRef(p.ref_local, rankingPorZona, ganadoresMap);
-          const visi = resolverRef(p.ref_visitante, rankingPorZona, ganadoresMap);
+      // 3. Rellenar parejas iniciales solo de zonas finalizadas
+      const rankingPorZona = obtenerRankingsFinalizados();
+      const rellenoUpdates: Promise<unknown>[] = [];
+      
+      for (const p of plantilla.partidos) {
+        const localId = resolverRefSiFinalizada(p.ref_local, rankingPorZona);
+        const visiId = resolverRefSiFinalizada(p.ref_visitante, rankingPorZona);
+        
+        if (localId || visiId) {
           rellenoUpdates.push(
-            Promise.resolve(
-              supabase
-                .from("partidos_llave")
-                .update({ pareja_local_id: local, pareja_visitante_id: visi })
-                .eq("id", numeroToId.get(p.numero)!),
-            ),
+            supabase
+              .from("partidos_llave")
+              .update({ 
+                pareja_local_id: localId || null, 
+                pareja_visitante_id: visiId || null 
+              })
+              .eq("id", numeroToId.get(p.numero)!)
           );
         }
+      }
+      
+      if (rellenoUpdates.length > 0) {
         await Promise.all(rellenoUpdates);
       }
 
@@ -388,52 +410,54 @@ export default function Llaves() {
   // Recalcula las parejas iniciales (las que dependen de zona) usando el ranking actual.
   // Sólo modifica partidos cuyo ref es de zona (no "G:N") y que NO tengan ganador todavía.
   const recalcularDesdeZonas = useCallback(async (silencioso = false) => {
-    if (!llave || partidosLlave.length === 0) return;
+    if (!torneoId || !partidosLlave.length) return;
+
+    const toastId = !silencioso ? toast.loading("Recalculando parejas desde zonas...") : null;
+    const rankings = obtenerRankingsFinalizados();
+    let actualizados = 0;
+
     try {
       const updates: Promise<unknown>[] = [];
-      let cambios = 0;
+
       for (const p of partidosLlave) {
-        if (p.ganador_id) continue; // no tocar partidos ya jugados
-        const payload: { pareja_local_id?: string | null; pareja_visitante_id?: string | null } = {};
-        if (p.ref_local) {
-          const ref = parseRef(p.ref_local);
-          if (ref.tipo === "clasificado") {
-            const nuevo = resolverRef(p.ref_local, rankingPorZona, {});
-            if (nuevo !== p.pareja_local_id) {
-              payload.pareja_local_id = nuevo;
-            }
-          }
+        if (p.ganador_id) continue;
+
+        const payload: any = {};
+        const nuevoLocal = resolverRefSiFinalizada(p.ref_local, rankings);
+        const nuevoVisi = resolverRefSiFinalizada(p.ref_visitante, rankings);
+
+        if (nuevoLocal !== undefined && nuevoLocal !== p.pareja_local_id) {
+          payload.pareja_local_id = nuevoLocal;
         }
-        if (p.ref_visitante) {
-          const ref = parseRef(p.ref_visitante);
-          if (ref.tipo === "clasificado") {
-            const nuevo = resolverRef(p.ref_visitante, rankingPorZona, {});
-            if (nuevo !== p.pareja_visitante_id) {
-              payload.pareja_visitante_id = nuevo;
-            }
-          }
+        if (nuevoVisi !== undefined && nuevoVisi !== p.pareja_visitante_id) {
+          payload.pareja_visitante_id = nuevoVisi;
         }
+
         if (Object.keys(payload).length > 0) {
-          cambios++;
+          actualizados++;
           updates.push(
-            Promise.resolve(
-              supabase.from("partidos_llave").update(payload).eq("id", p.id),
-            ),
+            supabase.from("partidos_llave").update(payload).eq("id", p.id)
           );
         }
       }
-      if (updates.length === 0) {
-        if (!silencioso) toast.info("Los cruces ya están correctos según los resultados de zona");
-        return;
+
+      if (updates.length > 0) {
+        await Promise.all(updates);
+        await cargarTodo();
       }
-      await Promise.all(updates);
-      if (!silencioso) toast.success(`${cambios} cruce${cambios === 1 ? "" : "s"} actualizado${cambios === 1 ? "" : "s"} desde zonas`);
-      cargarTodo();
-    } catch (e) {
+
+      if (!silencioso && toastId) {
+        if (actualizados > 0) {
+          toast.success(`Sincronización completada. Se actualizaron ${actualizados} partidos.`, { id: toastId });
+        } else {
+          toast.info("No hubo cambios necesarios.", { id: toastId });
+        }
+      }
+    } catch (e: any) {
       console.error(e);
-      if (!silencioso) toast.error("Error al recalcular cruces");
+      if (!silencioso && toastId) toast.error("Error al recalcular");
     }
-  }, [llave, partidosLlave, rankingPorZona, cargarTodo]);
+  }, [torneoId, partidosLlave, obtenerRankingsFinalizados, resolverRefSiFinalizada, cargarTodo]);
 
   // Se eliminó el auto-recalcular desde zonas automático para evitar que
   // sobrescriba las ediciones manuales de los cruces de la llave.

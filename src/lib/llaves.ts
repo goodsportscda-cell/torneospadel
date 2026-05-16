@@ -291,37 +291,50 @@ function llave30(): PartidoLlavePlantilla[] {
 // Ideal para cuando hay entre 11 y 16 zonas.
 // 32 parejas (Manual Oficial APA - 10 zonas + mejores terceros)
 // Según imagen proporcionada: 6 previas + 8 octavos + 4 cuartos + 2 semis + 1 final.
+// 32 parejas (Cuadro completo de 16vos de final)
+// Manual APA: Cuadro estándar para 11-16 zonas o 32 equipos.
+// Se usa numeración 33-64 según el manual oficial.
 function llave32(): PartidoLlavePlantilla[] {
   return [
-    // Previas (6 partidos)
-    { numero: 34, ronda: "previa", ref_local: "2°C", ref_visitante: "2°F" },
-    { numero: 38, ronda: "previa", ref_local: "3°B", ref_visitante: "2°J" },
-    { numero: 39, ronda: "previa", ref_local: "2°G", ref_visitante: "2°B" },
-    { numero: 42, ronda: "previa", ref_local: "2°A", ref_visitante: "2°H" },
-    { numero: 43, ronda: "previa", ref_local: "2°I", ref_visitante: "3°A" },
-    { numero: 47, ronda: "previa", ref_local: "2°E", ref_visitante: "2°D" },
-    
-    // Octavos (8 partidos: 49-56)
-    { numero: 49, ronda: "octavos", ref_local: "1°A", ref_visitante: "G:34" },
-    { numero: 50, ronda: "octavos", ref_local: "1°I", ref_visitante: "1°H" },
-    { numero: 51, ronda: "octavos", ref_local: "1°E", ref_visitante: "G:38" },
-    { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "1°D" },
-    { numero: 53, ronda: "octavos", ref_local: "1°C", ref_visitante: "G:42" },
-    { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "1°F" },
-    { numero: 55, ronda: "octavos", ref_local: "1°G", ref_visitante: "1°J" },
-    { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" },
-    
-    // Cuartos (4 partidos: 57-60)
+    // Dieciseisavos (16 partidos: 33-48)
+    { numero: 33, ronda: "dieciseisavos", ref_local: "1°A", ref_visitante: "2°B" },
+    { numero: 34, ronda: "dieciseisavos", ref_local: "2°I", ref_visitante: "1°J" },
+    { numero: 35, ronda: "dieciseisavos", ref_local: "1°E", ref_visitante: "2°F" },
+    { numero: 36, ronda: "dieciseisavos", ref_local: "2°M", ref_visitante: "1°N" },
+    { numero: 37, ronda: "dieciseisavos", ref_local: "1°C", ref_visitante: "2°D" },
+    { numero: 38, ronda: "dieciseisavos", ref_local: "2°K", ref_visitante: "1°L" },
+    { numero: 39, ronda: "dieciseisavos", ref_local: "1°G", ref_visitante: "2°H" },
+    { numero: 40, ronda: "dieciseisavos", ref_local: "2°O", ref_visitante: "1°P" },
+    { numero: 41, ronda: "dieciseisavos", ref_local: "1°B", ref_visitante: "2°A" },
+    { numero: 42, ronda: "dieciseisavos", ref_local: "2°H", ref_visitante: "1°G" },
+    { numero: 43, ronda: "dieciseisavos", ref_local: "1°F", ref_visitante: "2°E" },
+    { numero: 44, ronda: "dieciseisavos", ref_local: "2°N", ref_visitante: "1°M" },
+    { numero: 45, ronda: "dieciseisavos", ref_local: "1°D", ref_visitante: "2°C" },
+    { numero: 46, ronda: "dieciseisavos", ref_local: "2°L", ref_visitante: "1°K" },
+    { numero: 47, ronda: "dieciseisavos", ref_local: "1°H", ref_visitante: "2°G" },
+    { numero: 48, ronda: "dieciseisavos", ref_local: "2°J", ref_visitante: "1°I" },
+
+    // Octavos (49-56)
+    { numero: 49, ronda: "octavos", ref_local: "G:33", ref_visitante: "G:34" },
+    { numero: 50, ronda: "octavos", ref_local: "G:35", ref_visitante: "G:36" },
+    { numero: 51, ronda: "octavos", ref_local: "G:37", ref_visitante: "G:38" },
+    { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "G:40" },
+    { numero: 53, ronda: "octavos", ref_local: "G:41", ref_visitante: "G:42" },
+    { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "G:44" },
+    { numero: 55, ronda: "octavos", ref_local: "G:45", ref_visitante: "G:46" },
+    { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "G:48" },
+
+    // Cuartos (57-60)
     { numero: 57, ronda: "cuartos", ref_local: "G:49", ref_visitante: "G:50" },
     { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
     { numero: 59, ronda: "cuartos", ref_local: "G:53", ref_visitante: "G:54" },
     { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "G:56" },
-    
-    // Semifinales (2 partidos: 61-62)
+
+    // Semis (61-62)
     { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
     { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
-    
-    // Final (1 partido: 64)
+
+    // Final (64)
     { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
   ];
 }
