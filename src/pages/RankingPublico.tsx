@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -19,7 +20,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Trophy, Medal, Star, Search, Filter, Loader2, Award } from "lucide-react";
+import { Trophy, Medal, Star, Search, Filter, Loader2, Award, Share2, Check } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { toast } from "sonner";
 
@@ -42,16 +43,33 @@ const GENEROS = [
 ];
 
 export default function RankingPublico() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RankingRow[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [aniosDisp, setAniosDisp] = useState<number[]>([]);
   const [cuposMaster, setCuposMaster] = useState<Record<string, number>>({});
 
-  const [filtroAnio, setFiltroAnio] = useState<number>(new Date().getFullYear());
-  const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
-  const [filtroGenero, setFiltroGenero] = useState<string>("todos");
+  const [filtroAnio, setFiltroAnio] = useState<number>(() => {
+    const yr = searchParams.get("anio");
+    return yr ? parseInt(yr, 10) : new Date().getFullYear();
+  });
+  const [filtroCategoria, setFiltroCategoria] = useState<string>(() => {
+    return searchParams.get("categoria") ?? "todas";
+  });
+  const [filtroGenero, setFiltroGenero] = useState<string>(() => {
+    return searchParams.get("genero") ?? "todos";
+  });
   const [busqueda, setBusqueda] = useState("");
+  const [copiado, setCopiado] = useState(false);
+
+  const copiarEnlace = () => {
+    const url = window.location.href;
+    navigator.clipboard.writeText(url);
+    setCopiado(true);
+    toast.success("¡Enlace copiado al portapapeles! Listo para compartir en WhatsApp.");
+    setTimeout(() => setCopiado(false), 2000);
+  };
 
   const cargarFiltros = async () => {
     const [{ data: cats }, { data: anios }, { data: cupos }] = await Promise.all([
@@ -60,7 +78,8 @@ export default function RankingPublico() {
       supabase.from("cupos_master").select("categoria_id, cupos"),
     ]);
     
-    setCategorias((cats ?? []) as Categoria[]);
+    const activeCats = (cats ?? []) as Categoria[];
+    setCategorias(activeCats);
     const anioSet = new Set<number>();
     (anios ?? []).forEach((a: { anio: number }) => anioSet.add(a.anio));
     anioSet.add(new Date().getFullYear());
@@ -71,6 +90,29 @@ export default function RankingPublico() {
       cuposMap[c.categoria_id] = c.cupos;
     });
     setCuposMaster(cuposMap);
+
+    // Resolver categoria si viene de la URL como texto o uuid
+    const catParam = searchParams.get("categoria");
+    const genParam = searchParams.get("genero");
+    
+    if (catParam && catParam !== "todas") {
+      const matchById = activeCats.find(c => c.id === catParam);
+      if (matchById) {
+        setFiltroCategoria(matchById.id);
+      } else {
+        const normalized = catParam.toLowerCase().trim().replace(/[-_]/g, " ");
+        let matches = activeCats.filter(c => c.nombre.toLowerCase().includes(normalized));
+        if (genParam && genParam !== "todos") {
+          matches = matches.filter(c => c.genero === genParam);
+        }
+        if (matches.length > 0) {
+          setFiltroCategoria(matches[0].id);
+          if (!genParam) {
+            setFiltroGenero(matches[0].genero);
+          }
+        }
+      }
+    }
   };
 
   const cargarRanking = async () => {
@@ -166,6 +208,19 @@ export default function RankingPublico() {
 
   useEffect(() => {
     cargarRanking();
+    
+    // Sincronizar filtros con la URL
+    const params: Record<string, string> = {};
+    if (filtroAnio !== new Date().getFullYear()) {
+      params.anio = filtroAnio.toString();
+    }
+    if (filtroCategoria !== "todas") {
+      params.categoria = filtroCategoria;
+    }
+    if (filtroGenero !== "todos") {
+      params.genero = filtroGenero;
+    }
+    setSearchParams(params, { replace: true });
   }, [filtroAnio, filtroCategoria, filtroGenero]);
 
   const filtradas = useMemo(() => {
@@ -239,52 +294,65 @@ export default function RankingPublico() {
         </section>
 
         {/* Filters */}
-        <div className="grid gap-4 p-4 rounded-xl border bg-muted/20 sm:grid-cols-3">
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
-              <Filter className="h-3 w-3" /> Categoría
-            </label>
-            <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
-              <SelectTrigger className="bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="todas">Todas las categorías</SelectItem>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} {c.nombre}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+        <div className="p-4 rounded-xl border bg-muted/20 space-y-4">
+          <div className="grid gap-4 sm:grid-cols-3">
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                <Filter className="h-3 w-3" /> Categoría
+              </label>
+              <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todas">Todas las categorías</SelectItem>
+                  {categorias.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} {c.nombre}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                <Filter className="h-3 w-3" /> Género
+              </label>
+              <Select value={filtroGenero} onValueChange={setFiltroGenero}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GENEROS.map((g) => (
+                    <SelectItem key={g.value} value={g.value}>
+                      {g.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                <Search className="h-3 w-3" /> Buscar
+              </label>
+              <Input
+                value={busqueda}
+                onChange={(e) => setBusqueda(e.target.value)}
+                placeholder="Nombre, apellido o club..."
+                className="bg-background"
+              />
+            </div>
           </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
-              <Filter className="h-3 w-3" /> Género
-            </label>
-            <Select value={filtroGenero} onValueChange={setFiltroGenero}>
-              <SelectTrigger className="bg-background">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {GENEROS.map((g) => (
-                  <SelectItem key={g.value} value={g.value}>
-                    {g.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-          <div className="space-y-1.5">
-            <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
-              <Search className="h-3 w-3" /> Buscar
-            </label>
-            <Input
-              value={busqueda}
-              onChange={(e) => setBusqueda(e.target.value)}
-              placeholder="Nombre, apellido o club..."
-              className="bg-background"
-            />
+
+          <div className="flex justify-end pt-2 border-t dark:border-primary/10">
+            <Button
+              onClick={copiarEnlace}
+              size="sm"
+              className="w-full sm:w-auto font-bold flex items-center gap-2 transition-all active:scale-95 shadow-md shadow-primary/5"
+            >
+              {copiado ? <Check className="h-4 w-4" /> : <Share2 className="h-4 w-4" />}
+              {copiado ? "¡Enlace Copiado!" : "Copiar Enlace para Compartir esta Categoría"}
+            </Button>
           </div>
         </div>
 

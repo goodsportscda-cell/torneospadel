@@ -28,7 +28,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2 } from "lucide-react";
+import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2, Check } from "lucide-react";
 import { toast } from "sonner";
 import { INSTANCIA_LABEL, type Instancia } from "@/lib/ranking";
 
@@ -87,6 +87,26 @@ export default function Ranking() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
   const [filtroGenero, setFiltroGenero] = useState<string>("todos");
   const [busqueda, setBusqueda] = useState("");
+  const [copiado, setCopiado] = useState(false);
+
+  const copiarEnlacePublico = () => {
+    const params = new URLSearchParams();
+    if (filtroAnio !== new Date().getFullYear()) {
+      params.set("anio", String(filtroAnio));
+    }
+    if (filtroCategoria !== "todas") {
+      params.set("categoria", filtroCategoria);
+    }
+    if (filtroGenero !== "todos") {
+      params.set("genero", filtroGenero);
+    }
+    const queryString = params.toString();
+    const url = `${window.location.origin}/ranking-publico${queryString ? "?" + queryString : ""}`;
+    navigator.clipboard.writeText(url);
+    setCopiado(true);
+    toast.success("¡Enlace del ranking público copiado! Listo para compartir en WhatsApp.");
+    setTimeout(() => setCopiado(false), 2000);
+  };
 
   const [puntosCfg, setPuntosCfg] = useState<{ instancia: Instancia; puntos: number; orden: number }[]>([]);
   const [cfgOpen, setCfgOpen] = useState(false);
@@ -586,8 +606,17 @@ export default function Ranking() {
       </div>
 
       <Card>
-        <CardHeader className="pb-3">
+        <CardHeader className="pb-3 flex flex-row items-center justify-between space-y-0">
           <CardTitle className="text-base">Filtros</CardTitle>
+          <Button
+            onClick={copiarEnlacePublico}
+            size="sm"
+            variant="outline"
+            className="h-8 gap-1.5 text-xs font-semibold hover:bg-primary/5 hover:text-primary transition-all active:scale-95"
+          >
+            {copiado ? <Check className="h-3.5 w-3.5" /> : <Share2 className="h-3.5 w-3.5" />}
+            {copiado ? "¡Enlace Copiado!" : "Copiar Enlace Público para Compartir"}
+          </Button>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <div>
