@@ -216,8 +216,8 @@ export function PartidoCard({
       if (s.games_local > s.games_visitante) setsLocal++;
       else if (s.games_visitante > s.games_local) setsVis++;
     });
-    if (setsLocal > setsVis) return parejaLocal.inscripcion_id;
-    if (setsVis > setsLocal) return parejaVisitante.inscripcion_id;
+    if (setsLocal >= 2) return parejaLocal.inscripcion_id;
+    if (setsVis >= 2) return parejaVisitante.inscripcion_id;
     return null;
   };
 

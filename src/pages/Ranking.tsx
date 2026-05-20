@@ -487,8 +487,21 @@ export default function Ranking() {
       setSavingAscenso(false);
       return;
     }
-    // Actualizar categoría del jugador
-    await supabase.from("jugadores").update({ categoria_id: ascensoCatDestino }).eq("id", ascensoJugadorId);
+
+    // Buscar equivalente en categorias_jugadores
+    const catDestinoTorneo = categorias.find(c => c.id === ascensoCatDestino);
+    if (catDestinoTorneo) {
+      const { data: catJug } = await supabase
+        .from("categorias_jugadores")
+        .select("id")
+        .eq("nombre", catDestinoTorneo.nombre)
+        .eq("genero", catDestinoTorneo.genero)
+        .maybeSingle();
+      if (catJug?.id) {
+        await supabase.from("jugadores").update({ categoria_id: catJug.id }).eq("id", ascensoJugadorId);
+      }
+    }
+    
     toast.success(`Ascenso registrado. ${ptsTransferidos} puntos transferidos.`);
     setSavingAscenso(false);
     setAscensoOpen(false);

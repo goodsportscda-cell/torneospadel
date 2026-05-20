@@ -109,7 +109,7 @@ export async function calcularRankingTorneo(torneoId: string): Promise<{
       const { data: partidos } = await supabase
         .from("partidos_llave")
         .select(
-          "id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado"
+          "id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id"
         )
         .eq("llave_id", llaveId);
 
@@ -135,6 +135,9 @@ export async function calcularRankingTorneo(torneoId: string): Promise<{
       }
 
       // Resto de rondas: para cada partido finalizado, el perdedor "cae" en esa ronda
+      const partidoMap = new Map();
+      (partidos ?? []).forEach((p) => partidoMap.set(p.id, p));
+
       (partidos ?? [])
         .filter((p) => p.ronda !== "final" && p.estado === "finalizado" && p.ganador_id)
         .forEach((p) => {
@@ -143,7 +146,17 @@ export async function calcularRankingTorneo(torneoId: string): Promise<{
               ? p.pareja_visitante_id
               : p.pareja_local_id;
           if (!perdedor) return;
-          const instancia = RONDA_A_INSTANCIA_PERDIDA[p.ronda as RondaLlave];
+          
+          let instancia = RONDA_A_INSTANCIA_PERDIDA[p.ronda as RondaLlave];
+          if (p.ronda === "previa") {
+            const sig = partidoMap.get(p.partido_siguiente_id);
+            if (sig) {
+              if (sig.ronda === "octavos") instancia = "dieciseisavos";
+              else if (sig.ronda === "cuartos") instancia = "octavos";
+              else if (sig.ronda === "semifinal") instancia = "cuartos";
+            }
+          }
+          
           // Solo asignar si no tiene una mejor ya
           const actual = inscripcionInstancia.get(perdedor);
           if (!actual || instanciaPeso(instancia) > instanciaPeso(actual)) {
