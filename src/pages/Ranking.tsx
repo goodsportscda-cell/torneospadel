@@ -140,7 +140,31 @@ export default function Ranking() {
       supabase.from("ranking_jugadores").select("anio"),
       supabase.from("cupos_master").select("categoria_id, cupos"),
     ]);
-    setCategorias((cats ?? []) as Categoria[]);
+    let loadedCats = (cats ?? []) as Categoria[];
+    
+    // Inyectar categorías faltantes
+    const missingCats: Categoria[] = [
+      { id: "fake-1", nombre: "1ra", genero: "caballeros" },
+      { id: "fake-2", nombre: "2da", genero: "caballeros" },
+      { id: "fake-3", nombre: "3ra", genero: "caballeros" },
+      { id: "fake-4", nombre: "4ta", genero: "caballeros" },
+      { id: "fake-5", nombre: "1ra", genero: "damas" },
+      { id: "fake-6", nombre: "2da", genero: "damas" },
+      { id: "fake-7", nombre: "3ra", genero: "damas" },
+      { id: "fake-8", nombre: "4ta", genero: "damas" },
+      { id: "fake-9", nombre: "5ta", genero: "damas" }
+    ];
+
+    missingCats.forEach(mc => {
+      if (!loadedCats.find(c => c.nombre.toLowerCase() === mc.nombre.toLowerCase() && c.genero === mc.genero)) {
+        loadedCats.push(mc);
+      }
+    });
+    
+    // Ordenar de 1ra a 8va
+    loadedCats.sort((a, b) => a.nombre.localeCompare(b.nombre));
+
+    setCategorias(loadedCats);
     setPuntosCfg((cfg ?? []) as { instancia: Instancia; puntos: number; orden: number }[]);
     const anioSet = new Set<number>();
     (anios ?? []).forEach((a: { anio: number }) => anioSet.add(a.anio));
