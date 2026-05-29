@@ -480,6 +480,12 @@ export default function Llaves() {
     return parejaLabel(final.ganador_id);
   }, [partidosLlave, parejaLabel]);
 
+  const todasZonasFinalizadas = useMemo(() => {
+    if (zonas.length === 0) return true;
+    if (partidosZona.length === 0) return false;
+    return partidosZona.every((p) => p.estado === "finalizado");
+  }, [zonas, partidosZona]);
+
   if (torneos.length === 0) {
     return (
       <div className="p-6">
