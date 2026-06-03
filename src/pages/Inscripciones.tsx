@@ -28,11 +28,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/Combobox";
-import { Plus, Pencil, Trash2, Users, CheckCircle2, Clock, Hourglass, Copy, Printer } from "lucide-react";
+import { Plus, Pencil, Trash2, Users, CheckCircle2, Clock, Hourglass, Copy, Printer, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
+type JugadorSimple = { id: string; nombre: string; apellido: string; club: string | null; telefono: string | null };
+type InscripcionConJugadores = Inscripcion & {
+  jugador1?: JugadorSimple | null;
+  jugador2?: JugadorSimple | null;
+};
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
 type EstadoPago = Database["public"]["Enums"]["estado_pago"];
@@ -87,35 +92,103 @@ const emptyForm = (): FormState => ({
 });
 
 export default function Inscripciones() {
-  const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
+  const [inscripciones, setInscripciones] = useState<InscripcionConJugadores[]>([]);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filtroTorneo, setFiltroTorneo] = useState<string>("todos");
+  const [loadingJugadores, setLoadingJugadores] = useState(false);
+  const [filtroTorneo, setFiltroTorneo] = useState<string>(() => {
+    return localStorage.getItem("admin_filtro_torneo") || "todos";
+  });
   const [filtroEstado, setFiltroEstado] = useState<EstadoInscripcion | "todos" | "por_confirmar">("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Inscripcion | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
 
-  const fetchAll = async () => {
+  // Carga torneos iniciales
+  useEffect(() => {
+    const fetchTorneos = async () => {
+      const { data, error } = await supabase
+        .from("torneos")
+        .select("*")
+        .order("fecha_inicio", { ascending: false });
+      
+      if (error) {
+        toast.error("Error al cargar torneos: " + error.message);
+        return;
+      }
+      setTorneos(data ?? []);
+
+      const savedFilter = localStorage.getItem("admin_filtro_torneo");
+      if (!savedFilter && data && data.length > 0) {
+        const masReciente = data[0].id;
+        setFiltroTorneo(masReciente);
+        localStorage.setItem("admin_filtro_torneo", masReciente);
+      }
+    };
+    fetchTorneos();
+  }, []);
+
+  // Carga las inscripciones del torneo seleccionado
+  const fetchInscripciones = async () => {
     setLoading(true);
-    const [insc, tor, jug] = await Promise.all([
-      supabase.from("inscripciones").select("*").order("created_at", { ascending: false }),
-      supabase.from("torneos").select("*").order("fecha_inicio", { ascending: false }),
-      supabase.from("jugadores").select("*").order("apellido"),
-    ]);
-    if (insc.error) toast.error("Error inscripciones: " + insc.error.message);
-    if (tor.error) toast.error("Error torneos: " + tor.error.message);
-    if (jug.error) toast.error("Error jugadores: " + jug.error.message);
-    setInscripciones(insc.data ?? []);
-    setTorneos(tor.data ?? []);
-    setJugadores(jug.data ?? []);
-    setLoading(false);
+    try {
+      let query = supabase
+        .from("inscripciones")
+        .select(`
+          *,
+          jugador1:jugadores!inscripciones_jugador1_id_fkey(id, nombre, apellido, club, telefono),
+          jugador2:jugadores!inscripciones_jugador2_id_fkey(id, nombre, apellido, club, telefono)
+        `);
+
+      if (filtroTorneo !== "todos") {
+        query = query.eq("torneo_id", filtroTorneo);
+      } else {
+        query = query.order("created_at", { ascending: false }).limit(200);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        toast.error("Error al cargar inscripciones: " + error.message);
+      } else {
+        setInscripciones((data ?? []) as InscripcionConJugadores[]);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error("Error inesperado al cargar inscripciones");
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    fetchAll();
-  }, []);
+    fetchInscripciones();
+  }, [filtroTorneo]);
+
+  // Carga jugadores bajo demanda al abrir el diálogo
+  useEffect(() => {
+    if (dialogOpen && jugadores.length === 0) {
+      const fetchJugadores = async () => {
+        setLoadingJugadores(true);
+        const { data, error } = await supabase
+          .from("jugadores")
+          .select("*")
+          .order("apellido");
+        
+        if (error) {
+          toast.error("Error al cargar jugadores: " + error.message);
+        } else {
+          setJugadores(data ?? []);
+        }
+        setLoadingJugadores(false);
+      };
+      fetchJugadores();
+    }
+  }, [dialogOpen, jugadores.length]);
+
+  const fetchAll = async () => {
+    await fetchInscripciones();
+  };
 
   const torneoMap = useMemo(() => new Map(torneos.map((t) => [t.id, t])), [torneos]);
   const jugadorMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores]);
@@ -235,20 +308,24 @@ export default function Inscripciones() {
     
     // Ordenar alfabéticamente por apellido del primer jugador
     return [...arr].sort((a, b) => {
-      const j1A = jugadorMap.get(a.jugador1_id);
-      const j1B = jugadorMap.get(b.jugador1_id);
+      const j1A = (a as InscripcionConJugadores).jugador1;
+      const j1B = (b as InscripcionConJugadores).jugador1;
       const nameA = j1A ? `${j1A.apellido} ${j1A.nombre}`.toLowerCase() : "";
       const nameB = j1B ? `${j1B.apellido} ${j1B.nombre}`.toLowerCase() : "";
       return nameA.localeCompare(nameB);
     });
-  }, [inscripciones, filtroTorneo, filtroEstado, jugadorMap]);
+  }, [inscripciones, filtroTorneo, filtroEstado]);
 
   const pendientesCount = useMemo(
     () => inscripciones.filter((i) => (i as Inscripcion & { estado: EstadoInscripcion }).estado === "pendiente_confirmacion").length,
     [inscripciones],
   );
 
-  const jugadorLabel = (id: string) => {
+  const jugadorLabel = (id: string, i?: InscripcionConJugadores) => {
+    if (i) {
+      const j = i.jugador1_id === id ? i.jugador1 : i.jugador2;
+      if (j) return `${j.apellido}, ${j.nombre}`;
+    }
     const j = jugadorMap.get(id);
     return j ? `${j.apellido}, ${j.nombre}` : "—";
   };
@@ -272,8 +349,8 @@ export default function Inscripciones() {
     texto += `Total: ${filtered.length} parejas\n\n`;
 
     filtered.forEach((i, index) => {
-      const j1 = jugadorMap.get(i.jugador1_id);
-      const j2 = jugadorMap.get(i.jugador2_id);
+      const j1 = (i as InscripcionConJugadores).jugador1;
+      const j2 = (i as InscripcionConJugadores).jugador2;
       const n1 = j1 ? `${j1.apellido} ${j1.nombre}` : "—";
       const n2 = j2 ? `${j2.apellido} ${j2.nombre}` : "—";
       texto += `${index + 1}. ${n1} / ${n2}\n`;
@@ -306,7 +383,7 @@ export default function Inscripciones() {
           </Button>
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-              <Button onClick={openCreate} disabled={noHayDatos}>
+              <Button onClick={openCreate} disabled={torneos.length === 0}>
                 <Plus className="h-4 w-4" />
                 Nueva inscripción
               </Button>
@@ -316,112 +393,123 @@ export default function Inscripciones() {
               <DialogTitle>{editing ? "Editar inscripción" : "Nueva inscripción"}</DialogTitle>
               <DialogDescription>Elegí torneo y los dos jugadores de la pareja.</DialogDescription>
             </DialogHeader>
-            <div className="grid gap-3 py-2">
-              <div className="grid gap-1.5">
-                <Label>Torneo *</Label>
-                <Combobox
-                  options={torneoOptions}
-                  value={form.torneo_id}
-                  onChange={(v) => setForm({ ...form, torneo_id: v })}
-                  placeholder="Elegir torneo"
-                  searchPlaceholder="Buscar torneo..."
-                />
+            {loadingJugadores ? (
+              <div className="flex flex-col items-center justify-center py-8 gap-2">
+                <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                <p className="text-xs text-muted-foreground">Cargando lista de jugadores...</p>
               </div>
-              <div className="grid gap-1.5">
-                <Label>Jugador 1 *</Label>
-                <Combobox
-                  options={jugadorOptions(form.jugador2_id)}
-                  value={form.jugador1_id}
-                  onChange={(v) => setForm({ ...form, jugador1_id: v })}
-                  placeholder="Elegir jugador 1"
-                  searchPlaceholder="Buscar por apellido o DNI..."
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label>Jugador 2 *</Label>
-                <Combobox
-                  options={jugadorOptions(form.jugador1_id)}
-                  value={form.jugador2_id}
-                  onChange={(v) => setForm({ ...form, jugador2_id: v })}
-                  placeholder="Elegir jugador 2"
-                  searchPlaceholder="Buscar por apellido o DNI..."
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Estado de pago</Label>
-                  <Select
-                    value={form.estado_pago}
-                    onValueChange={(v: EstadoPago) => setForm({ ...form, estado_pago: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {(Object.keys(PAGO_LABELS) as EstadoPago[]).map((e) => (
-                        <SelectItem key={e} value={e}>
-                          {PAGO_LABELS[e]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+            ) : (
+              <>
+                <div className="grid gap-3 py-2">
+                  <div className="grid gap-1.5">
+                    <Label>Torneo *</Label>
+                    <Combobox
+                      options={torneoOptions}
+                      value={form.torneo_id}
+                      onChange={(v) => setForm({ ...form, torneo_id: v })}
+                      placeholder="Elegir torneo"
+                      searchPlaceholder="Buscar torneo..."
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>Jugador 1 *</Label>
+                    <Combobox
+                      options={jugadorOptions(form.jugador2_id)}
+                      value={form.jugador1_id}
+                      onChange={(v) => setForm({ ...form, jugador1_id: v })}
+                      placeholder="Elegir jugador 1"
+                      searchPlaceholder="Buscar por apellido o DNI..."
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>Jugador 2 *</Label>
+                    <Combobox
+                      options={jugadorOptions(form.jugador1_id)}
+                      value={form.jugador2_id}
+                      onChange={(v) => setForm({ ...form, jugador2_id: v })}
+                      placeholder="Elegir jugador 2"
+                      searchPlaceholder="Buscar por apellido o DNI..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-1.5">
+                      <Label>Estado de pago</Label>
+                      <Select
+                        value={form.estado_pago}
+                        onValueChange={(v: EstadoPago) => setForm({ ...form, estado_pago: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(Object.keys(PAGO_LABELS) as EstadoPago[]).map((e) => (
+                            <SelectItem key={e} value={e}>
+                              {PAGO_LABELS[e]}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="monto">Monto pagado</Label>
+                      <Input
+                        id="monto"
+                        type="number"
+                        inputMode="decimal"
+                        value={form.monto_pagado}
+                        onChange={(e) => setForm({ ...form, monto_pagado: e.target.value })}
+                        placeholder="0"
+                      />
+                    </div>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="fi">Fecha de inscripción</Label>
+                    <Input
+                      id="fi"
+                      type="date"
+                      value={form.fecha_inscripcion}
+                      onChange={(e) => setForm({ ...form, fecha_inscripcion: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="notas">Notas</Label>
+                    <Textarea
+                      id="notas"
+                      rows={2}
+                      value={form.notas}
+                      onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                    />
+                  </div>
                 </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="monto">Monto pagado</Label>
-                  <Input
-                    id="monto"
-                    type="number"
-                    inputMode="decimal"
-                    value={form.monto_pagado}
-                    onChange={(e) => setForm({ ...form, monto_pagado: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="fi">Fecha de inscripción</Label>
-                <Input
-                  id="fi"
-                  type="date"
-                  value={form.fecha_inscripcion}
-                  onChange={(e) => setForm({ ...form, fecha_inscripcion: e.target.value })}
-                />
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="notas">Notas</Label>
-                <Textarea
-                  id="notas"
-                  rows={2}
-                  value={form.notas}
-                  onChange={(e) => setForm({ ...form, notas: e.target.value })}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave}>{editing ? "Guardar cambios" : "Inscribir pareja"}</Button>
-            </DialogFooter>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                    Cancelar
+                  </Button>
+                  <Button onClick={handleSave} disabled={torneos.length === 0 || jugadores.length === 0}>
+                    {editing ? "Guardar cambios" : "Inscribir pareja"}
+                  </Button>
+                </DialogFooter>
+              </>
+            )}
           </DialogContent>
         </Dialog>
         </div>
       </div>
 
-      {noHayDatos && (
+      {torneos.length === 0 && (
         <Card>
           <CardContent className="py-6 text-sm text-muted-foreground">
-            Para crear inscripciones primero necesitás cargar al menos{" "}
-            {torneos.length === 0 && "un torneo"}
-            {torneos.length === 0 && jugadores.length === 0 && " y "}
-            {jugadores.length === 0 && "dos jugadores"}.
+            Para crear inscripciones primero necesitás cargar al menos un torneo.
           </CardContent>
         </Card>
       )}
 
       <div className="flex gap-2 flex-wrap items-center">
         <Label className="text-sm">Filtrar:</Label>
-        <Select value={filtroTorneo} onValueChange={setFiltroTorneo}>
+        <Select value={filtroTorneo} onValueChange={(v) => {
+          setFiltroTorneo(v);
+          localStorage.setItem("admin_filtro_torneo", v);
+        }}>
           <SelectTrigger className="w-[200px]">
             <SelectValue />
           </SelectTrigger>
@@ -488,21 +576,21 @@ export default function Inscripciones() {
                       <div className="flex items-center gap-1.5 mt-0.5">
                         <Users className="h-3.5 w-3.5 text-muted-foreground" />
                         <p className="font-semibold text-sm truncate">
-                          {jugadorLabel(i.jugador1_id)}
+                          {jugadorLabel(i.jugador1_id, i)}
                         </p>
-                        {jugadorMap.get(i.jugador1_id)?.club && (
+                        {i.jugador1?.club && (
                           <span className="text-[10px] text-muted-foreground truncate border rounded px-1 max-w-[80px]">
-                            {jugadorMap.get(i.jugador1_id)?.club}
+                            {i.jugador1.club}
                           </span>
                         )}
                       </div>
                       <div className="flex items-center gap-1.5 mt-0.5 ml-5">
                         <p className="font-semibold text-sm truncate">
-                          {jugadorLabel(i.jugador2_id)}
+                          {jugadorLabel(i.jugador2_id, i)}
                         </p>
-                        {jugadorMap.get(i.jugador2_id)?.club && (
+                        {i.jugador2?.club && (
                           <span className="text-[10px] text-muted-foreground truncate border rounded px-1 max-w-[80px]">
-                            {jugadorMap.get(i.jugador2_id)?.club}
+                            {i.jugador2.club}
                           </span>
                         )}
                       </div>
@@ -652,8 +740,8 @@ export default function Inscripciones() {
         </thead>
         <tbody>
           {filtered.map((i, index) => {
-            const j1 = jugadorMap.get(i.jugador1_id);
-            const j2 = jugadorMap.get(i.jugador2_id);
+            const j1 = (i as InscripcionConJugadores).jugador1;
+            const j2 = (i as InscripcionConJugadores).jugador2;
             const n1 = j1 ? `${j1.apellido} ${j1.nombre}` : "—";
             const n2 = j2 ? `${j2.apellido} ${j2.nombre}` : "—";
             
