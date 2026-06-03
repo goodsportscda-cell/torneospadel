@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send, Clock } from "lucide-react";
 import { toast } from "sonner";
 import logo from "@/assets/good-padel-logo.png";
 import JugadorStep, { type JugadorForm, emptyJugador } from "@/components/inscripcion/JugadorStep";
@@ -236,42 +236,86 @@ export default function InscripcionPublica() {
   }
 
   if (resultado) {
+    const esListaEspera = resultado.estado === "lista_espera";
+
     return (
       <Wrapper torneo={torneo}>
-        <Card>
-          <CardContent className="py-10 text-center space-y-4">
-            <CheckCircle2 className="h-14 w-14 text-primary mx-auto" />
-            <h2 className="text-xl font-semibold">¡Inscripción recibida!</h2>
-            {resultado.estado === "lista_espera" ? (
-              <p className="text-sm text-muted-foreground">
-                El torneo ya alcanzó el cupo, quedaste en <strong>lista de espera</strong>.
-                Te contactamos por WhatsApp para confirmar.
-              </p>
+        <Card className="overflow-hidden border-t-4 border-t-primary shadow-lg max-w-lg mx-auto">
+          <CardContent className="py-10 px-6 text-center space-y-6">
+            
+            {esListaEspera ? (
+              <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center animate-pulse">
+                <Clock className="h-10 w-10 text-amber-500" />
+              </div>
             ) : (
-              <p className="text-sm text-muted-foreground">
-                Te vamos a contactar por WhatsApp al teléfono que dejaste para confirmar
-                la inscripción y coordinar el pago.
-              </p>
+              <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
+                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+              </div>
             )}
 
-            <div className="rounded-lg border-2 border-warning/60 bg-warning/15 p-4 text-left mt-4">
-              <div className="flex items-start gap-2">
-                <AlertCircle className="h-5 w-5 text-warning shrink-0 mt-0.5" />
-                <div className="space-y-1">
-                  <p className="text-sm font-bold text-warning-foreground">
-                    Inscripción PENDIENTE
-                  </p>
-                  <p className="text-sm text-warning-foreground/90">
-                    Tu compañero debe confirmar sus datos. Por favor, pasanos los datos
-                    por WhatsApp para confirmar la inscripción.
-                  </p>
+            <div className="space-y-2">
+              <h2 className="text-2xl font-bold tracking-tight text-foreground">
+                {esListaEspera ? "¡En Lista de Espera!" : "¡Inscripción Registrada!"}
+              </h2>
+              <p className="text-sm text-muted-foreground px-4">
+                {esListaEspera 
+                  ? "El cupo máximo del torneo ha sido completado. Su pareja ha quedado guardada como suplente."
+                  : "Tu pre-inscripción ha sido recibida con éxito y el lugar de la pareja ha sido reservado."
+                }
+              </p>
+            </div>
+
+            {/* Cuadro de Estado Destacado */}
+            <div className={`rounded-xl border p-4 text-left space-y-3 ${
+              esListaEspera 
+                ? "bg-amber-500/5 border-amber-500/20 text-amber-900 dark:text-amber-200"
+                : "bg-emerald-500/5 border-emerald-500/20 text-emerald-900 dark:text-emerald-200"
+            }`}>
+              <div className="flex items-center gap-2">
+                {esListaEspera ? (
+                  <Clock className="h-5 w-5 text-amber-500 shrink-0" />
+                ) : (
+                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                )}
+                <p className="text-sm font-bold uppercase tracking-wider">
+                  {esListaEspera ? "Estado: Suplentes / Lista de Espera" : "Estado: Pre-inscriptos (Por Confirmar)"}
+                </p>
+              </div>
+              <p className="text-xs opacity-90 leading-relaxed">
+                {esListaEspera 
+                  ? "No es necesario realizar ningún pago en este momento. Si se libera un cupo en el torneo, nos contactaremos con ustedes inmediatamente por WhatsApp para confirmar su ingreso."
+                  : "Para confirmar su participación de forma definitiva y asegurar su lugar en el cuadro, deberán realizar el pago de la inscripción. Nos contactaremos con ustedes por WhatsApp para coordinar los detalles."
+                }
+              </p>
+            </div>
+
+            {/* Resumen de Pareja */}
+            <div className="bg-muted/40 rounded-xl p-4 text-left border space-y-2">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resumen de la Pareja</p>
+              <div className="grid grid-cols-2 gap-4 pt-1">
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase">Jugador 1</p>
+                  <p className="text-sm font-semibold truncate">{j1.apellido}, {j1.nombre}</p>
+                  <p className="text-xs text-muted-foreground">{j1.telefono}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground uppercase">Compañero/a</p>
+                  <p className="text-sm font-semibold truncate">{j2.apellido}, {j2.nombre}</p>
+                  <p className="text-xs text-muted-foreground">{j2.telefono}</p>
                 </div>
               </div>
             </div>
 
-            <p className="text-xs text-muted-foreground pt-2">
-              Torneo: <strong>{resultado.torneo}</strong>
+            {/* No requiere accion */}
+            <p className="text-xs text-muted-foreground italic bg-muted/20 py-2 rounded-lg">
+              ✨ La inscripción ya está ingresada en el sistema. Su compañero no necesita confirmar ningún dato en la web.
             </p>
+
+            <div className="border-t pt-4 space-y-1">
+              <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Torneo</p>
+              <p className="text-xs font-medium text-foreground">{resultado.torneo}</p>
+            </div>
+
           </CardContent>
         </Card>
       </Wrapper>
