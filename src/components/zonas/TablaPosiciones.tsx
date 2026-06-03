@@ -116,15 +116,14 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
             {tablaOrdenada.map((s, idx) => {
               const clasifica = idx < clasifican;
               return (
-                <TableRow key={s.inscripcion_id} className={clasifica ? "bg-primary/5" : ""}>
+                <TableRow key={s.inscripcion_id} className={clasifica ? "bg-primary/5 border-l-2 border-l-primary" : ""}>
                   <TableCell className="font-medium">
                     {clasifica ? (
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="12" cy="12" r="10" fill="hsl(var(--primary))" />
-                        <text x="12" y="16" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))" textAnchor="middle">{idx + 1}</text>
-                      </svg>
+                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold font-mono">
+                        {idx + 1}
+                      </span>
                     ) : (
-                      <span className="text-muted-foreground">{idx + 1}</span>
+                      <span className="text-muted-foreground pl-1.5 font-mono text-sm">{idx + 1}</span>
                     )}
                   </TableCell>
                   {!readOnly && (

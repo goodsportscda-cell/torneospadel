@@ -310,59 +310,61 @@ export default function TorneoPublico() {
               </Card>
             ) : (
               <div className="overflow-x-auto pb-6">
-                <div className="flex gap-6 min-w-fit">
+                <div className="flex gap-6 min-w-fit items-stretch">
                   {partidosPorRonda.map(([ronda, partidos]) => (
-                    <div key={ronda} className="flex flex-col gap-4 min-w-[280px]">
-                      <h3 className="text-sm font-bold text-center uppercase tracking-widest text-primary sticky top-0 bg-background/95 backdrop-blur py-2 z-10 border-b">
+                    <div key={ronda} className="flex flex-col min-w-[280px]">
+                      <h3 className="text-sm font-bold text-center uppercase tracking-widest text-primary sticky top-0 bg-background/95 backdrop-blur py-2 z-10 border-b mb-4">
                         {NOMBRE_RONDA[ronda]}
                       </h3>
-                      {partidos.map((p) => (
-                        <PartidoCard
-                          key={p.id}
-                          partidoId={p.id}
-                          orden={p.numero}
-                          labelPartido={`Partido ${p.numero}`}
-                          tabla="partidos_llave"
-                          parejaLocal={
-                            p.pareja_local_id
-                              ? {
-                                  inscripcion_id: p.pareja_local_id,
-                                  posicion_siembra: 0,
-                                  label: parejaLabel(p.pareja_local_id),
-                                }
-                              : p.ref_local
+                      <div className="flex-1 flex flex-col justify-around gap-6 py-4 min-h-[350px]">
+                        {partidos.map((p) => (
+                          <PartidoCard
+                            key={p.id}
+                            partidoId={p.id}
+                            orden={p.numero}
+                            labelPartido={`Partido ${p.numero}`}
+                            tabla="partidos_llave"
+                            parejaLocal={
+                              p.pareja_local_id
                                 ? {
-                                    inscripcion_id: "",
+                                    inscripcion_id: p.pareja_local_id,
                                     posicion_siembra: 0,
-                                    label: formatRefLabel(p.ref_local),
+                                    label: parejaLabel(p.pareja_local_id),
                                   }
-                                : null
-                          }
-                          parejaVisitante={
-                            p.pareja_visitante_id
-                              ? {
-                                  inscripcion_id: p.pareja_visitante_id,
-                                  posicion_siembra: 0,
-                                  label: parejaLabel(p.pareja_visitante_id),
-                                }
-                              : p.ref_visitante
+                                : p.ref_local
+                                  ? {
+                                      inscripcion_id: "",
+                                      posicion_siembra: 0,
+                                      label: formatRefLabel(p.ref_local),
+                                    }
+                                  : null
+                            }
+                            parejaVisitante={
+                              p.pareja_visitante_id
                                 ? {
-                                    inscripcion_id: "",
+                                    inscripcion_id: p.pareja_visitante_id,
                                     posicion_siembra: 0,
-                                    label: formatRefLabel(p.ref_visitante),
+                                    label: parejaLabel(p.pareja_visitante_id),
                                   }
-                                : null
-                          }
-                          estado={p.estado}
-                          ganadorId={p.ganador_id}
-                          setsExistentes={setsLlave[p.id] ?? []}
-                          onUpdated={() => {}}
-                          fechaHora={p.fecha_hora}
-                          cancha={p.cancha}
-                          showProgramacion
-                          readOnly={true}
-                        />
-                      ))}
+                                : p.ref_visitante
+                                  ? {
+                                      inscripcion_id: "",
+                                      posicion_siembra: 0,
+                                      label: formatRefLabel(p.ref_visitante),
+                                    }
+                                  : null
+                            }
+                            estado={p.estado}
+                            ganadorId={p.ganador_id}
+                            setsExistentes={setsLlave[p.id] ?? []}
+                            onUpdated={() => {}}
+                            fechaHora={p.fecha_hora}
+                            cancha={p.cancha}
+                            showProgramacion
+                            readOnly={true}
+                          />
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>

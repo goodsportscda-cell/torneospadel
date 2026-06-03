@@ -407,36 +407,87 @@ export function PartidoCard({
           </div>
         )}
 
-        <div className="space-y-1 text-sm">
-          <div
-            className={`flex items-center gap-2 ${
-              ganadorId === parejaLocal?.inscripcion_id ? "font-semibold text-primary" : ""
-            }`}
-          >
-            {ganadorId === parejaLocal?.inscripcion_id && <Trophy className="h-3 w-3" />}
-            <span className="truncate flex items-center gap-1.5">
-              {ref_local && (
-                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-bold text-muted-foreground border border-muted-foreground/20">
-                  {ref_local}
+        <div className="flex items-center justify-between gap-4 py-1.5">
+          <div className="flex-1 min-w-0 space-y-2">
+            {/* Pareja Local Row */}
+            <div className="flex items-center justify-between gap-2">
+              <div
+                className={`flex items-center gap-2 truncate min-w-0 ${
+                  ganadorId === parejaLocal?.inscripcion_id ? "font-bold text-primary" : "text-foreground/80"
+                }`}
+              >
+                {ganadorId === parejaLocal?.inscripcion_id && <Trophy className="h-3.5 w-3.5 text-primary shrink-0" />}
+                <span className="truncate flex items-center gap-1.5">
+                  {ref_local && (
+                    <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-muted-foreground border shrink-0">
+                      {ref_local}
+                    </span>
+                  )}
+                  <span className="truncate">{parejaLocal?.label ?? "— por definir —"}</span>
                 </span>
+              </div>
+
+              {/* Marcador Local */}
+              {setsExistentes.length > 0 && (
+                <div className="flex gap-1 shrink-0 font-mono text-xs">
+                  {setsExistentes.map((s, idx) => {
+                    const localGanadorSet = s.games_local > s.games_visitante;
+                    return (
+                      <div
+                        key={idx}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md border text-center transition-all ${
+                          localGanadorSet
+                            ? "bg-primary text-primary-foreground border-primary font-bold shadow-sm"
+                            : "bg-muted/45 text-muted-foreground border-muted-foreground/10"
+                        }`}
+                      >
+                        {s.games_local}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-              {parejaLocal?.label ?? "— por definir —"}
-            </span>
-          </div>
-          <div
-            className={`flex items-center gap-2 ${
-              ganadorId === parejaVisitante?.inscripcion_id ? "font-semibold text-primary" : ""
-            }`}
-          >
-            {ganadorId === parejaVisitante?.inscripcion_id && <Trophy className="h-3 w-3" />}
-            <span className="truncate flex items-center gap-1.5">
-              {ref_visitante && (
-                <span className="text-[10px] bg-muted px-1.5 py-0.5 rounded font-bold text-muted-foreground border border-muted-foreground/20">
-                  {ref_visitante}
+            </div>
+
+            {/* Pareja Visitante Row */}
+            <div className="flex items-center justify-between gap-2">
+              <div
+                className={`flex items-center gap-2 truncate min-w-0 ${
+                  ganadorId === parejaVisitante?.inscripcion_id ? "font-bold text-primary" : "text-foreground/80"
+                }`}
+              >
+                {ganadorId === parejaVisitante?.inscripcion_id && <Trophy className="h-3.5 w-3.5 text-primary shrink-0" />}
+                <span className="truncate flex items-center gap-1.5">
+                  {ref_visitante && (
+                    <span className="text-[9px] bg-muted px-1.5 py-0.5 rounded font-mono font-bold text-muted-foreground border shrink-0">
+                      {ref_visitante}
+                    </span>
+                  )}
+                  <span className="truncate">{parejaVisitante?.label ?? "— por definir —"}</span>
                 </span>
+              </div>
+
+              {/* Marcador Visitante */}
+              {setsExistentes.length > 0 && (
+                <div className="flex gap-1 shrink-0 font-mono text-xs">
+                  {setsExistentes.map((s, idx) => {
+                    const visitanteGanadorSet = s.games_visitante > s.games_local;
+                    return (
+                      <div
+                        key={idx}
+                        className={`w-7 h-7 flex items-center justify-center rounded-md border text-center transition-all ${
+                          visitanteGanadorSet
+                            ? "bg-primary text-primary-foreground border-primary font-bold shadow-sm"
+                            : "bg-muted/45 text-muted-foreground border-muted-foreground/10"
+                        }`}
+                      >
+                        {s.games_visitante}
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-              {parejaVisitante?.label ?? "— por definir —"}
-            </span>
+            </div>
           </div>
         </div>
 
@@ -519,19 +570,11 @@ export function PartidoCard({
           </div>
         )}
 
-        {!sinParejas && (
+        {!sinParejas && (!readOnly || setsExistentes.length === 0) && (
           <div className="space-y-2 pt-2 border-t">
             {readOnly ? (
-              <div className="flex flex-wrap gap-2 justify-center">
-                {setsExistentes.length > 0 ? (
-                  setsExistentes.map((s, idx) => (
-                    <Badge key={idx} variant="secondary" className="font-bold">
-                      {s.games_local}-{s.games_visitante}
-                    </Badge>
-                  ))
-                ) : (
-                  <span className="text-[10px] text-muted-foreground italic">Sin resultados</span>
-                )}
+              <div className="text-center">
+                <span className="text-[10px] text-muted-foreground italic">Sin resultados</span>
               </div>
             ) : (
               <>
