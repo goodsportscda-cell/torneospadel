@@ -140,6 +140,31 @@ function llave18(): PartidoLlavePlantilla[] {
   ];
 }
 
+// 23 parejas (2 zonas de 4 + 5 zonas de 3 = A-G) → 16 clasificados → octavos directos
+// Según manual APA/FAP (cuadro oficial de 23 parejas)
+function llave23(): PartidoLlavePlantilla[] {
+  return [
+    { numero: 49, ronda: "octavos", ref_local: "1°A", ref_visitante: "3°B" },
+    { numero: 50, ronda: "octavos", ref_local: "2°F", ref_visitante: "2°G" },
+    { numero: 51, ronda: "octavos", ref_local: "1°E", ref_visitante: "2°C" },
+    { numero: 52, ronda: "octavos", ref_local: "2°B", ref_visitante: "1°D" },
+    { numero: 53, ronda: "octavos", ref_local: "1°C", ref_visitante: "2°A" },
+    { numero: 54, ronda: "octavos", ref_local: "2°D", ref_visitante: "1°F" },
+    { numero: 55, ronda: "octavos", ref_local: "1°G", ref_visitante: "2°E" },
+    { numero: 56, ronda: "octavos", ref_local: "3°A", ref_visitante: "1°B" },
+
+    { numero: 57, ronda: "cuartos", ref_local: "G:49", ref_visitante: "G:50" },
+    { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+    { numero: 59, ronda: "cuartos", ref_local: "G:53", ref_visitante: "G:54" },
+    { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "G:56" },
+
+    { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
+    { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
+
+    { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
+  ];
+}
+
 // 24 parejas (8 zonas de 3) → 16 clasificados → octavos
 // Manual APA pág 140: 1°A vs 2°B, 2°G vs 1°H, 1°E vs 2°F, 2°C vs 1°D,
 // 1°C vs 2°D, 2°E vs 1°F, 1°G vs 2°H, 2°A vs 1°B
@@ -428,6 +453,7 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   14: llave14(),
   16: llave16(),
   18: llave18(),
+  23: llave23(),
   24: llave24(),
   25: llave25(),
   26: llave26(),
