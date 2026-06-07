@@ -234,7 +234,8 @@ export function PartidoCard({
       const setsToInsert = sets
         .filter((s) => s.games_local > 0 || s.games_visitante > 0)
         .map((s) => ({
-          [fkColumn]: partidoId,
+          partido_id: tabla === "partidos_zona" ? partidoId : null,
+          partido_llave_id: tabla === "partidos_llave" ? partidoId : null,
           numero_set: s.numero_set,
           games_local: s.games_local,
           games_visitante: s.games_visitante,
@@ -247,7 +248,7 @@ export function PartidoCard({
         .from(tabla)
         .update({
           ganador_id: ganador,
-          estado: ganador ? "finalizado" : "pendiente",
+          estado: ganador ? "finalizado" : (setsToInsert.length > 0 ? "en_juego" : "pendiente"),
         })
         .eq("id", partidoId);
       if (updErr) throw updErr;

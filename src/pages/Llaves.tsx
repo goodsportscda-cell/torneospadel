@@ -121,7 +121,8 @@ export default function Llaves() {
       supabase
         .from("inscripciones")
         .select("id, jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido), jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)")
-        .eq("torneo_id", torneoId),
+        .eq("torneo_id", torneoId)
+        .eq("estado", "confirmada"),
       supabase.from("zonas").select("*").eq("torneo_id", torneoId).order("orden"),
       supabase.from("llaves").select("*").eq("torneo_id", torneoId).maybeSingle(),
     ]);

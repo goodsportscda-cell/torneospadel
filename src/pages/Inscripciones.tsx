@@ -77,6 +77,7 @@ interface FormState {
   monto_pagado: string;
   fecha_inscripcion: string;
   notas: string;
+  disponibilidad_horaria: string;
 }
 
 const today = () => new Date().toISOString().slice(0, 10);
@@ -89,6 +90,7 @@ const emptyForm = (): FormState => ({
   monto_pagado: "",
   fecha_inscripcion: today(),
   notas: "",
+  disponibilidad_horaria: "",
 });
 
 export default function Inscripciones() {
@@ -226,6 +228,7 @@ export default function Inscripciones() {
       monto_pagado: i.monto_pagado?.toString() ?? "",
       fecha_inscripcion: i.fecha_inscripcion,
       notas: i.notas ?? "",
+      disponibilidad_horaria: (i as any).disponibilidad_horaria ?? "",
     });
     setDialogOpen(true);
   };
@@ -243,6 +246,7 @@ export default function Inscripciones() {
       monto_pagado: form.monto_pagado ? Number(form.monto_pagado) : 0,
       fecha_inscripcion: form.fecha_inscripcion || today(),
       notas: form.notas.trim() || null,
+      disponibilidad_horaria: form.disponibilidad_horaria.trim() || null,
     };
 
     if (editing) {
@@ -472,6 +476,15 @@ export default function Inscripciones() {
                     />
                   </div>
                   <div className="grid gap-1.5">
+                    <Label htmlFor="disponibilidad">Disponibilidad horaria</Label>
+                    <Input
+                      id="disponibilidad"
+                      placeholder="Ej: Viernes desde las 19hs, Sábado todo el día"
+                      value={form.disponibilidad_horaria}
+                      onChange={(e) => setForm({ ...form, disponibilidad_horaria: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
                     <Label htmlFor="notas">Notas</Label>
                     <Textarea
                       id="notas"
@@ -612,7 +625,7 @@ export default function Inscripciones() {
                   )}
 
                   {i.notas && (
-                    <div className="mt-1 bg-muted/30 p-2 rounded text-xs text-muted-foreground italic border border-muted">
+                    <div className="mt-1 bg-amber-50 dark:bg-amber-950/20 p-2 rounded text-xs text-amber-800 dark:text-amber-300 italic border border-amber-200 dark:border-amber-900/50">
                       "{i.notas}"
                     </div>
                   )}

@@ -74,7 +74,7 @@ export default function CanchasEnVivo() {
       }
 
       const [{ data: ins }, { data: jugs }] = await Promise.all([
-        supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds),
+        supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds).eq("estado", "confirmada"),
         supabase.from("jugadores").select("id, nombre, apellido"),
       ]);
       setInscripciones((ins ?? []) as Inscripcion[]);
@@ -160,8 +160,8 @@ export default function CanchasEnVivo() {
   }, [partidos]);
 
   const partidosLibres = useMemo(() => {
-    // Partidos que no tienen cancha pero ya tienen rivales definidos y no están finalizados
-    return partidos.filter(p => !p.cancha && p.estado !== "finalizado" && p.pareja_local_id && p.pareja_visitante_id);
+    // Partidos que tienen rivales definidos, no están finalizados y no están en juego
+    return partidos.filter(p => p.estado !== "finalizado" && p.estado !== "en_juego" && p.pareja_local_id && p.pareja_visitante_id);
   }, [partidos]);
 
   const canchas = Array.from({ length: cantidadCanchas }, (_, i) => (i + 1).toString());
@@ -188,6 +188,46 @@ export default function CanchasEnVivo() {
     setGanadorSeleccionado(null);
   };
 
+  const tieneSetCargado = useMemo(() => {
+    return sets.some(s => s.local !== "" && s.visitante !== "");
+  }, [sets]);
+
+  const guardarResultadoParcial = async () => {
+    if (!partidoCargar) return;
+    const toastId = toast.loading("Guardando resultado parcial...");
+    
+    try {
+      const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
+      
+      await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
+      
+      const inserts = sets
+        .map((s, i) => ({
+          numero_set: i + 1,
+          games_local: parseInt(s.local),
+          games_visitante: parseInt(s.visitante),
+          partido_id: partidoCargar.origen === "zona" ? partidoCargar.id : null,
+          partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
+        }))
+        .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
+
+      if (inserts.length > 0) {
+        await supabase.from("sets_partido").insert(inserts as never);
+      }
+
+      await supabase.from(tabla).update({
+        estado: "en_juego",
+        ganador_id: null
+      }).eq("id", partidoCargar.id);
+
+      toast.success("Resultado parcial guardado", { id: toastId });
+      setPartidoCargar(null);
+      cargarDatos();
+    } catch (e) {
+      toast.error("Ocurrió un error", { id: toastId });
+    }
+  };
+
   const guardarResultado = async () => {
     if (!partidoCargar || !ganadorSeleccionado) return;
     const toastId = toast.loading("Guardando...");
@@ -195,25 +235,22 @@ export default function CanchasEnVivo() {
     try {
       const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
       
-      // Borrar sets anteriores si hay y crear nuevos (simplificado para Torre de Control)
-      // Primero limpiamos los sets
       await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
       
-      // Insertamos los nuevos que tengan datos
       const inserts = sets
         .map((s, i) => ({
           numero_set: i + 1,
           games_local: parseInt(s.local),
           games_visitante: parseInt(s.visitante),
-          [partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id"]: partidoCargar.id
+          partido_id: partidoCargar.origen === "zona" ? partidoCargar.id : null,
+          partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
         }))
         .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
 
       if (inserts.length > 0) {
-        await supabase.from("sets_partido").insert(inserts);
+        await supabase.from("sets_partido").insert(inserts as never);
       }
 
-      // Actualizar estado
       await supabase.from(tabla).update({
         estado: "finalizado",
         ganador_id: ganadorSeleccionado
@@ -362,8 +399,8 @@ export default function CanchasEnVivo() {
                       </p>
                       <div className="space-y-2">
                         {proximos.map(p => (
-                          <div key={p.id} className="text-xs border p-2 rounded bg-background shadow-sm">
-                            <div className="flex justify-between items-center mb-1.5">
+                          <div key={p.id} className="text-xs border p-2 rounded bg-background shadow-sm space-y-1.5">
+                            <div className="flex justify-between items-center mb-1">
                               <span className="font-bold text-[10px] text-primary bg-primary/10 px-1.5 rounded">
                                 {p.fecha_hora ? new Date(p.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Sin hora'}
                               </span>
@@ -373,6 +410,16 @@ export default function CanchasEnVivo() {
                             </div>
                             <p className="truncate text-muted-foreground">{parejaLabel(p.pareja_local_id)}</p>
                             <p className="truncate text-muted-foreground">{parejaLabel(p.pareja_visitante_id)}</p>
+                            <div className="flex justify-end pt-1 border-t border-muted/50">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-6 text-[10px] px-2 text-primary border-primary/20 hover:bg-primary/5"
+                                onClick={() => handleAsignarCancha(p.id, numeroCancha)}
+                              >
+                                <Play className="h-2.5 w-2.5 mr-1 fill-current" /> Iniciar
+                              </Button>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -458,9 +505,12 @@ export default function CanchasEnVivo() {
                 ))}
               </div>
 
-              <DialogFooter>
-                <Button disabled={!ganadorSeleccionado} onClick={guardarResultado} className="w-full">
-                  Guardar y Finalizar Partido
+              <DialogFooter className="flex flex-col sm:flex-row gap-2">
+                <Button variant="outline" disabled={!tieneSetCargado} onClick={guardarResultadoParcial} className="flex-1 text-xs">
+                  Guardar Parcial
+                </Button>
+                <Button disabled={!ganadorSeleccionado} onClick={guardarResultado} className="flex-1 text-xs bg-primary text-primary-foreground">
+                  Finalizar Partido
                 </Button>
               </DialogFooter>
             </div>
