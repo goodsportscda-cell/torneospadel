@@ -24,6 +24,8 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { PlayerStats } from "@/components/jugador/PlayerStats";
 import { HeadToHead } from "@/components/jugador/HeadToHead";
 import { PlayerInscriptions } from "@/components/jugador/PlayerInscriptions";
+import { PlayerPerformanceChart } from "@/components/jugador/PlayerPerformanceChart";
+import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
 
 type Torneo = {
   id: string;
@@ -356,9 +358,19 @@ export default function UserDashboard() {
               <PlayerStats jugadorId={jugadorId} />
             )}
 
+            {/* Evolución de Rendimiento */}
+            {jugadorId && (
+              <PlayerPerformanceChart jugadorId={jugadorId} />
+            )}
+
             {/* Active Inscriptions and Matches */}
             {jugadorId && (
               <PlayerInscriptions jugadorId={jugadorId} />
+            )}
+
+            {/* Historial Completo de Partidos */}
+            {jugadorId && (
+              <PlayerMatchHistory jugadorId={jugadorId} />
             )}
 
             {/* My Ranking */}
