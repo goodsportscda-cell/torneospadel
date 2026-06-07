@@ -74,7 +74,9 @@ type PartidoLlaveRow = {
 
 export default function Llaves() {
   const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [torneoId, setTorneoId] = useState<string>("");
+  const [torneoId, setTorneoId] = useState<string>(() => {
+    return localStorage.getItem("ultimo_torneo_consultado") || "";
+  });
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [zonas, setZonas] = useState<ZonaRow[]>([]);
   const [zonasParejas, setZonasParejas] = useState<ZonaParejaRow[]>([]);
@@ -99,7 +101,15 @@ export default function Llaves() {
       .order("fecha_inicio", { ascending: false })
       .then(({ data }) => {
         setTorneos((data ?? []) as Torneo[]);
-        if (data && data.length > 0 && !torneoId) setTorneoId(data[0].id);
+        
+        const savedId = localStorage.getItem("ultimo_torneo_consultado");
+        const exists = data?.some((t) => t.id === savedId);
+        if (exists && savedId) {
+          setTorneoId(savedId);
+        } else if (data && data.length > 0) {
+          setTorneoId(data[0].id);
+          localStorage.setItem("ultimo_torneo_consultado", data[0].id);
+        }
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -515,7 +525,10 @@ export default function Llaves() {
             Cuadro eliminatorio según manual APA.
           </p>
         </div>
-        <Select value={torneoId} onValueChange={setTorneoId}>
+        <Select value={torneoId} onValueChange={(val) => {
+          setTorneoId(val);
+          localStorage.setItem("ultimo_torneo_consultado", val);
+        }}>
           <SelectTrigger className="w-full md:w-[280px]">
             <SelectValue placeholder="Elegí un torneo" />
           </SelectTrigger>

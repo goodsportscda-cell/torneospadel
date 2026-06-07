@@ -29,7 +29,9 @@ type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
 
 export default function Zonas() {
   const [torneos, setTorneos] = useState<Torneo[]>([]);
-  const [torneoId, setTorneoId] = useState<string>("");
+  const [torneoId, setTorneoId] = useState<string>(() => {
+    return localStorage.getItem("ultimo_torneo_consultado") || "";
+  });
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
   const [zonas, setZonas] = useState<Zona[]>([]);
@@ -220,8 +222,14 @@ export default function Zonas() {
           .eq("tipo", "oficial")
           .order("fecha_inicio", { ascending: false });
         setTorneos((ts ?? []) as Torneo[]);
-        if (ts && ts.length > 0 && !torneoId) {
+        
+        const savedId = localStorage.getItem("ultimo_torneo_consultado");
+        const exists = ts?.some((t) => t.id === savedId);
+        if (exists && savedId) {
+          setTorneoId(savedId);
+        } else if (ts && ts.length > 0) {
           setTorneoId(ts[0].id);
+          localStorage.setItem("ultimo_torneo_consultado", ts[0].id);
         }
       } catch (e: any) {
         setError(e.message || "Error cargando torneos");
@@ -230,7 +238,8 @@ export default function Zonas() {
       }
     };
     start();
-  }, [torneoId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (torneoId) cargarDatos();
@@ -274,7 +283,10 @@ export default function Zonas() {
       
       <Card>
         <CardContent className="p-4">
-          <Select value={torneoId} onValueChange={setTorneoId}>
+          <Select value={torneoId} onValueChange={(val) => {
+            setTorneoId(val);
+            localStorage.setItem("ultimo_torneo_consultado", val);
+          }}>
             <SelectTrigger>
               <SelectValue placeholder="Seleccioná un torneo" />
             </SelectTrigger>
