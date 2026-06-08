@@ -65,7 +65,7 @@ type Ascenso = {
   notas: string | null;
 };
 
-type Categoria = { id: string; nombre: string; genero: string };
+type Categoria = { id: string; nombre: string; genero: string; orden?: number | null };
 
 const GENEROS = [
   { value: "todos", label: "Todos" },
@@ -135,34 +135,71 @@ export default function Ranking() {
   const cargarTodo = async () => {
     setLoading(true);
     const [{ data: cats }, { data: cfg }, { data: anios }, { data: cupos }] = await Promise.all([
-      supabase.from("categorias").select("id, nombre, genero").eq("activa", true).order("orden"),
+      supabase.from("categorias").select("id, nombre, genero, orden").eq("activa", true),
       supabase.from("puntos_ranking").select("instancia, puntos, orden").order("orden"),
       supabase.from("ranking_jugadores").select("anio"),
       supabase.from("cupos_master").select("categoria_id, cupos"),
     ]);
+    
     let loadedCats = (cats ?? []) as Categoria[];
     
-    // Inyectar categorías faltantes
-    const missingCats: Categoria[] = [
-      { id: "fake-1", nombre: "1ra", genero: "caballeros" },
-      { id: "fake-2", nombre: "2da", genero: "caballeros" },
-      { id: "fake-3", nombre: "3ra", genero: "caballeros" },
-      { id: "fake-4", nombre: "4ta", genero: "caballeros" },
-      { id: "fake-5", nombre: "1ra", genero: "damas" },
-      { id: "fake-6", nombre: "2da", genero: "damas" },
-      { id: "fake-7", nombre: "3ra", genero: "damas" },
-      { id: "fake-8", nombre: "4ta", genero: "damas" },
-      { id: "fake-9", nombre: "5ta", genero: "damas" }
+    const expectedCats = [
+      { nombre: "1ra", genero: "caballeros", orden: 1 },
+      { nombre: "2da", genero: "caballeros", orden: 2 },
+      { nombre: "3ra", genero: "caballeros", orden: 3 },
+      { nombre: "4ta", genero: "caballeros", orden: 4 },
+      { nombre: "5ta", genero: "caballeros", orden: 5 },
+      { nombre: "6ta", genero: "caballeros", orden: 6 },
+      { nombre: "7ma", genero: "caballeros", orden: 7 },
+      { nombre: "8va", genero: "caballeros", orden: 8 },
+      { nombre: "Suma 7", genero: "caballeros", orden: 9 },
+      { nombre: "1ra", genero: "damas", orden: 11 },
+      { nombre: "2da", genero: "damas", orden: 12 },
+      { nombre: "3ra", genero: "damas", orden: 13 },
+      { nombre: "4ta", genero: "damas", orden: 14 },
+      { nombre: "5ta", genero: "damas", orden: 15 },
+      { nombre: "6ta", genero: "damas", orden: 16 },
+      { nombre: "7ma", genero: "damas", orden: 17 },
+      { nombre: "8va", genero: "damas", orden: 18 }
     ];
 
-    missingCats.forEach(mc => {
-      if (!loadedCats.find(c => c.nombre.toLowerCase() === mc.nombre.toLowerCase() && c.genero === mc.genero)) {
-        loadedCats.push(mc);
+    const categoriesToInsert = [];
+    const categoriesToUpdate = [];
+
+    for (const ec of expectedCats) {
+      const existing = loadedCats.find(
+        lc => lc.nombre.toLowerCase() === ec.nombre.toLowerCase() && lc.genero === ec.genero
+      );
+      if (!existing) {
+        categoriesToInsert.push(ec);
+      } else if (existing.orden !== ec.orden) {
+        categoriesToUpdate.push({ id: existing.id, orden: ec.orden });
       }
-    });
-    
-    // Ordenar de 1ra a 8va
-    loadedCats.sort((a, b) => a.nombre.localeCompare(b.nombre));
+    }
+
+    if (categoriesToInsert.length > 0) {
+      const { data: inserted } = await supabase
+        .from("categorias")
+        .insert(categoriesToInsert)
+        .select("id, nombre, genero, orden");
+      if (inserted) {
+        loadedCats = [...loadedCats, ...inserted];
+      }
+    }
+
+    for (const item of categoriesToUpdate) {
+      await supabase
+        .from("categorias")
+        .update({ orden: item.orden })
+        .eq("id", item.id);
+      
+      const idx = loadedCats.findIndex(lc => lc.id === item.id);
+      if (idx !== -1) {
+        loadedCats[idx].orden = item.orden;
+      }
+    }
+
+    loadedCats.sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
 
     setCategorias(loadedCats);
     setPuntosCfg((cfg ?? []) as { instancia: Instancia; puntos: number; orden: number }[]);

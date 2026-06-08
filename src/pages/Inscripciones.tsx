@@ -291,6 +291,25 @@ export default function Inscripciones() {
     fetchAll();
   };
 
+  const handleConfirmarTodas = async () => {
+    if (filtroTorneo === "todos") return;
+    const toastId = toast.loading("Confirmando todas las inscripciones...");
+    try {
+      const { error } = await supabase
+        .from("inscripciones")
+        .update({ estado: "confirmada" })
+        .eq("torneo_id", filtroTorneo)
+        .eq("estado", "pendiente_confirmacion");
+      
+      if (error) throw error;
+      
+      toast.success("Todas las inscripciones confirmadas", { id: toastId });
+      fetchAll();
+    } catch (e: any) {
+      toast.error("Error al confirmar: " + e.message, { id: toastId });
+    }
+  };
+
   const handleCambiarEstado = async (i: Inscripcion, estado: EstadoInscripcion) => {
     const { error } = await supabase
       .from("inscripciones")
@@ -385,6 +404,16 @@ export default function Inscripciones() {
             <Copy className="h-4 w-4 mr-1" />
             Copiar
           </Button>
+          {filtroTorneo !== "todos" && pendientesCount > 0 && (
+            <Button
+              variant="outline"
+              className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+              onClick={handleConfirmarTodas}
+            >
+              <CheckCircle2 className="h-4 w-4 mr-1" />
+              Confirmar todas ({pendientesCount})
+            </Button>
+          )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openCreate} disabled={torneos.length === 0}>
