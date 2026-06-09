@@ -1,11 +1,11 @@
-const fs = require('fs');
-const path = require('path');
+import fs from 'fs';
+import path from 'path';
 
 // Configuration
 const SUPABASE_URL = "https://ijhxmckhntfquhxmussa.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqaHhtY2tobnRmcXVoeG11c3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MzMxMjMsImV4cCI6MjA5MjAwOTEyM30.2UmiCPsbpeBj9d1dEqac7axcVoRxaNX3CE3NmGrjUYw";
 
-module.exports = async (req, res) => {
+export default async function handler(req, res) {
   try {
     const { type, id, slug, categoria } = req.query;
 
@@ -139,4 +139,4 @@ module.exports = async (req, res) => {
     res.setHeader('Content-Type', 'text/plain; charset=utf-8');
     return res.status(500).send(`Serverless Function Error:\n${err.message}\nStack:\n${err.stack}`);
   }
-};
+}
