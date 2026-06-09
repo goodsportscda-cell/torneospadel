@@ -31,6 +31,13 @@ import { Combobox } from "@/components/Combobox";
 import { Plus, Pencil, Trash2, Users, CheckCircle2, Clock, Hourglass, Copy, Printer, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
 type JugadorSimple = { id: string; nombre: string; apellido: string; club: string | null; telefono: string | null };
@@ -106,6 +113,14 @@ export default function Inscripciones() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Inscripcion | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
+  const [tipoImpresion, setTipoImpresion] = useState<"acreditacion" | "disponibilidad">("acreditacion");
+
+  const handlePrint = (tipo: "acreditacion" | "disponibilidad") => {
+    setTipoImpresion(tipo);
+    setTimeout(() => {
+      window.print();
+    }, 150);
+  };
 
   // Carga torneos iniciales
   useEffect(() => {
@@ -396,10 +411,22 @@ export default function Inscripciones() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => window.print()} disabled={filtered.length === 0}>
-            <Printer className="h-4 w-4 mr-1" />
-            Imprimir
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={filtered.length === 0}>
+                <Printer className="h-4 w-4 mr-1" />
+                Imprimir...
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => handlePrint("acreditacion")}>
+                Planilla de Cobros/Acreditación
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlePrint("disponibilidad")}>
+                Planilla de Disponibilidad Horaria
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button variant="outline" onClick={copiarLista} disabled={filtered.length === 0}>
             <Copy className="h-4 w-4 mr-1" />
             Copiar
@@ -754,62 +781,123 @@ export default function Inscripciones() {
 
     {/* VISTA IMPRESIÓN (Solo visible al imprimir) */}
     <div className="hidden print:block font-sans">
-      <div className="mb-6 flex justify-between items-end border-b pb-4">
-        <div>
-          <h1 className="text-2xl font-bold uppercase tracking-wider">
-            Planilla de Cobros y Acreditación
-          </h1>
-          <p className="text-lg text-gray-600 mt-1">
-            {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
-          </p>
-        </div>
-        <div className="text-right text-sm text-gray-500">
-          <p>Total inscriptos: {filtered.length} parejas</p>
-          <p>Fecha: {new Date().toLocaleDateString("es-AR")}</p>
-        </div>
-      </div>
+      {tipoImpresion === "acreditacion" ? (
+        <>
+          <div className="mb-6 flex justify-between items-end border-b pb-4">
+            <div>
+              <h1 className="text-2xl font-bold uppercase tracking-wider">
+                Planilla de Cobros y Acreditación
+              </h1>
+              <p className="text-lg text-gray-600 mt-1">
+                {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
+              </p>
+            </div>
+            <div className="text-right text-sm text-gray-500">
+              <p>Total inscriptos: {filtered.length} parejas</p>
+              <p>Fecha: {new Date().toLocaleDateString("es-AR")}</p>
+            </div>
+          </div>
 
-      <table className="w-full text-sm border-collapse">
-        <thead>
-          <tr className="bg-gray-100 border-b-2 border-gray-800">
-            <th className="py-2 px-2 text-left font-bold w-8">N°</th>
-            <th className="py-2 px-2 text-left font-bold">Pareja</th>
-            <th className="py-2 px-2 text-left font-bold w-32">Estado Sistema</th>
-            <th className="py-2 px-2 text-left font-bold w-32">Seña / Abonado</th>
-            <th className="py-2 px-2 text-left font-bold w-32">Falta Pagar</th>
-            <th className="py-2 px-2 text-center font-bold w-24">Acreditado</th>
-          </tr>
-        </thead>
-        <tbody>
-          {filtered.map((i, index) => {
-            const j1 = (i as InscripcionConJugadores).jugador1;
-            const j2 = (i as InscripcionConJugadores).jugador2;
-            const n1 = j1 ? `${j1.apellido} ${j1.nombre}` : "—";
-            const n2 = j2 ? `${j2.apellido} ${j2.nombre}` : "—";
-            
-            return (
-              <tr key={i.id} className="border-b border-gray-300">
-                <td className="py-3 px-2 font-mono text-gray-500">{index + 1}</td>
-                <td className="py-3 px-2 font-semibold">
-                  {n1} <br/> <span className="text-gray-500 font-normal">{n2}</span>
-                </td>
-                <td className="py-3 px-2">
-                  {PAGO_LABELS[i.estado_pago]}
-                </td>
-                <td className="py-3 px-2">
-                  {(i.monto_pagado ?? 0) > 0 ? `$${Number(i.monto_pagado).toLocaleString("es-AR")}` : "—"}
-                </td>
-                <td className="py-3 px-2">
-                  <div className="h-6 border-b border-dashed border-gray-400 w-20"></div>
-                </td>
-                <td className="py-3 px-2 text-center">
-                  <div className="h-5 w-5 border-2 border-gray-400 rounded mx-auto"></div>
-                </td>
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-100 border-b-2 border-gray-800">
+                <th className="py-2 px-2 text-left font-bold w-8">N°</th>
+                <th className="py-2 px-2 text-left font-bold">Pareja</th>
+                <th className="py-2 px-2 text-left font-bold w-32">Estado Sistema</th>
+                <th className="py-2 px-2 text-left font-bold w-32">Seña / Abonado</th>
+                <th className="py-2 px-2 text-left font-bold w-32">Falta Pagar</th>
+                <th className="py-2 px-2 text-center font-bold w-24">Acreditado</th>
               </tr>
-            );
-          })}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>
+              {filtered.map((i, index) => {
+                const j1 = (i as InscripcionConJugadores).jugador1;
+                const j2 = (i as InscripcionConJugadores).jugador2;
+                const n1 = j1 ? `${j1.apellido} ${j1.nombre}` : "—";
+                const n2 = j2 ? `${j2.apellido} ${j2.nombre}` : "—";
+                
+                return (
+                  <tr key={i.id} className="border-b border-gray-300">
+                    <td className="py-3 px-2 font-mono text-gray-500">{index + 1}</td>
+                    <td className="py-3 px-2 font-semibold">
+                      {n1} <br/> <span className="text-gray-500 font-normal">{n2}</span>
+                    </td>
+                    <td className="py-3 px-2">
+                      {PAGO_LABELS[i.estado_pago]}
+                    </td>
+                    <td className="py-3 px-2">
+                      {(i.monto_pagado ?? 0) > 0 ? `$${Number(i.monto_pagado).toLocaleString("es-AR")}` : "—"}
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="h-6 border-b border-dashed border-gray-400 w-20"></div>
+                    </td>
+                    <td className="py-3 px-2 text-center">
+                      <div className="h-5 w-5 border-2 border-gray-400 rounded mx-auto"></div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      ) : (
+        <>
+          <div className="mb-6 flex justify-between items-end border-b pb-4">
+            <div>
+              <h1 className="text-2xl font-bold uppercase tracking-wider">
+                Planilla de Disponibilidad Horaria
+              </h1>
+              <p className="text-lg text-gray-600 mt-1">
+                {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
+              </p>
+            </div>
+            <div className="text-right text-sm text-gray-500">
+              <p>Total inscriptos: {filtered.length} parejas</p>
+              <p>Fecha: {new Date().toLocaleDateString("es-AR")}</p>
+            </div>
+          </div>
+
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-100 border-b-2 border-gray-800">
+                <th className="py-2 px-2 text-left font-bold w-8">N°</th>
+                <th className="py-2 px-2 text-left font-bold w-[35%]">Pareja</th>
+                <th className="py-2 px-2 text-left font-bold w-[20%]">Teléfonos</th>
+                <th className="py-2 px-2 text-left font-bold w-[30%]">Disponibilidad Horaria</th>
+                <th className="py-2 px-2 text-left font-bold w-[15%]">Notas</th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((i, index) => {
+                const j1 = (i as InscripcionConJugadores).jugador1;
+                const j2 = (i as InscripcionConJugadores).jugador2;
+                const n1 = j1 ? `${j1.apellido} ${j1.nombre}` : "—";
+                const n2 = j2 ? `${j2.apellido} ${j2.nombre}` : "—";
+                const t1 = j1?.telefono ? j1.telefono : "—";
+                const t2 = j2?.telefono ? j2.telefono : "—";
+                
+                return (
+                  <tr key={i.id} className="border-b border-gray-300">
+                    <td className="py-3 px-2 font-mono text-gray-500">{index + 1}</td>
+                    <td className="py-3 px-2 font-semibold">
+                      {n1} <br/> <span className="text-gray-500 font-normal">{n2}</span>
+                    </td>
+                    <td className="py-3 px-2 font-mono text-xs">
+                      {t1} <br/> <span className="text-gray-500">{t2}</span>
+                    </td>
+                    <td className="py-3 px-2 font-medium">
+                      {i.disponibilidad_horaria || <span className="text-gray-400 italic">No especificada</span>}
+                    </td>
+                    <td className="py-3 px-2 text-xs text-gray-600 italic">
+                      {i.notas || "—"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </>
+      )}
     </div>
     </>
   );
