@@ -95,6 +95,16 @@ export default function TorneoPublico() {
     fetchTorneo();
   }, [fetchTorneo]);
 
+  useEffect(() => {
+    if (torneo) {
+      const catText = torneo.categoria_libre || categoriaNombre ? ` (${torneo.categoria_libre || categoriaNombre})` : "";
+      const fechaTxt = torneo.numero_fecha ? ` - Fecha ${torneo.numero_fecha}` : "";
+      document.title = `${torneo.nombre}${fechaTxt}${catText} | Padel ID`;
+    } else {
+      document.title = "Padel ID - Torneo";
+    }
+  }, [torneo, categoriaNombre]);
+
   const jugadorMap = useMemo(() => new Map(jugadores.map(j => [j.id, j])), [jugadores]);
 
   const parejaLabel = (id: string | null) => {

@@ -214,14 +214,21 @@ export default function RankingPublico() {
     if (filtroAnio !== new Date().getFullYear()) {
       params.anio = filtroAnio.toString();
     }
+    let catName = "";
     if (filtroCategoria !== "todas") {
       params.categoria = filtroCategoria;
+      const cat = categorias.find((c) => c.id === filtroCategoria);
+      if (cat) {
+        const gen = cat.genero === "caballeros" ? "Cab" : (cat.genero === "damas" ? "Damas" : cat.genero);
+        catName = ` - ${cat.nombre} ${gen}`;
+      }
     }
     if (filtroGenero !== "todos") {
       params.genero = filtroGenero;
     }
     setSearchParams(params, { replace: true });
-  }, [filtroAnio, filtroCategoria, filtroGenero]);
+    document.title = `Ranking${catName} | Padel ID`;
+  }, [filtroAnio, filtroCategoria, filtroGenero, categorias]);
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return rows;

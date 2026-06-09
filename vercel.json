@@ -1,5 +1,22 @@
 {
+  "functions": {
+    "api/seo-preview.js": {
+      "includeFiles": "dist/index.html"
+    }
+  },
   "rewrites": [
+    {
+      "source": "/inscribirse/:torneoId",
+      "destination": "/api/seo-preview?type=inscribirse&id=:torneoId"
+    },
+    {
+      "source": "/torneo/:slug",
+      "destination": "/api/seo-preview?type=torneo&slug=:slug"
+    },
+    {
+      "source": "/ranking-publico",
+      "destination": "/api/seo-preview?type=ranking"
+    },
     {
       "source": "/(.*)",
       "destination": "/index.html"
