@@ -446,6 +446,54 @@ function llave42(): PartidoLlavePlantilla[] {
   ];
 }
 
+// 47 parejas (Manual Oficial APA)
+// 15 zonas (A-O: A y B de 4, C-O de 3) -> Clasifican 1° y 2° de todas, más 3°A y 3°B.
+// Total 32 clasificados (16avos de final directos)
+function llave47(): PartidoLlavePlantilla[] {
+  return [
+    // Dieciseisavos (16 partidos: 33-48)
+    { numero: 33, ronda: "dieciseisavos", ref_local: "1°A", ref_visitante: "3°B" },
+    { numero: 34, ronda: "dieciseisavos", ref_local: "2°N", ref_visitante: "2°O" },
+    { numero: 35, ronda: "dieciseisavos", ref_local: "1°I", ref_visitante: "2°G" },
+    { numero: 36, ronda: "dieciseisavos", ref_local: "2°F", ref_visitante: "1°H" },
+    { numero: 37, ronda: "dieciseisavos", ref_local: "1°E", ref_visitante: "2°C" },
+    { numero: 38, ronda: "dieciseisavos", ref_local: "2°J", ref_visitante: "1°L" },
+    { numero: 39, ronda: "dieciseisavos", ref_local: "1°M", ref_visitante: "2°K" },
+    { numero: 40, ronda: "dieciseisavos", ref_local: "2°B", ref_visitante: "1°D" },
+    { numero: 41, ronda: "dieciseisavos", ref_local: "1°C", ref_visitante: "2°A" },
+    { numero: 42, ronda: "dieciseisavos", ref_local: "2°L", ref_visitante: "1°N" },
+    { numero: 43, ronda: "dieciseisavos", ref_local: "1°K", ref_visitante: "2°I" },
+    { numero: 44, ronda: "dieciseisavos", ref_local: "2°D", ref_visitante: "1°F" },
+    { numero: 45, ronda: "dieciseisavos", ref_local: "1°G", ref_visitante: "2°E" },
+    { numero: 46, ronda: "dieciseisavos", ref_local: "2°H", ref_visitante: "1°J" },
+    { numero: 47, ronda: "dieciseisavos", ref_local: "1°O", ref_visitante: "2°M" },
+    { numero: 48, ronda: "dieciseisavos", ref_local: "3°A", ref_visitante: "1°B" },
+
+    // Octavos (49-56)
+    { numero: 49, ronda: "octavos", ref_local: "G:33", ref_visitante: "G:34" },
+    { numero: 50, ronda: "octavos", ref_local: "G:35", ref_visitante: "G:36" },
+    { numero: 51, ronda: "octavos", ref_local: "G:37", ref_visitante: "G:38" },
+    { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "G:40" },
+    { numero: 53, ronda: "octavos", ref_local: "G:41", ref_visitante: "G:42" },
+    { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "G:44" },
+    { numero: 55, ronda: "octavos", ref_local: "G:45", ref_visitante: "G:46" },
+    { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "G:48" },
+
+    // Cuartos (57-60)
+    { numero: 57, ronda: "cuartos", ref_local: "G:49", ref_visitante: "G:50" },
+    { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+    { numero: 59, ronda: "cuartos", ref_local: "G:53", ref_visitante: "G:54" },
+    { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "G:56" },
+
+    // Semis (61-62)
+    { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
+    { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
+
+    // Final (64)
+    { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
+  ];
+}
+
 const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   6: llave6(),
   8: llave8(),
@@ -462,6 +510,7 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   32: llave32(),
   41: llave41(),
   42: llave42(),
+  47: llave47(),
 };
 
 // Devuelve los casos soportados por defecto
