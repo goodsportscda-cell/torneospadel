@@ -23,7 +23,7 @@ import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2, RefreshCw, Edit2 
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import { activeTenant } from "@/lib/tenant";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
 import { PartidoCard } from "./PartidoCard";
 import { TablaPosiciones } from "./TablaPosiciones";
@@ -532,7 +532,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         }}
       >
         <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
-          <img src={goodPadelLogo} alt="Logo" style={{ width: '140px' }} />
+          <img src={activeTenant.logo} alt={activeTenant.name} style={{ width: '140px', objectFit: 'contain' }} />
         </div>
         
         <div style={{ textAlign: 'center', marginBottom: '35px' }}>
@@ -549,8 +549,10 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '30px' }}>
-           <p style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444', marginBottom: '4px' }}>GOOD PADEL</p>
-           <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>@goodsports.jb</p>
+           <p style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444', marginBottom: '4px' }}>{activeTenant.name.toUpperCase()}</p>
+           {activeTenant.instagram && (
+             <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{activeTenant.instagram}</p>
+           )}
         </div>
       </div>
     </>

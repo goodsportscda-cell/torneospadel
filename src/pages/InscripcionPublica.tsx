@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send, Clock } from "lucide-react";
 import { toast } from "sonner";
-import logo from "@/assets/good-padel-logo.png";
+import { activeTenant } from "@/lib/tenant";
 import JugadorStep, { type JugadorForm, emptyJugador } from "@/components/inscripcion/JugadorStep";
 import JugadorCompaneroStep from "@/components/inscripcion/JugadorCompaneroStep";
 import type { Database } from "@/integrations/supabase/types";
@@ -91,12 +91,12 @@ export default function InscripcionPublica() {
 
   // Título dinámico de la pestaña/preview al compartir
   useEffect(() => {
-    const base = "Good Padel - Gestión de Torneos";
+    const base = `${activeTenant.platformName} - Gestión de Torneos`;
     if (torneo) {
       const fechaTxt = torneo.numero_fecha ? ` - Fecha ${torneo.numero_fecha}` : "";
-      document.title = `${torneo.nombre}${fechaTxt} | ${base}`;
+      document.title = `${torneo.nombre}${fechaTxt} | ${activeTenant.name}`;
     } else {
-      document.title = `Inscripción a torneo | ${base}`;
+      document.title = `Inscripción a torneo | ${activeTenant.name}`;
     }
     return () => {
       document.title = base;

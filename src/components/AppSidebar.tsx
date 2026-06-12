@@ -12,7 +12,8 @@ import {
   SidebarMenuItem,
   useSidebar,
 } from "@/components/ui/sidebar";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import { PadelIdLogo } from "@/components/PadelIdLogo";
+import { activeTenant } from "@/lib/tenant";
 
 const items = [
   { title: "Jugadores", url: "/jugadores", icon: Users },
@@ -34,24 +35,30 @@ export function AppSidebar() {
 
   return (
     <Sidebar collapsible="icon">
-      <SidebarHeader className="border-b px-4 py-3">
+      <SidebarHeader className="border-b px-4 py-3 flex flex-col gap-2">
         {!collapsed ? (
-          <div className="flex items-center gap-3">
-            <img
-              src={goodPadelLogo}
-              alt="Good Padel"
-              className="h-10 w-10 object-contain shrink-0"
-              width={40}
-              height={40}
-            />
-            <div className="min-w-0">
-              <h2 className="text-sm font-bold leading-tight truncate text-primary">Padel ID</h2>
-              <p className="text-[10px] text-muted-foreground truncate uppercase tracking-wider font-semibold">Anita Quiroga</p>
+          <>
+            <div className="flex items-center justify-between">
+              <PadelIdLogo size={32} showText={true} />
             </div>
-          </div>
+            
+            {/* Cliente Tenant Badge */}
+            <div className="flex items-center gap-2.5 bg-muted/65 dark:bg-muted/30 border border-border/80 rounded-lg p-2 mt-1">
+              <img
+                src={activeTenant.logo}
+                alt={activeTenant.name}
+                className="h-6 w-6 object-contain shrink-0 rounded"
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-[9px] text-muted-foreground font-semibold leading-none uppercase tracking-wider">Cliente Activo</p>
+                <p className="text-xs font-bold truncate leading-tight mt-0.5 text-foreground">{activeTenant.name}</p>
+                <p className="text-[9px] text-muted-foreground truncate leading-none mt-0.5 font-medium">{activeTenant.subtext}</p>
+              </div>
+            </div>
+          </>
         ) : (
-          <div className="flex items-center justify-center">
-             <Trophy className="h-6 w-6 text-primary" />
+          <div className="flex items-center justify-center py-1">
+             <PadelIdLogo size={24} showText={false} />
           </div>
         )}
       </SidebarHeader>

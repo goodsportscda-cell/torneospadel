@@ -9,7 +9,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import { PadelIdLogo } from "@/components/PadelIdLogo";
+import { activeTenant } from "@/lib/tenant";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -69,18 +70,23 @@ export default function Auth() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
-        <CardHeader className="text-center space-y-3">
+        <CardHeader className="text-center space-y-4">
           <div className="flex justify-center">
-            <img
-              src={goodPadelLogo}
-              alt="Good Padel"
-              className="h-16 w-16 object-contain"
-              width={64}
-              height={64}
-            />
+            <PadelIdLogo size={56} showText={true} />
           </div>
-          <CardTitle className="text-xl">Good Padel</CardTitle>
-          <CardDescription>Torneos y ranking de pádel</CardDescription>
+          <CardDescription>Plataforma de gestión de torneos y ranking</CardDescription>
+          
+          {/* Tenant indicator */}
+          <div className="flex items-center justify-center gap-2 border-t pt-3 mt-1">
+            <img
+              src={activeTenant.logo}
+              alt={activeTenant.name}
+              className="h-6 w-6 object-contain rounded"
+            />
+            <span className="text-xs text-muted-foreground font-semibold">
+              Accediendo al espacio de: <strong className="text-foreground">{activeTenant.name}</strong>
+            </span>
+          </div>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="login">

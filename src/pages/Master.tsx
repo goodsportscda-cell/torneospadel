@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Star, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import { activeTenant } from "@/lib/tenant";
 
 // Convierte una imagen importada a dataURL para incrustarla en el PDF
 const loadImageAsDataURL = (src: string): Promise<string> =>
@@ -196,7 +196,7 @@ export default function Master() {
       // Cargar logo Good Padel
       let logoData: string | null = null;
       try {
-        logoData = await loadImageAsDataURL(goodPadelLogo);
+        logoData = await loadImageAsDataURL(activeTenant.logo);
       } catch (err) {
         console.warn("No se pudo cargar el logo", err);
       }
@@ -238,11 +238,11 @@ export default function Master() {
         pdf.line(marginX, footerY - 5, pageW - marginX, footerY - 5);
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
-        pdf.setTextColor(227, 6, 19); // rojo Good Padel
-        pdf.text("GOOD PADEL", marginX, footerY);
+        pdf.setTextColor(227, 6, 19); // color de marca
+        pdf.text(activeTenant.name.toUpperCase(), marginX, footerY);
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(120);
-        pdf.text("@goodsports.jb", pageW / 2, footerY, { align: "center" });
+        pdf.text(activeTenant.instagram || activeTenant.subtext, pageW / 2, footerY, { align: "center" });
         const pageNum = pdf.getCurrentPageInfo().pageNumber;
         const totalPages = pdf.getNumberOfPages();
         pdf.text(`Página ${pageNum} de ${totalPages}`, pageW - marginX, footerY, {

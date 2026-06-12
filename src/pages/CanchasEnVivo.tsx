@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import { activeTenant } from "@/lib/tenant";
 
 type Torneo = { id: string; nombre: string };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
@@ -524,7 +524,7 @@ export default function CanchasEnVivo() {
         className="fixed top-[-9999px] left-[-9999px] w-[540px] h-[960px] bg-slate-900 text-slate-50 flex flex-col p-8 z-[-10]"
       >
         <div className="flex justify-center mb-6">
-          <img src={goodPadelLogo} alt="Good Padel" className="h-16" />
+          <img src={activeTenant.logo} alt={activeTenant.name} className="h-16 object-contain" />
         </div>
         <div className="text-center mb-8">
           <h1 className="text-3xl font-black tracking-tight text-white mb-2">PARTIDOS EN VIVO</h1>
@@ -560,7 +560,7 @@ export default function CanchasEnVivo() {
         </div>
 
         <div className="text-center mt-auto pt-6 border-t border-slate-800">
-          <p className="font-black text-slate-300 tracking-widest">GOOD PADEL</p>
+          <p className="font-black text-slate-300 tracking-widest">{activeTenant.name.toUpperCase()}</p>
           <p className="text-xs text-slate-500 mt-1">Sigue los resultados en la app</p>
         </div>
       </div>

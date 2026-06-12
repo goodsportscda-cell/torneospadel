@@ -14,7 +14,8 @@ import {
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { ESTADO_TORNEO_BADGE, type EstadoTorneo } from "@/lib/estadoTorneo";
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import { PadelIdLogo } from "@/components/PadelIdLogo";
+import { activeTenant } from "@/lib/tenant";
 
 type TorneoProx = {
   id: string;
@@ -189,19 +190,23 @@ const Index = () => {
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center gap-3">
-        <img
-          src={goodPadelLogo}
-          alt="Good Padel"
-          className="h-12 w-12 object-contain shrink-0"
-          width={48}
-          height={48}
-        />
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Good Padel</h1>
-          <p className="text-sm text-muted-foreground">
-            Gestión integral de torneos de pádel
-          </p>
+      <header className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+        <div className="flex items-center gap-3">
+          <PadelIdLogo size={48} showText={true} />
+        </div>
+        
+        {/* active client info badge */}
+        <div className="flex items-center gap-2.5 bg-muted/50 dark:bg-muted/20 border border-border/80 rounded-xl px-4 py-2 self-start sm:self-center">
+          <img
+            src={activeTenant.logo}
+            alt={activeTenant.name}
+            className="h-8 w-8 object-contain shrink-0 rounded"
+          />
+          <div className="min-w-0">
+            <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider leading-none">Organizado por</p>
+            <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{activeTenant.name}</h2>
+            <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">{activeTenant.subtext}</p>
+          </div>
         </div>
       </header>
 
