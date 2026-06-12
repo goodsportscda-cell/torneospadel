@@ -400,9 +400,17 @@ export default function Ranking() {
     setLoadingDetalle(true);
     setDetalleData([]);
     try {
+      // 1. Obtener ascensos del jugador para identificar categorías de origen excluidas
+      const { data: playerAscensos } = await supabase
+        .from("ascensos")
+        .select("categoria_origen_id")
+        .eq("jugador_id", jugador.jugador_id)
+        .eq("anio", filtroAnio);
+      const ascendidosDesdeIds = new Set((playerAscensos ?? []).map(a => a.categoria_origen_id));
+
       let q = supabase
         .from("ranking_jugadores")
-        .select("torneo_id, instancia, puntos")
+        .select("torneo_id, instancia, puntos, categoria_id")
         .eq("jugador_id", jugador.jugador_id)
         .eq("anio", filtroAnio);
       if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
@@ -410,11 +418,16 @@ export default function Ranking() {
       const { data: rj, error } = await q;
       if (error) throw error;
 
-      const torneoIds = Array.from(new Set((rj ?? []).map((r) => r.torneo_id)));
-      const { data: torneos } = await supabase
-        .from("torneos")
-        .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
-        .in("id", torneoIds);
+      // Filtrar registros que pertenecen a una categoría de origen de la que el jugador ya ascendió
+      const rjFiltrados = (rj ?? []).filter((r) => !ascendidosDesdeIds.has(r.categoria_id));
+
+      const torneoIds = Array.from(new Set(rjFiltrados.map((r) => r.torneo_id)));
+      const { data: torneos } = torneoIds.length > 0
+        ? await supabase
+            .from("torneos")
+            .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
+            .in("id", torneoIds)
+        : { data: [] };
 
       const { data: puntosCfg } = await supabase
         .from("puntos_ranking")
@@ -422,7 +435,7 @@ export default function Ranking() {
       const puntosBaseMap = new Map<string, number>();
       (puntosCfg ?? []).forEach((p) => puntosBaseMap.set(p.instancia, p.puntos));
 
-      const detalle: DetalleTorneo[] = (rj ?? []).map((r) => {
+      const detalle: DetalleTorneo[] = rjFiltrados.map((r) => {
         const t = torneos?.find((x) => x.id === r.torneo_id);
         const mult = Number(t?.multiplicador_puntos ?? 1) || 1;
         return {

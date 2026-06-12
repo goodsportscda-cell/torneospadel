@@ -55,7 +55,7 @@ export default function Master() {
 
   const cargar = async () => {
     setLoading(true);
-    const [{ data: cats }, { data: cupos }, { data: ranking }] = await Promise.all([
+    const [{ data: cats }, { data: cupos }, { data: ranking }, { data: ascensos }] = await Promise.all([
       supabase
         .from("categorias")
         .select("id, nombre, genero, orden")
@@ -66,6 +66,10 @@ export default function Master() {
         .from("ranking_jugadores")
         .select("jugador_id, puntos, categoria_id")
         .eq("anio", anio),
+      supabase
+        .from("ascensos")
+        .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id")
+        .eq("anio", anio),
     ]);
 
     const cuposMap = new Map<string, number>();
@@ -73,15 +77,50 @@ export default function Master() {
       cuposMap.set(c.categoria_id, c.cupos)
     );
 
+    // Mapear ascensos para exclusión de origen y adición en destino
+    const ascendidosDesde = new Map<string, Set<string>>(); // cat_id -> Set<jugador_id>
+    const ascensoMapByCat = new Map<string, Map<string, number>>(); // cat_id -> jugador_id -> puntos_transferidos
+
+    (ascensos ?? []).forEach((a) => {
+      // Destino: registrar puntos a transferir
+      if (!ascensoMapByCat.has(a.categoria_destino_id)) {
+        ascensoMapByCat.set(a.categoria_destino_id, new Map());
+      }
+      const m = ascensoMapByCat.get(a.categoria_destino_id)!;
+      m.set(a.jugador_id, (m.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
+
+      // Origen: registrar exclusión
+      if (!ascendidosDesde.has(a.categoria_origen_id)) {
+        ascendidosDesde.set(a.categoria_origen_id, new Set());
+      }
+      ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
+    });
+
     // Agrupar puntos por categoria + jugador
     const puntosPorCat = new Map<string, Map<string, number>>();
     (ranking ?? []).forEach((r) => {
       if (!r.categoria_id) return;
+      // Si el jugador ascendió desde esta categoría, excluir sus puntos de ella
+      const catAscendidos = ascendidosDesde.get(r.categoria_id);
+      if (catAscendidos && catAscendidos.has(r.jugador_id)) {
+        return; // skip
+      }
       if (!puntosPorCat.has(r.categoria_id)) {
         puntosPorCat.set(r.categoria_id, new Map());
       }
       const m = puntosPorCat.get(r.categoria_id)!;
       m.set(r.jugador_id, (m.get(r.jugador_id) ?? 0) + r.puntos);
+    });
+
+    // Agregar puntos por ascenso en la categoría destino
+    ascensoMapByCat.forEach((jugadorMap, catId) => {
+      if (!puntosPorCat.has(catId)) {
+        puntosPorCat.set(catId, new Map());
+      }
+      const m = puntosPorCat.get(catId)!;
+      jugadorMap.forEach((pts, jId) => {
+        m.set(jId, (m.get(jId) ?? 0) + pts);
+      });
     });
 
     // Cargar todos los jugadores que aparecen
