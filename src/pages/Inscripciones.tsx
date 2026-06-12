@@ -283,6 +283,21 @@ export default function Inscripciones() {
   };
 
   const handleDelete = async (id: string) => {
+    // Check if the pairing is already assigned to a zone to prevent orphaned matches
+    const { data: assigned, error: checkError } = await supabase
+      .from("zonas_parejas")
+      .select("id")
+      .eq("inscripcion_id", id)
+      .maybeSingle();
+
+    if (checkError) {
+      return toast.error("Error al comprobar la asignación de la pareja: " + checkError.message);
+    }
+
+    if (assigned) {
+      return toast.error("No se puede eliminar la inscripción: la pareja ya está asignada a una zona. Quitala de la zona primero.");
+    }
+
     const { error } = await supabase.from("inscripciones").delete().eq("id", id);
     if (error) return toast.error("Error al eliminar: " + error.message);
     toast.success("Inscripción eliminada");

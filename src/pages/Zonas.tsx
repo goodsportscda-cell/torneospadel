@@ -321,6 +321,80 @@ export default function Zonas() {
                 Añadir Zona
               </Button>
 
+              {torneoId === "353ea11f-9004-4170-95d1-f1e86647243f" && (
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={async () => {
+                    const confirm = window.confirm("¿Vincular la nueva inscripción de Marchi/Reyes a los partidos y llaves de la Zona C?");
+                    if (!confirm) return;
+                    const toastId = toast.loading("Reparando datos de la pareja...");
+                    try {
+                      const oldId = "041185d9-6792-491b-86d5-edb3a887d395";
+                      const newId = "f562a2e2-626b-4c81-9f1c-5337445b82ea";
+
+                      // 1. Update zone pairings
+                      const { error: err1 } = await supabase
+                        .from("zonas_parejas")
+                        .update({ inscripcion_id: newId })
+                        .eq("inscripcion_id", oldId);
+                      if (err1) throw err1;
+
+                      // 2. Update matches local/visitor/winner
+                      const { error: err2 } = await supabase
+                        .from("partidos_zona")
+                        .update({ pareja_local_id: newId })
+                        .eq("pareja_local_id", oldId);
+                      if (err2) throw err2;
+
+                      const { error: err3 } = await supabase
+                        .from("partidos_zona")
+                        .update({ pareja_visitante_id: newId })
+                        .eq("pareja_visitante_id", oldId);
+                      if (err3) throw err3;
+
+                      const { error: err4 } = await supabase
+                        .from("partidos_zona")
+                        .update({ ganador_id: newId })
+                        .eq("ganador_id", oldId);
+                      if (err4) throw err4;
+
+                      // 3. Update playoff matches local/visitor/winner
+                      const { error: err5 } = await supabase
+                        .from("partidos_llave")
+                        .update({ pareja_local_id: newId })
+                        .eq("pareja_local_id", oldId);
+                      if (err5) throw err5;
+
+                      const { error: err6 } = await supabase
+                        .from("partidos_llave")
+                        .update({ pareja_visitante_id: newId })
+                        .eq("pareja_visitante_id", oldId);
+                      if (err6) throw err6;
+
+                      const { error: err7 } = await supabase
+                        .from("partidos_llave")
+                        .update({ ganador_id: newId })
+                        .eq("ganador_id", oldId);
+                      if (err7) throw err7;
+
+                      // 4. Delete old temporary ranking rows
+                      await supabase
+                        .from("ranking_jugadores")
+                        .delete()
+                        .eq("inscripcion_id", oldId);
+
+                      toast.success("¡Pareja vinculada con éxito! Recordá recalcular el ranking.", { id: toastId });
+                      cargarDatos();
+                    } catch (e: any) {
+                      toast.error("Error al reparar: " + e.message, { id: toastId });
+                    }
+                  }}
+                >
+                  Reparar Pareja Marchi/Reyes
+                </Button>
+              )}
+
               {zonas.length === 0 ? (
                 <Button size="sm" onClick={handleGenerarZonas}>
                   <Wand2 className="h-4 w-4 mr-2" />
