@@ -122,14 +122,14 @@ export default function InscripcionPublica() {
   };
 
   const validarJugador2 = (j: JugadorForm): boolean => {
+    if (!j.dni.trim() || !/^\d{7,9}$/.test(j.dni.trim())) {
+      toast.error("Compañero: DNI obligatorio (7 a 9 dígitos)");
+      return false;
+    }
     if (!j.apellido.trim()) return toast.error("Compañero: falta el apellido"), false;
     if (!j.nombre.trim()) return toast.error("Compañero: falta el nombre"), false;
     if (!j.telefono.trim() || j.telefono.trim().length < 6) {
       toast.error("Compañero: teléfono obligatorio (mín. 6 dígitos)");
-      return false;
-    }
-    if (j.dni && !/^\d{7,9}$/.test(j.dni)) {
-      toast.error("Compañero: el DNI debe tener entre 7 y 9 dígitos");
       return false;
     }
     return true;
@@ -427,7 +427,7 @@ export default function InscripcionPublica() {
               <ResumenItem label="Tel. Jugador 1" value={j1.telefono} />
               <ResumenItem
                 label="Compañero/a"
-                value={`${j2.apellido}, ${j2.nombre}${j2.dni ? ` (DNI ${j2.dni})` : " (sin DNI)"}`}
+                value={`${j2.apellido}, ${j2.nombre} (DNI ${j2.dni})`}
               />
               <ResumenItem label="Tel. Compañero" value={j2.telefono} />
               {disponibilidad && (

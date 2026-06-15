@@ -28,15 +28,16 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
   const [seleccionado, setSeleccionado] = useState(false);
   const debounceRef = useRef<number | null>(null);
 
-  // Búsqueda en vivo (DNI o apellido)
+  const cleanQuery = query.replace(/\D/g, "").slice(0, 9);
+
+  // Búsqueda en vivo (solo DNI)
   useEffect(() => {
     if (debounceRef.current) window.clearTimeout(debounceRef.current);
-    const q = query.trim();
     if (seleccionado || modoAlta) {
       setSugerencias([]);
       return;
     }
-    if (q.length < 2) {
+    if (cleanQuery.length < 7) {
       setSugerencias([]);
       return;
     }
@@ -44,26 +45,14 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
     debounceRef.current = window.setTimeout(async () => {
       setBuscando(true);
       try {
-        // Si es solo dígitos y tiene largo de DNI completo, intento exacto
-        if (/^\d{7,9}$/.test(q)) {
-          const res = await fetch(
-            `${SUPABASE_URL}/functions/v1/buscar-jugador-publico?dni=${encodeURIComponent(q)}`,
-          );
-          const data = await res.json();
-          if (data.jugador) {
-            setSugerencias([data.jugador]);
-          } else {
-            setSugerencias([]);
-          }
+        const res = await fetch(
+          `${SUPABASE_URL}/functions/v1/buscar-jugador-publico?dni=${encodeURIComponent(cleanQuery)}`,
+        );
+        const data = await res.json();
+        if (data.jugador && (!excludeDni || data.jugador.dni !== excludeDni.trim())) {
+          setSugerencias([data.jugador]);
         } else {
-          const res = await fetch(
-            `${SUPABASE_URL}/functions/v1/buscar-jugador-publico?q=${encodeURIComponent(q)}`,
-          );
-          const data = await res.json();
-          const lista = (data.jugadores ?? []).filter(
-            (j: Sugerencia) => !excludeDni || j.dni !== excludeDni.trim(),
-          );
-          setSugerencias(lista);
+          setSugerencias([]);
         }
       } catch (err) {
         console.error(err);
@@ -75,7 +64,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
     return () => {
       if (debounceRef.current) window.clearTimeout(debounceRef.current);
     };
-  }, [query, seleccionado, modoAlta, excludeDni]);
+  }, [cleanQuery, seleccionado, modoAlta, excludeDni]);
 
   const elegir = async (s: Sugerencia) => {
     // Traer datos completos por DNI si los tiene
@@ -130,12 +119,12 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
     });
   };
 
-  const activarAlta = () => {
+  const activarAltaConDni = (dniVal: string) => {
     setModoAlta(true);
     setSeleccionado(false);
     setSugerencias([]);
     onChange({
-      dni: "",
+      dni: dniVal,
       nombre: "",
       apellido: "",
       telefono: "",
@@ -233,15 +222,16 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
         </div>
 
         <div className="grid gap-1.5">
-          <Label htmlFor="dni-c-opt">DNI (opcional)</Label>
+          <Label htmlFor="dni-c-mandatory">DNI *</Label>
           <Input
-            id="dni-c-opt"
-            inputMode="numeric"
-            placeholder="Si lo sabés, mejor"
+            id="dni-c-mandatory"
             value={value.dni}
-            onChange={(e) => update({ dni: e.target.value.replace(/\D/g, "") })}
-            maxLength={9}
+            disabled
+            className="bg-muted text-muted-foreground cursor-not-allowed"
           />
+          <p className="text-[10px] text-muted-foreground">
+            El DNI proviene de la búsqueda anterior y se bloquea para evitar errores.
+          </p>
         </div>
       </div>
     );
@@ -251,15 +241,18 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
   return (
     <div className="space-y-3">
       <div className="grid gap-1.5">
-        <Label htmlFor="buscar-c">Buscar por DNI o apellido *</Label>
+        <Label htmlFor="buscar-c">Buscar compañero por DNI *</Label>
         <div className="relative">
           <Input
             id="buscar-c"
-            placeholder="Ej: 30123456 o Pérez"
+            type="tel"
+            inputMode="numeric"
+            placeholder="Ej: 30123456 (sin puntos)"
             value={query}
-            onChange={(e) => setQuery(e.target.value)}
+            onChange={(e) => setQuery(e.target.value.replace(/\D/g, ""))}
             className="pr-9"
             autoComplete="off"
+            maxLength={9}
           />
           <span className="absolute right-2 top-1/2 -translate-y-1/2">
             {buscando ? (
@@ -270,7 +263,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
           </span>
         </div>
         <p className="text-xs text-muted-foreground">
-          Escribí 2+ letras del apellido o el DNI completo.
+          Ingresá los 7 u 8 dígitos del DNI de tu compañero para buscarlo o registrarlo.
         </p>
       </div>
 
@@ -297,23 +290,28 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
         </div>
       )}
 
-      {query.trim().length >= 2 && !buscando && sugerencias.length === 0 && (
-        <p className="text-xs text-muted-foreground">
-          No encontramos a nadie con esos datos.
+      {cleanQuery.length > 0 && cleanQuery.length < 7 && (
+        <p className="text-xs text-amber-600 dark:text-amber-400">
+          El DNI debe tener al menos 7 dígitos para realizar la búsqueda.
         </p>
       )}
 
-      <div className="pt-1">
-        <Button
-          type="button"
-          variant="outline"
-          className="w-full"
-          onClick={activarAlta}
-        >
-          <UserPlus className="h-4 w-4" />
-          Mi compañero no está / no tengo el DNI
-        </Button>
-      </div>
+      {cleanQuery.length >= 7 && !buscando && sugerencias.length === 0 && (
+        <div className="space-y-2 pt-2 border-t border-dashed">
+          <p className="text-xs text-muted-foreground">
+            DNI no registrado en el sistema. ¿Querés registrar a tu compañero como nuevo jugador?
+          </p>
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full"
+            onClick={() => activarAltaConDni(cleanQuery)}
+          >
+            <UserPlus className="h-4 w-4 mr-2" />
+            Registrar nuevo compañero con DNI {cleanQuery}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }
