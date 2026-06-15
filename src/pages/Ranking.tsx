@@ -294,10 +294,35 @@ export default function Ranking() {
       setRows([]);
       return;
     }
-    const { data: jugadores } = await supabase
-      .from("jugadores")
-      .select("id, nombre, apellido, club")
-      .in("id", ids);
+    // Chunk ids array to avoid URL length limit in Supabase (.in with many elements)
+    const chunkSize = 100;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      chunks.push(ids.slice(i, i + chunkSize));
+    }
+    
+    let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
+    try {
+      const results = await Promise.all(
+        chunks.map(chunk => 
+          supabase
+            .from("jugadores")
+            .select("id, nombre, apellido, club")
+            .in("id", chunk)
+        )
+      );
+      
+      for (const res of results) {
+        if (res.error) {
+          console.error("Error fetching chunk of jugadores:", res.error);
+        }
+        if (res.data) {
+          jugadores = [...jugadores, ...res.data];
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching jugadores in chunks:", err);
+    }
 
     const result: RankingRow[] = ids.map((id) => {
       const j = jugadores?.find((x) => x.id === id);
@@ -602,7 +627,36 @@ export default function Ranking() {
       .order("fecha", { ascending: false });
     if (!data || data.length === 0) { setAscensosList([]); return; }
     const jugIds = Array.from(new Set(data.map((a) => a.jugador_id)));
-    const { data: jugs } = await supabase.from("jugadores").select("id, nombre, apellido").in("id", jugIds);
+    // Chunk jugIds array to avoid URL length limit in Supabase (.in with many elements)
+    const chunkSize = 100;
+    const chunks = [];
+    for (let i = 0; i < jugIds.length; i += chunkSize) {
+      chunks.push(jugIds.slice(i, i + chunkSize));
+    }
+    
+    let jugs: { id: string; nombre: string; apellido: string }[] = [];
+    try {
+      const results = await Promise.all(
+        chunks.map(chunk => 
+          supabase
+            .from("jugadores")
+            .select("id, nombre, apellido")
+            .in("id", chunk)
+        )
+      );
+      
+      for (const res of results) {
+        if (res.error) {
+          console.error("Error fetching chunk of jugadores in ascensos:", res.error);
+        }
+        if (res.data) {
+          jugs = [...jugs, ...res.data];
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching jugadores in chunks for ascensos:", err);
+    }
+
     setAscensosList(data.map((a) => {
       const j = jugs?.find((x) => x.id === a.jugador_id);
       return { ...a, jugador_nombre: j?.nombre, jugador_apellido: j?.apellido };

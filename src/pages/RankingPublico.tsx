@@ -179,10 +179,35 @@ export default function RankingPublico() {
       return;
     }
 
-    const { data: jugadores } = await supabase
-      .from("jugadores")
-      .select("id, nombre, apellido, club")
-      .in("id", ids);
+    // Chunk ids array to avoid URL length limit in Supabase (.in with many elements)
+    const chunkSize = 100;
+    const chunks = [];
+    for (let i = 0; i < ids.length; i += chunkSize) {
+      chunks.push(ids.slice(i, i + chunkSize));
+    }
+    
+    let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
+    try {
+      const results = await Promise.all(
+        chunks.map(chunk => 
+          supabase
+            .from("jugadores")
+            .select("id, nombre, apellido, club")
+            .in("id", chunk)
+        )
+      );
+      
+      for (const res of results) {
+        if (res.error) {
+          console.error("Error fetching chunk of jugadores:", res.error);
+        }
+        if (res.data) {
+          jugadores = [...jugadores, ...res.data];
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching jugadores in chunks:", err);
+    }
 
     const result: RankingRow[] = ids.map((id) => {
       const j = jugadores?.find((x) => x.id === id);

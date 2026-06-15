@@ -126,14 +126,37 @@ export default function Master() {
     // Cargar todos los jugadores que aparecen
     const todosIds = new Set<string>();
     puntosPorCat.forEach((m) => m.forEach((_, id) => todosIds.add(id)));
-    const { data: jugadores } = todosIds.size
-      ? await supabase
-          .from("jugadores")
-          .select("id, nombre, apellido, club")
-          .in("id", Array.from(todosIds))
-      : { data: [] };
+    let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
+    if (todosIds.size > 0) {
+      const idsArray = Array.from(todosIds);
+      const chunkSize = 100;
+      const chunks = [];
+      for (let i = 0; i < idsArray.length; i += chunkSize) {
+        chunks.push(idsArray.slice(i, i + chunkSize));
+      }
+      try {
+        const results = await Promise.all(
+          chunks.map(chunk => 
+            supabase
+              .from("jugadores")
+              .select("id, nombre, apellido, club")
+              .in("id", chunk)
+          )
+        );
+        for (const res of results) {
+          if (res.error) {
+            console.error("Error fetching chunk of jugadores:", res.error);
+          }
+          if (res.data) {
+            jugadores = [...jugadores, ...res.data];
+          }
+        }
+      } catch (err) {
+        console.error("Error fetching jugadores in chunks:", err);
+      }
+    }
     const jugadorMap = new Map(
-      (jugadores ?? []).map((j) => [j.id, j] as const)
+      jugadores.map((j) => [j.id, j] as const)
     );
 
     const result: CategoriaMaster[] = (cats ?? []).map((cat) => {
