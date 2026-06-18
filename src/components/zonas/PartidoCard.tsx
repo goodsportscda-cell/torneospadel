@@ -173,14 +173,25 @@ export function PartidoCard({
   const guardarEquipos = async () => {
     setSavingEquipos(true);
     try {
+      const nuevoLocalId = editLocalId === "none" ? null : editLocalId;
+      const nuevoVisiId = editVisiId === "none" ? null : editVisiId;
+      
+      const updates: any = {
+        pareja_local_id: nuevoLocalId, 
+        pareja_visitante_id: nuevoVisiId,
+        ref_local: editRefLocal.trim() || null,
+        ref_visitante: editRefVisitante.trim() || null
+      };
+
+      // Si el ganador_id actual no coincide con ninguno de los nuevos equipos, lo limpiamos para evitar inconsistencias
+      if (ganadorId && ganadorId !== nuevoLocalId && ganadorId !== nuevoVisiId) {
+        updates.ganador_id = null;
+        updates.estado = "pendiente";
+      }
+
       const { error } = await supabase
         .from(tabla)
-        .update({ 
-          pareja_local_id: editLocalId === "none" ? null : editLocalId, 
-          pareja_visitante_id: editVisiId === "none" ? null : editVisiId,
-          ref_local: editRefLocal.trim() || null,
-          ref_visitante: editRefVisitante.trim() || null
-        })
+        .update(updates)
         .eq("id", partidoId);
       if (error) throw error;
       toast.success("Equipos actualizados");
