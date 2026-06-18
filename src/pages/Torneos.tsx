@@ -227,6 +227,42 @@ export default function Torneos() {
   };
 
   const handleRecalcularRanking = async (t: any) => {
+    // Si es el torneo con problemas (7ma Cab 1° fecha), actualizamos los partidos llave primero
+    if (t.id === "b48f2420-d6fa-433a-9344-3b5683664828") {
+      try {
+        toast.loading("Corrigiendo cruces de partidos del torneo en la base de datos...", { id: "fix-llave" });
+        
+        // Inscription IDs
+        const emilioGuillermo = "f332b83b-47a9-4c56-a217-24b0211f739d";
+        const felipePena = "44a41ac7-19f0-4a85-a6db-c42b2bcb517a";
+        const benjaminLorenzo = "2de442ac-efcb-4ca8-84a6-d4f2fc84b48d";
+        const arielCamilo = "a371dac5-528e-48c0-bfe7-5ee7c0e69b30";
+        const jesusLucio = "20c45d6d-d3b8-485d-b26f-d7d67898f96d";
+        const guidoMiguel = "abff7577-f137-4b32-a494-7f42ae8fb22c";
+        const joseAlexis = "9975e6f7-fad0-4e36-a8ab-aa9bc51907df";
+        const jeremiasJulian = "02117a32-5557-41e9-8af1-8645fe852ae8";
+        const facundoGerardo = "8e06608b-634a-4e15-9be9-5958a987b2bf";
+        const ramiroFranco = "8149f3cf-59a4-48fa-b3dc-c790aeb36b86";
+        const facundoEnzo = "56de8bdd-35f1-4928-9b50-a26a48c5d6b6";
+
+        await Promise.all([
+          supabase.from("partidos_llave").update({ pareja_local_id: emilioGuillermo, pareja_visitante_id: felipePena, ganador_id: emilioGuillermo }).eq("id", "4ebbd752-b9e4-455c-b512-9525d557133d"),
+          supabase.from("partidos_llave").update({ pareja_local_id: benjaminLorenzo, pareja_visitante_id: arielCamilo, ganador_id: benjaminLorenzo }).eq("id", "24900453-17e8-4dc4-ba3c-516f2b20b5ee"),
+          supabase.from("partidos_llave").update({ pareja_local_id: jesusLucio, pareja_visitante_id: guidoMiguel, ganador_id: jesusLucio }).eq("id", "1589f28f-9041-4e70-858c-9708bf03cb0d"),
+          supabase.from("partidos_llave").update({ pareja_local_id: joseAlexis, pareja_visitante_id: jeremiasJulian, ganador_id: joseAlexis }).eq("id", "679e8249-67e2-48de-b921-843a4272f307"),
+          supabase.from("partidos_llave").update({ pareja_local_id: facundoGerardo, pareja_visitante_id: ramiroFranco, ganador_id: facundoGerardo }).eq("id", "3e3afc8c-d3a6-4bbe-b954-00456f6042e2"),
+          supabase.from("partidos_llave").update({ pareja_local_id: emilioGuillermo, pareja_visitante_id: benjaminLorenzo, ganador_id: benjaminLorenzo }).eq("id", "9aca934c-2567-4c08-b8a5-a88e2a9e8861"),
+          supabase.from("partidos_llave").update({ pareja_local_id: jesusLucio, pareja_visitante_id: facundoEnzo, ganador_id: jesusLucio }).eq("id", "9cda33c1-b662-45a2-b939-4742388a3a69"),
+          supabase.from("partidos_llave").update({ pareja_local_id: joseAlexis, pareja_visitante_id: facundoGerardo, ganador_id: joseAlexis }).eq("id", "dfd273cb-3b7d-4728-9444-5e1b03c673ad")
+        ]);
+
+        toast.success("Cruces de partidos corregidos con éxito.", { id: "fix-llave" });
+      } catch (err: any) {
+        toast.error("Error corrigiendo cruces: " + err.message, { id: "fix-llave" });
+        return;
+      }
+    }
+
     const res = await calcularRankingTorneo(t.id);
     if (res.ok) {
       toast.success(`Ranking recalculado: ${res.jugadoresConPuntos} registros.`);
