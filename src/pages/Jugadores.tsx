@@ -27,11 +27,12 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Phone, Mail, Merge } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, Phone, Mail, Merge, Eye, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
 import FusionarDialog from "@/components/jugadores/FusionarDialog";
+import DetalleJugadorDialog from "@/components/jugadores/DetalleJugadorDialog";
 
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
 type Categoria = Database["public"]["Tables"]["categorias_jugadores"]["Row"];
@@ -65,29 +66,78 @@ export default function Jugadores() {
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingJugadores, setLoadingJugadores] = useState(false);
   const [search, setSearch] = useState("");
   const [filtroGenero, setFiltroGenero] = useState<Genero | "todos">("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fusionarOpen, setFusionarOpen] = useState(false);
   const [editing, setEditing] = useState<Jugador | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [detailOpen, setDetailOpen] = useState(false);
+  const [selectedJugador, setSelectedJugador] = useState<Jugador | null>(null);
 
-  const fetchAll = async () => {
+  const fetchCategorias = async () => {
     setLoading(true);
-    const [{ data: j, error: ej }, { data: c, error: ec }] = await Promise.all([
-      supabase.from("jugadores").select("*").order("apellido"),
-      supabase.from("categorias_jugadores").select("*").eq("activa", true).order("orden"),
-    ]);
-    if (ej) toast.error("Error cargando jugadores: " + ej.message);
+    const { data: c, error: ec } = await supabase
+      .from("categorias_jugadores")
+      .select("*")
+      .eq("activa", true)
+      .order("orden");
     if (ec) toast.error("Error cargando categorías: " + ec.message);
-    setJugadores(j ?? []);
     setCategorias(c ?? []);
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchAll();
+    fetchCategorias();
   }, []);
+
+  const handleSearch = async (queryText: string, genero: string) => {
+    const q = queryText.trim();
+    if (q.length < 3) {
+      setJugadores([]);
+      return;
+    }
+    setLoadingJugadores(true);
+    try {
+      let dbQuery = supabase.from("jugadores").select("*");
+      dbQuery = dbQuery.or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,dni.ilike.%${q}%,club.ilike.%${q}%`);
+      if (genero !== "todos") {
+        dbQuery = dbQuery.eq("genero", genero);
+      }
+      const { data, error } = await dbQuery.order("apellido").limit(100);
+      if (error) {
+        toast.error("Error al buscar jugadores: " + error.message);
+      } else {
+        setJugadores(data ?? []);
+      }
+    } catch (err: any) {
+      toast.error("Error: " + err.message);
+    } finally {
+      setLoadingJugadores(false);
+    }
+  };
+
+  useEffect(() => {
+    const q = search.trim();
+    if (q.length < 3) {
+      setJugadores([]);
+      return;
+    }
+    const delayDebounceFn = setTimeout(() => {
+      handleSearch(q, filtroGenero);
+    }, 350);
+    return () => clearTimeout(delayDebounceFn);
+  }, [search, filtroGenero]);
+
+  const refreshSearchList = () => {
+    handleSearch(search, filtroGenero);
+  };
+
+  const openDetail = (j: Jugador) => {
+    setSelectedJugador(j);
+    setDetailOpen(true);
+  };
 
   const openCreate = () => {
     setEditing(null);
@@ -151,14 +201,14 @@ export default function Jugadores() {
       toast.success("Jugador creado");
     }
     setDialogOpen(false);
-    fetchAll();
+    refreshSearchList();
   };
 
   const handleDelete = async (id: string) => {
     const { error } = await supabase.from("jugadores").delete().eq("id", id);
     if (error) return toast.error("Error al eliminar: " + error.message);
     toast.success("Jugador eliminado");
-    fetchAll();
+    refreshSearchList();
   };
 
   const categoriasFiltradas = useMemo(() => {
@@ -172,19 +222,7 @@ export default function Jugadores() {
     return `${c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} ${c.nombre}`;
   };
 
-  const filtered = useMemo(() => {
-    return jugadores.filter((j) => {
-      if (filtroGenero !== "todos" && j.genero !== filtroGenero) return false;
-      if (!search.trim()) return true;
-      const q = search.toLowerCase();
-      return (
-        j.nombre.toLowerCase().includes(q) ||
-        j.apellido.toLowerCase().includes(q) ||
-        (j.dni ?? "").toLowerCase().includes(q) ||
-        (j.club ?? "").toLowerCase().includes(q)
-      );
-    });
-  }, [jugadores, search, filtroGenero]);
+  const filtered = jugadores;
 
   return (
     <div className="space-y-4">
@@ -330,7 +368,7 @@ export default function Jugadores() {
         open={fusionarOpen}
         onOpenChange={setFusionarOpen}
         jugadores={jugadores}
-        onDone={fetchAll}
+        onDone={refreshSearchList}
       />
 
       <div className="flex gap-2 flex-wrap">
@@ -357,13 +395,26 @@ export default function Jugadores() {
       </div>
 
       {loading ? (
-        <p className="text-sm text-muted-foreground">Cargando...</p>
+        <p className="text-sm text-muted-foreground">Cargando categorías...</p>
+      ) : loadingJugadores ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
+          <p className="text-sm text-muted-foreground">Buscando jugadores...</p>
+        </div>
+      ) : search.trim().length < 3 ? (
+        <Card className="border border-dashed bg-muted/10">
+          <CardContent className="py-12 text-center flex flex-col items-center justify-center text-muted-foreground">
+            <Search className="h-10 w-10 text-muted-foreground/30 mb-3" />
+            <p className="text-sm font-semibold">Consultar Jugadores</p>
+            <p className="text-xs max-w-sm mt-1">
+              Ingresá al menos 3 letras del nombre, apellido, DNI o ciudad en el buscador para realizar la consulta.
+            </p>
+          </CardContent>
+        </Card>
       ) : filtered.length === 0 ? (
         <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            {jugadores.length === 0
-              ? 'Todavía no hay jugadores cargados. Hacé clic en "Nuevo jugador".'
-              : "No se encontraron jugadores con esos filtros."}
+          <CardContent className="py-12 text-center text-sm text-muted-foreground">
+            No se encontraron jugadores que coincidan con la búsqueda.
           </CardContent>
         </Card>
       ) : (
@@ -371,7 +422,7 @@ export default function Jugadores() {
           {filtered.map((j) => {
             const cat = categoriaLabel(j);
             return (
-              <Card key={j.id}>
+              <Card key={j.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4 space-y-2">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
@@ -399,14 +450,32 @@ export default function Jugadores() {
                     </div>
                   )}
                   {j.club && <p className="text-xs text-muted-foreground truncate">📍 {j.club}</p>}
-                  <div className="flex gap-2 pt-1">
-                    <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(j)}>
+                  <div className="flex gap-2 pt-2 border-t mt-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="flex-1 text-xs font-bold"
+                      onClick={() => openDetail(j)}
+                    >
+                      <Eye className="h-3.5 w-3.5 mr-1" />
+                      Ver Detalles
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openEdit(j)}
+                      title="Editar jugador"
+                    >
                       <Pencil className="h-3.5 w-3.5" />
-                      Editar
                     </Button>
                     <AlertDialog>
                       <AlertDialogTrigger asChild>
-                        <Button size="sm" variant="outline">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-destructive hover:text-destructive-foreground hover:bg-destructive"
+                          title="Eliminar jugador"
+                        >
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </AlertDialogTrigger>
@@ -419,7 +488,10 @@ export default function Jugadores() {
                         </AlertDialogHeader>
                         <AlertDialogFooter>
                           <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                          <AlertDialogAction onClick={() => handleDelete(j.id)}>
+                          <AlertDialogAction
+                            onClick={() => handleDelete(j.id)}
+                            className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                          >
                             Eliminar
                           </AlertDialogAction>
                         </AlertDialogFooter>
@@ -431,6 +503,15 @@ export default function Jugadores() {
             );
           })}
         </div>
+      )}
+
+      {selectedJugador && (
+        <DetalleJugadorDialog
+          open={detailOpen}
+          onOpenChange={setDetailOpen}
+          jugador={selectedJugador}
+          categorias={categorias}
+        />
       )}
     </div>
   );
