@@ -285,7 +285,7 @@ export function CompartirLlaveDialog({
           width: "1080px",
           height: containerHeight,
           background: currentThemePreset.background,
-          padding: "48px 40px",
+          padding: "54px 44px",
         }}
         className="flex flex-col justify-between font-sans text-white select-none relative overflow-hidden"
       >
@@ -295,31 +295,31 @@ export function CompartirLlaveDialog({
         <div className="absolute bottom-[20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none"></div>
 
         {/* HEADER */}
-        <div className="flex items-start justify-between border-b pb-6 z-10 border-white/10">
+        <div className="flex items-center justify-between border-b pb-6 z-10 border-white/10">
           <div>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-[11px] uppercase tracking-[0.2em] font-extrabold px-2.5 py-1 rounded bg-white/5 border border-white/10 text-white/70">
+            <div className="flex items-center gap-2.5 mb-1.5">
+              <span className="text-xs uppercase tracking-[0.25em] font-extrabold px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white/80">
                 {torneo?.tipo === "oficial" ? "Torneo Oficial" : "Torneo Especial"}
               </span>
               {torneo?.numero_fecha && (
-                <span className={`text-[11px] uppercase tracking-[0.1em] font-bold px-2 py-0.5 rounded ${currentThemePreset.accentBg} border ${currentThemePreset.accentBorder} ${currentThemePreset.titleText}`}>
+                <span className={`text-xs uppercase tracking-[0.1em] font-extrabold px-3 py-1 rounded ${currentThemePreset.accentBg} border ${currentThemePreset.accentBorder} ${currentThemePreset.titleText}`}>
                   Fecha {torneo.numero_fecha}
                 </span>
               )}
             </div>
             
-            <h1 className="text-3xl font-black tracking-tight text-white leading-none mt-2">
+            <h1 className="text-5xl font-black tracking-tight text-white leading-none mt-3.5">
               {torneo?.nombre}
             </h1>
             
-            <div className="flex items-center gap-4 text-xs font-semibold text-white/50 mt-3.5">
+            <div className="flex items-center gap-6 text-base font-bold text-white/60 mt-4.5">
               {(torneo?.categoria_libre || categoriaNombre) && (
-                <span className={`flex items-center gap-1.5 ${currentThemePreset.accentText}`}>
+                <span className={`flex items-center gap-2 ${currentThemePreset.accentText}`}>
                   🏆 Categoría: {torneo.categoria_libre || categoriaNombre}
                 </span>
               )}
               {torneo?.sede && (
-                <span className="flex items-center gap-1">
+                <span className="flex items-center gap-1.5">
                   📍 {torneo.sede}
                 </span>
               )}
@@ -327,11 +327,11 @@ export function CompartirLlaveDialog({
           </div>
 
           {/* Logo del Sitio */}
-          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-3 pr-4">
-            <PadelIdLogo size={36} />
+          <div className="flex items-center gap-3.5 bg-white/5 border border-white/10 rounded-2xl p-3.5 pr-5">
+            <PadelIdLogo size={52} />
             <div className="text-left">
-              <p className="text-sm font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
-              <p className="text-[8px] text-white/40 uppercase tracking-widest font-bold mt-1">Anita Quiroga</p>
+              <p className="text-lg font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
+              <p className="text-[10px] text-white/40 uppercase tracking-widest font-extrabold mt-1.5">Anita Quiroga</p>
             </div>
           </div>
         </div>
@@ -342,10 +342,10 @@ export function CompartirLlaveDialog({
             <div key={ronda} className="flex flex-col flex-1 min-w-[200px] justify-between h-full">
               {/* Encabezado de la Ronda */}
               <div className="text-center pb-2 border-b border-white/5 mb-4">
-                <span className={`text-xs font-black tracking-wider uppercase ${currentThemePreset.titleText}`}>
+                <span className={`text-base font-extrabold tracking-widest uppercase ${currentThemePreset.titleText}`}>
                   {NOMBRE_RONDA[ronda]}
                 </span>
-                <p className="text-[10px] text-white/30 font-medium mt-0.5">{rondaPartidos.length} {rondaPartidos.length === 1 ? 'partido' : 'partidos'}</p>
+                <p className="text-xs text-white/40 font-semibold mt-1">{rondaPartidos.length} {rondaPartidos.length === 1 ? 'partido' : 'partidos'}</p>
               </div>
 
               {/* Contenedor Vertical de Partidos */}
@@ -359,7 +359,7 @@ export function CompartirLlaveDialog({
                   return (
                     <div
                       key={p.id}
-                      className={`rounded-xl p-3.5 space-y-2 border transition-all ${
+                      className={`rounded-xl p-5 space-y-3 border transition-all ${
                         p.ganador_id
                           ? currentThemePreset.highlightBorder
                           : `${currentThemePreset.cardBg} ${currentThemePreset.cardBorder}`
@@ -367,14 +367,14 @@ export function CompartirLlaveDialog({
                     >
                       {/* Info del Partido (Programación) */}
                       {showSchedule && (p.fecha_hora || p.cancha) && !isFinished && (
-                        <div className="flex items-center justify-between text-[10px] font-bold text-white/40 pb-1 border-b border-white/5">
-                          <span className="flex items-center gap-1">
-                            <Calendar className="h-3 w-3 text-primary/70 shrink-0" />
+                        <div className="flex items-center justify-between text-xs font-bold text-white/50 pb-1.5 border-b border-white/5 animate-pulse">
+                          <span className="flex items-center gap-1.5">
+                            <Calendar className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                             {p.fecha_hora ? formatFechaHora(p.fecha_hora) : "Pendiente"}
                           </span>
                           {p.cancha && (
-                            <span className="flex items-center gap-1 truncate max-w-[90px]">
-                              <MapPin className="h-3 w-3 text-primary/70 shrink-0" />
+                            <span className="flex items-center gap-1.5 truncate max-w-[110px]">
+                              <MapPin className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                               {p.cancha}
                             </span>
                           )}
@@ -382,29 +382,29 @@ export function CompartirLlaveDialog({
                       )}
 
                       {/* Parejas y Scores */}
-                      <div className="space-y-1.5">
+                      <div className="space-y-2.5">
                         {/* Pareja Local */}
-                        <div className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center justify-between gap-3 text-sm">
                           <span
-                            className={`truncate flex items-center gap-1.5 font-semibold ${
+                            className={`truncate flex items-center gap-2 font-bold ${
                               isFinished
                                 ? localWinner
-                                  ? "text-white font-bold"
+                                  ? "text-white font-extrabold"
                                   : "text-white/40"
-                                : "text-white/80"
+                                : "text-white/85"
                             }`}
                           >
-                            {localWinner && <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                            {localWinner && <Trophy className="h-4.5 w-4.5 text-amber-400 shrink-0" />}
                             <span className="truncate">{getParejaName(p.pareja_local_id, p.ref_local)}</span>
                           </span>
 
                           {/* Sets Local */}
                           {showScores && sets.length > 0 && (
-                            <div className="flex gap-0.5 shrink-0 font-mono">
+                            <div className="flex gap-1 shrink-0 font-mono">
                               {sets.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold ${
+                                  className={`w-7 h-7 flex items-center justify-center rounded text-xs font-extrabold ${
                                     s.games_local > s.games_visitante
                                       ? currentThemePreset.scoreBg
                                       : currentThemePreset.scoreBgLose
@@ -418,27 +418,27 @@ export function CompartirLlaveDialog({
                         </div>
 
                         {/* Pareja Visitante */}
-                        <div className="flex items-center justify-between gap-3 text-xs">
+                        <div className="flex items-center justify-between gap-3 text-sm">
                           <span
-                            className={`truncate flex items-center gap-1.5 font-semibold ${
+                            className={`truncate flex items-center gap-2 font-bold ${
                               isFinished
                                 ? visiWinner
-                                  ? "text-white font-bold"
+                                  ? "text-white font-extrabold"
                                   : "text-white/40"
-                                : "text-white/80"
+                                : "text-white/85"
                             }`}
                           >
-                            {visiWinner && <Trophy className="h-3.5 w-3.5 text-amber-400 shrink-0" />}
+                            {visiWinner && <Trophy className="h-4.5 w-4.5 text-amber-400 shrink-0" />}
                             <span className="truncate">{getParejaName(p.pareja_visitante_id, p.ref_visitante)}</span>
                           </span>
 
                           {/* Sets Visitante */}
                           {showScores && sets.length > 0 && (
-                            <div className="flex gap-0.5 shrink-0 font-mono">
+                            <div className="flex gap-1 shrink-0 font-mono">
                               {sets.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  className={`w-5 h-5 flex items-center justify-center rounded text-[10px] font-bold ${
+                                  className={`w-7 h-7 flex items-center justify-center rounded text-xs font-extrabold ${
                                     s.games_visitante > s.games_local
                                       ? currentThemePreset.scoreBg
                                       : currentThemePreset.scoreBgLose
@@ -460,31 +460,31 @@ export function CompartirLlaveDialog({
 
           {/* Columna especial de Campeón (Si está la final seleccionada) */}
           {minRonda !== "final" && (
-            <div className="flex flex-col w-[200px] justify-center items-center h-full">
+            <div className="flex flex-col w-[220px] justify-center items-center h-full">
               <div className="text-center pb-2 mb-4">
-                <span className="text-xs font-black tracking-wider uppercase text-amber-400">
+                <span className="text-base font-extrabold tracking-widest uppercase text-amber-400">
                   Campeón 🏆
                 </span>
-                <p className="text-[10px] text-white/30 font-medium mt-0.5">Finalizado</p>
+                <p className="text-xs text-white/40 font-semibold mt-1">Finalizado</p>
               </div>
 
               <div className="flex-1 flex items-center justify-center">
                 {campeonInfo ? (
                   <div
                     style={{ background: `linear-gradient(135deg, rgba(20,83,45,0.2) 0%, rgba(6,11,17,0.8) 100%)` }}
-                    className={`rounded-2xl p-5 text-center border-2 ${currentThemePreset.championCard} shadow-2xl relative overflow-hidden w-full`}
+                    className={`rounded-2xl p-6 text-center border-2 ${currentThemePreset.championCard} shadow-2xl relative overflow-hidden w-full`}
                   >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full blur-xl pointer-events-none"></div>
-                    <Trophy className="h-10 w-10 text-amber-400 mx-auto mb-3 animate-pulse" />
-                    <p className="text-[10px] font-bold text-amber-400 uppercase tracking-widest mb-1.5">¡Ganador!</p>
-                    <h3 className="text-sm font-black text-white leading-snug drop-shadow-md">
+                    <Trophy className="h-14 w-14 text-amber-400 mx-auto mb-4 animate-pulse" />
+                    <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2">¡Ganador!</p>
+                    <h3 className="text-base font-black text-white leading-snug drop-shadow-md">
                       {campeonInfo.nombre}
                     </h3>
                   </div>
                 ) : (
-                  <div className={`rounded-2xl p-5 text-center border border-dashed ${currentThemePreset.cardBorder} ${currentThemePreset.cardBg} w-full py-8`}>
-                    <Trophy className="h-8 w-8 text-white/10 mx-auto mb-2" />
-                    <p className="text-[10px] font-medium text-white/30 uppercase tracking-wider">En definición</p>
+                  <div className={`rounded-2xl p-6 text-center border border-dashed ${currentThemePreset.cardBorder} ${currentThemePreset.cardBg} w-full py-10`}>
+                    <Trophy className="h-12 w-12 text-white/10 mx-auto mb-3" />
+                    <p className="text-xs font-bold text-white/30 uppercase tracking-wider">En definición</p>
                   </div>
                 )}
               </div>
@@ -493,7 +493,7 @@ export function CompartirLlaveDialog({
         </div>
 
         {/* FOOTER / WATERMARK */}
-        <div className="flex items-center justify-between border-t pt-4 z-10 border-white/5 text-[10px] font-bold">
+        <div className="flex items-center justify-between border-t pt-4 z-10 border-white/5 text-sm font-bold">
           <span className={currentThemePreset.watermarkText}>
             padel-id.com • Anita Quiroga
           </span>
