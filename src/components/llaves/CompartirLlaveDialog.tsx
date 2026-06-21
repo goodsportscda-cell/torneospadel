@@ -359,7 +359,8 @@ export function CompartirLlaveDialog({
                   return (
                     <div
                       key={p.id}
-                      className={`rounded-xl p-5 space-y-3 border transition-all ${
+                      style={{ padding: '16px 12px' }}
+                      className={`rounded-xl space-y-3 border transition-all ${
                         p.ganador_id
                           ? currentThemePreset.highlightBorder
                           : `${currentThemePreset.cardBg} ${currentThemePreset.cardBorder}`
@@ -367,7 +368,7 @@ export function CompartirLlaveDialog({
                     >
                       {/* Info del Partido (Programación) */}
                       {showSchedule && (p.fecha_hora || p.cancha) && !isFinished && (
-                        <div className="flex items-center justify-between text-xs font-bold text-white/50 pb-1.5 border-b border-white/5 animate-pulse">
+                        <div className="flex items-center justify-between text-xs font-bold text-white/50 pb-1.5 border-b border-white/5">
                           <span className="flex items-center gap-1.5">
                             <Calendar className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                             {p.fecha_hora ? formatFechaHora(p.fecha_hora) : "Pendiente"}
@@ -383,10 +384,10 @@ export function CompartirLlaveDialog({
 
                       {/* Parejas y Scores */}
                       <div className="space-y-2.5">
-                        {/* Pareja Local */}
-                        <div className="flex items-center justify-between gap-3 text-sm">
-                          <span
-                            className={`truncate flex items-center gap-2 font-bold ${
+                        {/* Pareja Local Row */}
+                        <div className="flex items-center justify-between gap-2 min-h-[28px] py-0.5 min-w-0">
+                          <div
+                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
                               isFinished
                                 ? localWinner
                                   ? "text-white font-extrabold"
@@ -394,17 +395,20 @@ export function CompartirLlaveDialog({
                                 : "text-white/85"
                             }`}
                           >
-                            {localWinner && <Trophy className="h-4.5 w-4.5 text-amber-400 shrink-0" />}
-                            <span className="truncate">{getParejaName(p.pareja_local_id, p.ref_local)}</span>
-                          </span>
+                            {localWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
+                            <span className="truncate flex-1 text-left text-[13px] leading-tight">
+                              {getParejaName(p.pareja_local_id, p.ref_local)}
+                            </span>
+                          </div>
 
                           {/* Sets Local */}
                           {showScores && sets.length > 0 && (
-                            <div className="flex gap-1 shrink-0 font-mono">
+                            <div className="flex gap-1 shrink-0 font-mono select-none">
                               {sets.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  className={`w-7 h-7 flex items-center justify-center rounded text-xs font-extrabold ${
+                                  style={{ width: '26px', height: '26px' }}
+                                  className={`flex items-center justify-center rounded text-[11px] font-extrabold ${
                                     s.games_local > s.games_visitante
                                       ? currentThemePreset.scoreBg
                                       : currentThemePreset.scoreBgLose
@@ -417,10 +421,10 @@ export function CompartirLlaveDialog({
                           )}
                         </div>
 
-                        {/* Pareja Visitante */}
-                        <div className="flex items-center justify-between gap-3 text-sm">
-                          <span
-                            className={`truncate flex items-center gap-2 font-bold ${
+                        {/* Pareja Visitante Row */}
+                        <div className="flex items-center justify-between gap-2 min-h-[28px] py-0.5 min-w-0">
+                          <div
+                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
                               isFinished
                                 ? visiWinner
                                   ? "text-white font-extrabold"
@@ -428,17 +432,20 @@ export function CompartirLlaveDialog({
                                 : "text-white/85"
                             }`}
                           >
-                            {visiWinner && <Trophy className="h-4.5 w-4.5 text-amber-400 shrink-0" />}
-                            <span className="truncate">{getParejaName(p.pareja_visitante_id, p.ref_visitante)}</span>
-                          </span>
+                            {visiWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
+                            <span className="truncate flex-1 text-left text-[13px] leading-tight">
+                              {getParejaName(p.pareja_visitante_id, p.ref_visitante)}
+                            </span>
+                          </div>
 
                           {/* Sets Visitante */}
                           {showScores && sets.length > 0 && (
-                            <div className="flex gap-1 shrink-0 font-mono">
+                            <div className="flex gap-1 shrink-0 font-mono select-none">
                               {sets.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  className={`w-7 h-7 flex items-center justify-center rounded text-xs font-extrabold ${
+                                  style={{ width: '26px', height: '26px' }}
+                                  className={`flex items-center justify-center rounded text-[11px] font-extrabold ${
                                     s.games_visitante > s.games_local
                                       ? currentThemePreset.scoreBg
                                       : currentThemePreset.scoreBgLose
