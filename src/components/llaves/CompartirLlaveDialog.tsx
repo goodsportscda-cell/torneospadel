@@ -146,54 +146,98 @@ export function CompartirLlaveDialog({
   const themeStyles = {
     "dark-emerald": {
       background: "linear-gradient(135deg, #022c22 0%, #060b11 50%, #021a14 100%)",
-      titleText: "text-emerald-400",
-      accentBorder: "border-emerald-500/20",
-      accentText: "text-emerald-300",
-      accentBg: "bg-emerald-950/50",
-      cardBg: "bg-[#091512]/90",
-      cardBorder: "border-emerald-900/40",
-      scoreBg: "bg-emerald-600 text-white",
-      scoreBgLose: "bg-emerald-950/80 text-emerald-400/70",
-      textPrimary: "text-zinc-100",
-      textMuted: "text-emerald-400/60",
-      lineColor: "#10b98133", // emerald-500 con opacity
-      highlightBorder: "border-emerald-400 bg-emerald-950/40",
-      championCard: "from-emerald-950/80 via-teal-900/80 to-emerald-950/80 border-emerald-400",
-      watermarkText: "text-emerald-500/40",
+      titleColor: "#34d399", // emerald-400
+      accentBgColor: "rgba(2, 44, 34, 0.5)",
+      accentBorderColor: "rgba(16, 185, 129, 0.2)",
+      accentTextColor: "#a7f3d0", // emerald-300
+      cardStyle: {
+        backgroundColor: "rgba(9, 21, 18, 0.9)",
+        borderColor: "rgba(6, 95, 70, 0.4)",
+      },
+      highlightCardStyle: {
+        backgroundColor: "rgba(2, 44, 34, 0.4)",
+        borderColor: "#34d399",
+      },
+      scoreWinStyle: {
+        backgroundColor: "#10b981",
+        color: "#ffffff",
+      },
+      scoreLoseStyle: {
+        backgroundColor: "rgba(2, 44, 34, 0.8)",
+        color: "rgba(52, 211, 153, 0.7)",
+      },
+      textColorPrimary: "#f4f4f5",
+      textColorMuted: "rgba(52, 211, 153, 0.6)",
+      lineColor: "#10b98133",
+      championCardStyle: {
+        background: "linear-gradient(135deg, rgba(2, 44, 34, 0.8) 0%, rgba(13, 148, 136, 0.4) 50%, rgba(2, 44, 34, 0.8) 100%)",
+        borderColor: "#34d399",
+      },
+      watermarkColor: "rgba(16, 185, 129, 0.4)",
     },
     "royal-gold": {
       background: "linear-gradient(135deg, #1c1917 0%, #0c0a09 60%, #1c1917 100%)",
-      titleText: "text-amber-400",
-      accentBorder: "border-amber-500/20",
-      accentText: "text-amber-300",
-      accentBg: "bg-amber-950/40",
-      cardBg: "bg-[#171513]/90",
-      cardBorder: "border-stone-800",
-      scoreBg: "bg-amber-500 text-black font-bold",
-      scoreBgLose: "bg-stone-900 text-amber-500/50",
-      textPrimary: "text-stone-100",
-      textMuted: "text-stone-400/70",
+      titleColor: "#fbbf24", // amber-400
+      accentBgColor: "rgba(120, 53, 4, 0.4)",
+      accentBorderColor: "rgba(245, 158, 11, 0.2)",
+      accentTextColor: "#fde68a", // amber-300
+      cardStyle: {
+        backgroundColor: "rgba(23, 21, 19, 0.9)",
+        borderColor: "#2e2a24",
+      },
+      highlightCardStyle: {
+        backgroundColor: "rgba(120, 53, 4, 0.2)",
+        borderColor: "#fbbf24",
+      },
+      scoreWinStyle: {
+        backgroundColor: "#f59e0b",
+        color: "#000000",
+        fontWeight: "bold" as const,
+      },
+      scoreLoseStyle: {
+        backgroundColor: "#1c1917",
+        color: "rgba(245, 158, 11, 0.5)",
+      },
+      textColorPrimary: "#f5f5f4",
+      textColorMuted: "rgba(168, 162, 158, 0.7)",
       lineColor: "#f59e0b2a",
-      highlightBorder: "border-amber-500/80 bg-amber-950/20",
-      championCard: "from-amber-950/70 via-stone-900/90 to-amber-950/70 border-amber-500",
-      watermarkText: "text-amber-500/40",
+      championCardStyle: {
+        background: "linear-gradient(135deg, rgba(120, 53, 4, 0.7) 0%, rgba(28, 25, 23, 0.9) 60%, rgba(120, 53, 4, 0.7) 100%)",
+        borderColor: "#fbbf24",
+      },
+      watermarkColor: "rgba(245, 158, 11, 0.4)",
     },
     "cyber-cyan": {
       background: "linear-gradient(135deg, #0f172a 0%, #020617 50%, #0f172a 100%)",
-      titleText: "text-cyan-400",
-      accentBorder: "border-cyan-500/20",
-      accentText: "text-cyan-300",
-      accentBg: "bg-cyan-950/40",
-      cardBg: "bg-[#0b1329]/95",
-      cardBorder: "border-cyan-950",
-      scoreBg: "bg-cyan-500 text-slate-950 font-bold",
-      scoreBgLose: "bg-slate-900 text-cyan-400/40",
-      textPrimary: "text-slate-100",
-      textMuted: "text-cyan-400/50",
+      titleColor: "#22d3ee", // cyan-400
+      accentBgColor: "rgba(8, 47, 73, 0.4)",
+      accentBorderColor: "rgba(6, 182, 212, 0.2)",
+      accentTextColor: "#67e8f9", // cyan-300
+      cardStyle: {
+        backgroundColor: "rgba(11, 19, 41, 0.95)",
+        borderColor: "#0f172a",
+      },
+      highlightCardStyle: {
+        backgroundColor: "rgba(8, 47, 73, 0.3)",
+        borderColor: "#22d3ee",
+      },
+      scoreWinStyle: {
+        backgroundColor: "#06b6d4",
+        color: "#0f172a",
+        fontWeight: "bold" as const,
+      },
+      scoreLoseStyle: {
+        backgroundColor: "#0f172a",
+        color: "rgba(34, 211, 238, 0.4)",
+      },
+      textColorPrimary: "#f1f5f9",
+      textColorMuted: "rgba(34, 211, 238, 0.5)",
       lineColor: "#06b6d433",
-      highlightBorder: "border-cyan-400 bg-cyan-950/30",
-      championCard: "from-cyan-950/80 via-slate-900/90 to-cyan-950/80 border-cyan-400",
-      watermarkText: "text-cyan-400/40",
+      championCardStyle: {
+        background: "linear-gradient(135deg, rgba(8, 47, 73, 0.8) 0%, rgba(15, 23, 42, 0.9) 60%, rgba(8, 47, 73, 0.8) 100%)",
+        borderColor: "#22d3ee",
+      },
+      watermarkColor: "rgba(6, 182, 212, 0.4)",
     },
   }[theme];
 
@@ -290,19 +334,62 @@ export function CompartirLlaveDialog({
         className="flex flex-col justify-between font-sans text-white select-none relative overflow-hidden"
       >
         {/* Decoraciones del fondo (Grilla y círculos de luz) */}
-        <div className="absolute inset-0 bg-[radial-gradient(#ffffff03_1px,transparent_1px)] [background-size:20px_20px] pointer-events-none"></div>
-        <div className="absolute top-[20%] left-[-10%] w-[500px] h-[500px] rounded-full bg-emerald-500/5 dark:bg-emerald-500/5 blur-[120px] pointer-events-none"></div>
-        <div className="absolute bottom-[20%] right-[-10%] w-[500px] h-[500px] rounded-full bg-primary/5 blur-[120px] pointer-events-none"></div>
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+            pointerEvents: "none",
+          }}
+        ></div>
+        <div
+          style={{
+            position: "absolute",
+            top: "20%",
+            left: "-10%",
+            width: "500px",
+            height: "500px",
+            borderRadius: "9999px",
+            backgroundColor: "rgba(16, 185, 129, 0.04)",
+            filter: "blur(120px)",
+            pointerEvents: "none",
+          }}
+        ></div>
+        <div
+          style={{
+            position: "absolute",
+            bottom: "20%",
+            right: "-10%",
+            width: "500px",
+            height: "500px",
+            borderRadius: "9999px",
+            backgroundColor: "rgba(59, 130, 246, 0.04)",
+            filter: "blur(120px)",
+            pointerEvents: "none",
+          }}
+        ></div>
 
         {/* HEADER */}
         <div className="flex items-center justify-between border-b pb-6 z-10 border-white/10">
           <div>
             <div className="flex items-center gap-2.5 mb-1.5">
-              <span className="text-xs uppercase tracking-[0.25em] font-extrabold px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white/80">
+              <span
+                style={{ letterSpacing: '0.2em' }}
+                className="text-xs uppercase font-extrabold px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white/80"
+              >
                 {torneo?.tipo === "oficial" ? "Torneo Oficial" : "Torneo Especial"}
               </span>
               {torneo?.numero_fecha && (
-                <span className={`text-xs uppercase tracking-[0.1em] font-extrabold px-3 py-1 rounded ${currentThemePreset.accentBg} border ${currentThemePreset.accentBorder} ${currentThemePreset.titleText}`}>
+                <span
+                  style={{
+                    backgroundColor: currentThemePreset.accentBgColor,
+                    borderColor: currentThemePreset.accentBorderColor,
+                    color: currentThemePreset.titleColor,
+                    letterSpacing: '0.1em',
+                  }}
+                  className="text-xs uppercase font-extrabold px-3 py-1 rounded border"
+                >
                   Fecha {torneo.numero_fecha}
                 </span>
               )}
@@ -312,9 +399,9 @@ export function CompartirLlaveDialog({
               {torneo?.nombre}
             </h1>
             
-            <div className="flex items-center gap-6 text-base font-bold text-white/60 mt-4.5">
+            <div className="flex items-center gap-6 text-base font-bold text-white/60 mt-4">
               {(torneo?.categoria_libre || categoriaNombre) && (
-                <span className={`flex items-center gap-2 ${currentThemePreset.accentText}`}>
+                <span style={{ color: currentThemePreset.accentTextColor }} className="flex items-center gap-2">
                   🏆 Categoría: {torneo.categoria_libre || categoriaNombre}
                 </span>
               )}
@@ -331,7 +418,7 @@ export function CompartirLlaveDialog({
             <PadelIdLogo size={52} />
             <div className="text-left">
               <p className="text-lg font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
-              <p className="text-[10px] text-white/40 uppercase tracking-widest font-extrabold mt-1.5">Anita Quiroga</p>
+              <p style={{ fontSize: '10px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1.5">Anita Quiroga</p>
             </div>
           </div>
         </div>
@@ -339,10 +426,10 @@ export function CompartirLlaveDialog({
         {/* BRACKET COLUMNS GRID */}
         <div className="flex-1 flex flex-row items-stretch justify-between gap-6 py-8 z-10 overflow-hidden">
           {rondasFiltradas.map(({ ronda, partidos: rondaPartidos }) => (
-            <div key={ronda} className="flex flex-col flex-1 min-w-[200px] justify-between h-full">
+            <div key={ronda} style={{ minWidth: '200px' }} className="flex flex-col flex-1 justify-between h-full">
               {/* Encabezado de la Ronda */}
               <div className="text-center pb-2 border-b border-white/5 mb-4">
-                <span className={`text-base font-extrabold tracking-widest uppercase ${currentThemePreset.titleText}`}>
+                <span style={{ color: currentThemePreset.titleColor }} className="text-base font-extrabold tracking-widest uppercase">
                   {NOMBRE_RONDA[ronda]}
                 </span>
                 <p className="text-xs text-white/40 font-semibold mt-1">{rondaPartidos.length} {rondaPartidos.length === 1 ? 'partido' : 'partidos'}</p>
@@ -359,22 +446,21 @@ export function CompartirLlaveDialog({
                   return (
                     <div
                       key={p.id}
-                      style={{ padding: '16px 12px' }}
-                      className={`rounded-xl space-y-3 border transition-all ${
-                        p.ganador_id
-                          ? currentThemePreset.highlightBorder
-                          : `${currentThemePreset.cardBg} ${currentThemePreset.cardBorder}`
-                      } shadow-lg`}
+                      style={{
+                        padding: '16px 12px',
+                        ...(p.ganador_id ? currentThemePreset.highlightCardStyle : currentThemePreset.cardStyle)
+                      }}
+                      className="rounded-xl space-y-3 border shadow-lg"
                     >
                       {/* Info del Partido (Programación) */}
                       {showSchedule && (p.fecha_hora || p.cancha) && !isFinished && (
-                        <div className="flex items-center justify-between text-xs font-bold text-white/50 pb-1.5 border-b border-white/5">
+                        <div style={{ paddingBottom: '6px' }} className="flex items-center justify-between text-xs font-bold text-white/50 border-b border-white/5">
                           <span className="flex items-center gap-1.5">
                             <Calendar className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                             {p.fecha_hora ? formatFechaHora(p.fecha_hora) : "Pendiente"}
                           </span>
                           {p.cancha && (
-                            <span className="flex items-center gap-1.5 truncate max-w-[110px]">
+                            <span style={{ maxWidth: '110px' }} className="flex items-center gap-1.5 truncate">
                               <MapPin className="h-3.5 w-3.5 text-primary/80 shrink-0" />
                               {p.cancha}
                             </span>
@@ -385,7 +471,7 @@ export function CompartirLlaveDialog({
                       {/* Parejas y Scores */}
                       <div className="space-y-2.5">
                         {/* Pareja Local Row */}
-                        <div className="flex items-center justify-between gap-2 min-h-[28px] py-0.5 min-w-0">
+                        <div style={{ minHeight: '28px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
                             className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
                               isFinished
@@ -396,7 +482,7 @@ export function CompartirLlaveDialog({
                             }`}
                           >
                             {localWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
-                            <span className="truncate flex-1 text-left text-[13px] leading-tight">
+                            <span style={{ fontSize: '13px' }} className="truncate flex-1 text-left leading-tight">
                               {getParejaName(p.pareja_local_id, p.ref_local)}
                             </span>
                           </div>
@@ -407,12 +493,15 @@ export function CompartirLlaveDialog({
                               {sets.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  style={{ width: '26px', height: '26px' }}
-                                  className={`flex items-center justify-center rounded text-[11px] font-extrabold ${
-                                    s.games_local > s.games_visitante
-                                      ? currentThemePreset.scoreBg
-                                      : currentThemePreset.scoreBgLose
-                                  }`}
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    fontSize: '11px',
+                                    ...(s.games_local > s.games_visitante
+                                      ? currentThemePreset.scoreWinStyle
+                                      : currentThemePreset.scoreLoseStyle)
+                                  }}
+                                  className="flex items-center justify-center rounded font-extrabold"
                                 >
                                   {s.games_local}
                                 </span>
@@ -422,7 +511,7 @@ export function CompartirLlaveDialog({
                         </div>
 
                         {/* Pareja Visitante Row */}
-                        <div className="flex items-center justify-between gap-2 min-h-[28px] py-0.5 min-w-0">
+                        <div style={{ minHeight: '28px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
                             className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
                               isFinished
@@ -433,7 +522,7 @@ export function CompartirLlaveDialog({
                             }`}
                           >
                             {visiWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
-                            <span className="truncate flex-1 text-left text-[13px] leading-tight">
+                            <span style={{ fontSize: '13px' }} className="truncate flex-1 text-left leading-tight">
                               {getParejaName(p.pareja_visitante_id, p.ref_visitante)}
                             </span>
                           </div>
@@ -444,12 +533,15 @@ export function CompartirLlaveDialog({
                               {sets.map((s, idx) => (
                                 <span
                                   key={idx}
-                                  style={{ width: '26px', height: '26px' }}
-                                  className={`flex items-center justify-center rounded text-[11px] font-extrabold ${
-                                    s.games_visitante > s.games_local
-                                      ? currentThemePreset.scoreBg
-                                      : currentThemePreset.scoreBgLose
-                                  }`}
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    fontSize: '11px',
+                                    ...(s.games_visitante > s.games_local
+                                      ? currentThemePreset.scoreWinStyle
+                                      : currentThemePreset.scoreLoseStyle)
+                                  }}
+                                  className="flex items-center justify-center rounded font-extrabold"
                                 >
                                   {s.games_visitante}
                                 </span>
@@ -467,7 +559,7 @@ export function CompartirLlaveDialog({
 
           {/* Columna especial de Campeón (Si está la final seleccionada) */}
           {minRonda !== "final" && (
-            <div className="flex flex-col w-[220px] justify-center items-center h-full">
+            <div style={{ width: '220px' }} className="flex flex-col justify-center items-center h-full">
               <div className="text-center pb-2 mb-4">
                 <span className="text-base font-extrabold tracking-widest uppercase text-amber-400">
                   Campeón 🏆
@@ -478,8 +570,10 @@ export function CompartirLlaveDialog({
               <div className="flex-1 flex items-center justify-center">
                 {campeonInfo ? (
                   <div
-                    style={{ background: `linear-gradient(135deg, rgba(20,83,45,0.2) 0%, rgba(6,11,17,0.8) 100%)` }}
-                    className={`rounded-2xl p-6 text-center border-2 ${currentThemePreset.championCard} shadow-2xl relative overflow-hidden w-full`}
+                    style={{
+                      ...currentThemePreset.championCardStyle,
+                    }}
+                    className="rounded-2xl p-6 text-center border-2 shadow-2xl relative overflow-hidden w-full"
                   >
                     <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full blur-xl pointer-events-none"></div>
                     <Trophy className="h-14 w-14 text-amber-400 mx-auto mb-4 animate-pulse" />
@@ -489,7 +583,13 @@ export function CompartirLlaveDialog({
                     </h3>
                   </div>
                 ) : (
-                  <div className={`rounded-2xl p-6 text-center border border-dashed ${currentThemePreset.cardBorder} ${currentThemePreset.cardBg} w-full py-10`}>
+                  <div
+                    style={{
+                      borderColor: currentThemePreset.cardStyle.borderColor,
+                      backgroundColor: currentThemePreset.cardStyle.backgroundColor,
+                    }}
+                    className="rounded-2xl p-6 text-center border border-dashed w-full py-10"
+                  >
                     <Trophy className="h-12 w-12 text-white/10 mx-auto mb-3" />
                     <p className="text-xs font-bold text-white/30 uppercase tracking-wider">En definición</p>
                   </div>
@@ -501,7 +601,7 @@ export function CompartirLlaveDialog({
 
         {/* FOOTER / WATERMARK */}
         <div className="flex items-center justify-between border-t pt-4 z-10 border-white/5 text-sm font-bold">
-          <span className={currentThemePreset.watermarkText}>
+          <span style={{ color: currentThemePreset.watermarkColor }}>
             padel-id.com • Anita Quiroga
           </span>
           <span className="text-white/20">
