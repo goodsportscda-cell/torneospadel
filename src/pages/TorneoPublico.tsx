@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy, Calendar, MapPin, Loader2, AlertCircle, Users, LayoutGrid, GitBranch } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2, AlertCircle, Users, LayoutGrid, GitBranch, Share2 } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { ZonaCard, type Zona } from "@/components/zonas/ZonaCard";
 import { PartidoCard } from "@/components/zonas/PartidoCard";
@@ -13,6 +13,7 @@ import { TablaPosiciones } from "@/components/zonas/TablaPosiciones";
 import { calcularTabla, type PartidoConSets } from "@/lib/zonas";
 import { NOMBRE_RONDA, ORDEN_RONDA, parseRef, type RondaLlave } from "@/lib/llaves";
 import type { Database } from "@/integrations/supabase/types";
+import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
@@ -31,6 +32,7 @@ export default function TorneoPublico() {
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
   const [partidosLlave, setPartidosLlave] = useState<PartidoLlaveRow[]>([]);
   const [setsLlave, setSetsLlave] = useState<Record<string, any[]>>({});
+  const [isCompartirOpen, setIsCompartirOpen] = useState(false);
 
   const fetchTorneo = useCallback(async () => {
     if (!slug) return;
@@ -319,8 +321,20 @@ export default function TorneoPublico() {
                 </CardContent>
               </Card>
             ) : (
-              <div className="overflow-x-auto pb-6">
-                <div className="flex gap-6 min-w-fit items-stretch">
+              <div className="space-y-4">
+                <div className="flex justify-end">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2"
+                    onClick={() => setIsCompartirOpen(true)}
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Compartir Cuadro
+                  </Button>
+                </div>
+                <div className="overflow-x-auto pb-6">
+                  <div className="flex gap-6 min-w-fit items-stretch">
                   {partidosPorRonda.map(([ronda, partidos]) => (
                     <div key={ronda} className="flex flex-col min-w-[280px]">
                       <h3 className="text-sm font-bold text-center uppercase tracking-widest text-primary sticky top-0 bg-background/95 backdrop-blur py-2 z-10 border-b mb-4">
@@ -377,6 +391,7 @@ export default function TorneoPublico() {
                       </div>
                     </div>
                   ))}
+                  </div>
                 </div>
               </div>
             )}
@@ -392,6 +407,16 @@ export default function TorneoPublico() {
           <Link to="/mi-panel" className="hover:text-primary transition-colors">Mi Perfil Jugador</Link>
         </div>
       </footer>
+
+      <CompartirLlaveDialog
+        isOpen={isCompartirOpen}
+        onOpenChange={setIsCompartirOpen}
+        torneo={torneo}
+        categoriaNombre={categoriaNombre}
+        partidos={partidosLlave}
+        setsLlave={setsLlave}
+        inscripciones={inscripciones}
+      />
     </div>
   );
 }

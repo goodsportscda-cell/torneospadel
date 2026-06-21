@@ -20,7 +20,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Trophy, Trash2, Sparkles, AlertCircle } from "lucide-react";
+import { Trophy, Trash2, Sparkles, AlertCircle, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { calcularTabla, type PartidoConSets } from "@/lib/zonas";
@@ -34,8 +34,9 @@ import {
   type RondaLlave,
 } from "@/lib/llaves";
 import { PartidoCard } from "@/components/zonas/PartidoCard";
+import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
 
-type Torneo = { id: string; nombre: string; multiplicador_puntos: number; numero_fecha: number | null };
+type Torneo = { id: string; nombre: string; multiplicador_puntos: number; numero_fecha: number | null; sede?: string | null };
 
 type Inscripcion = {
   id: string;
@@ -91,12 +92,13 @@ export default function Llaves() {
   const [setsLlave, setSetsLlave] = useState<
     Record<string, { numero_set: number; games_local: number; games_visitante: number }[]>
   >({});
+  const [isCompartirOpen, setIsCompartirOpen] = useState(false);
 
   // Carga torneos
   useEffect(() => {
     supabase
       .from("torneos")
-      .select("id, nombre, multiplicador_puntos, numero_fecha")
+      .select("id, nombre, multiplicador_puntos, numero_fecha, sede")
       .eq("tipo", "oficial")
       .order("fecha_inicio", { ascending: false })
       .then(({ data }) => {
@@ -665,6 +667,10 @@ export default function Llaves() {
                   Auto-avance de ganadores
                 </label>
               </div>
+              <Button variant="outline" size="sm" onClick={() => setIsCompartirOpen(true)}>
+                <Share2 className="h-4 w-4 mr-1" />
+                Compartir llave
+              </Button>
               <Button variant="outline" size="sm" onClick={() => recalcularDesdeZonas(false)}>
                 <Sparkles className="h-4 w-4 mr-1" />
                 Recalcular desde zonas
@@ -760,6 +766,15 @@ export default function Llaves() {
           </div>
         </>
       )}
+      
+      <CompartirLlaveDialog
+        isOpen={isCompartirOpen}
+        onOpenChange={setIsCompartirOpen}
+        torneo={torneos.find((x) => x.id === torneoId) || null}
+        partidos={partidosLlave}
+        setsLlave={setsLlave}
+        inscripciones={inscripciones}
+      />
     </div>
   );
 }
