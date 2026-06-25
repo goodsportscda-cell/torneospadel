@@ -497,7 +497,7 @@ export default function TorneoIndividualPublico() {
                                 </div>
                               </div>
                             </div>
-                          </div>
+                          </CardContent>
                         </div>
 
                         {/* Scores footer */}
