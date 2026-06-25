@@ -135,7 +135,7 @@ export default function Calendario() {
   }, []);
 
   const categoriaNombre = (t: Torneo) => {
-    if (t.tipo === "americano") return t.categoria_libre ?? "—";
+    if (t.tipo === "americano" || t.tipo === "americano_individual") return t.categoria_libre ?? "—";
     const c = categorias.find((c) => c.id === t.categoria_id);
     if (!c) return "—";
     return `${c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} ${c.nombre}`;
@@ -221,14 +221,14 @@ export default function Calendario() {
     if (!form.fecha_inicio) return toast.error("La fecha de inicio es obligatoria");
     if (form.tipo === "oficial" && !form.categoria_id)
       return toast.error("Seleccioná una categoría");
-    if (form.tipo === "americano" && !form.categoria_libre.trim())
-      return toast.error("Indicá la categoría del americano");
+    if ((form.tipo === "americano" || form.tipo === "americano_individual") && !form.categoria_libre.trim())
+      return toast.error("Indicá la categoría del torneo");
 
     const payload = {
       nombre: form.nombre.trim(),
       tipo: form.tipo,
       categoria_id: form.tipo === "oficial" ? form.categoria_id : null,
-      categoria_libre: form.tipo === "americano" ? form.categoria_libre.trim() : null,
+      categoria_libre: (form.tipo === "americano" || form.tipo === "americano_individual") ? form.categoria_libre.trim() : null,
       genero: form.genero || null,
       fecha_inicio: form.fecha_inicio,
       fecha_fin: form.fecha_fin || null,
@@ -504,6 +504,7 @@ export default function Calendario() {
                   <SelectContent>
                     <SelectItem value="oficial">Oficial</SelectItem>
                     <SelectItem value="americano">Americano</SelectItem>
+                    <SelectItem value="americano_individual">Americano Individual (Crown)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

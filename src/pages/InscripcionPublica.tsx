@@ -137,7 +137,11 @@ export default function InscripcionPublica() {
 
   const irPaso2 = () => {
     if (!validarJugador1(j1)) return;
-    setPaso(2);
+    if (torneo?.tipo === "americano_individual") {
+      setPaso(3);
+    } else {
+      setPaso(2);
+    }
   };
 
   const irPaso3 = () => {
@@ -161,31 +165,111 @@ export default function InscripcionPublica() {
     if (!torneo) return;
     setEnviando(true);
     try {
-      const res = await fetch(`${SUPABASE_URL}/functions/v1/inscripcion-publica`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          torneo_id: torneo.id, // Usamos el ID real del torneo cargado
-          jugador1: { ...j1, dni: j1.dni.trim(), email: j1.email.trim() || undefined, club: j1.club.trim() || undefined },
-          jugador2: {
-            ...j2,
-            dni: j2.dni.trim() || undefined,
-            email: j2.email.trim() || undefined,
-            club: j2.club.trim() || undefined,
-          },
-          disponibilidad_horaria: disponibilidad.trim() || undefined,
-          observaciones: observaciones.trim() || undefined,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error ?? "Error al enviar la inscripción");
-        return;
+      if (torneo.tipo === "americano_individual") {
+        // Registro individual cliente-side
+        // 1. Buscar jugador por DNI
+        const { data: extJug } = await supabase
+          .from("jugadores")
+          .select("*")
+          .eq("dni", j1.dni.trim())
+          .maybeSingle();
+
+        let jugadorId = "";
+        if (extJug) {
+          jugadorId = extJug.id;
+          if (j1.telefono !== extJug.telefono || j1.email !== extJug.email || j1.club !== extJug.club) {
+            await supabase
+              .from("jugadores")
+              .update({ telefono: j1.telefono, email: j1.email, club: j1.club })
+              .eq("id", extJug.id);
+          }
+        } else {
+          // Crear jugador nuevo
+          const { data: newJug, error: insErr } = await supabase
+            .from("jugadores")
+            .insert({
+              dni: j1.dni.trim(),
+              nombre: j1.nombre.trim(),
+              apellido: j1.apellido.trim(),
+              telefono: j1.telefono.trim(),
+              email: j1.email.trim() || null,
+              club: j1.club.trim() || null,
+            })
+            .select()
+            .single();
+
+          if (insErr) throw insErr;
+          jugadorId = newJug.id;
+        }
+
+        // 2. Comprobar si ya está inscripto
+        const { data: checkReg } = await supabase
+          .from("torneo_individual_jugadores")
+          .select("*")
+          .eq("torneo_id", torneo.id)
+          .eq("jugador_id", jugadorId)
+          .maybeSingle();
+
+        if (checkReg) {
+          toast.error("Ya estás registrado en este torneo");
+          setEnviando(false);
+          return;
+        }
+
+        // 3. Determinar lista de espera
+        const { data: regList } = await supabase
+          .from("torneo_individual_jugadores")
+          .select("id")
+          .eq("torneo_id", torneo.id);
+
+        const maxPlayers = (torneo.canchas_count ?? 3) * 4;
+        const isWaitingList = (regList ?? []).length >= maxPlayers;
+
+        // 4. Inscribir
+        const { error: regErr } = await supabase
+          .from("torneo_individual_jugadores")
+          .insert({
+            torneo_id: torneo.id,
+            jugador_id: jugadorId,
+            estado: isWaitingList ? "lista_espera" : "confirmada",
+          });
+
+        if (regErr) throw regErr;
+
+        setResultado({
+          ok: true,
+          estado: isWaitingList ? "lista_espera" : "confirmada",
+          torneo: torneo.nombre,
+        });
+      } else {
+        // Flujo tradicional por Edge Function para torneo oficial/americano en parejas
+        const res = await fetch(`${SUPABASE_URL}/functions/v1/inscripcion-publica`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            torneo_id: torneo.id,
+            jugador1: { ...j1, dni: j1.dni.trim(), email: j1.email.trim() || undefined, club: j1.club.trim() || undefined },
+            jugador2: {
+              ...j2,
+              dni: j2.dni.trim() || undefined,
+              email: j2.email.trim() || undefined,
+              club: j2.club.trim() || undefined,
+            },
+            disponibilidad_horaria: disponibilidad.trim() || undefined,
+            observaciones: observaciones.trim() || undefined,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error ?? "Error al enviar la inscripción");
+          setEnviando(false);
+          return;
+        }
+        setResultado(data);
       }
-      setResultado(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
-      toast.error("No pudimos conectar. Probá de nuevo.");
+      toast.error("No pudimos conectar. Probá de nuevo: " + err.message);
     } finally {
       setEnviando(false);
     }
@@ -259,8 +343,8 @@ export default function InscripcionPublica() {
               </h2>
               <p className="text-sm text-muted-foreground px-4">
                 {esListaEspera 
-                  ? "El cupo máximo del torneo ha sido completado. Su pareja ha quedado guardada como suplente."
-                  : "Tu pre-inscripción ha sido recibida con éxito y el lugar de la pareja ha sido reservado."
+                  ? "El cupo máximo del torneo ha sido completado. Has quedado registrado como suplente en lista de espera."
+                  : "Tu pre-inscripción ha sido recibida con éxito y tu lugar ha sido reservado."
                 }
               </p>
             </div>
@@ -283,33 +367,39 @@ export default function InscripcionPublica() {
               </div>
               <p className="text-xs opacity-90 leading-relaxed">
                 {esListaEspera 
-                  ? "No es necesario realizar ningún pago en este momento. Si se libera un cupo en el torneo, nos contactaremos con ustedes inmediatamente por WhatsApp para confirmar su ingreso."
-                  : "Para confirmar su participación de forma definitiva y asegurar su lugar en el cuadro, deberán realizar el pago de la inscripción. Nos contactaremos con ustedes por WhatsApp para coordinar los detalles."
+                  ? "No es necesario realizar ningún pago en este momento. Si se libera un cupo en el torneo, nos contactaremos contigo inmediatamente por WhatsApp para confirmar tu ingreso."
+                  : "Para confirmar tu participación de forma definitiva y asegurar tu lugar, deberás realizar el pago de la inscripción. Nos contactaremos contigo por WhatsApp para coordinar los detalles."
                 }
               </p>
             </div>
 
             {/* Resumen de Pareja */}
             <div className="bg-muted/40 rounded-xl p-4 text-left border space-y-2">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Resumen de la Pareja</p>
-              <div className="grid grid-cols-2 gap-4 pt-1">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                {torneo.tipo === "americano_individual" ? "Resumen de Inscripción" : "Resumen de la Pareja"}
+              </p>
+              <div className={`${torneo.tipo === "americano_individual" ? "block" : "grid grid-cols-2 gap-4"} pt-1`}>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Jugador 1</p>
+                  <p className="text-[10px] text-muted-foreground uppercase">{torneo.tipo === "americano_individual" ? "Jugador" : "Jugador 1"}</p>
                   <p className="text-sm font-semibold truncate">{j1.apellido}, {j1.nombre}</p>
                   <p className="text-xs text-muted-foreground">{j1.telefono}</p>
                 </div>
-                <div>
-                  <p className="text-[10px] text-muted-foreground uppercase">Compañero/a</p>
-                  <p className="text-sm font-semibold truncate">{j2.apellido}, {j2.nombre}</p>
-                  <p className="text-xs text-muted-foreground">{j2.telefono}</p>
-                </div>
+                {torneo.tipo !== "americano_individual" && (
+                  <div>
+                    <p className="text-[10px] text-muted-foreground uppercase">Compañero/a</p>
+                    <p className="text-sm font-semibold truncate">{j2.apellido}, {j2.nombre}</p>
+                    <p className="text-xs text-muted-foreground">{j2.telefono}</p>
+                  </div>
+                )}
               </div>
             </div>
 
             {/* No requiere accion */}
-            <p className="text-xs text-muted-foreground italic bg-muted/20 py-2 rounded-lg">
-              ✨ La inscripción ya está ingresada en el sistema. Su compañero no necesita confirmar ningún dato en la web.
-            </p>
+            {torneo.tipo !== "americano_individual" && (
+              <p className="text-xs text-muted-foreground italic bg-muted/20 py-2 rounded-lg">
+                ✨ La inscripción ya está ingresada en el sistema. Su compañero no necesita confirmar ningún dato en la web.
+              </p>
+            )}
 
             <div className="border-t pt-4 space-y-1">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Torneo</p>
@@ -324,15 +414,20 @@ export default function InscripcionPublica() {
 
   return (
     <Wrapper torneo={torneo}>
-      <PasoIndicador paso={paso} />
+      <PasoIndicador paso={paso} tipoTorneo={torneo.tipo} />
 
       {paso === 1 && (
         <Card>
           <CardContent className="p-4 sm:p-6 space-y-4">
             <header>
-              <h2 className="text-lg font-semibold">Datos del Jugador 1</h2>
+              <h2 className="text-lg font-semibold">
+                {torneo.tipo === "americano_individual" ? "Datos del Jugador" : "Datos del Jugador 1"}
+              </h2>
               <p className="text-sm text-muted-foreground">
-                Empezá ingresando el DNI. Si ya jugaste antes, traemos tus datos automáticamente.
+                {torneo.tipo === "americano_individual" 
+                  ? "Ingresá tu DNI. Si ya jugaste antes, traemos tus datos automáticamente."
+                  : "Empezá ingresando el DNI. Si ya jugaste antes, traemos tus datos automáticamente."
+                }
               </p>
             </header>
             <JugadorStep value={j1} onChange={setJ1} />
@@ -400,7 +495,7 @@ export default function InscripcionPublica() {
               />
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="lg" onClick={() => setPaso(2)}>
+              <Button variant="outline" size="lg" onClick={() => setPaso(torneo.tipo === "americano_individual" ? 1 : 2)}>
                 <ArrowLeft className="h-4 w-4" />
                 Atrás
               </Button>
@@ -421,15 +516,19 @@ export default function InscripcionPublica() {
             <div className="space-y-3 text-sm">
               <ResumenItem label="Torneo" value={torneo.nombre} />
               <ResumenItem
-                label="Jugador 1"
+                label={torneo.tipo === "americano_individual" ? "Jugador" : "Jugador 1"}
                 value={`${j1.apellido}, ${j1.nombre} (DNI ${j1.dni})`}
               />
-              <ResumenItem label="Tel. Jugador 1" value={j1.telefono} />
-              <ResumenItem
-                label="Compañero/a"
-                value={`${j2.apellido}, ${j2.nombre} (DNI ${j2.dni})`}
-              />
-              <ResumenItem label="Tel. Compañero" value={j2.telefono} />
+              <ResumenItem label={torneo.tipo === "americano_individual" ? "Teléfono" : "Tel. Jugador 1"} value={j1.telefono} />
+              {torneo.tipo !== "americano_individual" && (
+                <>
+                  <ResumenItem
+                    label="Compañero/a"
+                    value={`${j2.apellido}, ${j2.nombre} (DNI ${j2.dni})`}
+                  />
+                  <ResumenItem label="Tel. Compañero" value={j2.telefono} />
+                </>
+              )}
               {disponibilidad && (
                 <ResumenItem label="Disponibilidad" value={disponibilidad} />
               )}
@@ -490,16 +589,27 @@ function Wrapper({ children, torneo }: { children: React.ReactNode; torneo?: Tor
   );
 }
 
-function PasoIndicador({ paso }: { paso: number }) {
-  const pasos = ["Jugador 1", "Jugador 2", "Disponibilidad", "Confirmar"];
+function PasoIndicador({ paso, tipoTorneo }: { paso: number; tipoTorneo?: string }) {
+  const pasos = tipoTorneo === "americano_individual"
+    ? [
+        { label: "Jugador", num: 1 },
+        { label: "Disponibilidad", num: 3 },
+        { label: "Confirmar", num: 4 }
+      ]
+    : [
+        { label: "Jugador 1", num: 1 },
+        { label: "Jugador 2", num: 2 },
+        { label: "Disponibilidad", num: 3 },
+        { label: "Confirmar", num: 4 }
+      ];
+
   return (
     <div className="flex items-center justify-between gap-1 mb-1">
-      {pasos.map((label, i) => {
-        const n = i + 1;
-        const activo = n === paso;
-        const completo = n < paso;
+      {pasos.map((step) => {
+        const activo = step.num === paso;
+        const completo = step.num < paso;
         return (
-          <div key={label} className="flex-1 flex flex-col items-center gap-1">
+          <div key={step.label} className="flex-1 flex flex-col items-center gap-1">
             <div
               className={`h-1.5 w-full rounded-full ${
                 completo || activo ? "bg-primary" : "bg-muted"
@@ -510,7 +620,7 @@ function PasoIndicador({ paso }: { paso: number }) {
                 activo ? "font-semibold text-foreground" : "text-muted-foreground"
               }`}
             >
-              {label}
+              {step.label}
             </span>
           </div>
         );

@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +34,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { calcularRankingTorneo } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
@@ -66,6 +67,10 @@ interface FormState {
   numero_fecha: string;
   multiplicador_puntos: string;
   cupo_maximo: string;
+  canchas_count: string;
+  costo_fecha_jugador: string;
+  costo_fecha_cancha: string;
+  porcentaje_premios: string;
 }
 
 const emptyForm: FormState = {
@@ -84,6 +89,10 @@ const emptyForm: FormState = {
   numero_fecha: "",
   multiplicador_puntos: "1",
   cupo_maximo: "",
+  canchas_count: "3",
+  costo_fecha_jugador: "10000",
+  costo_fecha_cancha: "22000",
+  porcentaje_premios: "60",
 };
 
 const generateSlug = (nombre: string) => {
@@ -145,6 +154,10 @@ export default function Torneos() {
       numero_fecha: t.numero_fecha?.toString() ?? "",
       multiplicador_puntos: t.multiplicador_puntos?.toString() ?? "1",
       cupo_maximo: t.cupo_maximo?.toString() ?? "",
+      canchas_count: t.canchas_count?.toString() ?? "3",
+      costo_fecha_jugador: t.costo_fecha_jugador?.toString() ?? "10000",
+      costo_fecha_cancha: t.costo_fecha_cancha?.toString() ?? "22000",
+      porcentaje_premios: t.porcentaje_premios?.toString() ?? "60",
     });
     setDialogOpen(true);
   };
@@ -162,9 +175,27 @@ export default function Torneos() {
       toast.error("Seleccioná una categoría para el torneo oficial");
       return;
     }
-    if (form.tipo === "americano" && !form.categoria_libre.trim()) {
-      toast.error("Indicá la categoría del americano");
+    if ((form.tipo === "americano" || form.tipo === "americano_individual") && !form.categoria_libre.trim()) {
+      toast.error("Indicá la categoría del torneo");
       return;
+    }
+    if (form.tipo === "americano_individual") {
+      if (!form.canchas_count || Number(form.canchas_count) < 1) {
+        toast.error("Indicá una cantidad válida de canchas");
+        return;
+      }
+      if (!form.costo_fecha_jugador || Number(form.costo_fecha_jugador) < 0) {
+        toast.error("Indicá un costo por jugador válido");
+        return;
+      }
+      if (!form.costo_fecha_cancha || Number(form.costo_fecha_cancha) < 0) {
+        toast.error("Indicá un costo de cancha válido");
+        return;
+      }
+      if (!form.porcentaje_premios || Number(form.porcentaje_premios) < 0 || Number(form.porcentaje_premios) > 100) {
+        toast.error("Indicá un porcentaje de premios válido (0-100)");
+        return;
+      }
     }
 
     // Generamos el slug si no existe o si cambió el nombre
@@ -175,7 +206,7 @@ export default function Torneos() {
       // slug, // Temporalmente deshabilitado por error de cache en Supabase
       tipo: form.tipo,
       categoria_id: form.tipo === "oficial" ? form.categoria_id : null,
-      categoria_libre: form.tipo === "americano" ? form.categoria_libre.trim() : null,
+      categoria_libre: (form.tipo === "americano" || form.tipo === "americano_individual") ? form.categoria_libre.trim() : null,
       genero: form.genero || null,
       fecha_inicio: form.fecha_inicio,
       fecha_fin: form.fecha_fin || null,
@@ -183,10 +214,15 @@ export default function Torneos() {
       costo_inscripcion: form.costo_inscripcion ? Number(form.costo_inscripcion) : null,
       premios: form.premios.trim() || null,
       estado: form.estado,
+      notes: form.notas.trim() || null, // wait, keep DB column name
       notas: form.notas.trim() || null,
       numero_fecha: form.numero_fecha ? Number(form.numero_fecha) : null,
       multiplicador_puntos: form.multiplicador_puntos ? Number(form.multiplicador_puntos) : 1,
       cupo_maximo: form.cupo_maximo ? Number(form.cupo_maximo) : null,
+      canchas_count: form.tipo === "americano_individual" ? Number(form.canchas_count) : null,
+      costo_fecha_jugador: form.tipo === "americano_individual" ? Number(form.costo_fecha_jugador) : null,
+      costo_fecha_cancha: form.tipo === "americano_individual" ? Number(form.costo_fecha_cancha) : null,
+      porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) : null,
     };
 
     if (editing) {
@@ -299,7 +335,7 @@ export default function Torneos() {
   };
 
   const categoriaNombre = (t: Torneo) => {
-    if (t.tipo === "americano") return t.categoria_libre ?? "—";
+    if (t.tipo === "americano" || t.tipo === "americano_individual") return t.categoria_libre ?? "—";
     const c = categorias.find((c) => c.id === t.categoria_id);
     if (!c) return "—";
     return `${c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} ${c.nombre}`;
@@ -353,6 +389,7 @@ export default function Torneos() {
                     <SelectContent>
                       <SelectItem value="oficial">Oficial</SelectItem>
                       <SelectItem value="americano">Americano</SelectItem>
+                      <SelectItem value="americano_individual">Americano Individual (Crown)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -396,32 +433,92 @@ export default function Torneos() {
                   </Select>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="cat-libre">Categoría *</Label>
-                    <Input
-                      id="cat-libre"
-                      value={form.categoria_libre}
-                      onChange={(e) => setForm({ ...form, categoria_libre: e.target.value })}
-                      placeholder="Ej: 4ta-5ta"
-                    />
+                <div className="space-y-3">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="cat-libre">Categoría *</Label>
+                      <Input
+                        id="cat-libre"
+                        value={form.categoria_libre}
+                        onChange={(e) => setForm({ ...form, categoria_libre: e.target.value })}
+                        placeholder="Ej: 4ta-5ta"
+                      />
+                    </div>
+                    <div className="grid gap-1.5">
+                      <Label>Género</Label>
+                      <Select
+                        value={form.genero}
+                        onValueChange={(v: Genero) => setForm({ ...form, genero: v })}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Opcional" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="caballeros">Caballeros</SelectItem>
+                          <SelectItem value="damas">Damas</SelectItem>
+                          <SelectItem value="mixto">Mixto</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
-                  <div className="grid gap-1.5">
-                    <Label>Género</Label>
-                    <Select
-                      value={form.genero}
-                      onValueChange={(v: Genero) => setForm({ ...form, genero: v })}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Opcional" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="caballeros">Caballeros</SelectItem>
-                        <SelectItem value="damas">Damas</SelectItem>
-                        <SelectItem value="mixto">Mixto</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
+
+                  {form.tipo === "americano_individual" && (
+                    <div className="border p-3 rounded-md space-y-3 bg-muted/20">
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Individual y Financiera</h4>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="canchas-count">Cantidad de canchas *</Label>
+                          <Input
+                            id="canchas-count"
+                            type="number"
+                            min="1"
+                            value={form.canchas_count}
+                            onChange={(e) => setForm({ ...form, canchas_count: e.target.value })}
+                            placeholder="Ej: 3"
+                          />
+                          <span className="text-[10px] text-muted-foreground mt-0.5">
+                            {form.canchas_count ? `${Number(form.canchas_count) * 4} jugadores requeridos` : ""}
+                          </span>
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="porc-premios">% para Premios *</Label>
+                          <Input
+                            id="porc-premios"
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={form.porcentaje_premios}
+                            onChange={(e) => setForm({ ...form, porcentaje_premios: e.target.value })}
+                            placeholder="Ej: 60"
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="costo-jugador">Costo por jugador ($) *</Label>
+                          <Input
+                            id="costo-jugador"
+                            type="number"
+                            min="0"
+                            value={form.costo_fecha_jugador}
+                            onChange={(e) => setForm({ ...form, costo_fecha_jugador: e.target.value })}
+                            placeholder="Ej: 10000"
+                          />
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="costo-cancha">Costo de cancha por fecha ($) *</Label>
+                          <Input
+                            id="costo-cancha"
+                            type="number"
+                            min="0"
+                            value={form.costo_fecha_cancha}
+                            onChange={(e) => setForm({ ...form, costo_fecha_cancha: e.target.value })}
+                            placeholder="Ej: 22000"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -564,7 +661,7 @@ export default function Torneos() {
                       )}
                     </div>
                     <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.tipo === "americano" ? "Americano" : "Oficial"} · {categoriaNombre(t)}
+                      {t.tipo === "americano" ? "Americano" : t.tipo === "americano_individual" ? "Individual" : "Oficial"} · {categoriaNombre(t)}
                       {t.numero_fecha && ` · Fecha ${t.numero_fecha}`}
                     </p>
                   </div>
@@ -604,7 +701,7 @@ export default function Torneos() {
                   </Select>
                 </div>
 
-                {t.estado === "finalizado" && (
+                 {t.estado === "finalizado" && t.tipo !== "americano_individual" && (
                   <Button
                     size="sm"
                     variant="secondary"
@@ -613,6 +710,19 @@ export default function Torneos() {
                   >
                     <Award className="h-3.5 w-3.5" />
                     Recalcular ranking
+                  </Button>
+                )}
+
+                {t.tipo === "americano_individual" && (
+                  <Button
+                    size="sm"
+                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+                    asChild
+                  >
+                    <Link to={`/admin/torneo-individual/${t.id}`}>
+                      <Settings className="h-3.5 w-3.5 mr-1" />
+                      Gestionar Americano
+                    </Link>
                   </Button>
                 )}
 
@@ -632,7 +742,12 @@ export default function Torneos() {
                   <Button
                     size="sm"
                     variant="outline"
-                    onClick={() => handleCopiarLinkPublico(t)}
+                    onClick={() => {
+                      const path = t.tipo === "americano_individual" ? `/torneo-individual/${t.id}` : `/torneo/${t.id}`;
+                      const url = `${window.location.origin}${path}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success("¡Link del muro público copiado!");
+                    }}
                     title="Copiar link del muro de resultados"
                   >
                     <Globe className="h-3.5 w-3.5" />
