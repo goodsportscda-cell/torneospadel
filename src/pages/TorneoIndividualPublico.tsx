@@ -232,12 +232,13 @@ export default function TorneoIndividualPublico() {
 
     const list = Array.from(standingsMap.values()).map((s) => ({
       ...s,
+      difSets: s.setsGanados - s.setsPerdidos,
       difGames: s.gamesGanados - s.gamesPerdidos,
     }));
 
     list.sort((a, b) => {
       if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-      if (b.setsGanados !== a.setsGanados) return b.setsGanados - a.setsGanados;
+      if (b.difSets !== a.difSets) return b.difSets - a.difSets;
       if (b.difGames !== a.difGames) return b.difGames - a.difGames;
       return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
     });
@@ -248,6 +249,30 @@ export default function TorneoIndividualPublico() {
   useEffect(() => {
     setStandings(computedStandings);
   }, [computedStandings]);
+
+  const championsInfo = useMemo(() => {
+    const finalMatch = partidos.find(
+      (p) => p.fecha === 8 && p.cancha.includes("Gran Final")
+    );
+    if (!finalMatch || finalMatch.estado !== "finalizado") return null;
+
+    const p1Won = finalMatch.sets_pareja1 > finalMatch.sets_pareja2;
+    if (p1Won) {
+      return {
+        campeon: finalMatch.jugador1,
+        campeonPartner: finalMatch.jugador2,
+        subcampeon: finalMatch.jugador3,
+        subcampeonPartner: finalMatch.jugador4,
+      };
+    } else {
+      return {
+        campeon: finalMatch.jugador3,
+        campeonPartner: finalMatch.jugador4,
+        subcampeon: finalMatch.jugador1,
+        subcampeonPartner: finalMatch.jugador2,
+      };
+    }
+  }, [partidos]);
 
   // Prize pool simulation from completed dates and expected totals
   const pozoResumen = useMemo(() => {
@@ -307,6 +332,60 @@ export default function TorneoIndividualPublico() {
             <ModeToggle />
           </div>
         </div>
+
+        {/* Champions Banner */}
+        {championsInfo && (
+          <Card className="overflow-hidden border-indigo-500/20 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-indigo-500/10 shadow-lg backdrop-blur-sm">
+            <CardContent className="p-6">
+              <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+                <div className="flex items-center gap-4">
+                  <div className="p-3 bg-amber-500/15 rounded-full border border-amber-500/30 text-amber-500 animate-pulse shrink-0">
+                    <Trophy className="h-8 w-8" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                      ¡Tenemos Campeón!
+                      <span className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 font-mono px-2 py-0.5 rounded-full border border-amber-500/30">
+                        Finalizado
+                      </span>
+                    </h2>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      El torneo ha concluido tras disputar la gran final de la Semana 8.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-4 w-full md:w-auto">
+                  {/* Campeón */}
+                  <div className="flex-1 min-w-[200px] border border-amber-500/20 bg-amber-500/5 p-4 rounded-xl relative overflow-hidden">
+                    <div className="absolute top-1 right-1 text-amber-500/10 font-black text-4xl">1°</div>
+                    <p className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-black tracking-wider">Campeón</p>
+                    <p className="text-base font-bold mt-1 text-foreground">
+                      {championsInfo.campeon ? `${championsInfo.campeon.apellido}, ${championsInfo.campeon.nombre}` : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      Compañero: {championsInfo.campeonPartner ? `${championsInfo.campeonPartner.apellido}, ${championsInfo.campeonPartner.nombre}` : "—"}
+                    </p>
+                  </div>
+
+                  {/* Subcampeón */}
+                  <div className="flex-1 min-w-[200px] border border-slate-500/20 bg-slate-500/5 p-4 rounded-xl relative overflow-hidden">
+                    <div className="absolute top-1 right-1 text-slate-500/10 font-black text-4xl">2°</div>
+                    <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase font-black tracking-wider">Subcampeón</p>
+                    <p className="text-base font-bold mt-1 text-foreground">
+                      {championsInfo.subcampeon ? `${championsInfo.subcampeon.apellido}, ${championsInfo.subcampeon.nombre}` : "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400" />
+                      Compañero: {championsInfo.subcampeonPartner ? `${championsInfo.subcampeonPartner.apellido}, ${championsInfo.subcampeonPartner.nombre}` : "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {loading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-3">
