@@ -471,7 +471,7 @@ export function CompartirLlaveDialog({
                       {/* Parejas y Scores */}
                       <div className="space-y-2.5">
                         {/* Pareja Local Row */}
-                        <div style={{ minHeight: '34px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
+                        <div style={{ minHeight: '38px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
                             className={`flex items-center gap-2 font-bold min-w-0 flex-1 text-left ${
                               isFinished
@@ -483,23 +483,33 @@ export function CompartirLlaveDialog({
                           >
                             {localWinner && (
                               <Trophy 
-                                className="h-4.5 w-4.5 text-amber-400 shrink-0" 
+                                className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
                                 style={{ display: 'inline-block', verticalAlign: 'middle' }} 
                               />
                             )}
-                            <span 
-                              style={{ 
-                                fontSize: '18px', 
-                                fontWeight: '800', 
-                                display: 'inline-block', 
-                                verticalAlign: 'middle', 
-                                lineHeight: 'normal',
-                                paddingBottom: '3px'
-                              }} 
-                              className="truncate flex-1 text-left"
-                            >
-                              {getParejaName(p.pareja_local_id, p.ref_local)}
-                            </span>
+                            <div className="flex-1 min-w-0 text-left">
+                              {(() => {
+                                const name = getParejaName(p.pareja_local_id, p.ref_local);
+                                const parts = name.split(" / ");
+                                if (parts.length === 2) {
+                                  return (
+                                    <div className="flex flex-col leading-tight py-0.5">
+                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block">
+                                        {parts[0]}
+                                      </span>
+                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block opacity-75">
+                                        {parts[1]}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <span style={{ fontSize: '15px', fontWeight: '800', lineHeight: 'normal' }} className="truncate block">
+                                    {name}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
 
                           {/* Sets Local */}
@@ -526,7 +536,7 @@ export function CompartirLlaveDialog({
                         </div>
 
                         {/* Pareja Visitante Row */}
-                        <div style={{ minHeight: '34px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
+                        <div style={{ minHeight: '38px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
                             className={`flex items-center gap-2 font-bold min-w-0 flex-1 text-left ${
                               isFinished
@@ -538,23 +548,33 @@ export function CompartirLlaveDialog({
                           >
                             {visiWinner && (
                               <Trophy 
-                                className="h-4.5 w-4.5 text-amber-400 shrink-0" 
+                                className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
                                 style={{ display: 'inline-block', verticalAlign: 'middle' }} 
                               />
                             )}
-                            <span 
-                              style={{ 
-                                fontSize: '18px', 
-                                fontWeight: '800', 
-                                display: 'inline-block', 
-                                verticalAlign: 'middle', 
-                                lineHeight: 'normal',
-                                paddingBottom: '3px'
-                              }} 
-                              className="truncate flex-1 text-left"
-                            >
-                              {getParejaName(p.pareja_visitante_id, p.ref_visitante)}
-                            </span>
+                            <div className="flex-1 min-w-0 text-left">
+                              {(() => {
+                                const name = getParejaName(p.pareja_visitante_id, p.ref_visitante);
+                                const parts = name.split(" / ");
+                                if (parts.length === 2) {
+                                  return (
+                                    <div className="flex flex-col leading-tight py-0.5">
+                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block">
+                                        {parts[0]}
+                                      </span>
+                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block opacity-75">
+                                        {parts[1]}
+                                      </span>
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <span style={{ fontSize: '15px', fontWeight: '800', lineHeight: 'normal' }} className="truncate block">
+                                    {name}
+                                  </span>
+                                );
+                              })()}
+                            </div>
                           </div>
 
                           {/* Sets Visitante */}
