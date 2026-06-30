@@ -471,18 +471,18 @@ export function CompartirLlaveDialog({
                       {/* Parejas y Scores */}
                       <div className="space-y-2.5">
                         {/* Pareja Local Row */}
-                        <div style={{ minHeight: '28px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
+                        <div style={{ minHeight: '34px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
                             className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
                               isFinished
                                 ? localWinner
                                   ? "text-white font-extrabold"
-                                  : "text-white/40"
-                                : "text-white/85"
+                                  : "text-white/60"
+                                : "text-white/95"
                             }`}
                           >
                             {localWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
-                            <span style={{ fontSize: '13px' }} className="truncate flex-1 text-left leading-tight">
+                            <span style={{ fontSize: '18px', fontWeight: '800' }} className="truncate flex-1 text-left leading-tight">
                               {getParejaName(p.pareja_local_id, p.ref_local)}
                             </span>
                           </div>
@@ -494,9 +494,9 @@ export function CompartirLlaveDialog({
                                 <span
                                   key={idx}
                                   style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    fontSize: '11px',
+                                    width: '32px',
+                                    height: '32px',
+                                    fontSize: '15px',
                                     ...(s.games_local > s.games_visitante
                                       ? currentThemePreset.scoreWinStyle
                                       : currentThemePreset.scoreLoseStyle)
@@ -511,18 +511,18 @@ export function CompartirLlaveDialog({
                         </div>
 
                         {/* Pareja Visitante Row */}
-                        <div style={{ minHeight: '28px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
+                        <div style={{ minHeight: '34px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
                             className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
                               isFinished
                                 ? visiWinner
                                   ? "text-white font-extrabold"
-                                  : "text-white/40"
-                                : "text-white/85"
+                                  : "text-white/60"
+                                : "text-white/95"
                             }`}
                           >
                             {visiWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
-                            <span style={{ fontSize: '13px' }} className="truncate flex-1 text-left leading-tight">
+                            <span style={{ fontSize: '18px', fontWeight: '800' }} className="truncate flex-1 text-left leading-tight">
                               {getParejaName(p.pareja_visitante_id, p.ref_visitante)}
                             </span>
                           </div>
@@ -534,9 +534,9 @@ export function CompartirLlaveDialog({
                                 <span
                                   key={idx}
                                   style={{
-                                    width: '26px',
-                                    height: '26px',
-                                    fontSize: '11px',
+                                    width: '32px',
+                                    height: '32px',
+                                    fontSize: '15px',
                                     ...(s.games_visitante > s.games_local
                                       ? currentThemePreset.scoreWinStyle
                                       : currentThemePreset.scoreLoseStyle)

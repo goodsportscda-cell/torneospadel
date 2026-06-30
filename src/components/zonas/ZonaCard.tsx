@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
 import { activeTenant } from "@/lib/tenant";
+import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
 import { PartidoCard } from "./PartidoCard";
 import { TablaPosiciones } from "./TablaPosiciones";
@@ -523,7 +524,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           position: 'fixed',
           top: '-9999px',
           left: '-9999px',
-          background: 'radial-gradient(circle at top right, #1f1212 0%, #09090b 100%)',
+          background: 'linear-gradient(135deg, #022c22 0%, #060b11 50%, #021a14 100%)',
           display: 'flex',
           flexDirection: 'column',
           padding: '60px 40px',
@@ -531,27 +532,66 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           zIndex: -100,
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px' }}>
-          <img src={activeTenant.logo} alt={activeTenant.name} style={{ width: '140px', objectFit: 'contain' }} />
+        {/* Background grids and blurs to match brackets design */}
+        <div
+          style={{
+            position: "absolute",
+            inset: 0,
+            backgroundImage: "radial-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px)",
+            backgroundSize: "20px 20px",
+            pointerEvents: "none",
+          }}
+        ></div>
+        <div
+          style={{
+            position: "absolute",
+            top: "20%",
+            left: "-10%",
+            width: "300px",
+            height: "300px",
+            borderRadius: "9999px",
+            backgroundColor: "rgba(16, 185, 129, 0.05)",
+            filter: "blur(80px)",
+            pointerEvents: "none",
+          }}
+        ></div>
+
+        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '40px', zIndex: 10 }}>
+          <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-3 pr-5">
+            <PadelIdLogo size={40} />
+            <div className="text-left">
+              <p className="text-sm font-black leading-none text-white tracking-tight">Padel <span className="text-emerald-400">ID</span></p>
+              <p style={{ fontSize: '8px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1">Anita Quiroga</p>
+            </div>
+          </div>
         </div>
         
-        <div style={{ textAlign: 'center', marginBottom: '35px' }}>
-          <p style={{ fontSize: '14px', fontWeight: '600', letterSpacing: '0.1em', color: '#94a3b8', textTransform: 'uppercase', marginBottom: '8px' }}>
+        <div style={{ textAlign: 'center', marginBottom: '35px', zIndex: 10 }}>
+          <p style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '0.15em', color: 'rgba(52, 211, 153, 0.6)', textTransform: 'uppercase', marginBottom: '6px' }}>
             Resultados Clasificación
           </p>
-          <h1 style={{ fontSize: '48px', fontWeight: '800', color: '#ef4444', lineHeight: '1' }}>
+          <h1 style={{ fontSize: '42px', fontWeight: '900', color: '#34d399', lineHeight: '1.1', letterSpacing: '-0.02em' }}>
             Zona {zona.nombre}
           </h1>
         </div>
 
-        <div style={{ flex: 1, backgroundColor: '#18181b', borderRadius: '12px', padding: '10px', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)', color: '#fafafa', border: '1px solid #27272a' }}>
+        <div style={{ 
+          flex: 1, 
+          backgroundColor: 'rgba(9, 21, 18, 0.95)', 
+          borderRadius: '16px', 
+          padding: '16px', 
+          boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.5)', 
+          color: '#fafafa', 
+          border: '1px solid rgba(6, 95, 70, 0.4)',
+          zIndex: 10 
+        }}>
             <TablaPosiciones tabla={tabla} parejaLabel={parejaLabel} clasifican={clasifican} zonaId={zona.id} readOnly={true} hideDiferencias={true} />
         </div>
 
-        <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '30px' }}>
-           <p style={{ fontSize: '18px', fontWeight: '800', color: '#ef4444', marginBottom: '4px' }}>{activeTenant.name.toUpperCase()}</p>
+        <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '20px', zIndex: 10 }}>
+           <p style={{ fontSize: '16px', fontWeight: '800', color: '#34d399', letterSpacing: '0.05em', marginBottom: '4px' }}>{activeTenant.name.toUpperCase()}</p>
            {activeTenant.instagram && (
-             <p style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>{activeTenant.instagram}</p>
+             <p style={{ fontSize: '12px', color: 'rgba(52, 211, 153, 0.5)', fontWeight: '500' }}>{activeTenant.instagram}</p>
            )}
         </div>
       </div>
