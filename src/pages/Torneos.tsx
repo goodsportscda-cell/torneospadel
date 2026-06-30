@@ -214,7 +214,6 @@ export default function Torneos() {
       costo_inscripcion: form.costo_inscripcion ? Number(form.costo_inscripcion) : null,
       premios: form.premios.trim() || null,
       estado: form.estado,
-      notes: form.notas.trim() || null, // wait, keep DB column name
       notas: form.notas.trim() || null,
       numero_fecha: form.numero_fecha ? Number(form.numero_fecha) : null,
       multiplicador_puntos: form.multiplicador_puntos ? Number(form.multiplicador_puntos) : 1,
