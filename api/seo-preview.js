@@ -2,8 +2,8 @@ import fs from 'fs';
 import path from 'path';
 
 // Configuration
-const SUPABASE_URL = "https://ijhxmckhntfquhxmussa.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlqaHhtY2tobnRmcXVoeG11c3NhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY0MzMxMjMsImV4cCI6MjA5MjAwOTEyM30.2UmiCPsbpeBj9d1dEqac7axcVoRxaNX3CE3NmGrjUYw";
+const SUPABASE_URL = process.env.VITE_SUPABASE_URL || "https://okmmwahmhxuyojdtksnr.supabase.co";
+const SUPABASE_ANON_KEY = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im9rbW13YWhtaHh1eW9qZHRrc25yIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODI2MzkxMTIsImV4cCI6MjA5ODIxNTExMn0.6uMhhEhAI2dodSNglzieAlRP7HtrKH46wLbd4XL6C9Q";
 
 export default async function handler(req, res) {
   try {
