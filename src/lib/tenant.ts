@@ -1,4 +1,4 @@
-import goodPadelLogo from "@/assets/good-padel-logo.png";
+import goodPadelLogo from "@/assets/new-padel-id-logo.jpg";
 
 export interface TenantConfig {
   id: string;
