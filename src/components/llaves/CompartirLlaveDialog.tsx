@@ -473,7 +473,7 @@ export function CompartirLlaveDialog({
                         {/* Pareja Local Row */}
                         <div style={{ minHeight: '34px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
-                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
+                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 text-left ${
                               isFinished
                                 ? localWinner
                                   ? "text-white font-extrabold"
@@ -481,8 +481,23 @@ export function CompartirLlaveDialog({
                                 : "text-white/95"
                             }`}
                           >
-                            {localWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
-                            <span style={{ fontSize: '18px', fontWeight: '800' }} className="truncate flex-1 text-left leading-tight">
+                            {localWinner && (
+                              <Trophy 
+                                className="h-4.5 w-4.5 text-amber-400 shrink-0" 
+                                style={{ display: 'inline-block', verticalAlign: 'middle' }} 
+                              />
+                            )}
+                            <span 
+                              style={{ 
+                                fontSize: '18px', 
+                                fontWeight: '800', 
+                                display: 'inline-block', 
+                                verticalAlign: 'middle', 
+                                lineHeight: 'normal',
+                                paddingBottom: '3px'
+                              }} 
+                              className="truncate flex-1 text-left"
+                            >
                               {getParejaName(p.pareja_local_id, p.ref_local)}
                             </span>
                           </div>
@@ -513,7 +528,7 @@ export function CompartirLlaveDialog({
                         {/* Pareja Visitante Row */}
                         <div style={{ minHeight: '34px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
                           <div
-                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 ${
+                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 text-left ${
                               isFinished
                                 ? visiWinner
                                   ? "text-white font-extrabold"
@@ -521,8 +536,23 @@ export function CompartirLlaveDialog({
                                 : "text-white/95"
                             }`}
                           >
-                            {visiWinner && <Trophy className="h-4 w-4 text-amber-400 shrink-0" />}
-                            <span style={{ fontSize: '18px', fontWeight: '800' }} className="truncate flex-1 text-left leading-tight">
+                            {visiWinner && (
+                              <Trophy 
+                                className="h-4.5 w-4.5 text-amber-400 shrink-0" 
+                                style={{ display: 'inline-block', verticalAlign: 'middle' }} 
+                              />
+                            )}
+                            <span 
+                              style={{ 
+                                fontSize: '18px', 
+                                fontWeight: '800', 
+                                display: 'inline-block', 
+                                verticalAlign: 'middle', 
+                                lineHeight: 'normal',
+                                paddingBottom: '3px'
+                              }} 
+                              className="truncate flex-1 text-left"
+                            >
                               {getParejaName(p.pareja_visitante_id, p.ref_visitante)}
                             </span>
                           </div>

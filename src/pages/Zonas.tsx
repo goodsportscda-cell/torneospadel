@@ -247,6 +247,11 @@ export default function Zonas() {
 
   const jugadorMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores]);
 
+  const torneoNombre = useMemo(() => {
+    const t = torneos.find(x => x.id === torneoId);
+    return t?.nombre || "";
+  }, [torneos, torneoId]);
+
   const parejaLabel = useCallback((inscripcionId: string): string => {
     const ins = inscripciones.find((i) => i.id === inscripcionId);
     if (!ins) return "—";
@@ -364,6 +369,7 @@ export default function Zonas() {
                     onChanged={cargarDatos}
                     onDeleted={() => handleBorrarZona(z.id)}
                     onUpdate={(updates) => handleUpdateZona(z.id, updates)}
+                    torneoNombre={torneoNombre}
                   />
                 ))}
               </div>

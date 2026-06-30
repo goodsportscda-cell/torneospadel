@@ -305,6 +305,7 @@ export default function TorneoPublico() {
                     onChanged={() => {}} 
                     onDeleted={() => {}}
                     readOnly={true}
+                    torneoNombre={torneo?.nombre || ""}
                   />
                 ))}
               </div>

@@ -72,9 +72,10 @@ type Props = {
   onDeleted: () => void;
   onUpdate?: (updates: Partial<Zona>) => void;
   readOnly?: boolean;
+  torneoNombre?: string;
 };
 
-export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false }: Props) {
+export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "" }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
@@ -567,6 +568,11 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
         </div>
         
         <div style={{ textAlign: 'center', marginBottom: '35px', zIndex: 10 }}>
+          {torneoNombre && (
+            <p style={{ fontSize: '18px', fontWeight: '800', color: '#fafafa', textTransform: 'uppercase', marginBottom: '8px', letterSpacing: '0.05em' }}>
+              {torneoNombre}
+            </p>
+          )}
           <p style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '0.15em', color: 'rgba(52, 211, 153, 0.6)', textTransform: 'uppercase', marginBottom: '6px' }}>
             Resultados Clasificación
           </p>
