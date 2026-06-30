@@ -471,131 +471,139 @@ export function CompartirLlaveDialog({
                       {/* Parejas y Scores */}
                       <div className="space-y-2.5">
                         {/* Pareja Local Row */}
-                        <div style={{ minHeight: '38px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
-                          <div
-                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 text-left ${
-                              isFinished
-                                ? localWinner
-                                  ? "text-white font-extrabold"
-                                  : "text-white/60"
-                                : "text-white/95"
-                            }`}
-                          >
-                            {localWinner && (
-                              <Trophy 
-                                className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
-                                style={{ display: 'inline-block', verticalAlign: 'middle' }} 
-                              />
-                            )}
-                            <div className="flex-1 min-w-0 text-left">
-                              {(() => {
-                                const name = getParejaName(p.pareja_local_id, p.ref_local);
-                                const parts = name.split(" / ");
-                                if (parts.length === 2) {
+                        <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
+                          <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
+                            <div
+                              className={`flex items-center gap-2 font-bold min-w-0 ${
+                                isFinished
+                                  ? localWinner
+                                    ? "text-white font-extrabold"
+                                    : "text-white/60"
+                                  : "text-white/95"
+                              }`}
+                            >
+                              {localWinner && (
+                                <Trophy 
+                                  className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
+                                  style={{ display: 'inline-block', verticalAlign: 'middle' }} 
+                                />
+                              )}
+                              <div style={{ display: 'block', textAlign: 'left', lineHeight: '1.2' }} className="min-w-0 flex-1">
+                                {(() => {
+                                  const name = getParejaName(p.pareja_local_id, p.ref_local);
+                                  const parts = name.split(" / ");
+                                  if (parts.length === 2) {
+                                    return (
+                                      <>
+                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {parts[0]}
+                                        </span>
+                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+                                          {parts[1]}
+                                        </span>
+                                      </>
+                                    );
+                                  }
                                   return (
-                                    <div className="flex flex-col leading-tight py-0.5">
-                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block">
-                                        {parts[0]}
-                                      </span>
-                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block opacity-75">
-                                        {parts[1]}
-                                      </span>
-                                    </div>
+                                    <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {name}
+                                    </span>
                                   );
-                                }
-                                return (
-                                  <span style={{ fontSize: '15px', fontWeight: '800', lineHeight: 'normal' }} className="truncate block">
-                                    {name}
-                                  </span>
-                                );
-                              })()}
+                                })()}
+                              </div>
                             </div>
                           </div>
 
                           {/* Sets Local */}
                           {showScores && sets.length > 0 && (
-                            <div className="flex gap-1 shrink-0 font-mono select-none">
-                              {sets.map((s, idx) => (
-                                <span
-                                  key={idx}
-                                  style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    fontSize: '15px',
-                                    ...(s.games_local > s.games_visitante
-                                      ? currentThemePreset.scoreWinStyle
-                                      : currentThemePreset.scoreLoseStyle)
-                                  }}
-                                  className="flex items-center justify-center rounded font-extrabold"
-                                >
-                                  {s.games_local}
-                                </span>
-                              ))}
+                            <div style={{ display: 'table-cell', verticalAlign: 'middle', width: `${sets.length * 36}px`, textAlign: 'right' }}>
+                              <div className="flex gap-1 justify-end shrink-0 font-mono select-none">
+                                {sets.map((s, idx) => (
+                                  <span
+                                    key={idx}
+                                    style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      fontSize: '15px',
+                                      ...(s.games_local > s.games_visitante
+                                        ? currentThemePreset.scoreWinStyle
+                                        : currentThemePreset.scoreLoseStyle)
+                                    }}
+                                    className="flex items-center justify-center rounded font-extrabold"
+                                  >
+                                    {s.games_local}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
 
                         {/* Pareja Visitante Row */}
-                        <div style={{ minHeight: '38px' }} className="flex items-center gap-2.5 min-w-0 py-0.5">
-                          <div
-                            className={`flex items-center gap-2 font-bold min-w-0 flex-1 text-left ${
-                              isFinished
-                                ? visiWinner
-                                  ? "text-white font-extrabold"
-                                  : "text-white/60"
-                                : "text-white/95"
-                            }`}
-                          >
-                            {visiWinner && (
-                              <Trophy 
-                                className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
-                                style={{ display: 'inline-block', verticalAlign: 'middle' }} 
-                              />
-                            )}
-                            <div className="flex-1 min-w-0 text-left">
-                              {(() => {
-                                const name = getParejaName(p.pareja_visitante_id, p.ref_visitante);
-                                const parts = name.split(" / ");
-                                if (parts.length === 2) {
+                        <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
+                          <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
+                            <div
+                              className={`flex items-center gap-2 font-bold min-w-0 ${
+                                isFinished
+                                  ? visiWinner
+                                    ? "text-white font-extrabold"
+                                    : "text-white/60"
+                                  : "text-white/95"
+                              }`}
+                            >
+                              {visiWinner && (
+                                <Trophy 
+                                  className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
+                                  style={{ display: 'inline-block', verticalAlign: 'middle' }} 
+                                />
+                              )}
+                              <div style={{ display: 'block', textAlign: 'left', lineHeight: '1.2' }} className="min-w-0 flex-1">
+                                {(() => {
+                                  const name = getParejaName(p.pareja_visitante_id, p.ref_visitante);
+                                  const parts = name.split(" / ");
+                                  if (parts.length === 2) {
+                                    return (
+                                      <>
+                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                          {parts[0]}
+                                        </span>
+                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+                                          {parts[1]}
+                                        </span>
+                                      </>
+                                    );
+                                  }
                                   return (
-                                    <div className="flex flex-col leading-tight py-0.5">
-                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block">
-                                        {parts[0]}
-                                      </span>
-                                      <span style={{ fontSize: '15px', fontWeight: '800' }} className="truncate block opacity-75">
-                                        {parts[1]}
-                                      </span>
-                                    </div>
+                                    <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {name}
+                                    </span>
                                   );
-                                }
-                                return (
-                                  <span style={{ fontSize: '15px', fontWeight: '800', lineHeight: 'normal' }} className="truncate block">
-                                    {name}
-                                  </span>
-                                );
-                              })()}
+                                })()}
+                              </div>
                             </div>
                           </div>
 
                           {/* Sets Visitante */}
                           {showScores && sets.length > 0 && (
-                            <div className="flex gap-1 shrink-0 font-mono select-none">
-                              {sets.map((s, idx) => (
-                                <span
-                                  key={idx}
-                                  style={{
-                                    width: '32px',
-                                    height: '32px',
-                                    fontSize: '15px',
-                                    ...(s.games_visitante > s.games_local
-                                      ? currentThemePreset.scoreWinStyle
-                                      : currentThemePreset.scoreLoseStyle)
-                                  }}
-                                  className="flex items-center justify-center rounded font-extrabold"
-                                >
-                                  {s.games_visitante}
-                                </span>
-                              ))}
+                            <div style={{ display: 'table-cell', verticalAlign: 'middle', width: `${sets.length * 36}px`, textAlign: 'right' }}>
+                              <div className="flex gap-1 justify-end shrink-0 font-mono select-none">
+                                {sets.map((s, idx) => (
+                                  <span
+                                    key={idx}
+                                    style={{
+                                      width: '32px',
+                                      height: '32px',
+                                      fontSize: '15px',
+                                      ...(s.games_visitante > s.games_local
+                                        ? currentThemePreset.scoreWinStyle
+                                        : currentThemePreset.scoreLoseStyle)
+                                    }}
+                                    className="flex items-center justify-center rounded font-extrabold"
+                                  >
+                                    {s.games_visitante}
+                                  </span>
+                                ))}
+                              </div>
                             </div>
                           )}
                         </div>
