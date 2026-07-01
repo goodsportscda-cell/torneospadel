@@ -88,7 +88,30 @@ export default function UserDashboard() {
         .eq("user_id", user.id)
         .maybeSingle();
 
-      const jId = profile?.jugador_id ?? null;
+      let jId = profile?.jugador_id ?? null;
+
+      // Auto-link if DNI is in metadata and not linked yet
+      if (!jId && user.user_metadata?.dni) {
+        const userDni = String(user.user_metadata.dni).trim();
+        if (userDni) {
+          const { data: jug } = await supabase
+            .from("jugadores")
+            .select("id")
+            .eq("dni", userDni)
+            .maybeSingle();
+          if (jug) {
+            const { error: linkErr } = await supabase
+              .from("profiles")
+              .update({ jugador_id: jug.id })
+              .eq("user_id", user.id);
+            if (!linkErr) {
+              jId = jug.id;
+              toast.success("¡Tu ficha de jugador fue vinculada automáticamente con tu DNI!");
+            }
+          }
+        }
+      }
+
       setJugadorId(jId);
 
       // Get jugador name

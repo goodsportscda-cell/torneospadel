@@ -19,6 +19,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [displayName, setDisplayName] = useState("");
+  const [dni, setDni] = useState("");
 
   useEffect(() => {
     if (!authLoading && user) {
@@ -46,7 +47,10 @@ export default function Auth() {
       password,
       options: {
         emailRedirectTo: `https://torneospadel-sigma.vercel.app`,
-        data: { display_name: displayName || email.split("@")[0] },
+        data: { 
+          display_name: displayName || email.split("@")[0],
+          dni: dni.trim()
+        },
       },
     });
     setLoading(false);
@@ -143,6 +147,10 @@ export default function Auth() {
                   <Label htmlFor="su-pass">Contraseña</Label>
                   <Input id="su-pass" type="password" required minLength={6} value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="new-password" />
                   <p className="text-xs text-muted-foreground">Mínimo 6 caracteres</p>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="su-dni">DNI (Opcional — vincula tu ranking automático)</Label>
+                  <Input id="su-dni" type="text" value={dni} onChange={(e) => setDni(e.target.value)} placeholder="Ej: 35123456" />
                 </div>
                 <Button type="submit" className="w-full" disabled={loading}>
                   {loading && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
