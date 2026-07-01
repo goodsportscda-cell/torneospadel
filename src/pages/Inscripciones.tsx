@@ -113,9 +113,9 @@ export default function Inscripciones() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Inscripcion | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
-  const [tipoImpresion, setTipoImpresion] = useState<"acreditacion" | "disponibilidad">("acreditacion");
+  const [tipoImpresion, setTipoImpresion] = useState<"acreditacion" | "disponibilidad" | "sorteo">("acreditacion");
 
-  const handlePrint = (tipo: "acreditacion" | "disponibilidad") => {
+  const handlePrint = (tipo: "acreditacion" | "disponibilidad" | "sorteo") => {
     setTipoImpresion(tipo);
     setTimeout(() => {
       window.print();
@@ -414,6 +414,41 @@ export default function Inscripciones() {
       .catch(() => toast.error("Error al copiar al portapapeles"));
   };
 
+  const copiarListaSorteo = () => {
+    if (filtered.length === 0) {
+      toast.error("No hay inscripciones para copiar");
+      return;
+    }
+
+    let texto = "";
+    if (filtroTorneo !== "todos") {
+      const torneo = torneoMap.get(filtroTorneo);
+      if (torneo) texto += `🏆 *${torneo.nombre} - Lista para Sorteo*\n`;
+    } else {
+      texto += `📋 *Lista para Sorteo (Con DNI)*\n`;
+    }
+    
+    // Sort players alphabetically
+    const players: { name: string; dni: string }[] = [];
+    filtered.forEach((i) => {
+      const j1 = (i as InscripcionConJugadores).jugador1;
+      const j2 = (i as InscripcionConJugadores).jugador2;
+      if (j1) players.push({ name: `${j1.apellido}, ${j1.nombre}`, dni: j1.dni || "No registrado" });
+      if (j2) players.push({ name: `${j2.apellido}, ${j2.nombre}`, dni: j2.dni || "No registrado" });
+    });
+    players.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+
+    texto += `Total: ${players.length} jugadores\n\n`;
+
+    players.forEach((p, index) => {
+      texto += `${index + 1}. ${p.name} - DNI: ${p.dni}\n`;
+    });
+
+    navigator.clipboard.writeText(texto)
+      .then(() => toast.success("Lista para sorteo copiada al portapapeles"))
+      .catch(() => toast.error("Error al copiar al portapapeles"));
+  };
+
   return (
     <>
     {/* VISTA PANTALLA */}
@@ -440,12 +475,27 @@ export default function Inscripciones() {
               <DropdownMenuItem onClick={() => handlePrint("disponibilidad")}>
                 Planilla de Disponibilidad Horaria
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handlePrint("sorteo")}>
+                Planilla para Sorteo (con DNI)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Button variant="outline" onClick={copiarLista} disabled={filtered.length === 0}>
-            <Copy className="h-4 w-4 mr-1" />
-            Copiar
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={filtered.length === 0}>
+                <Copy className="h-4 w-4 mr-1" />
+                Copiar...
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={copiarLista}>
+                Copiar nombres de parejas
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={copiarListaSorteo}>
+                Copiar lista para Sorteo (Nombres y DNI)
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {filtroTorneo !== "todos" && pendientesCount > 0 && (
             <Button
               variant="outline"
@@ -855,7 +905,7 @@ export default function Inscripciones() {
             </tbody>
           </table>
         </>
-      ) : (
+      ) : tipoImpresion === "disponibilidad" ? (
         <>
           <div className="mb-6 flex justify-between items-end border-b pb-4">
             <div>
@@ -909,6 +959,56 @@ export default function Inscripciones() {
                   </tr>
                 );
               })}
+            </tbody>
+          </table>
+        </>
+      ) : (
+        <>
+          <div className="mb-6 flex justify-between items-end border-b pb-4">
+            <div>
+              <h1 className="text-2xl font-bold uppercase tracking-wider">
+                Planilla para Sorteo (con DNI)
+              </h1>
+              <p className="text-lg text-gray-600 mt-1">
+                {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
+              </p>
+            </div>
+            <div className="text-right text-sm text-gray-500">
+              <p>Total jugadores: {filtered.reduce((acc, i) => acc + (i.jugador1_id ? 1 : 0) + (i.jugador2_id ? 1 : 0), 0)}</p>
+              <p>Fecha: {new Date().toLocaleDateString("es-AR")}</p>
+            </div>
+          </div>
+
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-gray-100 border-b-2 border-gray-800">
+                <th className="py-2 px-2 text-left font-bold w-12">N°</th>
+                <th className="py-2 px-2 text-left font-bold">Apellido y Nombre</th>
+                <th className="py-2 px-2 text-left font-bold w-48">DNI</th>
+                <th className="py-2 px-2 text-left font-bold w-32">Firma / Control</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(() => {
+                const rows: { name: string; dni: string }[] = [];
+                filtered.forEach((i) => {
+                  const j1 = (i as InscripcionConJugadores).jugador1;
+                  const j2 = (i as InscripcionConJugadores).jugador2;
+                  if (j1) rows.push({ name: `${j1.apellido}, ${j1.nombre}`, dni: j1.dni || "—" });
+                  if (j2) rows.push({ name: `${j2.apellido}, ${j2.nombre}`, dni: j2.dni || "—" });
+                });
+                rows.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
+                return rows.map((row, index) => (
+                  <tr key={index} className="border-b border-gray-300">
+                    <td className="py-3 px-2 font-mono text-gray-500">{index + 1}</td>
+                    <td className="py-3 px-2 font-semibold">{row.name}</td>
+                    <td className="py-3 px-2 font-mono">{row.dni}</td>
+                    <td className="py-3 px-2">
+                      <div className="h-6 border-b border-dashed border-gray-400 w-24"></div>
+                    </td>
+                  </tr>
+                ));
+              })()}
             </tbody>
           </table>
         </>
