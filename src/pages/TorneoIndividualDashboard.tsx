@@ -106,7 +106,7 @@ export default function TorneoIndividualDashboard() {
     suplente4: "",
   });
 
-  // Week 8 Draft modal state
+  // Final Week Draft modal state
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
   const [draftChoices, setDraftChoices] = useState<Record<string, string>>({
     finalista1_partner: "",
@@ -122,6 +122,10 @@ export default function TorneoIndividualDashboard() {
     costo_fecha_jugador: "10000",
     costo_fecha_cancha: "22000",
     porcentaje_premios: "60",
+    desafio_semanas: "8",
+    ingresos_sponsors: "0",
+    gastos_trofeos: "0",
+    gastos_regalos: "0",
   });
 
   const fetchTournamentData = useCallback(async () => {
@@ -156,6 +160,10 @@ export default function TorneoIndividualDashboard() {
         costo_fecha_jugador: tRes.costo_fecha_jugador?.toString() ?? "10000",
         costo_fecha_cancha: tRes.costo_fecha_cancha?.toString() ?? "22000",
         porcentaje_premios: tRes.porcentaje_premios?.toString() ?? "60",
+        desafio_semanas: tRes.desafio_semanas?.toString() ?? "8",
+        ingresos_sponsors: tRes.ingresos_sponsors?.toString() ?? "0",
+        gastos_trofeos: tRes.gastos_trofeos?.toString() ?? "0",
+        gastos_regalos: tRes.gastos_regalos?.toString() ?? "0",
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -317,8 +325,9 @@ export default function TorneoIndividualDashboard() {
   }, [computedStandings]);
 
   const W8Matches = useMemo(() => {
-    return partidos.filter((p) => p.fecha === 8);
-  }, [partidos]);
+    const finalWeek = torneo?.desafio_semanas ?? 8;
+    return partidos.filter((p) => p.fecha === finalWeek);
+  }, [partidos, torneo]);
 
   const canFinalizeTournament = useMemo(() => {
     if (torneo?.estado === "finalizado") return false;
@@ -327,8 +336,9 @@ export default function TorneoIndividualDashboard() {
   }, [torneo, W8Matches]);
 
   const championsInfo = useMemo(() => {
+    const finalWeek = torneo?.desafio_semanas ?? 8;
     const finalMatch = partidos.find(
-      (p) => p.fecha === 8 && p.cancha.includes("Gran Final")
+      (p) => p.fecha === finalWeek && p.cancha.includes("Gran Final")
     );
     if (!finalMatch || finalMatch.estado !== "finalizado") return null;
 
@@ -384,16 +394,21 @@ export default function TorneoIndividualDashboard() {
 
   // Financial summary calculations
   const finanzasResumen = useMemo(() => {
-    if (!torneo) return { esperado: 0, cobrado: 0, costoCanchas: 0, gananciaNeta: 0, pozoPremios: 0, gananciaOrg: 0 };
+    if (!torneo) return { esperado: 0, cobrado: 0, costoCanchas: 0, gananciaNeta: 0, pozoPremios: 0, gananciaOrg: 0, ingresosSponsors: 0, gastosTrofeos: 0, gastosRegalos: 0, salidasTotal: 0, entradasTotal: 0 };
 
+    const semanas = torneo.desafio_semanas ?? 8;
     const costoPorJugador = torneo.costo_fecha_jugador ?? 10000;
     const costoPorCancha = torneo.costo_fecha_cancha ?? 22000;
     const porcentajePremios = torneo.porcentaje_premios ?? 60;
     const totalJugadores = jugadoresInscriptos.length;
     const totalCanchas = torneo.canchas_count ?? 3;
 
-    // Total expected for 8 weeks
-    const esperado = totalJugadores * costoPorJugador * 8;
+    const ingresosSponsors = Number(torneo.ingresos_sponsors) || 0;
+    const gastosTrofeos = Number(torneo.gastos_trofeos) || 0;
+    const gastosRegalos = Number(torneo.gastos_regalos) || 0;
+
+    // Total expected for X weeks
+    const esperado = totalJugadores * costoPorJugador * semanas;
 
     // Total actually collected
     const cobrado = pagos.reduce((acc, curr) => acc + Number(curr.monto_pagado), 0);
@@ -402,17 +417,25 @@ export default function TorneoIndividualDashboard() {
     const activeWeeks = fechas.length; // dates created so far
     const costoCanchas = activeWeeks * totalCanchas * costoPorCancha;
 
-    const gananciaNeta = Math.max(0, cobrado - costoCanchas);
+    const entradasTotal = cobrado + ingresosSponsors;
+    const salidasTotal = costoCanchas + gastosTrofeos + gastosRegalos;
+
+    const gananciaNeta = Math.max(0, entradasTotal - salidasTotal);
     const pozoPremios = (gananciaNeta * porcentajePremios) / 100;
     const gananciaOrg = gananciaNeta - pozoPremios;
 
     return {
-      esperado,
+      esperado: esperado + ingresosSponsors,
       cobrado,
+      entradasTotal,
       costoCanchas,
+      gastosTrofeos,
+      gastosRegalos,
+      salidasTotal,
       gananciaNeta,
       pozoPremios,
       gananciaOrg,
+      ingresosSponsors,
     };
   }, [torneo, jugadoresInscriptos, pagos, fechas]);
 
@@ -483,6 +506,10 @@ export default function TorneoIndividualDashboard() {
   // Actions: Modify Finance settings
   const handleSaveSettings = async () => {
     if (!id) return;
+    if ((Number(settingsForm.desafio_semanas) || 0) < 7) {
+      toast.error("La duración del torneo Desafío debe ser de al menos 7 semanas.");
+      return;
+    }
     setUpdatingSettings(true);
     const { error } = await supabase
       .from("torneos")
@@ -491,6 +518,10 @@ export default function TorneoIndividualDashboard() {
         costo_fecha_jugador: Number(settingsForm.costo_fecha_jugador),
         costo_fecha_cancha: Number(settingsForm.costo_fecha_cancha),
         porcentaje_premios: Number(settingsForm.porcentaje_premios),
+        desafio_semanas: Math.max(7, Number(settingsForm.desafio_semanas) || 8),
+        ingresos_sponsors: Number(settingsForm.ingresos_sponsors) || 0,
+        gastos_trofeos: Number(settingsForm.gastos_trofeos) || 0,
+        gastos_regalos: Number(settingsForm.gastos_regalos) || 0,
       })
       .eq("id", id);
 
@@ -658,19 +689,21 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
-  // Matchmaking engine: Week 8 Draft modal trigger
+  // Final Week Draft modal trigger
   const handleOpenDraftWeek8 = () => {
-    // Check if Week 7 is completed
-    const prevFecha = fechas.find((f) => f.fecha === 7);
+    const finalWeek = torneo?.desafio_semanas ?? 8;
+    const prevWeekNum = finalWeek - 1;
+    // Check if previous week is completed
+    const prevFecha = fechas.find((f) => f.fecha === prevWeekNum);
     if (!prevFecha || prevFecha.estado !== "completada") {
-      toast.error("Debes completar y cerrar la Fecha 7 antes de armar la Gran Final");
+      toast.error(`Debes completar y cerrar la Fecha ${prevWeekNum} antes de armar la Gran Final`);
       return;
     }
 
-    // Get Finalists and 3rd place contenders from Week 7, Cancha 1
-    const w7c1Matches = partidos.filter((p) => p.fecha === 7 && p.cancha.startsWith("Cancha 1"));
+    // Get Finalists and 3rd place contenders from last completed week, Cancha 1
+    const w7c1Matches = partidos.filter((p) => p.fecha === prevWeekNum && p.cancha.startsWith("Cancha 1"));
     if (w7c1Matches.length === 0 || w7c1Matches[0].estado !== "finalizado") {
-      toast.error("No se encontró el partido de Cancha 1 en la Fecha 7");
+      toast.error(`No se encontró el partido de Cancha 1 en la Fecha ${prevWeekNum}`);
       return;
     }
 
@@ -726,14 +759,15 @@ export default function TorneoIndividualDashboard() {
       return;
     }
 
-    // Create the Date 8 entry
+    // Create the Final Date entry
+    const finalWeek = torneo?.desafio_semanas ?? 8;
     const courtsCount = torneo?.canchas_count ?? 3;
     try {
       const { data: dateRow, error: fErr } = await supabase
         .from("torneo_individual_fechas")
         .insert({
           torneo_id: id,
-          fecha: 8,
+          fecha: finalWeek,
           costo_canchas: (torneo?.costo_fecha_cancha ?? 22000) * courtsCount,
           estado: "pendiente",
         })
@@ -748,7 +782,7 @@ export default function TorneoIndividualDashboard() {
       matchPromises.push(
         supabase.from("partidos_individuales").insert({
           torneo_id: id,
-          fecha: 8,
+          fecha: finalWeek,
           cancha: "Cancha 1: Élite (Gran Final)",
           jugador1_id: finalista1_id,
           jugador2_id: finalista1_partner,
@@ -762,7 +796,7 @@ export default function TorneoIndividualDashboard() {
       matchPromises.push(
         supabase.from("partidos_individuales").insert({
           torneo_id: id,
-          fecha: 8,
+          fecha: finalWeek,
           cancha: "Cancha 2: Desafío (Tercer Puesto)",
           jugador1_id: tercero1_id,
           jugador2_id: tercero1_partner,
@@ -795,7 +829,7 @@ export default function TorneoIndividualDashboard() {
           matchPromises.push(
             supabase.from("partidos_individuales").insert({
               torneo_id: id,
-              fecha: 8,
+              fecha: finalWeek,
               cancha: `Cancha ${court}: ${court === 3 ? "Base" : "General"} (Partido de Honor)`,
               jugador1_id: remainingIds[remainingIndex],
               jugador2_id: remainingIds[remainingIndex + 3],
@@ -809,12 +843,12 @@ export default function TorneoIndividualDashboard() {
       }
 
       await Promise.all(matchPromises);
-      toast.success("Fecha 8 (Finales) generada con éxito");
+      toast.success(`Fecha ${finalWeek} (Finales) generada con éxito`);
       setDraftDialogOpen(false);
       fetchTournamentData();
     } catch (e: any) {
       console.error(e);
-      toast.error("Error al generar la Fecha 8: " + e.message);
+      toast.error(`Error al generar la Fecha ${finalWeek}: ` + e.message);
     }
   };
 
@@ -1051,7 +1085,7 @@ export default function TorneoIndividualDashboard() {
                     </span>
                   </h2>
                   <p className="text-sm text-muted-foreground mt-1">
-                    El torneo ha concluido tras disputar la gran final de la Semana 8.
+                    El torneo ha concluido tras disputar la gran final de la Semana {torneo?.desafio_semanas ?? 8}.
                   </p>
                 </div>
               </div>
@@ -1143,7 +1177,7 @@ export default function TorneoIndividualDashboard() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {fechas.filter((f) => f.estado === "completada").length} / 8
+                    {fechas.filter((f) => f.estado === "completada").length} / {torneo?.desafio_semanas ?? 8}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
                     Semanas totales de competencia.
@@ -1334,7 +1368,7 @@ export default function TorneoIndividualDashboard() {
                     <TableHeader>
                       <TableRow>
                         <TableHead>Jugador</TableHead>
-                        {Array.from({ length: 8 }).map((_, i) => (
+                        {Array.from({ length: torneo?.desafio_semanas ?? 8 }).map((_, i) => (
                           <TableHead key={i} className="text-center w-[60px] p-2 text-xs">
                             Sem {i + 1}
                           </TableHead>
@@ -1359,7 +1393,7 @@ export default function TorneoIndividualDashboard() {
                               <TableCell className="font-medium text-xs max-w-[150px] truncate">
                                 {tj.jugador?.apellido}, {tj.jugador?.nombre}
                               </TableCell>
-                              {Array.from({ length: 8 }).map((_, idx) => {
+                              {Array.from({ length: torneo?.desafio_semanas ?? 8 }).map((_, idx) => {
                                 const fNum = idx + 1;
                                 const isPaid = jugPagos.some((p) => p.fecha === fNum && p.estado_pago === "pagado");
                                 const pData = jugPagos.find((p) => p.fecha === fNum);
@@ -1393,74 +1427,213 @@ export default function TorneoIndividualDashboard() {
                 </CardContent>
               </Card>
 
-              {/* Financial Dashboard */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <DollarSign className="h-4 w-4 text-emerald-600" />
-                    Caja y Ganancias del Torneo
-                  </CardTitle>
-                  <CardDescription>
-                    Resumen en base a los pagos cobrados hasta el momento.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="space-y-2 border-b pb-3">
-                    <div className="flex justify-between text-xs text-muted-foreground">
-                      <span>Recaudado / Total esperado</span>
-                      <span className="font-semibold text-foreground">
-                        ${finanzasResumen.cobrado.toLocaleString()} / ${finanzasResumen.esperado.toLocaleString()}
-                      </span>
+              {/* Financial Dashboard & Settings */}
+              <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <DollarSign className="h-4 w-4 text-emerald-600" />
+                      Caja y Ganancias del Torneo
+                    </CardTitle>
+                    <CardDescription>
+                      Resumen financiero considerando entradas y salidas.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="space-y-2 border-b pb-3">
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Caja Recaudada / Esperada en Inscripción</span>
+                        <span className="font-semibold text-foreground">
+                          ${finanzasResumen.cobrado.toLocaleString()} / ${(jugadoresInscriptos.length * (torneo?.costo_fecha_jugador ?? 10000) * (torneo?.desafio_semanas ?? 8)).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
+                        <div
+                          className="bg-emerald-500 h-full transition-all"
+                          style={{
+                            width: `${(finanzasResumen.cobrado / (((jugadoresInscriptos.length * (torneo?.costo_fecha_jugador ?? 10000) * (torneo?.desafio_semanas ?? 8))) || 1)) * 100}%`,
+                          }}
+                        />
+                      </div>
                     </div>
-                    <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
-                      <div
-                        className="bg-emerald-500 h-full transition-all"
-                        style={{
-                          width: `${(finanzasResumen.cobrado / (finanzasResumen.esperado || 1)) * 100}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
 
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Ingresos (Caja cobrada):</span>
-                      <span className="font-medium text-foreground">${finanzasResumen.cobrado.toLocaleString()}</span>
+                    <div className="space-y-2 text-xs">
+                      <h4 className="font-semibold text-foreground border-b pb-0.5">Ingresos (Entradas)</h4>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">Caja Cobrada de Inscripción:</span>
+                        <span className="font-medium text-foreground">${finanzasResumen.cobrado.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">Ingresos Sponsors:</span>
+                        <span className="font-medium text-foreground">${finanzasResumen.ingresosSponsors.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-semibold">
+                        <span>Total Entradas:</span>
+                        <span className="text-foreground">${finanzasResumen.entradasTotal.toLocaleString()}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Gastos de cancha ({fechas.length} fechas):</span>
-                      <span className="font-medium text-destructive">-${finanzasResumen.costoCanchas.toLocaleString()}</span>
+
+                    <div className="space-y-2 text-xs pt-2">
+                      <h4 className="font-semibold text-foreground border-b pb-0.5">Egresos (Salidas)</h4>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">Gastos Cancha ({fechas.length} fechas):</span>
+                        <span className="font-medium text-destructive">-${finanzasResumen.costoCanchas.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">Gastos Trofeos:</span>
+                        <span className="font-medium text-destructive">-${finanzasResumen.gastosTrofeos.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">Gastos Regalos / Sponsors:</span>
+                        <span className="font-medium text-destructive">-${finanzasResumen.gastosRegalos.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1 font-semibold">
+                        <span>Total Salidas:</span>
+                        <span className="text-destructive">-${finanzasResumen.salidasTotal.toLocaleString()}</span>
+                      </div>
                     </div>
+
                     <div className="flex justify-between border-t pt-2 text-sm font-bold">
-                      <span>Ganancia Neta Actual:</span>
+                      <span>Ganancia Real:</span>
                       <span className="text-emerald-600 dark:text-emerald-400">${finanzasResumen.gananciaNeta.toLocaleString()}</span>
                     </div>
-                  </div>
 
-                  <div className="border p-3 rounded-md space-y-2 bg-indigo-50/30 dark:bg-indigo-950/10 text-xs">
-                    <h4 className="font-semibold text-indigo-700 dark:text-indigo-400 border-b pb-1 flex items-center justify-between">
-                      <span>Repartición del Pozo ({torneo?.porcentaje_premios || 60}%)</span>
-                      <Award className="h-3.5 w-3.5" />
-                    </h4>
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Fondo para Premios (Total):</span>
-                      <span className="font-bold text-foreground">${finanzasResumen.pozoPremios.toLocaleString()}</span>
+                    <div className="border p-3 rounded-md space-y-2 bg-indigo-50/30 dark:bg-indigo-950/10 text-xs">
+                      <h4 className="font-semibold text-indigo-700 dark:text-indigo-400 border-b pb-1 flex items-center justify-between">
+                        <span>Repartición de Ganancia ({torneo?.porcentaje_premios || 60}%)</span>
+                        <Award className="h-3.5 w-3.5" />
+                      </h4>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Fondo para Premios (Total):</span>
+                        <span className="font-bold text-foreground">${finanzasResumen.pozoPremios.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">1º Puesto (70%):</span>
+                        <span className="font-semibold text-foreground">${((finanzasResumen.pozoPremios * 70) / 100).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between pl-2">
+                        <span className="text-muted-foreground">2º Puesto (30%):</span>
+                        <span className="font-semibold text-foreground">${((finanzasResumen.pozoPremios * 30) / 100).toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between border-t pt-1.5 font-semibold text-indigo-600 dark:text-indigo-300">
+                        <span>Ganancia de Organización ({100 - (torneo?.porcentaje_premios || 60)}%):</span>
+                        <span>${finanzasResumen.gananciaOrg.toLocaleString()}</span>
+                      </div>
                     </div>
-                    <div className="flex justify-between pl-2">
-                      <span className="text-muted-foreground">1º Puesto (70%):</span>
-                      <span className="font-semibold text-foreground">${((finanzasResumen.pozoPremios * 70) / 100).toLocaleString()}</span>
+                  </CardContent>
+                </Card>
+
+                {/* Adjust Settings Panel */}
+                <Card>
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <Settings className="h-4 w-4 text-primary" />
+                      Ajustar Parámetros Desafío
+                    </CardTitle>
+                    <CardDescription>
+                      Edita la configuración y finanzas sobre la marcha.
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-3 pt-0">
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semanas</Label>
+                        <Input
+                          type="number"
+                          min="7"
+                          value={settingsForm.desafio_semanas}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, desafio_semanas: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Canchas</Label>
+                        <Input
+                          type="number"
+                          min="1"
+                          value={settingsForm.canchas_count}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, canchas_count: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
                     </div>
-                    <div className="flex justify-between pl-2">
-                      <span className="text-muted-foreground">2º Puesto (30%):</span>
-                      <span className="font-semibold text-foreground">${((finanzasResumen.pozoPremios * 30) / 100).toLocaleString()}</span>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Costo/Fecha/Jugador</Label>
+                        <Input
+                          type="number"
+                          value={settingsForm.costo_fecha_jugador}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, costo_fecha_jugador: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Costo Cancha</Label>
+                        <Input
+                          type="number"
+                          value={settingsForm.costo_fecha_cancha}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, costo_fecha_cancha: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
                     </div>
-                    <div className="flex justify-between border-t pt-1.5 font-semibold text-indigo-600 dark:text-indigo-300">
-                      <span>Ganancia de Organización (40%):</span>
-                      <span>${finanzasResumen.gananciaOrg.toLocaleString()}</span>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">% Premios</Label>
+                        <Input
+                          type="number"
+                          min="0"
+                          max="100"
+                          value={settingsForm.porcentaje_premios}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, porcentaje_premios: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Ingresos Sponsors</Label>
+                        <Input
+                          type="number"
+                          value={settingsForm.ingresos_sponsors}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, ingresos_sponsors: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Gastos Trofeos</Label>
+                        <Input
+                          type="number"
+                          value={settingsForm.gastos_trofeos}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, gastos_trofeos: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Gastos Regalos</Label>
+                        <Input
+                          type="number"
+                          value={settingsForm.gastos_regalos}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, gastos_regalos: e.target.value })}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+                    </div>
+
+                    <Button
+                      size="sm"
+                      className="w-full mt-2 font-bold"
+                      onClick={handleSaveSettings}
+                      disabled={updatingSettings}
+                    >
+                      {updatingSettings ? "Guardando..." : "Guardar Parámetros"}
+                    </Button>
+                  </CardContent>
+                </Card>
+              </div>
             </div>
           </TabsContent>
 
@@ -1470,7 +1643,7 @@ export default function TorneoIndividualDashboard() {
               <div className="flex items-center gap-2">
                 <Label className="text-sm font-semibold">Seleccionar Fecha:</Label>
                 <div className="flex gap-1.5 flex-wrap">
-                  {Array.from({ length: 8 }).map((_, i) => {
+                  {Array.from({ length: torneo?.desafio_semanas ?? 8 }).map((_, i) => {
                     const fNum = i + 1;
                     const fObj = fechas.find((f) => f.fecha === fNum);
                     const isCompleted = fObj?.estado === "completada";
@@ -1525,10 +1698,9 @@ export default function TorneoIndividualDashboard() {
                       <Settings className="h-4 w-4 mr-1.5" />
                       Sorteo Inicial e Inaugurar Fecha 1
                     </Button>
-                  ) : selectedFechaNum === 8 ? (
+                  ) : selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
                     <Button onClick={handleOpenDraftWeek8}>
-                      <Trophy className="h-4 w-4 mr-1.5" />
-                      Abrir Asistente de Draft de Finales
+                      Armar Gran Final (Semana {torneo?.desafio_semanas ?? 8})
                     </Button>
                   ) : (
                     <Button onClick={() => handleGenerarFechaRegular(selectedFechaNum)}>
@@ -1839,8 +2011,8 @@ export default function TorneoIndividualDashboard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-indigo-600" />
-              Draft de Compañeros - Semana 8
+              <Trophy className="h-5 w-5 text-amber-500" />
+              Draft de Compañeros - Semana {torneo?.desafio_semanas ?? 8}
             </DialogTitle>
             <DialogDescription>
               Selecciona los compañeros para los finalistas y los que jugarán por el 3º y 4º puesto, de entre los jugadores eliminados (puestos 3 al 12).

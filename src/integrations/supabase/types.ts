@@ -31,6 +31,11 @@ export interface Database {
           costo_fecha_jugador: number | null
           costo_fecha_cancha: number | null
           porcentaje_premios: number | null
+          modalidad: string | null
+          desafio_semanas: number | null
+          ingresos_sponsors: number | null
+          gastos_trofeos: number | null
+          gastos_regalos: number | null
           created_at: string
           updated_at: string
         }
@@ -55,6 +60,11 @@ export interface Database {
           costo_fecha_jugador?: number | null
           costo_fecha_cancha?: number | null
           porcentaje_premios?: number | null
+          modalidad?: string | null
+          desafio_semanas?: number | null
+          ingresos_sponsors?: number | null
+          gastos_trofeos?: number | null
+          gastos_regalos?: number | null
           created_at?: string
           updated_at?: string
         }
@@ -79,6 +89,11 @@ export interface Database {
           costo_fecha_jugador?: number | null
           costo_fecha_cancha?: number | null
           porcentaje_premios?: number | null
+          modalidad?: string | null
+          desafio_semanas?: number | null
+          ingresos_sponsors?: number | null
+          gastos_trofeos?: number | null
+          gastos_regalos?: number | null
           created_at?: string
           updated_at?: string
         }

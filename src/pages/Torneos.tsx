@@ -71,6 +71,10 @@ interface FormState {
   costo_fecha_jugador: string;
   costo_fecha_cancha: string;
   porcentaje_premios: string;
+  desafio_semanas: string;
+  ingresos_sponsors: string;
+  gastos_trofeos: string;
+  gastos_regalos: string;
 }
 
 const emptyForm: FormState = {
@@ -93,6 +97,10 @@ const emptyForm: FormState = {
   costo_fecha_jugador: "10000",
   costo_fecha_cancha: "22000",
   porcentaje_premios: "60",
+  desafio_semanas: "8",
+  ingresos_sponsors: "0",
+  gastos_trofeos: "0",
+  gastos_regalos: "0",
 };
 
 const generateSlug = (nombre: string) => {
@@ -158,6 +166,10 @@ export default function Torneos() {
       costo_fecha_jugador: t.costo_fecha_jugador?.toString() ?? "10000",
       costo_fecha_cancha: t.costo_fecha_cancha?.toString() ?? "22000",
       porcentaje_premios: t.porcentaje_premios?.toString() ?? "60",
+      desafio_semanas: t.desafio_semanas?.toString() ?? "8",
+      ingresos_sponsors: t.ingresos_sponsors?.toString() ?? "0",
+      gastos_trofeos: t.gastos_trofeos?.toString() ?? "0",
+      gastos_regalos: t.gastos_regalos?.toString() ?? "0",
     });
     setDialogOpen(true);
   };
@@ -196,10 +208,25 @@ export default function Torneos() {
         toast.error("Indicá un porcentaje de premios válido (0-100)");
         return;
       }
+      if ((Number(form.desafio_semanas) || 0) < 7) {
+        toast.error("La duración del torneo Desafío debe ser de al menos 7 semanas.");
+        return;
+      }
     }
 
     // Generamos el slug si no existe o si cambió el nombre
     const slug = generateSlug(form.nombre);
+
+    let computedFechaFin = form.fecha_fin || null;
+    if (form.tipo === "americano_individual") {
+      const semanasVal = Math.max(7, Number(form.desafio_semanas) || 8);
+      const start = new Date(form.fecha_inicio + "T00:00:00");
+      const end = new Date(start.getTime() + (semanasVal - 1) * 7 * 24 * 60 * 60 * 1000);
+      const ey = end.getFullYear();
+      const em = String(end.getMonth() + 1).padStart(2, "0");
+      const ed = String(end.getDate()).padStart(2, "0");
+      computedFechaFin = `${ey}-${em}-${ed}`;
+    }
 
     const payload: any = {
       nombre: form.nombre.trim(),
@@ -209,7 +236,7 @@ export default function Torneos() {
       categoria_libre: (form.tipo === "americano" || form.tipo === "americano_individual") ? form.categoria_libre.trim() : null,
       genero: form.genero || null,
       fecha_inicio: form.fecha_inicio,
-      fecha_fin: form.fecha_fin || null,
+      fecha_fin: computedFechaFin,
       sede: form.sede.trim() || null,
       costo_inscripcion: form.costo_inscripcion ? Number(form.costo_inscripcion) : null,
       premios: form.premios.trim() || null,
@@ -222,6 +249,10 @@ export default function Torneos() {
       costo_fecha_jugador: form.tipo === "americano_individual" ? Number(form.costo_fecha_jugador) : null,
       costo_fecha_cancha: form.tipo === "americano_individual" ? Number(form.costo_fecha_cancha) : null,
       porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) : null,
+      desafio_semanas: form.tipo === "americano_individual" ? Math.max(7, Number(form.desafio_semanas) || 8) : null,
+      ingresos_sponsors: form.tipo === "americano_individual" ? Number(form.ingresos_sponsors) || 0 : null,
+      gastos_trofeos: form.tipo === "americano_individual" ? Number(form.gastos_trofeos) || 0 : null,
+      gastos_regalos: form.tipo === "americano_individual" ? Number(form.gastos_regalos) || 0 : null,
     };
 
     if (editing) {
@@ -463,8 +494,20 @@ export default function Torneos() {
 
                   {form.tipo === "americano_individual" && (
                     <div className="border p-3 rounded-md space-y-3 bg-muted/20">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Individual y Financiera</h4>
+                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Desafío</h4>
+                      
                       <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="semanas">Duración (Semanas) *</Label>
+                          <Input
+                            id="semanas"
+                            type="number"
+                            min="7"
+                            value={form.desafio_semanas}
+                            onChange={(e) => setForm({ ...form, desafio_semanas: e.target.value })}
+                            placeholder="Mínimo 7"
+                          />
+                        </div>
                         <div className="grid gap-1.5">
                           <Label htmlFor="canchas-count">Cantidad de canchas *</Label>
                           <Input
@@ -479,6 +522,34 @@ export default function Torneos() {
                             {form.canchas_count ? `${Number(form.canchas_count) * 4} jugadores requeridos` : ""}
                           </span>
                         </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="costo-jugador">Costo por fecha/jugador *</Label>
+                          <Input
+                            id="costo-jugador"
+                            type="number"
+                            min="0"
+                            value={form.costo_fecha_jugador}
+                            onChange={(e) => setForm({ ...form, costo_fecha_jugador: e.target.value })}
+                            placeholder="Ej: 10000"
+                          />
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="costo-cancha">Costo alquiler/cancha/fecha *</Label>
+                          <Input
+                            id="costo-cancha"
+                            type="number"
+                            min="0"
+                            value={form.costo_fecha_cancha}
+                            onChange={(e) => setForm({ ...form, costo_fecha_cancha: e.target.value })}
+                            placeholder="Ej: 22000"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3">
                         <div className="grid gap-1.5">
                           <Label htmlFor="porc-premios">% para Premios *</Label>
                           <Input
@@ -491,28 +562,34 @@ export default function Torneos() {
                             placeholder="Ej: 60"
                           />
                         </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="sponsors">Ingresos Sponsors</Label>
+                          <Input
+                            id="sponsors"
+                            type="number"
+                            value={form.ingresos_sponsors}
+                            onChange={(e) => setForm({ ...form, ingresos_sponsors: e.target.value })}
+                          />
+                        </div>
                       </div>
+
                       <div className="grid grid-cols-2 gap-3">
                         <div className="grid gap-1.5">
-                          <Label htmlFor="costo-jugador">Costo por jugador ($) *</Label>
+                          <Label htmlFor="trofeos">Gastos Trofeos</Label>
                           <Input
-                            id="costo-jugador"
+                            id="trofeos"
                             type="number"
-                            min="0"
-                            value={form.costo_fecha_jugador}
-                            onChange={(e) => setForm({ ...form, costo_fecha_jugador: e.target.value })}
-                            placeholder="Ej: 10000"
+                            value={form.gastos_trofeos}
+                            onChange={(e) => setForm({ ...form, gastos_trofeos: e.target.value })}
                           />
                         </div>
                         <div className="grid gap-1.5">
-                          <Label htmlFor="costo-cancha">Costo de cancha por fecha ($) *</Label>
+                          <Label htmlFor="regalos">Gastos Regalos / Extras</Label>
                           <Input
-                            id="costo-cancha"
+                            id="regalos"
                             type="number"
-                            min="0"
-                            value={form.costo_fecha_cancha}
-                            onChange={(e) => setForm({ ...form, costo_fecha_cancha: e.target.value })}
-                            placeholder="Ej: 22000"
+                            value={form.gastos_regalos}
+                            onChange={(e) => setForm({ ...form, gastos_regalos: e.target.value })}
                           />
                         </div>
                       </div>

@@ -251,8 +251,9 @@ export default function TorneoIndividualPublico() {
   }, [computedStandings]);
 
   const championsInfo = useMemo(() => {
+    const finalWeek = torneo?.desafio_semanas ?? 8;
     const finalMatch = partidos.find(
-      (p) => p.fecha === 8 && p.cancha.includes("Gran Final")
+      (p) => p.fecha === finalWeek && p.cancha.includes("Gran Final")
     );
     if (!finalMatch || finalMatch.estado !== "finalizado") return null;
 
@@ -272,7 +273,7 @@ export default function TorneoIndividualPublico() {
         subcampeonPartner: finalMatch.jugador2,
       };
     }
-  }, [partidos]);
+  }, [partidos, torneo]);
 
   // Prize pool simulation from completed dates and expected totals
   const pozoResumen = useMemo(() => {
@@ -291,9 +292,10 @@ export default function TorneoIndividualPublico() {
     const netActual = Math.max(0, revenueActual - costActual);
     const acumulado = (netActual * porcentajePremios) / 100;
 
-    // Projected total for 8 weeks
-    const revenueProj = 8 * totalJugadores * costoPorJugador;
-    const costProj = 8 * totalCanchas * costoPorCancha;
+    // Projected total for X weeks
+    const semanas = torneo?.desafio_semanas ?? 8;
+    const revenueProj = semanas * totalJugadores * costoPorJugador;
+    const costProj = semanas * totalCanchas * costoPorCancha;
     const netProj = Math.max(0, revenueProj - costProj);
     const finalEstimado = (netProj * porcentajePremios) / 100;
 
@@ -350,7 +352,7 @@ export default function TorneoIndividualPublico() {
                       </span>
                     </h2>
                     <p className="text-sm text-muted-foreground mt-1">
-                      El torneo ha concluido tras disputar la gran final de la Semana 8.
+                      El torneo ha concluido tras disputar la gran final de la Semana {torneo?.desafio_semanas ?? 8}.
                     </p>
                   </div>
                 </div>
@@ -494,7 +496,7 @@ export default function TorneoIndividualPublico() {
             <TabsContent value="fixture" className="space-y-4">
               <div className="flex items-center gap-2 flex-wrap pb-2">
                 <span className="text-xs font-semibold text-muted-foreground mr-1">Fecha:</span>
-                {Array.from({ length: 8 }).map((_, i) => {
+                {Array.from({ length: torneo?.desafio_semanas ?? 8 }).map((_, i) => {
                   const fNum = i + 1;
                   const fObj = fechas.find((f) => f.fecha === fNum);
                   const isCompleted = fObj?.estado === "completada";
@@ -620,16 +622,16 @@ export default function TorneoIndividualPublico() {
                       <Trophy className="h-4 w-4 text-amber-500" /> 1. Dinámica y Competencia
                     </h3>
                     <p>
-                      El torneo tiene una duración de **8 semanas**. Se juega de forma individual (inscripción individual), pero en pista se arman parejas dobles en base a la posición del ranking.
+                      El torneo tiene una duración de **{torneo?.desafio_semanas ?? 8} semanas**. Se juega de forma individual (inscripción individual), pero en pista se arman parejas dobles en base a la posición del ranking.
                     </p>
                     <p>
                       **Semana 1 (Sorteo Inicial)**: Se define por sorteo en vivo la cancha en la que juega cada participante (4 jugadores por cancha) y las parejas del partido (J1+J4 vs J2+J3).
                     </p>
                     <p>
-                      **Semanas 2 a 6 (Fase Regular)**: Los jugadores se ordenan por su ranking general acumulado. Los 4 mejores van a la Cancha 1 (Élite), los siguientes 4 a la Cancha 2 (Desafío) y así sucesivamente. Los cruces internos de cada cancha se automatizan cruzando el mejor del grupo con el peor del grupo para equilibrar el partido: `1º + 4º vs 2º + 3º`.
+                      **Semanas 2 a {(torneo?.desafio_semanas ?? 8) - 2} (Fase Regular)**: Los jugadores se ordenan por su ranking general acumulado. Los 4 mejores van a la Cancha 1 (Élite), los siguientes 4 a la Cancha 2 (Desafío) y así sucesivamente. Los cruces internos de cada cancha se automatizan cruzando el mejor del grupo con el peor del grupo para equilibrar el partido: `1º + 4º vs 2º + 3º`.
                     </p>
                     <p>
-                      **Semana 7 y 8 (Play-offs)**: Las últimas dos semanas definen las posiciones finales. En la Semana 7 se juegan Semifinales en pista. En la Semana 8 se disputan las finales, donde cada finalista elige a un compañero de los jugadores ya eliminados (puestos 3 al 12) para disputar el campeonato.
+                      **Semana {(torneo?.desafio_semanas ?? 8) - 1} y {torneo?.desafio_semanas ?? 8} (Play-offs)**: Las últimas dos semanas definen las posiciones finales. En la Semana {(torneo?.desafio_semanas ?? 8) - 1} se juegan Semifinales en pista. En la Semana {torneo?.desafio_semanas ?? 8} se disputan las finales, donde cada finalista elige a un compañero de los jugadores ya eliminados (puestos 3 al 12) para disputar el campeonato.
                     </p>
                   </div>
 
@@ -706,12 +708,12 @@ export default function TorneoIndividualPublico() {
                     </div>
 
                     <div className="space-y-1">
-                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Fondo Estimado al Finalizar (8 Semanas)</span>
+                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Fondo Estimado al Finalizar ({torneo?.desafio_semanas ?? 8} Semanas)</span>
                       <div className="text-xl font-bold text-foreground">
                         ${pozoResumen.finalEstimado.toLocaleString("es-AR")}
                       </div>
                       <p className="text-[10px] text-muted-foreground">
-                        Proyección total si todas las jugadoras completan el pago de sus 8 fechas.
+                        Proyección total si todas las jugadoras completan el pago de sus {torneo?.desafio_semanas ?? 8} fechas.
                       </p>
                     </div>
                   </CardContent>
@@ -724,7 +726,7 @@ export default function TorneoIndividualPublico() {
                       Distribución de Premios
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      Cómo se dividirá el fondo total entre los finalistas en la Semana 8.
+                      Cómo se dividirá el fondo total entre los finalistas en la Semana {torneo?.desafio_semanas ?? 8}.
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-4 text-xs">
