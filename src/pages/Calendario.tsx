@@ -79,6 +79,7 @@ interface FormState {
   costo_fecha_jugador: string;
   costo_fecha_cancha: string;
   porcentaje_premios: string;
+  modalidad: string;
 }
 
 const emptyForm: FormState = {
@@ -104,6 +105,7 @@ const emptyForm: FormState = {
   costo_fecha_jugador: "10000",
   costo_fecha_cancha: "22000",
   porcentaje_premios: "60",
+  modalidad: "individual",
 };
 
 // helpers fecha (YYYY-MM-DD locales sin TZ)
@@ -250,6 +252,7 @@ export default function Calendario() {
       costo_fecha_jugador: t.costo_fecha_jugador?.toString() ?? "10000",
       costo_fecha_cancha: t.costo_fecha_cancha?.toString() ?? "22000",
       porcentaje_premios: t.porcentaje_premios?.toString() ?? "60",
+      modalidad: t.modalidad ?? "individual",
     });
     setDialogOpen(true);
   };
@@ -298,6 +301,7 @@ export default function Calendario() {
       costo_fecha_jugador: form.tipo === "americano_individual" ? Number(form.costo_fecha_jugador) || 10000 : null,
       costo_fecha_cancha: form.tipo === "americano_individual" ? Number(form.costo_fecha_cancha) || 22000 : null,
       porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) || 60 : null,
+      modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
     };
 
     if (editing) {
@@ -704,9 +708,24 @@ export default function Calendario() {
               <div className="border p-3 rounded-md space-y-3 bg-muted/30">
                 <h4 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Configuración Desafío</h4>
                 
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
                   <div className="grid gap-1.5">
-                    <Label htmlFor="semanas">Duración (Semanas) *</Label>
+                    <Label htmlFor="modalidad">Modalidad *</Label>
+                    <Select
+                      value={form.modalidad || "individual"}
+                      onValueChange={(v) => setForm({ ...form, modalidad: v })}
+                    >
+                      <SelectTrigger id="modalidad">
+                        <SelectValue placeholder="Modalidad" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="individual">Individual</SelectItem>
+                        <SelectItem value="parejas">Parejas</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="semanas">Semanas *</Label>
                     <Input
                       id="semanas"
                       type="number"
@@ -717,7 +736,7 @@ export default function Calendario() {
                     />
                   </div>
                   <div className="grid gap-1.5">
-                    <Label htmlFor="canchas">Cantidad de Canchas *</Label>
+                    <Label htmlFor="canchas">Canchas *</Label>
                     <Input
                       id="canchas"
                       type="number"

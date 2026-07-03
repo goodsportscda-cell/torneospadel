@@ -65,7 +65,8 @@ export default function TorneoIndividualPublico() {
   const [fechas, setFechas] = useState<TorneoFecha[]>([]);
   const [pagos, setPagos] = useState<TorneoPago[]>([]);
   const [partidos, setPartidos] = useState<PartidoInd[]>([]);
-  const [standings, setStandings] = useState<PlayerStanding[]>([]);
+  const [standings, setStandings] = useState<any[]>([]);
+  const [parejas, setParejas] = useState<any[]>([]);
 
   // Active selections
   const [activeTab, setActiveTab] = useState("ranking");
@@ -81,12 +82,14 @@ export default function TorneoIndividualPublico() {
         { data: fRes },
         { data: pRes },
         { data: partRes },
+        { data: tpRes },
       ] = await Promise.all([
         supabase.from("torneos").select("*").eq("id", id).maybeSingle(),
         supabase.from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
         supabase.from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
         supabase.from("torneo_individual_pagos").select("*").eq("torneo_id", id),
         supabase.from("partidos_individuales").select("*").eq("torneo_id", id),
+        supabase.from("torneo_individual_parejas").select("*").eq("torneo_id", id),
       ]);
 
       if (!tRes) {
@@ -98,6 +101,14 @@ export default function TorneoIndividualPublico() {
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
       setFechas(fRes ?? []);
       setPagos(pRes ?? []);
+
+      // Map couples players
+      const mappedParejas = (tpRes ?? []).map((p: any) => ({
+        ...p,
+        jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
+        jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
+      }));
+      setParejas(mappedParejas);
 
       // Fetch sets for each match
       if (partRes && partRes.length > 0) {
@@ -116,10 +127,10 @@ export default function TorneoIndividualPublico() {
 
         const fullPartidos: PartidoInd[] = partRes.map((p) => ({
           ...p,
-          jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador ?? null,
-          jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador ?? null,
-          jugador3: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador3_id)?.jugador ?? null,
-          jugador4: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador4_id)?.jugador ?? null,
+          jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
+          jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
+          jugador3: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador3_id)?.jugador || null,
+          jugador4: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador4_id)?.jugador || null,
           sets: setsMap[p.id] ?? [],
         }));
 
@@ -154,9 +165,157 @@ export default function TorneoIndividualPublico() {
   }, [fechas]);
 
   // Standing Ranking calculation
-  const computedStandings = useMemo((): PlayerStanding[] => {
+  const computedStandings = useMemo((): any[] => {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
+
+    if (torneo.modalidad === "parejas") {
+      const standingsMap = new Map<string, any>();
+      parejas.forEach((p) => {
+        standingsMap.set(p.id, {
+          pareja_id: p.id,
+          jugador1_id: p.jugador1_id,
+          jugador2_id: p.jugador2_id,
+          jugador1: p.jugador1,
+          jugador2: p.jugador2,
+          puntos: 0,
+          setsGanados: 0,
+          setsPerdidos: 0,
+          gamesGanados: 0,
+          gamesPerdidos: 0,
+          difGames: 0,
+          partidosJugados: 0,
+          suplenciasUsadas: 0,
+        });
+      });
+
+      const finalizedMatches = partidos.filter((m) => m.estado === "finalizado");
+
+      // Count substitutions per couple
+      finalizedMatches.forEach((m) => {
+        const coupleA = parejas.find(
+          (p) =>
+            (p.jugador1_id === m.jugador1_id && p.jugador2_id === m.jugador2_id) ||
+            (p.jugador1_id === m.jugador2_id && p.jugador2_id === m.jugador1_id)
+        );
+        const coupleB = parejas.find(
+          (p) =>
+            (p.jugador1_id === m.jugador3_id && p.jugador2_id === m.jugador4_id) ||
+            (p.jugador1_id === m.jugador4_id && p.jugador2_id === m.jugador3_id)
+        );
+
+        if (coupleA) {
+          const sA = standingsMap.get(coupleA.id);
+          if (sA) {
+            if (m.suplente1_nombre) sA.suplenciasUsadas++;
+            if (m.suplente2_nombre) sA.suplenciasUsadas++;
+          }
+        }
+        if (coupleB) {
+          const sB = standingsMap.get(coupleB.id);
+          if (sB) {
+            if (m.suplente3_nombre) sB.suplenciasUsadas++;
+            if (m.suplente4_nombre) sB.suplenciasUsadas++;
+          }
+        }
+      });
+
+      finalizedMatches.forEach((m) => {
+        const coupleA = parejas.find(
+          (p) =>
+            (p.jugador1_id === m.jugador1_id && p.jugador2_id === m.jugador2_id) ||
+            (p.jugador1_id === m.jugador2_id && p.jugador2_id === m.jugador1_id)
+        );
+        const coupleB = parejas.find(
+          (p) =>
+            (p.jugador1_id === m.jugador3_id && p.jugador2_id === m.jugador4_id) ||
+            (p.jugador1_id === m.jugador4_id && p.jugador2_id === m.jugador3_id)
+        );
+
+        if (!coupleA || !coupleB) return;
+
+        const sA = standingsMap.get(coupleA.id);
+        const sB = standingsMap.get(coupleB.id);
+        if (!sA || !sB) return;
+
+        sA.partidosJugados++;
+        sB.partidosJugados++;
+
+        const p1Won = m.sets_pareja1 > m.sets_pareja2;
+
+        const courtMatch = m.cancha.match(/\d+/);
+        const courtIndex = courtMatch ? parseInt(courtMatch[0], 10) : 1;
+
+        const ptsWinner = countCanchas - courtIndex + 2;
+        const ptsLoser = 1;
+
+        // Apply rules for forfeits if sub limit > 2
+        const p1Forfeit = sA.suplenciasUsadas > 2;
+        const p2Forfeit = sB.suplenciasUsadas > 2;
+
+        if (p1Forfeit && p2Forfeit) {
+          // Both forfeited: 0-0 games, 0-2 sets, 1pt each
+          sA.puntos += 1;
+          sB.puntos += 1;
+          sA.setsPerdidos += 2;
+          sB.setsPerdidos += 2;
+          sA.gamesPerdidos += 12;
+          sB.gamesPerdidos += 12;
+        } else if (p1Forfeit) {
+          // Couple A forfeit
+          sB.puntos += ptsWinner;
+          sA.puntos += 1;
+          sB.setsGanados += 2;
+          sA.setsPerdidos += 2;
+          sB.gamesGanados += 12;
+          sA.gamesPerdidos += 12;
+        } else if (p2Forfeit) {
+          // Couple B forfeit
+          sA.puntos += ptsWinner;
+          sB.puntos += 1;
+          sA.setsGanados += 2;
+          sB.setsPerdidos += 2;
+          sA.gamesGanados += 12;
+          sB.gamesPerdidos += 12;
+        } else {
+          // Normal scoring
+          sA.puntos += p1Won ? ptsWinner : ptsLoser;
+          sB.puntos += !p1Won ? ptsWinner : ptsLoser;
+
+          sA.setsGanados += m.sets_pareja1;
+          sA.setsPerdidos += m.sets_pareja2;
+          sB.setsGanados += m.sets_pareja2;
+          sB.setsPerdidos += m.sets_pareja1;
+
+          let gA = 0;
+          let gB = 0;
+          m.sets?.forEach((s: any) => {
+            gA += s.games_pareja1;
+            gB += s.games_pareja2;
+          });
+
+          sA.gamesGanados += gA;
+          sA.gamesPerdidos += gB;
+          sB.gamesGanados += gB;
+          sB.gamesPerdidos += gA;
+        }
+      });
+
+      const list = Array.from(standingsMap.values()).map((s) => ({
+        ...s,
+        difSets: s.setsGanados - s.setsPerdidos,
+        difGames: s.gamesGanados - s.gamesPerdidos,
+      }));
+
+      list.sort((a, b) => {
+        if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+        if (b.difSets !== a.difSets) return b.difSets - a.difSets;
+        if (b.difGames !== a.difGames) return b.difGames - a.difGames;
+        return 0;
+      });
+
+      return list;
+    }
 
     const standingsMap = new Map<string, PlayerStanding>();
     jugadoresInscriptos.forEach((tj) => {
@@ -186,9 +345,6 @@ export default function TorneoIndividualPublico() {
 
       const ptsWinner = countCanchas - courtIndex + 2;
       const ptsLoser = 1;
-
-      const setsWinner = Math.max(p.sets_pareja1, p.sets_pareja2);
-      const setsLoser = Math.min(p.sets_pareja1, p.sets_pareja2);
 
       let gamesP1 = 0;
       let gamesP2 = 0;
@@ -244,7 +400,7 @@ export default function TorneoIndividualPublico() {
     });
 
     return list;
-  }, [torneo, jugadoresInscriptos, partidos]);
+  }, [torneo, jugadoresInscriptos, parejas, partidos]);
 
   useEffect(() => {
     setStandings(computedStandings);
@@ -315,7 +471,6 @@ export default function TorneoIndividualPublico() {
     if (canchaName.includes("Cancha 2")) return "border-amber-500/20 text-amber-600 bg-amber-50 dark:bg-amber-950/20";
     return "border-blue-500/20 text-blue-600 bg-blue-50 dark:bg-blue-950/20";
   };
-
   return (
     <div className="min-h-screen bg-background pb-12 flex flex-col justify-between">
       <div className="container mx-auto p-4 max-w-5xl space-y-6">
@@ -324,7 +479,9 @@ export default function TorneoIndividualPublico() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight">{torneo?.nombre || "Muro de Resultados"}</h1>
-              <Badge className="bg-indigo-600 text-white text-[10px] uppercase font-bold tracking-wider">Americano</Badge>
+              <Badge className="bg-indigo-600 text-white text-[10px] uppercase font-bold tracking-wider">
+                {torneo?.modalidad === "parejas" ? "Desafío Parejas" : "Americano"}
+              </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
               Anita Quiroga Pádel · {torneo?.categoria_libre || "Libre"} · {torneo?.sede || "Complejo Oficial"}
@@ -362,26 +519,52 @@ export default function TorneoIndividualPublico() {
                   <div className="flex-1 min-w-[200px] border border-amber-500/20 bg-amber-500/5 p-4 rounded-xl relative overflow-hidden">
                     <div className="absolute top-1 right-1 text-amber-500/10 font-black text-4xl">1°</div>
                     <p className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-black tracking-wider">Campeón</p>
-                    <p className="text-base font-bold mt-1 text-foreground">
-                      {championsInfo.campeon ? `${championsInfo.campeon.apellido}, ${championsInfo.campeon.nombre}` : "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500" />
-                      Compañero: {championsInfo.campeonPartner ? `${championsInfo.campeonPartner.apellido}, ${championsInfo.campeonPartner.nombre}` : "—"}
-                    </p>
+                    {torneo?.modalidad === "parejas" ? (
+                      <>
+                        <p className="text-base font-bold mt-1 text-foreground">
+                          {championsInfo.campeon ? `${championsInfo.campeon.apellido}, ${championsInfo.campeon.nombre}` : "—"}
+                        </p>
+                        <p className="text-base font-bold mt-0.5 text-foreground">
+                          {championsInfo.campeonPartner ? `${championsInfo.campeonPartner.apellido}, ${championsInfo.campeonPartner.nombre}` : "—"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-base font-bold mt-1 text-foreground">
+                          {championsInfo.campeon ? `${championsInfo.campeon.apellido}, ${championsInfo.campeon.nombre}` : "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          Compañero: {championsInfo.campeonPartner ? `${championsInfo.campeonPartner.apellido}, ${championsInfo.campeonPartner.nombre}` : "—"}
+                        </p>
+                      </>
+                    )}
                   </div>
 
                   {/* Subcampeón */}
                   <div className="flex-1 min-w-[200px] border border-slate-500/20 bg-slate-500/5 p-4 rounded-xl relative overflow-hidden">
                     <div className="absolute top-1 right-1 text-slate-500/10 font-black text-4xl">2°</div>
                     <p className="text-[10px] text-slate-600 dark:text-slate-400 uppercase font-black tracking-wider">Subcampeón</p>
-                    <p className="text-base font-bold mt-1 text-foreground">
-                      {championsInfo.subcampeon ? `${championsInfo.subcampeon.apellido}, ${championsInfo.subcampeon.nombre}` : "—"}
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
-                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400" />
-                      Compañero: {championsInfo.subcampeonPartner ? `${championsInfo.subcampeonPartner.apellido}, ${championsInfo.subcampeonPartner.nombre}` : "—"}
-                    </p>
+                    {torneo?.modalidad === "parejas" ? (
+                      <>
+                        <p className="text-base font-bold mt-1 text-foreground">
+                          {championsInfo.subcampeon ? `${championsInfo.subcampeon.apellido}, ${championsInfo.subcampeon.nombre}` : "—"}
+                        </p>
+                        <p className="text-base font-bold mt-0.5 text-foreground">
+                          {championsInfo.subcampeonPartner ? `${championsInfo.subcampeonPartner.apellido}, ${championsInfo.subcampeonPartner.nombre}` : "—"}
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="text-base font-bold mt-1 text-foreground">
+                          {championsInfo.subcampeon ? `${championsInfo.subcampeon.apellido}, ${championsInfo.subcampeon.nombre}` : "—"}
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5">
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-400" />
+                          Compañero: {championsInfo.subcampeonPartner ? `${championsInfo.subcampeonPartner.apellido}, ${championsInfo.subcampeonPartner.nombre}` : "—"}
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
@@ -420,8 +603,8 @@ export default function TorneoIndividualPublico() {
                     <TableHeader>
                       <TableRow>
                         <TableHead className="w-[50px] text-center">Pos</TableHead>
-                        <TableHead>Jugador</TableHead>
-                        <TableHead>Club/Ciudad</TableHead>
+                        <TableHead>{torneo?.modalidad === "parejas" ? "Pareja" : "Jugador"}</TableHead>
+                        <TableHead>{torneo?.modalidad === "parejas" ? "Suplencias Usadas" : "Club/Ciudad"}</TableHead>
                         <TableHead className="text-center w-[50px]">PJ</TableHead>
                         <TableHead className="text-center w-[80px]">Sets G-P</TableHead>
                         <TableHead className="text-center w-[80px]">Games Diff</TableHead>
@@ -435,6 +618,58 @@ export default function TorneoIndividualPublico() {
                             Aún no se han computado fechas en este torneo.
                           </TableCell>
                         </TableRow>
+                      ) : torneo?.modalidad === "parejas" ? (
+                        standings.map((s, idx) => {
+                          const rank = idx + 1;
+                          let courtGroup = "Base";
+                          let badgeStyle = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+
+                          if (rank === 1 || rank === 2) {
+                            courtGroup = "Élite (C1)";
+                            badgeStyle = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+                          } else if (rank === 3 || rank === 4) {
+                            courtGroup = "Desafío (C2)";
+                            badgeStyle = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+                          } else {
+                            courtGroup = "Base (C3)";
+                          }
+
+                          return (
+                            <TableRow key={s.pareja_id}>
+                              <TableCell className="text-center font-bold">
+                                {rank === 1 ? (
+                                  <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                                ) : (
+                                  `${rank}º`
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                <div className="font-semibold">{s.jugador1?.apellido}, {s.jugador1?.nombre}</div>
+                                <div className="font-semibold text-muted-foreground">{s.jugador2?.apellido}, {s.jugador2?.nombre}</div>
+                                <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded mt-1 font-bold ${badgeStyle}`}>
+                                  {courtGroup}
+                                </span>
+                              </TableCell>
+                              <TableCell>
+                                <span className={s.suplenciasUsadas > 2 ? "text-destructive font-bold text-xs" : "text-muted-foreground text-xs"}>
+                                  {s.suplenciasUsadas} / 2
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-center">{s.partidosJugados}</TableCell>
+                              <TableCell className="text-center font-mono text-muted-foreground">
+                                {s.setsGanados}-{s.setsPerdidos}
+                              </TableCell>
+                              <TableCell className="text-center font-mono font-medium">
+                                <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                                  {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400 text-sm">
+                                {s.puntos} pts
+                              </TableCell>
+                            </TableRow>
+                          );
+                        })
                       ) : (
                         standings.map((s, idx) => {
                           const rank = idx + 1;
@@ -613,72 +848,136 @@ export default function TorneoIndividualPublico() {
                     Reglamento Oficial - Liga Crown Pádel
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Formato americano individual con ascensos y descensos automáticos por canchas.
+                    {torneo?.modalidad === "parejas"
+                      ? "Formato por parejas fijas de 8 semanas con ascensos y descensos directos por cancha."
+                      : "Formato americano individual con ascensos y descensos automáticos por canchas."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-xs leading-relaxed text-muted-foreground">
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Trophy className="h-4 w-4 text-amber-500" /> 1. Dinámica y Competencia
-                    </h3>
-                    <p>
-                      El torneo tiene una duración de **{torneo?.desafio_semanas ?? 8} semanas**. Se juega de forma individual (inscripción individual), pero en pista se arman parejas dobles en base a la posición del ranking.
-                    </p>
-                    <p>
-                      **Semana 1 (Sorteo Inicial)**: Se define por sorteo en vivo la cancha en la que juega cada participante (4 jugadores por cancha) y las parejas del partido (J1+J4 vs J2+J3).
-                    </p>
-                    <p>
-                      **Semanas 2 a {(torneo?.desafio_semanas ?? 8) - 2} (Fase Regular)**: Los jugadores se ordenan por su ranking general acumulado. Los 4 mejores van a la Cancha 1 (Élite), los siguientes 4 a la Cancha 2 (Desafío) y así sucesivamente. Los cruces internos de cada cancha se automatizan cruzando el mejor del grupo con el peor del grupo para equilibrar el partido: `1º + 4º vs 2º + 3º`.
-                    </p>
-                    <p>
-                      **Semana {(torneo?.desafio_semanas ?? 8) - 1} y {torneo?.desafio_semanas ?? 8} (Play-offs)**: Las últimas dos semanas definen las posiciones finales. En la Semana {(torneo?.desafio_semanas ?? 8) - 1} se juegan Semifinales en pista. En la Semana {torneo?.desafio_semanas ?? 8} se disputan las finales, donde cada finalista elige a un compañero de los jugadores ya eliminados (puestos 3 al 12) para disputar el campeonato.
-                    </p>
-                  </div>
+                  {torneo?.modalidad === "parejas" ? (
+                    <>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Trophy className="h-4 w-4 text-amber-500" /> 1. Dinámica y Competencia (Parejas)
+                        </h3>
+                        <p>
+                          El torneo tiene una duración de **8 semanas** y se juega con **6 parejas fijas** (12 jugadoras en total) distribuidas en 3 canchas (C1: Élite, C2: Desafío, C3: Base).
+                        </p>
+                        <p>
+                          **Semana 1**: Se asignan aleatoriamente las parejas a las 3 canchas.
+                        </p>
+                        <p>
+                          **Semanas 2 a 6**: Ascensos y descensos directos por cancha según resultado del partido:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>**Cancha 1 (Élite)**: La pareja ganadora mantiene su lugar en Élite. La pareja perdedora desciende a Cancha 2.</li>
+                          <li>**Cancha 2 (Desafío)**: La pareja ganadora asciende a Cancha 1. La pareja perdedora desciende a Cancha 3.</li>
+                          <li>**Cancha 3 (Base)**: La pareja ganadora asciende a Cancha 2. La pareja perdedora mantiene su lugar en Cancha 3.</li>
+                        </ul>
+                        <p>
+                          **Semana 7 (Semifinales)**: Se cruzan por ranking acumulado general (1º vs 4º en Cancha 1, 2º vs 3º en Cancha 2, y 5º vs 6º en Cancha 3).
+                        </p>
+                        <p>
+                          **Semana 8 (Finales)**: La Gran Final en Cancha 1 (ganador Semis C1 vs ganador Semis C2), Tercer puesto en Cancha 2 (perdedor Semis C1 vs perdedor Semis C2) y revancha recreativa en Cancha 3 (5º vs 6º).
+                        </p>
+                      </div>
 
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <TrendingUp className="h-4 w-4 text-emerald-500" /> 2. Ascensos y Descensos
-                    </h3>
-                    <p>
-                      Al terminar cada fecha, el ranking general se actualiza. Para la siguiente semana:
-                    </p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      <li>Los **2 jugadores con más puntos** de la Cancha 2 ascienden a la Cancha 1.</li>
-                      <li>Los **2 jugadores con menos puntos** de la Cancha 1 descienden a la Cancha 2.</li>
-                      <li>La misma lógica se aplica entre la Cancha 2, Cancha 3 y el resto de las pistas habilitadas.</li>
-                    </ul>
-                  </div>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Award className="h-4 w-4 text-indigo-500" /> 2. Puntos de Fecha
+                        </h3>
+                        <p>
+                          Los puntos acumulados en el ranking por cada partido jugado dependen del resultado y de la jerarquía de la cancha disputada:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>**Ganar en Cancha 1**: **4 puntos** para la pareja.</li>
+                          <li>**Ganar en Cancha 2**: **3 puntos** para la pareja.</li>
+                          <li>**Ganar en Cancha 3**: **2 puntos** para la pareja.</li>
+                          <li>**Perder (Cualquier Cancha)**: **1 punto** para la pareja.</li>
+                        </ul>
+                        <p>
+                          **Supertiebreak**: En caso de definir el set definitivo (Set 3), se juega un Supertiebreak **a 7 puntos a morir** (muerte súbita sin diferencia de 2).
+                        </p>
+                      </div>
 
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Award className="h-4 w-4 text-indigo-500" /> 3. Puntos de Fecha
-                    </h3>
-                    <p>
-                      Los puntos acumulados en el ranking por cada partido jugado dependen del resultado y de la jerarquía de la cancha disputada:
-                    </p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      <li>**Cancha 1 (Élite)**: Los ganadores suman **4 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
-                      <li>**Cancha 2 (Desafío)**: Los ganadores suman **3 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
-                      <li>**Cancha 3 (Base)**: Los ganadores suman **2 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
-                    </ul>
-                    <p className="text-[10px] italic">
-                      Nota: En caso de empate en puntos en la tabla general, se desempata por: 1) Sets ganados, 2) Mayor diferencia de games a favor, 3) Sorteo.
-                    </p>
-                  </div>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Users className="h-4 w-4 text-muted-foreground" /> 3. Suplencias y Forfeit
+                        </h3>
+                        <p>
+                          Se permiten hasta **2 suplencias acumuladas** por pareja durante las 8 semanas.
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1 border-l-2 border-amber-500 pl-2">
+                          <li className="text-amber-600 dark:text-amber-400 font-medium">Si una pareja falta o utiliza más de 2 suplencias acumuladas, se le contará como partido perdido por W.O. / Forfeit (6-0, 6-0) y sumarán únicamente 1 punto de fecha jugada.</li>
+                        </ul>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Trophy className="h-4 w-4 text-amber-500" /> 1. Dinámica y Competencia
+                        </h3>
+                        <p>
+                          El torneo tiene una duración de **{torneo?.desafio_semanas ?? 8} semanas**. Se juega de forma individual (inscripción individual), pero en pista se arman parejas dobles en base a la posición del ranking.
+                        </p>
+                        <p>
+                          **Semana 1 (Sorteo Inicial)**: Se define por sorteo en vivo la cancha en la que juega cada participante (4 jugadores por cancha) y las parejas del partido (J1+J4 vs J2+J3).
+                        </p>
+                        <p>
+                          **Semanas 2 a {(torneo?.desafio_semanas ?? 8) - 2} (Fase Regular)**: Los jugadores se ordenan por su ranking general acumulado. Los 4 mejores van a la Cancha 1 (Élite), los siguientes 4 a la Cancha 2 (Desafío) y así sucesivamente. Los cruces internos de cada cancha se automatizan cruzando el mejor del grupo con el peor del grupo para equilibrar el partido: `1º + 4º vs 2º + 3º`.
+                        </p>
+                        <p>
+                          **Semana {(torneo?.desafio_semanas ?? 8) - 1} y {torneo?.desafio_semanas ?? 8} (Play-offs)**: Las últimas dos semanas definen las posiciones finales. En la Semana {(torneo?.desafio_semanas ?? 8) - 1} se juegan Semifinales en pista. En la Semana {torneo?.desafio_semanas ?? 8} se disputan las finales, donde cada finalista elige a un compañero de los jugadores ya eliminados (puestos 3 al 12) para disputar el campeonato.
+                        </p>
+                      </div>
 
-                  <div className="space-y-2">
-                    <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                      <Users className="h-4 w-4 text-muted-foreground" /> 4. Ausencias y Suplentes
-                    </h3>
-                    <p>
-                      Si un jugador no puede asistir, debe avisar con anticipación para que la organización asigne un suplente de nivel equivalente.
-                    </p>
-                    <ul className="list-disc pl-4 space-y-1">
-                      <li>El **jugador titular ausente no sumará puntos** esa fecha (0 puntos en la tabla), pero conserva su puntaje acumulado de fechas anteriores.</li>
-                      <li>El **suplente juega para completar la cancha**, pero no recibe ningún punto en el ranking general.</li>
-                      <li>Los otros 3 jugadores de la cancha juegan de forma normal y reciben los puntos correspondientes (ganador/perdedor) de acuerdo al resultado del partido.</li>
-                    </ul>
-                  </div>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <TrendingUp className="h-4 w-4 text-emerald-500" /> 2. Ascensos y Descensos
+                        </h3>
+                        <p>
+                          Al terminar cada fecha, el ranking general se actualiza. Para la siguiente semana:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>Los **2 jugadores con más puntos** de la Cancha 2 ascienden a la Cancha 1.</li>
+                          <li>Los **2 jugadores con menos puntos** de la Cancha 1 descienden a la Cancha 2.</li>
+                          <li>La misma lógica se aplica entre la Cancha 2, Cancha 3 y el resto de las pistas habilitadas.</li>
+                        </ul>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Award className="h-4 w-4 text-indigo-500" /> 3. Puntos de Fecha
+                        </h3>
+                        <p>
+                          Los puntos acumulados en el ranking por cada partido jugado dependen del resultado y de la jerarquía de la cancha disputada:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>**Cancha 1 (Élite)**: Los ganadores suman **4 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
+                          <li>**Cancha 2 (Desafío)**: Los ganadores suman **3 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
+                          <li>**Cancha 3 (Base)**: Los ganadores suman **2 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
+                        </ul>
+                        <p className="text-[10px] italic">
+                          Nota: En caso de empate en puntos en la tabla general, se desempata por: 1) Sets ganados, 2) Mayor diferencia de games a favor, 3) Sorteo.
+                        </p>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Users className="h-4 w-4 text-muted-foreground" /> 4. Ausencias y Suplentes
+                        </h3>
+                        <p>
+                          Si un jugador no puede asistir, debe avisar con anticipación para que la organización asigne un suplente de nivel equivalente.
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li>El **jugador titular ausente no sumará puntos** esa fecha (0 puntos en la tabla), pero conserva su puntaje acumulado de fechas anteriores.</li>
+                          <li>El **suplente juega para completar la cancha**, pero no recibe ningún punto en el ranking general.</li>
+                          <li>Los otros 3 jugadores de la cancha juegan de forma normal y reciben los puntos correspondientes (ganador/perdedor) de acuerdo al resultado del partido.</li>
+                        </ul>
+                      </div>
+                    </>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

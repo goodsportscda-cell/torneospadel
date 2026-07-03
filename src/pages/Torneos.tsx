@@ -75,6 +75,7 @@ interface FormState {
   ingresos_sponsors: string;
   gastos_trofeos: string;
   gastos_regalos: string;
+  modalidad: string;
 }
 
 const emptyForm: FormState = {
@@ -101,6 +102,7 @@ const emptyForm: FormState = {
   ingresos_sponsors: "0",
   gastos_trofeos: "0",
   gastos_regalos: "0",
+  modalidad: "individual",
 };
 
 const generateSlug = (nombre: string) => {
@@ -170,6 +172,7 @@ export default function Torneos() {
       ingresos_sponsors: t.ingresos_sponsors?.toString() ?? "0",
       gastos_trofeos: t.gastos_trofeos?.toString() ?? "0",
       gastos_regalos: t.gastos_regalos?.toString() ?? "0",
+      modalidad: t.modalidad ?? "individual",
     });
     setDialogOpen(true);
   };
@@ -253,6 +256,7 @@ export default function Torneos() {
       ingresos_sponsors: form.tipo === "americano_individual" ? Number(form.ingresos_sponsors) || 0 : null,
       gastos_trofeos: form.tipo === "americano_individual" ? Number(form.gastos_trofeos) || 0 : null,
       gastos_regalos: form.tipo === "americano_individual" ? Number(form.gastos_regalos) || 0 : null,
+      modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
     };
 
     if (editing) {
@@ -496,9 +500,24 @@ export default function Torneos() {
                     <div className="border p-3 rounded-md space-y-3 bg-muted/20">
                       <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Desafío</h4>
                       
-                      <div className="grid grid-cols-2 gap-3">
+                      <div className="grid grid-cols-3 gap-3">
                         <div className="grid gap-1.5">
-                          <Label htmlFor="semanas">Duración (Semanas) *</Label>
+                          <Label htmlFor="modalidad">Modalidad *</Label>
+                          <Select
+                            value={form.modalidad || "individual"}
+                            onValueChange={(v) => setForm({ ...form, modalidad: v })}
+                          >
+                            <SelectTrigger id="modalidad">
+                              <SelectValue placeholder="Modalidad" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="individual">Individual</SelectItem>
+                              <SelectItem value="parejas">Parejas</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="grid gap-1.5">
+                          <Label htmlFor="semanas">Semanas *</Label>
                           <Input
                             id="semanas"
                             type="number"
@@ -509,7 +528,7 @@ export default function Torneos() {
                           />
                         </div>
                         <div className="grid gap-1.5">
-                          <Label htmlFor="canchas-count">Cantidad de canchas *</Label>
+                          <Label htmlFor="canchas-count">Canchas *</Label>
                           <Input
                             id="canchas-count"
                             type="number"
@@ -518,8 +537,8 @@ export default function Torneos() {
                             onChange={(e) => setForm({ ...form, canchas_count: e.target.value })}
                             placeholder="Ej: 3"
                           />
-                          <span className="text-[10px] text-muted-foreground mt-0.5">
-                            {form.canchas_count ? `${Number(form.canchas_count) * 4} jugadores requeridos` : ""}
+                          <span className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
+                            {form.canchas_count ? (form.modalidad === 'parejas' ? `${Number(form.canchas_count) * 2} parejas` : `${Number(form.canchas_count) * 4} jugadores`) : ""}
                           </span>
                         </div>
                       </div>

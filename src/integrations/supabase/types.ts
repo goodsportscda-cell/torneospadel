@@ -229,6 +229,29 @@ export interface Database {
           created_at?: string
         }
       }
+      torneo_individual_parejas: {
+        Row: {
+          id: string
+          torneo_id: string
+          jugador1_id: string
+          jugador2_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          torneo_id: string
+          jugador1_id: string
+          jugador2_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          torneo_id?: string
+          jugador1_id?: string
+          jugador2_id?: string
+          created_at?: string
+        }
+      }
       torneo_individual_fechas: {
         Row: {
           id: string

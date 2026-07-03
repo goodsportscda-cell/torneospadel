@@ -73,12 +73,15 @@ export default function TorneoIndividualDashboard() {
   const [fechas, setFechas] = useState<TorneoFecha[]>([]);
   const [pagos, setPagos] = useState<TorneoPago[]>([]);
   const [partidos, setPartidos] = useState<PartidoInd[]>([]);
-  const [standings, setStandings] = useState<PlayerStanding[]>([]);
+  const [standings, setStandings] = useState<any[]>([]);
+  const [parejas, setParejas] = useState<any[]>([]);
 
   // Active selections
   const [activeTab, setActiveTab] = useState("resumen");
   const [selectedFechaNum, setSelectedFechaNum] = useState<number>(1);
   const [selectedJugadorId, setSelectedJugadorId] = useState<string>("");
+  const [selectedJ1Id, setSelectedJ1Id] = useState<string>("");
+  const [selectedJ2Id, setSelectedJ2Id] = useState<string>("");
 
   // Modals state
   const [scoreDialogOpen, setScoreDialogOpen] = useState(false);
@@ -139,6 +142,7 @@ export default function TorneoIndividualDashboard() {
         { data: fRes },
         { data: pRes },
         { data: partRes },
+        { data: tpRes },
       ] = await Promise.all([
         supabase.from("torneos").select("*").eq("id", id).maybeSingle(),
         supabase.from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
@@ -146,6 +150,7 @@ export default function TorneoIndividualDashboard() {
         supabase.from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
         supabase.from("torneo_individual_pagos").select("*").eq("torneo_id", id),
         supabase.from("partidos_individuales").select("*").eq("torneo_id", id),
+        supabase.from("torneo_individual_parejas").select("*").eq("torneo_id", id),
       ]);
 
       if (!tRes) {
@@ -171,6 +176,14 @@ export default function TorneoIndividualDashboard() {
       setFechas(fRes ?? []);
       setPagos(pRes ?? []);
 
+      // Map couples players
+      const mappedParejas = (tpRes ?? []).map((p: any) => ({
+        ...p,
+        jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || jRes?.find(j => j.id === p.jugador1_id) || null,
+        jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || jRes?.find(j => j.id === p.jugador2_id) || null,
+      }));
+      setParejas(mappedParejas);
+
       // Fetch sets for each match
       if (partRes && partRes.length > 0) {
         const pIds = partRes.map((p) => p.id);
@@ -188,10 +201,10 @@ export default function TorneoIndividualDashboard() {
 
         const fullPartidos: PartidoInd[] = partRes.map((p) => ({
           ...p,
-          jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador ?? null,
-          jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador ?? null,
-          jugador3: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador3_id)?.jugador ?? null,
-          jugador4: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador4_id)?.jugador ?? null,
+          jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || jRes?.find(j => j.id === p.jugador1_id) || null,
+          jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || jRes?.find(j => j.id === p.jugador2_id) || null,
+          jugador3: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador3_id)?.jugador || jRes?.find(j => j.id === p.jugador3_id) || null,
+          jugador4: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador4_id)?.jugador || jRes?.find(j => j.id === p.jugador4_id) || null,
           sets: setsMap[p.id] ?? [],
         }));
 
@@ -212,12 +225,187 @@ export default function TorneoIndividualDashboard() {
   }, [fetchTournamentData]);
 
   // General ranking / standings calculation logic
-  const computedStandings = useMemo((): PlayerStanding[] => {
+  const computedStandings = useMemo(() => {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
 
-    // Initialize standings map
-    const standingsMap = new Map<string, PlayerStanding>();
+    if (torneo.modalidad === "parejas") {
+      interface CoupleStanding {
+        pareja_id: string;
+        jugador1_id: string;
+        jugador2_id: string;
+        jugador1: Jugador;
+        jugador2: Jugador;
+        puntos: number;
+        setsGanados: number;
+        setsPerdidos: number;
+        gamesGanados: number;
+        gamesPerdidos: number;
+        difSets: number;
+        difGames: number;
+        partidosJugados: number;
+        suplenciasUsadas: number;
+      }
+
+      const standingsMap = new Map<string, CoupleStanding>();
+
+      // Initialize couples
+      parejas.forEach((p) => {
+        if (p.jugador1 && p.jugador2) {
+          standingsMap.set(p.id, {
+            pareja_id: p.id,
+            jugador1_id: p.jugador1_id,
+            jugador2_id: p.jugador2_id,
+            jugador1: p.jugador1,
+            jugador2: p.jugador2,
+            puntos: 0,
+            setsGanados: 0,
+            setsPerdidos: 0,
+            gamesGanados: 0,
+            gamesPerdidos: 0,
+            difSets: 0,
+            difGames: 0,
+            partidosJugados: 0,
+            suplenciasUsadas: 0,
+          });
+        }
+      });
+
+      // Count substitutions per couple
+      partidos.forEach((p) => {
+        if (p.estado !== "finalizado") return;
+
+        const coupleA = parejas.find(
+          (cp) =>
+            (cp.jugador1_id === p.jugador1_id && cp.jugador2_id === p.jugador2_id) ||
+            (cp.jugador1_id === p.jugador2_id && cp.jugador2_id === p.jugador1_id)
+        );
+        if (coupleA && (p.suplente1_nombre || p.suplente2_nombre)) {
+          const s = standingsMap.get(coupleA.id);
+          if (s) s.suplenciasUsadas++;
+        }
+
+        const coupleB = parejas.find(
+          (cp) =>
+            (cp.jugador1_id === p.jugador3_id && cp.jugador2_id === p.jugador4_id) ||
+            (cp.jugador1_id === p.jugador4_id && cp.jugador2_id === p.jugador3_id)
+        );
+        if (coupleB && (p.suplente3_nombre || p.suplente4_nombre)) {
+          const s = standingsMap.get(coupleB.id);
+          if (s) s.suplenciasUsadas++;
+        }
+      });
+
+      // Compute statistics for couples
+      partidos.forEach((p) => {
+        if (p.estado !== "finalizado") return;
+
+        const coupleA = parejas.find(
+          (cp) =>
+            (cp.jugador1_id === p.jugador1_id && cp.jugador2_id === p.jugador2_id) ||
+            (cp.jugador1_id === p.jugador2_id && cp.jugador2_id === p.jugador1_id)
+        );
+        const coupleB = parejas.find(
+          (cp) =>
+            (cp.jugador1_id === p.jugador3_id && cp.jugador2_id === p.jugador4_id) ||
+            (cp.jugador1_id === p.jugador4_id && cp.jugador2_id === p.jugador3_id)
+        );
+
+        if (!coupleA || !coupleB) return;
+
+        const standA = standingsMap.get(coupleA.id);
+        const standB = standingsMap.get(coupleB.id);
+        if (!standA || !standB) return;
+
+        // Forfeit check (exceeds 2 substitutions total)
+        const isAForfeit = (p.suplente1_nombre || p.suplente2_nombre) && standA.suplenciasUsadas > 2;
+        const isBForfeit = (p.suplente3_nombre || p.suplente4_nombre) && standB.suplenciasUsadas > 2;
+
+        let setsP1 = p.sets_pareja1;
+        let setsP2 = p.sets_pareja2;
+        let gamesP1 = 0;
+        let gamesP2 = 0;
+
+        p.sets?.forEach((s) => {
+          gamesP1 += s.games_pareja1;
+          gamesP2 += s.games_pareja2;
+        });
+
+        if (isAForfeit && isBForfeit) {
+          setsP1 = 0;
+          setsP2 = 0;
+          gamesP1 = 0;
+          gamesP2 = 0;
+        } else if (isAForfeit) {
+          setsP1 = 0;
+          setsP2 = 2;
+          gamesP1 = 0;
+          gamesP2 = 12; // 6-0 6-0
+        } else if (isBForfeit) {
+          setsP1 = 2;
+          setsP2 = 0;
+          gamesP1 = 12;
+          gamesP2 = 0;
+        }
+
+        const p1Won = setsP1 > setsP2;
+
+        const canchaNumMatch = p.cancha.match(/\d+/);
+        const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
+
+        const ptsWin = countCanchas - courtIndex + 2;
+        const ptsLose = 1;
+
+        // Couple A
+        standA.partidosJugados++;
+        standA.setsGanados += setsP1;
+        standA.setsPerdidos += setsP2;
+        standA.gamesGanados += gamesP1;
+        standA.gamesPerdidos += gamesP2;
+        standA.puntos += p1Won ? ptsWin : ptsLose;
+
+        // Couple B
+        standB.partidosJugados++;
+        standB.setsGanados += setsP2;
+        standB.setsPerdidos += setsP1;
+        standB.gamesGanados += gamesP2;
+        standB.gamesPerdidos += gamesP1;
+        standB.puntos += !p1Won ? ptsWin : ptsLose;
+      });
+
+      const list = Array.from(standingsMap.values()).map((s) => ({
+        ...s,
+        difSets: s.setsGanados - s.setsPerdidos,
+        difGames: s.gamesGanados - s.gamesPerdidos,
+      }));
+
+      list.sort((a, b) => {
+        if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+        if (b.difSets !== a.difSets) return b.difSets - a.difSets;
+        if (b.difGames !== a.difGames) return b.difGames - a.difGames;
+        return `${a.jugador1.apellido} ${a.jugador1.nombre}`.localeCompare(`${b.jugador1.apellido} ${b.jugador1.nombre}`);
+      });
+
+      return list;
+    }
+
+    // Individual logic (same as original, but using local types for compatibility)
+    interface LocalPlayerStanding {
+      jugador_id: string;
+      nombre: string;
+      apellido: string;
+      dni: string | null;
+      puntos: number;
+      setsGanados: number;
+      setsPerdidos: number;
+      gamesGanados: number;
+      gamesPerdidos: number;
+      difGames: number;
+      partidosJugados: number;
+      difSets?: number;
+    }
+
+    const standingsMap = new Map<string, LocalPlayerStanding>();
     jugadoresInscriptos.forEach((tj) => {
       if (tj.jugador) {
         standingsMap.set(tj.jugador_id, {
@@ -236,23 +424,15 @@ export default function TorneoIndividualDashboard() {
       }
     });
 
-    // Process all finalized matches
     const finalizedMatches = partidos.filter((p) => p.estado === "finalizado");
 
     finalizedMatches.forEach((p) => {
-      // Determine the court number (extract number, e.g. "Cancha 1: Élite" -> 1)
       const canchaNumMatch = p.cancha.match(/\d+/);
       const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
 
-      // Puntos Ganador = canchas_count - courtIndex + 2. Puntos Perdedor = 1
       const ptsWinner = countCanchas - courtIndex + 2;
       const ptsLoser = 1;
 
-      // Sets won
-      const setsWinner = Math.max(p.sets_pareja1, p.sets_pareja2);
-      const setsLoser = Math.min(p.sets_pareja1, p.sets_pareja2);
-
-      // Games sum
       let gamesP1 = 0;
       let gamesP2 = 0;
       p.sets?.forEach((s) => {
@@ -262,7 +442,6 @@ export default function TorneoIndividualDashboard() {
 
       const p1Won = p.sets_pareja1 > p.sets_pareja2;
 
-      // Helper to award points and stats
       const awardStats = (
         jugId: string | null,
         isWinner: boolean,
@@ -278,7 +457,6 @@ export default function TorneoIndividualDashboard() {
 
         s.partidosJugados++;
         if (wasAbsent) {
-          // Absent player gets 0 points, keeps accumulated
           s.puntos += 0;
         } else {
           s.puntos += isWinner ? ptsWinner : ptsLoser;
@@ -288,10 +466,6 @@ export default function TorneoIndividualDashboard() {
           s.gamesPerdidos += gamesOpp;
         }
       };
-
-      // Pareja 1: J1 + J2. Pareja 2: J3 + J4
-      const p1Absent = !!(p.suplente1_nombre || p.suplente2_nombre);
-      const p2Absent = !!(p.suplente3_nombre || p.suplente4_nombre);
 
       awardStats(p.jugador1_id, p1Won, !!p.suplente1_nombre, gamesP1, gamesP2, p.sets_pareja1, p.sets_pareja2);
       awardStats(p.jugador2_id, p1Won, !!p.suplente2_nombre, gamesP1, gamesP2, p.sets_pareja1, p.sets_pareja2);
@@ -305,20 +479,15 @@ export default function TorneoIndividualDashboard() {
       difGames: s.gamesGanados - s.gamesPerdidos,
     }));
 
-    // Sort according to tiebreakers:
-    // 1. Points
-    // 2. Sets difference
-    // 3. Games difference
-    // 4. Alphabetical / ID fallback
     list.sort((a, b) => {
       if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-      if (b.difSets !== a.difSets) return b.difSets - a.difSets;
+      if ((b.difSets ?? 0) !== (a.difSets ?? 0)) return (b.difSets ?? 0) - (a.difSets ?? 0);
       if (b.difGames !== a.difGames) return b.difGames - a.difGames;
       return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
     });
 
-    return list;
-  }, [torneo, jugadoresInscriptos, partidos]);
+    return list as any[];
+  }, [torneo, jugadoresInscriptos, partidos, parejas]);
 
   useEffect(() => {
     setStandings(computedStandings);
@@ -503,6 +672,87 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
+  // Actions: Add Couple
+  const handleAgregarPareja = async () => {
+    if (!id || !selectedJ1Id || !selectedJ2Id) return;
+    if (selectedJ1Id === selectedJ2Id) {
+      toast.error("Debes seleccionar dos jugadores distintos");
+      return;
+    }
+
+    const maxParejas = (torneo?.canchas_count ?? 3) * 2;
+    if (parejas.length >= maxParejas) {
+      toast.error(`El cupo está completo para ${torneo?.canchas_count} canchas (${maxParejas} parejas)`);
+      return;
+    }
+
+    try {
+      // 1. Insert into torneo_individual_parejas
+      const { error: pErr } = await supabase.from("torneo_individual_parejas").insert({
+        torneo_id: id,
+        jugador1_id: selectedJ1Id,
+        jugador2_id: selectedJ2Id,
+      });
+
+      if (pErr) throw pErr;
+
+      // 2. Insert both players into torneo_individual_jugadores so they are registered in the tournament
+      const { error: jErr } = await supabase.from("torneo_individual_jugadores").insert([
+        { torneo_id: id, jugador_id: selectedJ1Id, estado: "confirmada" },
+        { torneo_id: id, jugador_id: selectedJ2Id, estado: "confirmada" },
+      ]);
+
+      if (jErr) {
+        // Rollback couple
+        await supabase.from("torneo_individual_parejas")
+          .delete()
+          .eq("torneo_id", id)
+          .eq("jugador1_id", selectedJ1Id)
+          .eq("jugador2_id", selectedJ2Id);
+        throw jErr;
+      }
+
+      toast.success("Pareja inscripta con éxito");
+      setSelectedJ1Id("");
+      setSelectedJ2Id("");
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al inscribir pareja: " + e.message);
+    }
+  };
+
+  // Actions: Remove Couple
+  const handleQuitarPareja = async (parejaId: string, j1Id: string, j2Id: string) => {
+    if (partidos.length > 0) {
+      toast.error("No se puede desinscribir parejas una vez generado el fixture del torneo");
+      return;
+    }
+
+    try {
+      // 1. Delete couple
+      const { error: pErr } = await supabase
+        .from("torneo_individual_parejas")
+        .delete()
+        .eq("id", parejaId);
+
+      if (pErr) throw pErr;
+
+      // 2. Delete both players from tournament
+      const { error: jErr } = await supabase
+        .from("torneo_individual_jugadores")
+        .delete()
+        .eq("torneo_id", id)
+        .in("jugador_id", [j1Id, j2Id]);
+
+      if (jErr) throw jErr;
+
+      toast.success("Pareja desinscripta");
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al desinscribir pareja: " + e.message);
+    }
+  };
+
   // Actions: Modify Finance settings
   const handleSaveSettings = async () => {
     if (!id) return;
@@ -571,8 +821,66 @@ export default function TorneoIndividualDashboard() {
   const handleGenerarFecha1 = async () => {
     if (!id || !torneo) return;
     const courtsCount = torneo.canchas_count ?? 3;
-    const reqPlayers = courtsCount * 4;
 
+    if (torneo.modalidad === "parejas") {
+      if (courtsCount !== 3) {
+        toast.error("La modalidad de parejas fijas requiere exactamente 3 canchas.");
+        return;
+      }
+      const reqParejas = courtsCount * 2;
+      if (parejas.length !== reqParejas) {
+        toast.error(`Para generar el fixture se necesitan exactamente ${reqParejas} parejas inscriptas (tienes ${parejas.length})`);
+        return;
+      }
+
+      // Shuffle parejas
+      const shuffled = [...parejas].sort(() => Math.random() - 0.5);
+
+      try {
+        const { data: dateRow, error: fErr } = await supabase
+          .from("torneo_individual_fechas")
+          .insert({
+            torneo_id: id,
+            fecha: 1,
+            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * courtsCount,
+            estado: "pendiente",
+          })
+          .select()
+          .single();
+
+        if (fErr) throw fErr;
+
+        const matchPromises = [];
+        for (let c = 1; c <= courtsCount; c++) {
+          const offset = (c - 1) * 2;
+          const parejaA = shuffled[offset];
+          const parejaB = shuffled[offset + 1];
+
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: 1,
+              cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
+              jugador1_id: parejaA.jugador1_id,
+              jugador2_id: parejaA.jugador2_id,
+              jugador3_id: parejaB.jugador1_id,
+              jugador4_id: parejaB.jugador2_id,
+              estado: "pendiente" as const,
+            })
+          );
+        }
+
+        await Promise.all(matchPromises);
+        toast.success("Fecha 1 generada con éxito");
+        fetchTournamentData();
+      } catch (e: any) {
+        console.error(e);
+        toast.error("Error al generar la Fecha 1: " + e.message);
+      }
+      return;
+    }
+
+    const reqPlayers = courtsCount * 4;
     if (jugadoresInscriptos.length !== reqPlayers) {
       toast.error(`Para generar el fixture se necesitan exactamente ${reqPlayers} jugadores inscriptos (tienes ${jugadoresInscriptos.length})`);
       return;
@@ -634,6 +942,11 @@ export default function TorneoIndividualDashboard() {
     if (!id || !torneo) return;
     const courtsCount = torneo.canchas_count ?? 3;
 
+    if (torneo.modalidad === "parejas" && courtsCount !== 3) {
+      toast.error("La modalidad de parejas fijas requiere exactamente 3 canchas.");
+      return;
+    }
+
     // Check if the previous week was completed
     const prevFecha = fechas.find((f) => f.fecha === fechaNum - 1);
     if (!prevFecha || prevFecha.estado !== "completada") {
@@ -655,29 +968,154 @@ export default function TorneoIndividualDashboard() {
 
       if (fErr) throw fErr;
 
-      // Group in courts based on standings ranking
-      // Standings is already computed, sorted from 1st to Nth
-      const sortedIds = standings.map((s) => s.jugador_id);
-
       const matchPromises = [];
-      for (let c = 1; c <= courtsCount; c++) {
-        const offset = (c - 1) * 4;
-        const courtPlayers = sortedIds.slice(offset, offset + 4);
 
-        // Within court, ranks are 1 (courtPlayers[0]), 2 (courtPlayers[1]), 3 (courtPlayers[2]), 4 (courtPlayers[3])
-        // Cruce: J1 + J4 vs J2 + J3
-        const matchPayload = {
-          torneo_id: id,
-          fecha: fechaNum,
-          cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
-          jugador1_id: courtPlayers[0],
-          jugador2_id: courtPlayers[3],
-          jugador3_id: courtPlayers[1],
-          jugador4_id: courtPlayers[2],
-          estado: "pendiente" as const,
-        };
+      if (torneo.modalidad === "parejas") {
+        if (fechaNum === 7) {
+          // Week 7 Semifinales:
+          // Cancha 1: 1 vs 4
+          // Cancha 2: 2 vs 3
+          // Cancha 3: 5 vs 6
+          if (standings.length < 6) {
+            throw new Error("No hay suficientes parejas en el ranking");
+          }
+          const p1 = standings[0];
+          const p2 = standings[1];
+          const p3 = standings[2];
+          const p4 = standings[3];
+          const p5 = standings[4];
+          const p6 = standings[5];
 
-        matchPromises.push(supabase.from("partidos_individuales").insert(matchPayload));
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: 7,
+              cancha: "Cancha 1: Semifinal (1º vs 4º)",
+              jugador1_id: p1.jugador1_id,
+              jugador2_id: p1.jugador2_id,
+              jugador3_id: p4.jugador1_id,
+              jugador4_id: p4.jugador2_id,
+              estado: "pendiente" as const,
+            })
+          );
+
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: 7,
+              cancha: "Cancha 2: Semifinal (2º vs 3º)",
+              jugador1_id: p2.jugador1_id,
+              jugador2_id: p2.jugador2_id,
+              jugador3_id: p3.jugador1_id,
+              jugador4_id: p3.jugador2_id,
+              estado: "pendiente" as const,
+            })
+          );
+
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: 7,
+              cancha: "Cancha 3: Base (Posición Baja)",
+              jugador1_id: p5.jugador1_id,
+              jugador2_id: p5.jugador2_id,
+              jugador3_id: p6.jugador1_id,
+              jugador4_id: p6.jugador2_id,
+              estado: "pendiente" as const,
+            })
+          );
+        } else {
+          // Regular Weeks 2-6:
+          // Ascenso/Descenso directo
+          const prevMatches = partidos.filter((p) => p.fecha === fechaNum - 1);
+          const m1 = prevMatches.find((p) => p.cancha.includes("Cancha 1") || p.cancha.includes("Élite"));
+          const m2 = prevMatches.find((p) => p.cancha.includes("Cancha 2") || p.cancha.includes("Desafío"));
+          const m3 = prevMatches.find((p) => p.cancha.includes("Cancha 3") || p.cancha.includes("Base"));
+
+          if (!m1 || !m2 || !m3) {
+            throw new Error(`No se encontraron todos los partidos de la Fecha ${fechaNum - 1}`);
+          }
+
+          // Helper to get winner/loser players
+          const getWinnerLoser = (m: any) => {
+            const p1Won = m.sets_pareja1 > m.sets_pareja2;
+            if (p1Won) {
+              return {
+                winner: { j1: m.jugador1_id, j2: m.jugador2_id },
+                loser: { j1: m.jugador3_id, j2: m.jugador4_id },
+              };
+            } else {
+              return {
+                winner: { j1: m.jugador3_id, j2: m.jugador4_id },
+                loser: { j1: m.jugador1_id, j2: m.jugador2_id },
+              };
+            }
+          };
+
+          const c1 = getWinnerLoser(m1);
+          const c2 = getWinnerLoser(m2);
+          const c3 = getWinnerLoser(m3);
+
+          // Cancha 1 (Élite): Winner C1 vs Winner C2
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: fechaNum,
+              cancha: "Cancha 1: Élite",
+              jugador1_id: c1.winner.j1,
+              jugador2_id: c1.winner.j2,
+              jugador3_id: c2.winner.j1,
+              jugador4_id: c2.winner.j2,
+              estado: "pendiente" as const,
+            })
+          );
+
+          // Cancha 2 (Desafío): Loser C1 vs Winner C3
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: fechaNum,
+              cancha: "Cancha 2: Desafío",
+              jugador1_id: c1.loser.j1,
+              jugador2_id: c1.loser.j2,
+              jugador3_id: c3.winner.j1,
+              jugador4_id: c3.winner.j2,
+              estado: "pendiente" as const,
+            })
+          );
+
+          // Cancha 3 (Base): Loser C2 vs Loser C3
+          matchPromises.push(
+            supabase.from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: fechaNum,
+              cancha: "Cancha 3: Base",
+              jugador1_id: c2.loser.j1,
+              jugador2_id: c2.loser.j2,
+              jugador3_id: c3.loser.j1,
+              jugador4_id: c3.loser.j2,
+              estado: "pendiente" as const,
+            })
+          );
+        }
+      } else {
+        // Individual logic
+        const sortedIds = standings.map((s) => s.jugador_id);
+        for (let c = 1; c <= courtsCount; c++) {
+          const offset = (c - 1) * 4;
+          const courtPlayers = sortedIds.slice(offset, offset + 4);
+          const matchPayload = {
+            torneo_id: id,
+            fecha: fechaNum,
+            cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
+            jugador1_id: courtPlayers[0],
+            jugador2_id: courtPlayers[3],
+            jugador3_id: courtPlayers[1],
+            jugador4_id: courtPlayers[2],
+            estado: "pendiente" as const,
+          };
+          matchPromises.push(supabase.from("partidos_individuales").insert(matchPayload));
+        }
       }
 
       await Promise.all(matchPromises);
@@ -686,6 +1124,113 @@ export default function TorneoIndividualDashboard() {
     } catch (e: any) {
       console.error(e);
       toast.error(`Error al generar la Fecha ${fechaNum}: ` + e.message);
+    }
+  };
+
+  // Matchmaking engine: Week 8 (Finals) for couples
+  const handleGenerarFecha8Parejas = async () => {
+    if (!id || !torneo) return;
+    const finalWeek = torneo.desafio_semanas ?? 8;
+    const courtsCount = torneo.canchas_count ?? 3;
+
+    // Check if Week 7 is completed
+    const prevFecha = fechas.find((f) => f.fecha === finalWeek - 1);
+    if (!prevFecha || prevFecha.estado !== "completada") {
+      toast.error(`Debes completar y cerrar la Fecha ${finalWeek - 1} antes de generar las Finales`);
+      return;
+    }
+
+    try {
+      const { data: dateRow, error: fErr } = await supabase
+        .from("torneo_individual_fechas")
+        .insert({
+          torneo_id: id,
+          fecha: finalWeek,
+          costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * courtsCount,
+          estado: "pendiente",
+        })
+        .select()
+        .single();
+
+      if (fErr) throw fErr;
+
+      const prevMatches = partidos.filter((p) => p.fecha === finalWeek - 1);
+      const m1 = prevMatches.find((p) => p.cancha.includes("Cancha 1") || p.cancha.includes("Semifinal (1º vs 4º)"));
+      const m2 = prevMatches.find((p) => p.cancha.includes("Cancha 2") || p.cancha.includes("Semifinal (2º vs 3º)"));
+      const m3 = prevMatches.find((p) => p.cancha.includes("Cancha 3") || p.cancha.includes("Posición Baja"));
+
+      if (!m1 || !m2 || !m3) {
+        throw new Error("No se encontraron todos los partidos de las Semifinales (Fecha 7)");
+      }
+
+      const getWinnerLoser = (m: any) => {
+        const p1Won = m.sets_pareja1 > m.sets_pareja2;
+        if (p1Won) {
+          return {
+            winner: { j1: m.jugador1_id, j2: m.jugador2_id },
+            loser: { j1: m.jugador3_id, j2: m.jugador4_id },
+          };
+        } else {
+          return {
+            winner: { j1: m.jugador3_id, j2: m.jugador4_id },
+            loser: { j1: m.jugador1_id, j2: m.jugador2_id },
+          };
+        }
+      };
+
+      const c1 = getWinnerLoser(m1);
+      const c2 = getWinnerLoser(m2);
+
+      const matchPromises = [];
+
+      // Cancha 1: Final (Winner Semifinal 1 vs Winner Semifinal 2)
+      matchPromises.push(
+        supabase.from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: finalWeek,
+          cancha: "Cancha 1: Élite (Gran Final)",
+          jugador1_id: c1.winner.j1,
+          jugador2_id: c1.winner.j2,
+          jugador3_id: c2.winner.j1,
+          jugador4_id: c2.winner.j2,
+          estado: "pendiente" as const,
+        })
+      );
+
+      // Cancha 2: Tercer Puesto (Loser Semifinal 1 vs Loser Semifinal 2)
+      matchPromises.push(
+        supabase.from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: finalWeek,
+          cancha: "Cancha 2: Desafío (Tercer Puesto)",
+          jugador1_id: c1.loser.j1,
+          jugador2_id: c1.loser.j2,
+          jugador3_id: c2.loser.j1,
+          jugador4_id: c2.loser.j2,
+          estado: "pendiente" as const,
+        })
+      );
+
+      // Cancha 3: Revancha Recreativa (The same two couples of Cancha 3 in Week 7)
+      matchPromises.push(
+        supabase.from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: finalWeek,
+          cancha: "Cancha 3: Base (Revancha)",
+          jugador1_id: m3.jugador1_id,
+          jugador2_id: m3.jugador2_id,
+          jugador3_id: m3.jugador3_id,
+          jugador4_id: m3.jugador4_id,
+          estado: "pendiente" as const,
+        })
+      );
+
+      await Promise.all(matchPromises);
+      toast.success("Gran Final y partidos definitorios generados");
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar las Finales: " + e.message);
     }
   };
 
@@ -913,6 +1458,18 @@ export default function TorneoIndividualDashboard() {
         toast.error("Se requiere Supertiebreak (Set 3) en caso de empate 1-1");
         return;
       }
+
+      if (torneo?.modalidad === "parejas") {
+        if (g3_local !== 7 && g3_visi !== 7) {
+          toast.error("El Supertiebreak es 'a 7 a morir'. El ganador debe tener exactamente 7 puntos.");
+          return;
+        }
+        if (g3_local > 7 || g3_visi > 7) {
+          toast.error("El Supertiebreak es 'a 7 a morir' sin diferencia. No puede haber puntajes mayores a 7.");
+          return;
+        }
+      }
+
       if (g3_local > g3_visi) setsLocal++;
       else setsVisi++;
     }
@@ -1024,6 +1581,26 @@ export default function TorneoIndividualDashboard() {
       }));
   }, [todosJugadores, jugadoresInscriptos]);
 
+  const comboboxOptionsJ1 = useMemo(() => {
+    return todosJugadores
+      .filter((j) => !parejas.some((p) => p.jugador1_id === j.id || p.jugador2_id === j.id))
+      .map((j) => ({
+        value: j.id,
+        label: `${j.apellido}, ${j.nombre}`,
+        hint: j.club ? `Club: ${j.club}` : undefined,
+      }));
+  }, [todosJugadores, parejas]);
+
+  const comboboxOptionsJ2 = useMemo(() => {
+    return todosJugadores
+      .filter((j) => j.id !== selectedJ1Id && !parejas.some((p) => p.jugador1_id === j.id || p.jugador2_id === j.id))
+      .map((j) => ({
+        value: j.id,
+        label: `${j.apellido}, ${j.nombre}`,
+        hint: j.club ? `Club: ${j.club}` : undefined,
+      }));
+  }, [todosJugadores, parejas, selectedJ1Id]);
+
   return (
     <div className="container mx-auto p-4 max-w-7xl space-y-6">
       {/* Header */}
@@ -1037,7 +1614,9 @@ export default function TorneoIndividualDashboard() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-2xl font-bold tracking-tight">{torneo?.nombre || "Cargando..."}</h1>
-              <Badge className="bg-indigo-600 text-white">Americano Individual</Badge>
+              <Badge className="bg-indigo-600 text-white">
+                {torneo?.modalidad === "parejas" ? "Desafío Parejas" : "Americano Individual"}
+              </Badge>
             </div>
             <p className="text-sm text-muted-foreground mt-1">
               Sede: {torneo?.sede || "No especificada"} · Categoría: {torneo?.categoria_libre || "Libre"}
@@ -1157,12 +1736,16 @@ export default function TorneoIndividualDashboard() {
 
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
-                  <CardTitle className="text-sm font-medium">Jugadores Inscriptos</CardTitle>
+                  <CardTitle className="text-sm font-medium">
+                    {torneo?.modalidad === "parejas" ? "Parejas Inscriptas" : "Jugadores Inscriptos"}
+                  </CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {jugadoresInscriptos.length} / {(torneo?.canchas_count ?? 3) * 4}
+                    {torneo?.modalidad === "parejas"
+                      ? `${parejas.length} / ${(torneo?.canchas_count ?? 3) * 2}`
+                      : `${jugadoresInscriptos.length} / ${(torneo?.canchas_count ?? 3) * 4}`}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">
                     Canchas definidas: {torneo?.canchas_count ?? 3} canchas.
@@ -1206,7 +1789,7 @@ export default function TorneoIndividualDashboard() {
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
                   <Settings className="h-4 w-4 text-primary" />
-                  Configuración del Torneo Americano Individual
+                  Configuración del Torneo {torneo?.modalidad === "parejas" ? "Desafío Parejas" : "Americano Individual"}
                 </CardTitle>
                 <CardDescription>
                   Define las variables para calcular automáticamente los cruces y el pozo de premios.
@@ -1273,78 +1856,173 @@ export default function TorneoIndividualDashboard() {
 
           {/* TAB 2: INSCRIPTOS */}
           <TabsContent value="inscriptos" className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base flex items-center gap-2">
-                  <Users className="h-4 w-4 text-primary" />
-                  Agregar Jugador al Torneo
-                </CardTitle>
-                <CardDescription>
-                  El torneo requiere exactamente {(torneo?.canchas_count ?? 3) * 4} jugadores para jugarse.
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="flex gap-2 flex-wrap sm:flex-nowrap max-w-md">
-                  <div className="flex-1">
-                    <Combobox
-                      options={comboboxOptions}
-                      value={selectedJugadorId}
-                      onChange={setSelectedJugadorId}
-                      placeholder="Seleccionar jugador..."
-                      searchPlaceholder="Buscar por apellido o nombre..."
-                    />
+            {torneo?.modalidad === "parejas" ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Inscribir Pareja Fija
+                  </CardTitle>
+                  <CardDescription>
+                    El torneo en parejas requiere exactamente {(torneo?.canchas_count ?? 3) * 2} parejas ({(torneo?.canchas_count ?? 3) * 4} jugadoras en total).
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-3 flex-wrap items-end max-w-2xl border p-3 rounded-lg bg-muted/20">
+                    <div className="flex-1 min-w-[200px] space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">Jugadora 1 *</label>
+                      <Combobox
+                        options={comboboxOptionsJ1}
+                        value={selectedJ1Id}
+                        onChange={setSelectedJ1Id}
+                        placeholder="Seleccionar jugadora 1..."
+                        searchPlaceholder="Buscar por apellido o nombre..."
+                      />
+                    </div>
+                    <div className="flex-1 min-w-[200px] space-y-1.5">
+                      <label className="text-xs font-semibold text-muted-foreground">Jugadora 2 *</label>
+                      <Combobox
+                        options={comboboxOptionsJ2}
+                        value={selectedJ2Id}
+                        onChange={setSelectedJ2Id}
+                        placeholder="Seleccionar jugadora 2..."
+                        searchPlaceholder="Buscar por apellido o nombre..."
+                        disabled={!selectedJ1Id}
+                      />
+                    </div>
+                    <Button onClick={handleAgregarPareja} disabled={!selectedJ1Id || !selectedJ2Id} className="h-10">
+                      <Plus className="h-4 w-4 mr-1.5" />
+                      Inscribir Pareja
+                    </Button>
                   </div>
-                  <Button onClick={handleAgregarJugador} disabled={!selectedJugadorId}>
-                    <Plus className="h-4 w-4 mr-1.5" />
-                    Inscribir
-                  </Button>
-                </div>
 
-                <div className="border rounded-md">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Nombre</TableHead>
-                        <TableHead>DNI</TableHead>
-                        <TableHead>Teléfono</TableHead>
-                        <TableHead>Club/Ciudad</TableHead>
-                        <TableHead className="w-[100px] text-right">Acciones</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {jugadoresInscriptos.length === 0 ? (
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
                         <TableRow>
-                          <TableCell colSpan={5} className="text-center py-6 text-sm text-muted-foreground">
-                            No hay jugadores inscriptos todavía.
-                          </TableCell>
+                          <TableHead className="w-[100px]">Pareja N°</TableHead>
+                          <TableHead>Jugadora 1</TableHead>
+                          <TableHead>Jugadora 2</TableHead>
+                          <TableHead>Clubes</TableHead>
+                          <TableHead className="w-[100px] text-right">Acciones</TableHead>
                         </TableRow>
-                      ) : (
-                        jugadoresInscriptos.map((tj) => (
-                          <TableRow key={tj.id}>
-                            <TableCell className="font-medium">
-                              {tj.jugador?.apellido}, {tj.jugador?.nombre}
-                            </TableCell>
-                            <TableCell>{tj.jugador?.dni || "—"}</TableCell>
-                            <TableCell>{tj.jugador?.telefono || "—"}</TableCell>
-                            <TableCell>{tj.jugador?.club || "—"}</TableCell>
-                            <TableCell className="text-right">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                onClick={() => handleQuitarJugador(tj.jugador_id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
+                      </TableHeader>
+                      <TableBody>
+                        {parejas.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-6 text-sm text-muted-foreground">
+                              No hay parejas inscriptas todavía.
                             </TableCell>
                           </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
-              </CardContent>
-            </Card>
+                        ) : (
+                          parejas.map((p, idx) => (
+                            <TableRow key={p.id}>
+                              <TableCell className="font-semibold">Pareja {idx + 1}</TableCell>
+                              <TableCell className="font-medium">
+                                {p.jugador1 ? `${p.jugador1.apellido}, ${p.jugador1.nombre}` : "—"}
+                                <span className="text-xs text-muted-foreground block">{p.jugador1?.telefono || "Sin tel."}</span>
+                              </TableCell>
+                              <TableCell className="font-medium">
+                                {p.jugador2 ? `${p.jugador2.apellido}, ${p.jugador2.nombre}` : "—"}
+                                <span className="text-xs text-muted-foreground block">{p.jugador2?.telefono || "Sin tel."}</span>
+                              </TableCell>
+                              <TableCell>
+                                <span className="text-xs">
+                                  {p.jugador1?.club || "—"} / {p.jugador2?.club || "—"}
+                                </span>
+                              </TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleQuitarPareja(p.id, p.jugador1_id, p.jugador2_id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <Users className="h-4 w-4 text-primary" />
+                    Agregar Jugador al Torneo
+                  </CardTitle>
+                  <CardDescription>
+                    El torneo requiere exactamente {(torneo?.canchas_count ?? 3) * 4} jugadores para jugarse.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="flex gap-2 flex-wrap sm:flex-nowrap max-w-md">
+                    <div className="flex-1">
+                      <Combobox
+                        options={comboboxOptions}
+                        value={selectedJugadorId}
+                        onChange={setSelectedJugadorId}
+                        placeholder="Seleccionar jugador..."
+                        searchPlaceholder="Buscar por apellido o nombre..."
+                      />
+                    </div>
+                    <Button onClick={handleAgregarJugador} disabled={!selectedJugadorId}>
+                      <Plus className="h-4 w-4 mr-1.5" />
+                      Inscribir
+                    </Button>
+                  </div>
+
+                  <div className="border rounded-md">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>Nombre</TableHead>
+                          <TableHead>DNI</TableHead>
+                          <TableHead>Teléfono</TableHead>
+                          <TableHead>Club/Ciudad</TableHead>
+                          <TableHead className="w-[100px] text-right">Acciones</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {jugadoresInscriptos.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={5} className="text-center py-6 text-sm text-muted-foreground">
+                              No hay jugadores inscriptos todavía.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          jugadoresInscriptos.map((tj) => (
+                            <TableRow key={tj.id}>
+                              <TableCell className="font-medium">
+                                {tj.jugador?.apellido}, {tj.jugador?.nombre}
+                              </TableCell>
+                              <TableCell>{tj.jugador?.dni || "—"}</TableCell>
+                              <TableCell>{tj.jugador?.telefono || "—"}</TableCell>
+                              <TableCell>{tj.jugador?.club || "—"}</TableCell>
+                              <TableCell className="text-right">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                  onClick={() => handleQuitarJugador(tj.jugador_id)}
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </TabsContent>
 
           {/* TAB 3: FINANZAS */}
@@ -1699,9 +2377,15 @@ export default function TorneoIndividualDashboard() {
                       Sorteo Inicial e Inaugurar Fecha 1
                     </Button>
                   ) : selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
-                    <Button onClick={handleOpenDraftWeek8}>
-                      Armar Gran Final (Semana {torneo?.desafio_semanas ?? 8})
-                    </Button>
+                    torneo?.modalidad === "parejas" ? (
+                      <Button onClick={handleGenerarFecha8Parejas}>
+                        Generar Gran Final y Cruces Finales (Semana {torneo?.desafio_semanas ?? 8})
+                      </Button>
+                    ) : (
+                      <Button onClick={handleOpenDraftWeek8}>
+                        Armar Gran Final (Semana {torneo?.desafio_semanas ?? 8})
+                      </Button>
+                    )
                   ) : (
                     <Button onClick={() => handleGenerarFechaRegular(selectedFechaNum)}>
                       <Settings className="h-4 w-4 mr-1.5" />
@@ -1818,7 +2502,7 @@ export default function TorneoIndividualDashboard() {
                   <Badge variant="secondary">Cálculo en Tiempo Real</Badge>
                 </CardTitle>
                 <CardDescription>
-                  Ordenado por Puntos (W1-8), Sets Ganados y Diferencia de Games.
+                  Ordenado por Puntos, Sets Ganados y Diferencia de Games.
                 </CardDescription>
               </CardHeader>
               <CardContent className="overflow-x-auto">
@@ -1826,8 +2510,8 @@ export default function TorneoIndividualDashboard() {
                   <TableHeader>
                     <TableRow>
                       <TableHead className="w-[60px] text-center">Pos</TableHead>
-                      <TableHead>Jugador</TableHead>
-                      <TableHead>DNI</TableHead>
+                      <TableHead>{torneo?.modalidad === "parejas" ? "Pareja" : "Jugador"}</TableHead>
+                      <TableHead>{torneo?.modalidad === "parejas" ? "Suplencias Usadas" : "DNI"}</TableHead>
                       <TableHead className="text-center">PJ</TableHead>
                       <TableHead className="text-center">Sets G - P</TableHead>
                       <TableHead className="text-center">Games Diff</TableHead>
@@ -1841,6 +2525,39 @@ export default function TorneoIndividualDashboard() {
                           Los resultados cargados en la pestaña "Fixture" generarán las posiciones automáticamente.
                         </TableCell>
                       </TableRow>
+                    ) : torneo?.modalidad === "parejas" ? (
+                      (standings as any[]).map((s, idx) => (
+                        <TableRow key={s.pareja_id}>
+                          <TableCell className="text-center font-bold">
+                            {idx === 0 ? (
+                              <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                            ) : (
+                              `${idx + 1}º`
+                            )}
+                          </TableCell>
+                          <TableCell className="font-semibold">
+                            <div>{s.jugador1?.apellido}, {s.jugador1?.nombre}</div>
+                            <div className="text-xs text-muted-foreground font-normal">{s.jugador2?.apellido}, {s.jugador2?.nombre}</div>
+                          </TableCell>
+                          <TableCell>
+                            <span className={s.suplenciasUsadas > 2 ? "text-destructive font-bold text-xs" : "text-muted-foreground text-xs"}>
+                              {s.suplenciasUsadas} / 2
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">{s.partidosJugados}</TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground font-mono">
+                            {s.setsGanados} - {s.setsPerdidos}
+                          </TableCell>
+                          <TableCell className="text-center font-mono text-xs">
+                            <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                              {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
+                            {s.puntos} pts
+                          </TableCell>
+                        </TableRow>
+                      ))
                     ) : (
                       standings.map((s, idx) => (
                         <TableRow key={s.jugador_id}>
