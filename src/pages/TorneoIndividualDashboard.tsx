@@ -61,6 +61,39 @@ interface PlayerStanding {
   partidosJugados: number;
 }
 
+const parsePremiosString = (premiosText: string | null) => {
+  const defaults = { cash1: 0, cash2: 0, gifts: "" };
+  if (!premiosText) return defaults;
+
+  const parts = premiosText.split("|").map(p => p.trim());
+  let cash1 = 0;
+  let cash2 = 0;
+  let gifts = "";
+
+  parts.forEach(part => {
+    if (part.startsWith("1º: $")) {
+      const valStr = part.replace("1º: $", "").trim();
+      cash1 = Number(valStr) || 0;
+    } else if (part.startsWith("2º: $")) {
+      const valStr = part.replace("2º: $", "").trim();
+      cash2 = Number(valStr) || 0;
+    } else if (part.startsWith("Regalos:")) {
+      gifts = part.substring("Regalos:".length).trim();
+    }
+  });
+
+  if (parts.length === 1 && !premiosText.includes("1º: $")) {
+    gifts = premiosText;
+  }
+
+  return { cash1, cash2, gifts };
+};
+
+const serializePremiosString = (cash1: number, cash2: number, gifts: string) => {
+  if (cash1 === 0 && cash2 === 0) return gifts;
+  return `1º: $${cash1} | 2º: $${cash2} | Regalos: ${gifts}`;
+};
+
 export default function TorneoIndividualDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -130,7 +163,8 @@ export default function TorneoIndividualDashboard() {
     gastos_trofeos: "0",
     gastos_regalos: "0",
     premios: "",
-    efectivo_premios: "0",
+    efectivo_1: "0",
+    efectivo_2: "0",
   });
 
   const fetchTournamentData = useCallback(async () => {
@@ -176,7 +210,8 @@ export default function TorneoIndividualDashboard() {
       const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
       const ganProj = Math.max(0, ingresosProj - gastosProj);
       const pctPremios = tRes.porcentaje_premios ?? 60;
-      const efectivoPremios = Math.round((ganProj * pctPremios) / 100);
+      const parsed = parsePremiosString(tRes.premios);
+      const totalCash = Math.round((ganProj * pctPremios) / 100);
 
       setSettingsForm({
         canchas_count: totalCanchas.toString(),
@@ -187,8 +222,9 @@ export default function TorneoIndividualDashboard() {
         ingresos_sponsors: ingresosSponsors.toString(),
         gastos_trofeos: gastosTrofeos.toString(),
         gastos_regalos: gastosRegalos.toString(),
-        premios: tRes.premios ?? "",
-        efectivo_premios: efectivoPremios.toString(),
+        premios: parsed.gifts,
+        efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
+        efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -645,9 +681,9 @@ export default function TorneoIndividualDashboard() {
   }, [settingsForm]);
 
   const liveCalculatedPct = useMemo(() => {
-    const cash = Number(settingsForm.efectivo_premios) || 0;
+    const cash = (Number(settingsForm.efectivo_1) || 0) + (Number(settingsForm.efectivo_2) || 0);
     return liveGanProj > 0 ? (cash / liveGanProj) * 100 : 0;
-  }, [liveGanProj, settingsForm.efectivo_premios]);
+  }, [liveGanProj, settingsForm.efectivo_1, settingsForm.efectivo_2]);
 
   const liveGanProjSaved = useMemo(() => {
     if (!torneo) return 0;
@@ -665,10 +701,27 @@ export default function TorneoIndividualDashboard() {
     return Math.max(0, ingresosProj - gastosProj);
   }, [torneo]);
 
+  const parsedPremiosSaved = useMemo(() => {
+    return parsePremiosString(torneo?.premios ?? null);
+  }, [torneo?.premios]);
+
   const pozoPremiosProyectado = useMemo(() => {
     if (!torneo) return 0;
+    if (parsedPremiosSaved.cash1 > 0 || parsedPremiosSaved.cash2 > 0) {
+      return parsedPremiosSaved.cash1 + parsedPremiosSaved.cash2;
+    }
     return Math.round((liveGanProjSaved * (torneo.porcentaje_premios ?? 60)) / 100);
-  }, [liveGanProjSaved, torneo]);
+  }, [liveGanProjSaved, torneo, parsedPremiosSaved]);
+
+  const pozoPremiosProyectado1 = useMemo(() => {
+    if (parsedPremiosSaved.cash1 > 0) return parsedPremiosSaved.cash1;
+    return Math.round((pozoPremiosProyectado * 70) / 100);
+  }, [parsedPremiosSaved.cash1, pozoPremiosProyectado]);
+
+  const pozoPremiosProyectado2 = useMemo(() => {
+    if (parsedPremiosSaved.cash2 > 0) return parsedPremiosSaved.cash2;
+    return Math.round((pozoPremiosProyectado * 30) / 100);
+  }, [parsedPremiosSaved.cash2, pozoPremiosProyectado]);
 
   const gananciaOrgProyectada = useMemo(() => {
     return Math.max(0, liveGanProjSaved - pozoPremiosProyectado);
@@ -841,8 +894,14 @@ export default function TorneoIndividualDashboard() {
     const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
     const ganProj = Math.max(0, ingresosProj - gastosProj);
 
-    const calculatedPct = ganProj > 0 ? (Number(settingsForm.efectivo_premios) / ganProj) * 100 : 0;
+    const cash1 = Number(settingsForm.efectivo_1) || 0;
+    const cash2 = Number(settingsForm.efectivo_2) || 0;
+    const totalCash = cash1 + cash2;
+
+    const calculatedPct = ganProj > 0 ? (totalCash / ganProj) * 100 : 0;
     const finalPct = Math.round(calculatedPct * 100) / 100;
+
+    const premiosTexto = serializePremiosString(cash1, cash2, settingsForm.premios.trim());
 
     const { error } = await supabase
       .from("torneos")
@@ -855,7 +914,7 @@ export default function TorneoIndividualDashboard() {
         ingresos_sponsors: ingresosSponsors,
         gastos_trofeos: gastosTrofeos,
         gastos_regalos: gastosRegalos,
-        premios: settingsForm.premios.trim() || null,
+        premios: premiosTexto || null,
       })
       .eq("id", id);
 
@@ -2271,12 +2330,12 @@ export default function TorneoIndividualDashboard() {
                           <span className="text-indigo-600 dark:text-indigo-400">${pozoPremiosProyectado.toLocaleString("es-AR")}</span>
                         </div>
                         <div className="flex justify-between text-[11px] pl-2 text-muted-foreground">
-                          <span>1º Puesto (70%):</span>
-                          <span>${Math.round((pozoPremiosProyectado * 70) / 100).toLocaleString("es-AR")}</span>
+                          <span>1º Puesto:</span>
+                          <span>${pozoPremiosProyectado1.toLocaleString("es-AR")}</span>
                         </div>
                         <div className="flex justify-between text-[11px] pl-2 text-muted-foreground">
-                          <span>2º Puesto (30%):</span>
-                          <span>${Math.round((pozoPremiosProyectado * 30) / 100).toLocaleString("es-AR")}</span>
+                          <span>2º Puesto:</span>
+                          <span>${pozoPremiosProyectado2.toLocaleString("es-AR")}</span>
                         </div>
                       </div>
 
@@ -2355,26 +2414,36 @@ export default function TorneoIndividualDashboard() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Premios en Efectivo ($)</Label>
-                        <Input
-                          type="number"
-                          min="0"
-                          value={settingsForm.efectivo_premios}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, efectivo_premios: e.target.value })}
-                          className="h-8 text-xs font-semibold"
-                        />
-                        <span className="text-[9px] text-muted-foreground block font-medium mt-0.5">
-                          Equivale al {liveCalculatedPct.toFixed(1)}% de la ganancia proyectada
-                        </span>
-                        {Number(settingsForm.efectivo_premios) > 0 && (
-                          <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-semibold space-y-0.5 mt-1 border-t pt-1">
-                            <div>1º Puesto (70%): ${Math.round((Number(settingsForm.efectivo_premios) * 70) / 100).toLocaleString("es-AR")}</div>
-                            <div>2º Puesto (30%): ${Math.round((Number(settingsForm.efectivo_premios) * 30) / 100).toLocaleString("es-AR")}</div>
-                          </div>
-                        )}
+                    <div className="space-y-2 border p-2.5 rounded-lg bg-indigo-50/20 dark:bg-indigo-950/5">
+                      <Label className="text-[10px] uppercase font-bold text-indigo-700 dark:text-indigo-400">Premios en Efectivo</Label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold text-muted-foreground">1º Puesto ($)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={settingsForm.efectivo_1}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, efectivo_1: e.target.value })}
+                            className="h-8 text-xs font-semibold"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-[9px] uppercase font-bold text-muted-foreground">2º Puesto ($)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            value={settingsForm.efectivo_2}
+                            onChange={(e) => setSettingsForm({ ...settingsForm, efectivo_2: e.target.value })}
+                            className="h-8 text-xs font-semibold"
+                          />
+                        </div>
                       </div>
+                      <span className="text-[9px] text-muted-foreground block font-medium mt-1">
+                        Total: ${((Number(settingsForm.efectivo_1) || 0) + (Number(settingsForm.efectivo_2) || 0)).toLocaleString("es-AR")} ({liveCalculatedPct.toFixed(1)}% de la ganancia proyectada)
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase font-bold text-muted-foreground">Ingresos Sponsors</Label>
                         <Input

@@ -56,6 +56,34 @@ interface PlayerStanding {
   partidosJugados: number;
 }
 
+const parsePremiosString = (premiosText: string | null) => {
+  const defaults = { cash1: 0, cash2: 0, gifts: "" };
+  if (!premiosText) return defaults;
+
+  const parts = premiosText.split("|").map(p => p.trim());
+  let cash1 = 0;
+  let cash2 = 0;
+  let gifts = "";
+
+  parts.forEach(part => {
+    if (part.startsWith("1º: $")) {
+      const valStr = part.replace("1º: $", "").trim();
+      cash1 = Number(valStr) || 0;
+    } else if (part.startsWith("2º: $")) {
+      const valStr = part.replace("2º: $", "").trim();
+      cash2 = Number(valStr) || 0;
+    } else if (part.startsWith("Regalos:")) {
+      gifts = part.substring("Regalos:".length).trim();
+    }
+  });
+
+  if (parts.length === 1 && !premiosText.includes("1º: $")) {
+    gifts = premiosText;
+  }
+
+  return { cash1, cash2, gifts };
+};
+
 export default function TorneoIndividualPublico() {
   const { id } = useParams<{ id: string }>();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
@@ -987,7 +1015,12 @@ export default function TorneoIndividualPublico() {
             {/* TAB 4: PRIZE POOL DISPLAY */}
             <TabsContent value="premios" className="space-y-4">
               {(() => {
+                const parsedPremios = parsePremiosString(torneo?.premios ?? null);
                 const isCovered = pozoResumen.acumulado >= pozoResumen.finalEstimado && pozoResumen.finalEstimado > 0;
+                
+                const showCash1 = parsedPremios.cash1 > 0 ? parsedPremios.cash1 : Math.round((pozoResumen.finalEstimado * 0.7));
+                const showCash2 = parsedPremios.cash2 > 0 ? parsedPremios.cash2 : Math.round((pozoResumen.finalEstimado * 0.3));
+
                 return (
                   <div className="grid gap-4 md:grid-cols-2">
                     <Card className="border border-border/40 shadow-sm bg-gradient-to-br from-indigo-50/20 to-transparent dark:from-indigo-950/5 flex flex-col justify-between">
@@ -1040,20 +1073,24 @@ export default function TorneoIndividualPublico() {
                         <div className="flex items-center justify-between border-b pb-2">
                           <div>
                             <span className="font-semibold text-foreground">1º Puesto (Campeón/a)</span>
-                            <p className="text-[10px] text-muted-foreground">Se lleva el 70% del importe a entregar.</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {parsedPremios.cash1 > 0 ? "Premio fijo en efectivo." : "Se lleva el 70% del importe a entregar."}
+                            </p>
                           </div>
                           <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                            ${Math.round((pozoResumen.finalEstimado * 70) / 100).toLocaleString("es-AR")}
+                            ${showCash1.toLocaleString("es-AR")}
                           </span>
                         </div>
 
                         <div className="flex items-center justify-between border-b pb-2">
                           <div>
                             <span className="font-semibold text-foreground">2º Puesto (Subcampeón/a)</span>
-                            <p className="text-[10px] text-muted-foreground">Se lleva el 30% del importe a entregar.</p>
+                            <p className="text-[10px] text-muted-foreground">
+                              {parsedPremios.cash2 > 0 ? "Premio fijo en efectivo." : "Se lleva el 30% del importe a entregar."}
+                            </p>
                           </div>
                           <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                            ${Math.round((pozoResumen.finalEstimado * 30) / 100).toLocaleString("es-AR")}
+                            ${showCash2.toLocaleString("es-AR")}
                           </span>
                         </div>
 
@@ -1077,13 +1114,13 @@ export default function TorneoIndividualPublico() {
                         </CardDescription>
                       </CardHeader>
                       <CardContent className="pb-6">
-                        {torneo?.premios ? (
+                        {parsedPremios.gifts ? (
                           <div className="p-4 bg-pink-500/5 dark:bg-pink-950/10 border border-pink-500/10 rounded-xl">
                             <span className="text-[9px] uppercase text-pink-600 dark:text-pink-400 font-extrabold block mb-1.5 tracking-wider">
                               Obsequios Incluidos
                             </span>
                             <p className="text-sm font-semibold text-foreground leading-relaxed whitespace-pre-line">
-                              {torneo.premios}
+                              {parsedPremios.gifts}
                             </p>
                           </div>
                         ) : (
