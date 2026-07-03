@@ -163,30 +163,30 @@ export default function TorneoIndividualDashboard() {
 
       setTorneo(tRes);
 
-      const totalJugadores = (tjRes as TorneoJugador[])?.length ?? 0;
       const semanas = tRes.desafio_semanas ?? 8;
       const costoPorJugador = tRes.costo_fecha_jugador ?? 10000;
       const costoPorCancha = tRes.costo_fecha_cancha ?? 22000;
       const totalCanchas = tRes.canchas_count ?? 3;
+      const totalJugadoresProyectados = totalCanchas * 4;
       const ingresosSponsors = Number(tRes.ingresos_sponsors) || 0;
       const gastosTrofeos = Number(tRes.gastos_trofeos) || 0;
       const gastosRegalos = Number(tRes.gastos_regalos) || 0;
 
-      const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+      const ingresosProj = totalJugadoresProyectados * costoPorJugador * semanas + ingresosSponsors;
       const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
       const ganProj = Math.max(0, ingresosProj - gastosProj);
       const pctPremios = tRes.porcentaje_premios ?? 60;
       const efectivoPremios = Math.round((ganProj * pctPremios) / 100);
 
       setSettingsForm({
-        canchas_count: tRes.canchas_count?.toString() ?? "3",
-        costo_fecha_jugador: tRes.costo_fecha_jugador?.toString() ?? "10000",
-        costo_fecha_cancha: tRes.costo_fecha_cancha?.toString() ?? "22000",
+        canchas_count: totalCanchas.toString(),
+        costo_fecha_jugador: costoPorJugador.toString(),
+        costo_fecha_cancha: costoPorCancha.toString(),
         porcentaje_premios: pctPremios.toString(),
         desafio_semanas: semanas.toString(),
-        ingresos_sponsors: tRes.ingresos_sponsors?.toString() ?? "0",
-        gastos_trofeos: tRes.gastos_trofeos?.toString() ?? "0",
-        gastos_regalos: tRes.gastos_regalos?.toString() ?? "0",
+        ingresos_sponsors: ingresosSponsors.toString(),
+        gastos_trofeos: gastosTrofeos.toString(),
+        gastos_regalos: gastosRegalos.toString(),
         premios: tRes.premios ?? "",
         efectivo_premios: efectivoPremios.toString(),
       });
@@ -630,19 +630,19 @@ export default function TorneoIndividualDashboard() {
 
   // Live calculation for settings input preview
   const liveGanProj = useMemo(() => {
-    const totalJugadores = jugadoresInscriptos.length;
     const semanas = Number(settingsForm.desafio_semanas) || 8;
     const costoPorJugador = Number(settingsForm.costo_fecha_jugador) || 0;
     const costoPorCancha = Number(settingsForm.costo_fecha_cancha) || 0;
     const totalCanchas = Number(settingsForm.canchas_count) || 0;
+    const totalJugadoresProyectados = totalCanchas * 4;
     const ingresosSponsors = Number(settingsForm.ingresos_sponsors) || 0;
     const gastosTrofeos = Number(settingsForm.gastos_trofeos) || 0;
     const gastosRegalos = Number(settingsForm.gastos_regalos) || 0;
 
-    const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+    const ingresosProj = totalJugadoresProyectados * costoPorJugador * semanas + ingresosSponsors;
     const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
     return Math.max(0, ingresosProj - gastosProj);
-  }, [settingsForm, jugadoresInscriptos.length]);
+  }, [settingsForm]);
 
   const liveCalculatedPct = useMemo(() => {
     const cash = Number(settingsForm.efectivo_premios) || 0;
@@ -651,19 +651,19 @@ export default function TorneoIndividualDashboard() {
 
   const liveGanProjSaved = useMemo(() => {
     if (!torneo) return 0;
-    const totalJugadores = jugadoresInscriptos.length;
     const semanas = torneo.desafio_semanas ?? 8;
     const costoPorJugador = torneo.costo_fecha_jugador ?? 10000;
     const costoPorCancha = torneo.costo_fecha_cancha ?? 22000;
     const totalCanchas = torneo.canchas_count ?? 3;
+    const totalJugadoresProyectados = totalCanchas * 4;
     const ingresosSponsors = Number(torneo.ingresos_sponsors) || 0;
     const gastosTrofeos = Number(torneo.gastos_trofeos) || 0;
     const gastosRegalos = Number(torneo.gastos_regalos) || 0;
 
-    const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+    const ingresosProj = totalJugadoresProyectados * costoPorJugador * semanas + ingresosSponsors;
     const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
     return Math.max(0, ingresosProj - gastosProj);
-  }, [torneo, jugadoresInscriptos.length]);
+  }, [torneo]);
 
   const pozoPremiosProyectado = useMemo(() => {
     if (!torneo) return 0;
@@ -828,16 +828,16 @@ export default function TorneoIndividualDashboard() {
     }
     setUpdatingSettings(true);
 
-    const totalJugadores = jugadoresInscriptos.length;
     const semanas = Math.max(7, Number(settingsForm.desafio_semanas) || 8);
     const costoPorJugador = Number(settingsForm.costo_fecha_jugador) || 0;
     const costoPorCancha = Number(settingsForm.costo_fecha_cancha) || 0;
     const totalCanchas = Number(settingsForm.canchas_count) || 0;
+    const totalJugadoresProyectados = totalCanchas * 4;
     const ingresosSponsors = Number(settingsForm.ingresos_sponsors) || 0;
     const gastosTrofeos = Number(settingsForm.gastos_trofeos) || 0;
     const gastosRegalos = Number(settingsForm.gastos_regalos) || 0;
 
-    const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+    const ingresosProj = totalJugadoresProyectados * costoPorJugador * semanas + ingresosSponsors;
     const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
     const ganProj = Math.max(0, ingresosProj - gastosProj);
 
@@ -2368,6 +2368,12 @@ export default function TorneoIndividualDashboard() {
                         <span className="text-[9px] text-muted-foreground block font-medium mt-0.5">
                           Equivale al {liveCalculatedPct.toFixed(1)}% de la ganancia proyectada
                         </span>
+                        {Number(settingsForm.efectivo_premios) > 0 && (
+                          <div className="text-[9px] text-indigo-600 dark:text-indigo-400 font-semibold space-y-0.5 mt-1 border-t pt-1">
+                            <div>1º Puesto (70%): ${Math.round((Number(settingsForm.efectivo_premios) * 70) / 100).toLocaleString("es-AR")}</div>
+                            <div>2º Puesto (30%): ${Math.round((Number(settingsForm.efectivo_premios) * 30) / 100).toLocaleString("es-AR")}</div>
+                          </div>
+                        )}
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase font-bold text-muted-foreground">Ingresos Sponsors</Label>

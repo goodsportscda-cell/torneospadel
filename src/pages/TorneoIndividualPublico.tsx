@@ -441,6 +441,7 @@ export default function TorneoIndividualPublico() {
     const porcentajePremios = torneo.porcentaje_premios ?? 60;
     const totalJugadores = jugadoresInscriptos.length;
     const totalCanchas = torneo.canchas_count ?? 3;
+    const totalJugadoresProyectados = totalCanchas * 4;
 
     // Actual revenue (assuming all present players paid, which is expected for completed dates)
     const completedWeeks = fechas.filter((f) => f.estado === "completada").length;
@@ -449,9 +450,9 @@ export default function TorneoIndividualPublico() {
     const netActual = Math.max(0, revenueActual - costActual);
     const acumulado = (netActual * porcentajePremios) / 100;
 
-    // Projected total for X weeks
+    // Projected total for X weeks based on tournament capacity
     const semanas = torneo?.desafio_semanas ?? 8;
-    const revenueProj = semanas * totalJugadores * costoPorJugador;
+    const revenueProj = semanas * totalJugadoresProyectados * costoPorJugador;
     const costProj = semanas * totalCanchas * costoPorCancha;
     const netProj = Math.max(0, revenueProj - costProj);
     const finalEstimado = (netProj * porcentajePremios) / 100;
