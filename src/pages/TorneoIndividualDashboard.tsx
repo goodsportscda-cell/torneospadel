@@ -129,6 +129,8 @@ export default function TorneoIndividualDashboard() {
     ingresos_sponsors: "0",
     gastos_trofeos: "0",
     gastos_regalos: "0",
+    premios: "",
+    efectivo_premios: "0",
   });
 
   const fetchTournamentData = useCallback(async () => {
@@ -160,15 +162,33 @@ export default function TorneoIndividualDashboard() {
       }
 
       setTorneo(tRes);
+
+      const totalJugadores = (tjRes as TorneoJugador[])?.length ?? 0;
+      const semanas = tRes.desafio_semanas ?? 8;
+      const costoPorJugador = tRes.costo_fecha_jugador ?? 10000;
+      const costoPorCancha = tRes.costo_fecha_cancha ?? 22000;
+      const totalCanchas = tRes.canchas_count ?? 3;
+      const ingresosSponsors = Number(tRes.ingresos_sponsors) || 0;
+      const gastosTrofeos = Number(tRes.gastos_trofeos) || 0;
+      const gastosRegalos = Number(tRes.gastos_regalos) || 0;
+
+      const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+      const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
+      const ganProj = Math.max(0, ingresosProj - gastosProj);
+      const pctPremios = tRes.porcentaje_premios ?? 60;
+      const efectivoPremios = Math.round((ganProj * pctPremios) / 100);
+
       setSettingsForm({
         canchas_count: tRes.canchas_count?.toString() ?? "3",
         costo_fecha_jugador: tRes.costo_fecha_jugador?.toString() ?? "10000",
         costo_fecha_cancha: tRes.costo_fecha_cancha?.toString() ?? "22000",
-        porcentaje_premios: tRes.porcentaje_premios?.toString() ?? "60",
-        desafio_semanas: tRes.desafio_semanas?.toString() ?? "8",
+        porcentaje_premios: pctPremios.toString(),
+        desafio_semanas: semanas.toString(),
         ingresos_sponsors: tRes.ingresos_sponsors?.toString() ?? "0",
         gastos_trofeos: tRes.gastos_trofeos?.toString() ?? "0",
         gastos_regalos: tRes.gastos_regalos?.toString() ?? "0",
+        premios: tRes.premios ?? "",
+        efectivo_premios: efectivoPremios.toString(),
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -608,6 +628,52 @@ export default function TorneoIndividualDashboard() {
     };
   }, [torneo, jugadoresInscriptos, pagos, fechas]);
 
+  // Live calculation for settings input preview
+  const liveGanProj = useMemo(() => {
+    const totalJugadores = jugadoresInscriptos.length;
+    const semanas = Number(settingsForm.desafio_semanas) || 8;
+    const costoPorJugador = Number(settingsForm.costo_fecha_jugador) || 0;
+    const costoPorCancha = Number(settingsForm.costo_fecha_cancha) || 0;
+    const totalCanchas = Number(settingsForm.canchas_count) || 0;
+    const ingresosSponsors = Number(settingsForm.ingresos_sponsors) || 0;
+    const gastosTrofeos = Number(settingsForm.gastos_trofeos) || 0;
+    const gastosRegalos = Number(settingsForm.gastos_regalos) || 0;
+
+    const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+    const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
+    return Math.max(0, ingresosProj - gastosProj);
+  }, [settingsForm, jugadoresInscriptos.length]);
+
+  const liveCalculatedPct = useMemo(() => {
+    const cash = Number(settingsForm.efectivo_premios) || 0;
+    return liveGanProj > 0 ? (cash / liveGanProj) * 100 : 0;
+  }, [liveGanProj, settingsForm.efectivo_premios]);
+
+  const liveGanProjSaved = useMemo(() => {
+    if (!torneo) return 0;
+    const totalJugadores = jugadoresInscriptos.length;
+    const semanas = torneo.desafio_semanas ?? 8;
+    const costoPorJugador = torneo.costo_fecha_jugador ?? 10000;
+    const costoPorCancha = torneo.costo_fecha_cancha ?? 22000;
+    const totalCanchas = torneo.canchas_count ?? 3;
+    const ingresosSponsors = Number(torneo.ingresos_sponsors) || 0;
+    const gastosTrofeos = Number(torneo.gastos_trofeos) || 0;
+    const gastosRegalos = Number(torneo.gastos_regalos) || 0;
+
+    const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+    const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
+    return Math.max(0, ingresosProj - gastosProj);
+  }, [torneo, jugadoresInscriptos.length]);
+
+  const pozoPremiosProyectado = useMemo(() => {
+    if (!torneo) return 0;
+    return Math.round((liveGanProjSaved * (torneo.porcentaje_premios ?? 60)) / 100);
+  }, [liveGanProjSaved, torneo]);
+
+  const gananciaOrgProyectada = useMemo(() => {
+    return Math.max(0, liveGanProjSaved - pozoPremiosProyectado);
+  }, [liveGanProjSaved, pozoPremiosProyectado]);
+
   // Match list filter for the selected week
   const partidosDeFecha = useMemo(() => {
     return partidos.filter((p) => p.fecha === selectedFechaNum).sort((a, b) => a.cancha.localeCompare(b.cancha));
@@ -761,17 +827,35 @@ export default function TorneoIndividualDashboard() {
       return;
     }
     setUpdatingSettings(true);
+
+    const totalJugadores = jugadoresInscriptos.length;
+    const semanas = Math.max(7, Number(settingsForm.desafio_semanas) || 8);
+    const costoPorJugador = Number(settingsForm.costo_fecha_jugador) || 0;
+    const costoPorCancha = Number(settingsForm.costo_fecha_cancha) || 0;
+    const totalCanchas = Number(settingsForm.canchas_count) || 0;
+    const ingresosSponsors = Number(settingsForm.ingresos_sponsors) || 0;
+    const gastosTrofeos = Number(settingsForm.gastos_trofeos) || 0;
+    const gastosRegalos = Number(settingsForm.gastos_regalos) || 0;
+
+    const ingresosProj = totalJugadores * costoPorJugador * semanas + ingresosSponsors;
+    const gastosProj = totalCanchas * costoPorCancha * semanas + gastosTrofeos + gastosRegalos;
+    const ganProj = Math.max(0, ingresosProj - gastosProj);
+
+    const calculatedPct = ganProj > 0 ? (Number(settingsForm.efectivo_premios) / ganProj) * 100 : 0;
+    const finalPct = Math.round(calculatedPct * 100) / 100;
+
     const { error } = await supabase
       .from("torneos")
       .update({
-        canchas_count: Number(settingsForm.canchas_count),
-        costo_fecha_jugador: Number(settingsForm.costo_fecha_jugador),
-        costo_fecha_cancha: Number(settingsForm.costo_fecha_cancha),
-        porcentaje_premios: Number(settingsForm.porcentaje_premios),
-        desafio_semanas: Math.max(7, Number(settingsForm.desafio_semanas) || 8),
-        ingresos_sponsors: Number(settingsForm.ingresos_sponsors) || 0,
-        gastos_trofeos: Number(settingsForm.gastos_trofeos) || 0,
-        gastos_regalos: Number(settingsForm.gastos_regalos) || 0,
+        canchas_count: totalCanchas,
+        costo_fecha_jugador: costoPorJugador,
+        costo_fecha_cancha: costoPorCancha,
+        porcentaje_premios: finalPct,
+        desafio_semanas: semanas,
+        ingresos_sponsors: ingresosSponsors,
+        gastos_trofeos: gastosTrofeos,
+        gastos_regalos: gastosRegalos,
+        premios: settingsForm.premios.trim() || null,
       })
       .eq("id", id);
 
@@ -2176,26 +2260,40 @@ export default function TorneoIndividualDashboard() {
                       <span className="text-emerald-600 dark:text-emerald-400">${finanzasResumen.gananciaNeta.toLocaleString()}</span>
                     </div>
 
-                    <div className="border p-3 rounded-md space-y-2 bg-indigo-50/30 dark:bg-indigo-950/10 text-xs">
+                    <div className="border p-3 rounded-md space-y-2.5 bg-indigo-50/30 dark:bg-indigo-950/10 text-xs">
                       <h4 className="font-semibold text-indigo-700 dark:text-indigo-400 border-b pb-1 flex items-center justify-between">
-                        <span>Repartición de Ganancia ({torneo?.porcentaje_premios || 60}%)</span>
+                        <span>Premios y Ganancia de Organización ({torneo?.porcentaje_premios || 60}%)</span>
                         <Award className="h-3.5 w-3.5" />
                       </h4>
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">Fondo para Premios (Total):</span>
-                        <span className="font-bold text-foreground">${finanzasResumen.pozoPremios.toLocaleString()}</span>
+                      <div className="space-y-1">
+                        <div className="flex justify-between font-bold">
+                          <span className="text-foreground">Efectivo a Entregar (Proyectado):</span>
+                          <span className="text-indigo-600 dark:text-indigo-400">${pozoPremiosProyectado.toLocaleString("es-AR")}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] pl-2 text-muted-foreground">
+                          <span>1º Puesto (70%):</span>
+                          <span>${Math.round((pozoPremiosProyectado * 70) / 100).toLocaleString("es-AR")}</span>
+                        </div>
+                        <div className="flex justify-between text-[11px] pl-2 text-muted-foreground">
+                          <span>2º Puesto (30%):</span>
+                          <span>${Math.round((pozoPremiosProyectado * 30) / 100).toLocaleString("es-AR")}</span>
+                        </div>
                       </div>
-                      <div className="flex justify-between pl-2">
-                        <span className="text-muted-foreground">1º Puesto (70%):</span>
-                        <span className="font-semibold text-foreground">${((finanzasResumen.pozoPremios * 70) / 100).toLocaleString()}</span>
+
+                      <div className="h-[1px] bg-border my-1" />
+
+                      <div className="flex justify-between text-muted-foreground">
+                        <span>Fondo Acumulado Actual (Real):</span>
+                        <span className="font-semibold text-foreground">${finanzasResumen.pozoPremios.toLocaleString("es-AR")}</span>
                       </div>
-                      <div className="flex justify-between pl-2">
-                        <span className="text-muted-foreground">2º Puesto (30%):</span>
-                        <span className="font-semibold text-foreground">${((finanzasResumen.pozoPremios * 30) / 100).toLocaleString()}</span>
-                      </div>
+
                       <div className="flex justify-between border-t pt-1.5 font-semibold text-indigo-600 dark:text-indigo-300">
-                        <span>Ganancia de Organización ({100 - (torneo?.porcentaje_premios || 60)}%):</span>
-                        <span>${finanzasResumen.gananciaOrg.toLocaleString()}</span>
+                        <span>Ganancia Org. Proyectada ({100 - (torneo?.porcentaje_premios || 60)}%):</span>
+                        <span>${gananciaOrgProyectada.toLocaleString("es-AR")}</span>
+                      </div>
+                      <div className="flex justify-between text-[11px] pl-2 text-muted-foreground">
+                        <span>Ganancia Org. Real (Cobrada):</span>
+                        <span>${finanzasResumen.gananciaOrg.toLocaleString("es-AR")}</span>
                       </div>
                     </div>
                   </CardContent>
@@ -2259,15 +2357,17 @@ export default function TorneoIndividualDashboard() {
 
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">% Premios</Label>
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Premios en Efectivo ($)</Label>
                         <Input
                           type="number"
                           min="0"
-                          max="100"
-                          value={settingsForm.porcentaje_premios}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, porcentaje_premios: e.target.value })}
+                          value={settingsForm.efectivo_premios}
+                          onChange={(e) => setSettingsForm({ ...settingsForm, efectivo_premios: e.target.value })}
                           className="h-8 text-xs font-semibold"
                         />
+                        <span className="text-[9px] text-muted-foreground block font-medium mt-0.5">
+                          Equivale al {liveCalculatedPct.toFixed(1)}% de la ganancia proyectada
+                        </span>
                       </div>
                       <div className="space-y-1">
                         <Label className="text-[10px] uppercase font-bold text-muted-foreground">Ingresos Sponsors</Label>
@@ -2299,6 +2399,17 @@ export default function TorneoIndividualDashboard() {
                           className="h-8 text-xs font-semibold"
                         />
                       </div>
+                    </div>
+
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Premios / Regalos (Texto)</Label>
+                      <Input
+                        type="text"
+                        value={settingsForm.premios}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, premios: e.target.value })}
+                        placeholder="Ej: Remeras y gorras de regalo"
+                        className="h-8 text-xs font-semibold"
+                      />
                     </div>
 
                     <Button

@@ -21,7 +21,8 @@ import {
   CheckCircle2,
   TrendingUp,
   TrendingDown,
-  Info
+  Info,
+  Gift
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -984,80 +985,118 @@ export default function TorneoIndividualPublico() {
 
             {/* TAB 4: PRIZE POOL DISPLAY */}
             <TabsContent value="premios" className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <Card className="border border-border/40 shadow-sm bg-gradient-to-br from-indigo-50/20 to-transparent dark:from-indigo-950/5">
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-emerald-600" />
-                      Fondo del Pozo de Premios
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Acumulación de premios en efectivo para el 1º y 2º puesto del torneo.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="space-y-1 border-b pb-3">
-                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Fondo Acumulado Actual</span>
-                      <div className="text-3xl font-extrabold text-indigo-600 dark:text-indigo-400">
-                        ${pozoResumen.acumulado.toLocaleString("es-AR")}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Fondo real en caja en base a las fechas completadas y cobradas.
-                      </p>
-                    </div>
+              {(() => {
+                const isCovered = pozoResumen.acumulado >= pozoResumen.finalEstimado && pozoResumen.finalEstimado > 0;
+                return (
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <Card className="border border-border/40 shadow-sm bg-gradient-to-br from-indigo-50/20 to-transparent dark:from-indigo-950/5 flex flex-col justify-between">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <DollarSign className="h-4 w-4 text-emerald-600" />
+                          Importe en Efectivo a Entregar
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          Premios en efectivo definidos para el 1º y 2º puesto del torneo.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4 flex-1 flex flex-col justify-center pb-6">
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <div className="text-4xl font-black text-indigo-600 dark:text-indigo-400 tracking-tight">
+                              ${pozoResumen.finalEstimado.toLocaleString("es-AR")}
+                            </div>
+                            {isCovered ? (
+                              <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
+                                Cubierto
+                              </Badge>
+                            ) : (
+                              <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
+                                En Acumulación
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-[10px] text-muted-foreground leading-normal">
+                            {isCovered 
+                              ? "¡El pozo estimado de premios en efectivo ha sido completamente cubierto por las inscripciones cobradas!"
+                              : `Acumulado en caja actualmente: $${pozoResumen.acumulado.toLocaleString("es-AR")} de $${pozoResumen.finalEstimado.toLocaleString("es-AR")}`
+                            }
+                          </p>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                    <div className="space-y-1">
-                      <span className="text-[10px] uppercase text-muted-foreground font-bold">Fondo Estimado al Finalizar ({torneo?.desafio_semanas ?? 8} Semanas)</span>
-                      <div className="text-xl font-bold text-foreground">
-                        ${pozoResumen.finalEstimado.toLocaleString("es-AR")}
-                      </div>
-                      <p className="text-[10px] text-muted-foreground">
-                        Proyección total si todas las jugadoras completan el pago de sus {torneo?.desafio_semanas ?? 8} fechas.
-                      </p>
-                    </div>
-                  </CardContent>
-                </Card>
+                    <Card className="border border-border/40 shadow-sm">
+                      <CardHeader>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Trophy className="h-4 w-4 text-amber-500" />
+                          Distribución de Premios
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          Cómo se divide el importe en efectivo a entregar entre los finalistas en la Semana {torneo?.desafio_semanas ?? 8}.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="space-y-4 text-xs">
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <div>
+                            <span className="font-semibold text-foreground">1º Puesto (Campeón/a)</span>
+                            <p className="text-[10px] text-muted-foreground">Se lleva el 70% del importe a entregar.</p>
+                          </div>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                            ${Math.round((pozoResumen.finalEstimado * 70) / 100).toLocaleString("es-AR")}
+                          </span>
+                        </div>
 
-                <Card className="border border-border/40 shadow-sm">
-                  <CardHeader>
-                    <CardTitle className="text-base flex items-center gap-2">
-                      <Trophy className="h-4 w-4 text-amber-500" />
-                      Distribución de Premios
-                    </CardTitle>
-                    <CardDescription className="text-xs">
-                      Cómo se dividirá el fondo total entre los finalistas en la Semana {torneo?.desafio_semanas ?? 8}.
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4 text-xs">
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <div>
-                        <span className="font-semibold text-foreground">1º Puesto (Campeón/a)</span>
-                        <p className="text-[10px] text-muted-foreground">Se lleva el 70% del pozo acumulado.</p>
-                      </div>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                        ${((pozoResumen.acumulado * 70) / 100).toLocaleString("es-AR")}
-                      </span>
-                    </div>
+                        <div className="flex items-center justify-between border-b pb-2">
+                          <div>
+                            <span className="font-semibold text-foreground">2º Puesto (Subcampeón/a)</span>
+                            <p className="text-[10px] text-muted-foreground">Se lleva el 30% del importe a entregar.</p>
+                          </div>
+                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                            ${Math.round((pozoResumen.finalEstimado * 30) / 100).toLocaleString("es-AR")}
+                          </span>
+                        </div>
 
-                    <div className="flex items-center justify-between border-b pb-2">
-                      <div>
-                        <span className="font-semibold text-foreground">2º Puesto (Subcampeón/a)</span>
-                        <p className="text-[10px] text-muted-foreground">Se lleva el 30% del pozo acumulado.</p>
-                      </div>
-                      <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
-                        ${((pozoResumen.acumulado * 30) / 100).toLocaleString("es-AR")}
-                      </span>
-                    </div>
+                        <div className="p-3 bg-muted/40 rounded-md border flex gap-2 text-[10px] text-muted-foreground leading-normal">
+                          <Info className="h-4 w-4 shrink-0 text-indigo-600" />
+                          <span>
+                            El pozo final de premios representa el {torneo?.porcentaje_premios || 60}% de la ganancia proyectada del desafío.
+                          </span>
+                        </div>
+                      </CardContent>
+                    </Card>
 
-                    <div className="p-3 bg-muted/40 rounded-md border flex gap-2 text-[10px] text-muted-foreground leading-normal">
-                      <Info className="h-4 w-4 shrink-0 text-indigo-600" />
-                      <span>
-                        El pozo final de premios se calcula después de cubrir el costo total del alquiler de las canchas. Se destina el {torneo?.porcentaje_premios || 60}% a la bolsa de premios en efectivo.
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
+                    <Card className="border border-border/40 shadow-sm md:col-span-2">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Gift className="h-4 w-4 text-pink-500" />
+                          Premios de Regalo / Adicionales
+                        </CardTitle>
+                        <CardDescription className="text-xs">
+                          Obsequios o indumentaria adicional que se entrega a las jugadoras de regalo.
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="pb-6">
+                        {torneo?.premios ? (
+                          <div className="p-4 bg-pink-500/5 dark:bg-pink-950/10 border border-pink-500/10 rounded-xl">
+                            <span className="text-[9px] uppercase text-pink-600 dark:text-pink-400 font-extrabold block mb-1.5 tracking-wider">
+                              Obsequios Incluidos
+                            </span>
+                            <p className="text-sm font-semibold text-foreground leading-relaxed whitespace-pre-line">
+                              {torneo.premios}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="p-4 bg-muted/30 border rounded-xl text-center">
+                            <p className="text-xs text-muted-foreground italic">
+                              No hay regalos adicionales especificados aún para este torneo.
+                            </p>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+                );
+              })()}
             </TabsContent>
           </Tabs>
         )}
