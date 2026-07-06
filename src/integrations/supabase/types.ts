@@ -36,6 +36,7 @@ export interface Database {
           ingresos_sponsors: number | null
           gastos_trofeos: number | null
           gastos_regalos: number | null
+          datos_bancarios: string | null
           created_at: string
           updated_at: string
         }
@@ -65,6 +66,7 @@ export interface Database {
           ingresos_sponsors?: number | null
           gastos_trofeos?: number | null
           gastos_regalos?: number | null
+          datos_bancarios?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -94,6 +96,7 @@ export interface Database {
           ingresos_sponsors?: number | null
           gastos_trofeos?: number | null
           gastos_regalos?: number | null
+          datos_bancarios?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -174,6 +177,7 @@ export interface Database {
           notas: string | null
           disponibilidad_horaria: string | null
           estado: "pendiente_confirmacion" | "confirmada" | "lista_espera" | "cancelada"
+          comprobante_url: string | null
           created_at: string
           updated_at: string
         }
@@ -188,6 +192,7 @@ export interface Database {
           notas?: string | null
           disponibilidad_horaria?: string | null
           estado?: "pendiente_confirmacion" | "confirmada" | "lista_espera" | "cancelada"
+          comprobante_url?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -202,6 +207,7 @@ export interface Database {
           notas?: string | null
           disponibilidad_horaria?: string | null
           estado?: "pendiente_confirmacion" | "confirmada" | "lista_espera" | "cancelada"
+          comprobante_url?: string | null
           created_at?: string
           updated_at?: string
         }

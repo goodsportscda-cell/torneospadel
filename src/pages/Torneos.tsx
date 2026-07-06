@@ -76,6 +76,7 @@ interface FormState {
   gastos_trofeos: string;
   gastos_regalos: string;
   modalidad: string;
+  datos_bancarios: string;
 }
 
 const emptyForm: FormState = {
@@ -103,6 +104,7 @@ const emptyForm: FormState = {
   gastos_trofeos: "0",
   gastos_regalos: "0",
   modalidad: "individual",
+  datos_bancarios: "",
 };
 
 const generateSlug = (nombre: string) => {
@@ -173,6 +175,7 @@ export default function Torneos() {
       gastos_trofeos: t.gastos_trofeos?.toString() ?? "0",
       gastos_regalos: t.gastos_regalos?.toString() ?? "0",
       modalidad: t.modalidad ?? "individual",
+      datos_bancarios: t.datos_bancarios ?? "",
     });
     setDialogOpen(true);
   };
@@ -257,6 +260,7 @@ export default function Torneos() {
       gastos_trofeos: form.tipo === "americano_individual" ? Number(form.gastos_trofeos) || 0 : null,
       gastos_regalos: form.tipo === "americano_individual" ? Number(form.gastos_regalos) || 0 : null,
       modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
+      datos_bancarios: form.datos_bancarios || null,
     };
 
     if (editing) {
@@ -668,6 +672,22 @@ export default function Torneos() {
                   />
                 </div>
               </div>
+
+              {form.tipo !== "americano_individual" && (
+                <div className="grid gap-1.5 border p-3 rounded-md bg-muted/20">
+                  <Label htmlFor="datos_bancarios">Datos Bancarios para Inscripciones (Opcional)</Label>
+                  <Input
+                    id="datos_bancarios"
+                    value={form.datos_bancarios}
+                    onChange={(e) => setForm({ ...form, datos_bancarios: e.target.value })}
+                    placeholder="Ej: ALIAS.CLUB / CBU: 123... / Titular: Complejo"
+                  />
+                  <p className="text-[10px] text-muted-foreground">
+                    Si completas esto, los jugadores podrán subir su comprobante de transferencia al inscribirse.
+                  </p>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3">
                 <div className="grid gap-1.5">
                   <Label htmlFor="nfecha">N° de fecha (1-7)</Label>

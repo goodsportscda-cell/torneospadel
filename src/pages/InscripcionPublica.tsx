@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send, Clock } from "lucide-react";
+import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send, Clock, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { activeTenant } from "@/lib/tenant";
 import JugadorStep, { type JugadorForm, emptyJugador } from "@/components/inscripcion/JugadorStep";
@@ -35,6 +35,7 @@ export default function InscripcionPublica() {
   const [j2, setJ2] = useState<JugadorForm>(emptyJugador());
   const [disponibilidad, setDisponibilidad] = useState("");
   const [observaciones, setObservaciones] = useState("");
+  const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
 
   useEffect(() => {
     const load = async () => {
@@ -220,6 +221,28 @@ export default function InscripcionPublica() {
         });
       } else {
         // Flujo tradicional por Edge Function para torneo oficial/americano en parejas
+        let comprobanteUrl: string | undefined = undefined;
+
+        if (comprobanteFile) {
+          const fileExt = comprobanteFile.name.split('.').pop();
+          const fileName = `${torneo.id}/${Date.now()}-${j1.dni}.${fileExt}`;
+          const { error: uploadError, data: uploadData } = await supabase.storage
+            .from('comprobantes')
+            .upload(fileName, comprobanteFile, {
+              upsert: false
+            });
+            
+          if (uploadError) {
+            console.error("Error uploading comprobante:", uploadError);
+            toast.error("Error al subir el comprobante. La inscripción continuará sin él.");
+          } else if (uploadData) {
+            const { data: publicUrlData } = supabase.storage
+              .from('comprobantes')
+              .getPublicUrl(fileName);
+            comprobanteUrl = publicUrlData.publicUrl;
+          }
+        }
+
         const res = await fetch(`${SUPABASE_URL}/functions/v1/inscripcion-publica`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -234,6 +257,7 @@ export default function InscripcionPublica() {
             },
             disponibilidad_horaria: disponibilidad.trim() || undefined,
             observaciones: observaciones.trim() || undefined,
+            comprobante_url: comprobanteUrl,
           }),
         });
         const data = await res.json();
@@ -513,7 +537,40 @@ export default function InscripcionPublica() {
                 <ResumenItem label="Observaciones" value={observaciones} />
               )}
             </div>
-            <div className="flex gap-2">
+
+            {torneo.tipo !== "americano_individual" && torneo.datos_bancarios && (
+              <div className="border border-primary/20 bg-primary/5 rounded-md p-4 space-y-3 mt-4">
+                <div>
+                  <h3 className="font-medium text-sm text-primary mb-1 flex items-center gap-1.5">
+                    <DollarSign className="h-4 w-4" />
+                    Datos para Transferencia
+                  </h3>
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    {torneo.datos_bancarios}
+                  </p>
+                  {torneo.costo_inscripcion && (
+                    <p className="text-sm font-semibold mt-1">
+                      Monto a transferir: ${torneo.costo_inscripcion} (por pareja)
+                    </p>
+                  )}
+                </div>
+                
+                <div className="pt-2 border-t border-primary/10">
+                  <Label htmlFor="comprobante" className="text-xs mb-1.5 block">
+                    Subir Comprobante (Opcional por ahora)
+                  </Label>
+                  <Input 
+                    id="comprobante" 
+                    type="file" 
+                    accept="image/*,.pdf"
+                    onChange={(e) => setComprobanteFile(e.target.files?.[0] || null)}
+                    className="text-xs h-9"
+                  />
+                </div>
+              </div>
+            )}
+
+            <div className="flex gap-2 mt-4">
               <Button variant="outline" size="lg" onClick={() => setPaso(3)} disabled={enviando}>
                 <ArrowLeft className="h-4 w-4" />
                 Atrás

@@ -38,6 +38,7 @@ const BodySchema = z.object({
   jugador2: JugadorSchema,
   disponibilidad_horaria: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
   observaciones: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
+  comprobante_url: z.string().url().optional(),
 });
 
 type JugadorInput = z.infer<typeof JugadorSchema>;
@@ -238,6 +239,7 @@ Deno.serve(async (req) => {
       estado_pago: "pendiente",
       disponibilidad_horaria: data.disponibilidad_horaria ?? null,
       observaciones: data.observaciones ?? null,
+      comprobante_url: data.comprobante_url ?? null,
     });
     if (errInsc) throw errInsc;
 

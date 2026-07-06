@@ -28,7 +28,19 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Combobox } from "@/components/Combobox";
-import { Plus, Pencil, Trash2, Users, CheckCircle2, Clock, Hourglass, Copy, Printer, Loader2 } from "lucide-react";
+import {
+  Loader2,
+  CheckCircle2,
+  Plus,
+  Pencil,
+  Trash2,
+  Printer,
+  Users,
+  Clock,
+  FileText,
+  Hourglass,
+  Copy
+} from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -755,6 +767,15 @@ export default function Inscripciones() {
                     <p className="text-xs text-muted-foreground">
                       Pagado: ${Number(i.monto_pagado).toLocaleString("es-AR")}
                     </p>
+                  )}
+
+                  {i.comprobante_url && (
+                    <div className="flex items-center gap-1.5 mt-1 text-xs font-medium text-primary hover:underline">
+                      <a href={i.comprobante_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
+                        <FileText className="h-3.5 w-3.5" />
+                        Ver Comprobante
+                      </a>
+                    </div>
                   )}
 
                   <div className="grid grid-cols-2 gap-2 pt-1">
