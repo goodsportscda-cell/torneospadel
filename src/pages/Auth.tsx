@@ -14,7 +14,7 @@ import { activeTenant } from "@/lib/tenant";
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { user, isAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,9 +23,13 @@ export default function Auth() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate(isAdmin ? "/" : "/player/dashboard", { replace: true });
+      if (isSuperAdmin) {
+        navigate("/super-admin", { replace: true });
+      } else {
+        navigate(isAdmin ? "/" : "/player/dashboard", { replace: true });
+      }
     }
-  }, [user, isAdmin, authLoading, navigate]);
+  }, [user, isAdmin, isSuperAdmin, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();

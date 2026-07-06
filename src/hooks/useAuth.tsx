@@ -16,11 +16,16 @@ interface AuthContextType {
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 async function fetchProfile(userId: string) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("perfiles")
     .select("rol, club_id")
     .eq("id", userId)
     .maybeSingle();
+    
+  if (error) {
+    console.error("Error al obtener perfil desde public.perfiles:", error);
+  }
+  
   return data;
 }
 
