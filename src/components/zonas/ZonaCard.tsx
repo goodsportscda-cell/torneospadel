@@ -19,7 +19,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2, RefreshCw, Edit2 } from "lucide-react";
+import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2, RefreshCw, Edit2, ArrowRightLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import html2canvas from "html2canvas";
@@ -73,9 +73,10 @@ type Props = {
   onUpdate?: (updates: Partial<Zona>) => void;
   readOnly?: boolean;
   torneoNombre?: string;
+  todasLasZonas?: Zona[];
 };
 
-export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "" }: Props) {
+export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [] }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
@@ -84,6 +85,44 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
   const [generandoFixture, setGenerandoFixture] = useState(false);
   const [setsByPartido, setSetsByPartido] = useState<Record<string, any>>({});
   const storyRef = useRef<HTMLDivElement>(null);
+
+  // Transfer state
+  const [transferDialogOpen, setTransferDialogOpen] = useState(false);
+  const [transferOcupado, setTransferOcupado] = useState<ZonaPareja | null>(null);
+  const [transferDestZona, setTransferDestZona] = useState<string>("");
+  const [transferDestPosicion, setTransferDestPosicion] = useState<string>("");
+
+  const handleTransferirPareja = async () => {
+    if (!transferOcupado || !transferDestZona || !transferDestPosicion) return;
+    
+    const toastId = toast.loading("Moviendo pareja...");
+    try {
+      const { data: destPareja } = await supabase
+        .from("zonas_parejas")
+        .select("*")
+        .eq("zona_id", transferDestZona)
+        .eq("posicion_siembra", parseInt(transferDestPosicion))
+        .maybeSingle();
+
+      if (destPareja) {
+        await supabase
+          .from("zonas_parejas")
+          .update({ zona_id: zona.id, posicion_siembra: transferOcupado.posicion_siembra })
+          .eq("id", destPareja.id);
+      }
+      
+      await supabase
+        .from("zonas_parejas")
+        .update({ zona_id: transferDestZona, posicion_siembra: parseInt(transferDestPosicion) })
+        .eq("id", transferOcupado.id);
+
+      toast.success("Pareja movida correctamente", { id: toastId });
+      setTransferDialogOpen(false);
+      onChanged();
+    } catch (e: any) {
+      toast.error("Error al mover pareja: " + e.message, { id: toastId });
+    }
+  };
 
   const cargar = useCallback(async () => {
     try {
@@ -427,7 +466,21 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                       {ocupado ? (
                         <>
                           <span className="truncate">{parejaLabel(ocupado.inscripcion_id)}</span>
-                          {!readOnly && <X className="h-3 w-3 cursor-pointer" onClick={() => quitarPareja(ocupado.id)} />}
+                          {!readOnly && (
+                            <div className="flex items-center gap-2">
+                              <ArrowRightLeft 
+                                className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary" 
+                                onClick={() => {
+                                  setTransferOcupado(ocupado);
+                                  setTransferDestZona("");
+                                  setTransferDestPosicion("");
+                                  setTransferDialogOpen(true);
+                                }}
+                                title="Cambiar a otra zona"
+                              />
+                              <X className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive" onClick={() => quitarPareja(ocupado.id)} title="Quitar pareja" />
+                            </div>
+                          )}
                         </>
                       ) : !readOnly ? (
                         <Select onValueChange={(val) => asignarParejaManual(val, pos)}>
@@ -601,6 +654,53 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
            )}
         </div>
       </div>
+
+      <AlertDialog open={transferDialogOpen} onOpenChange={setTransferDialogOpen}>
+        <AlertDialogContent className="max-w-sm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Transferir Pareja</AlertDialogTitle>
+            <AlertDialogDescription>
+              Mueve esta pareja a otra zona. Si el destino está ocupado, se intercambiarán (Swap).
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="space-y-4 py-4 text-sm text-foreground">
+            <div className="space-y-2">
+              <label className="text-xs font-semibold">Zona Destino</label>
+              <Select value={transferDestZona} onValueChange={setTransferDestZona}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Selecciona Zona..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {todasLasZonas.map(z => (
+                    <SelectItem key={z.id} value={z.id}>{z.nombre}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {transferDestZona && (
+              <div className="space-y-2">
+                <label className="text-xs font-semibold">Posición (Siembra)</label>
+                <Select value={transferDestPosicion} onValueChange={setTransferDestPosicion}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecciona Posición..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: todasLasZonas.find(z => z.id === transferDestZona)?.tamanio || 4 }, (_, i) => i + 1).map(pos => (
+                      <SelectItem key={pos} value={pos.toString()}>Posición {pos}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleTransferirPareja} disabled={!transferDestZona || !transferDestPosicion}>
+              Transferir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

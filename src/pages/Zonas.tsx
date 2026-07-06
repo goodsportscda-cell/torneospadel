@@ -370,6 +370,7 @@ export default function Zonas() {
                     onDeleted={() => handleBorrarZona(z.id)}
                     onUpdate={(updates) => handleUpdateZona(z.id, updates)}
                     torneoNombre={torneoNombre}
+                    todasLasZonas={zonas}
                   />
                 ))}
               </div>
