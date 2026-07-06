@@ -36,9 +36,10 @@ export default defineConfig(({ mode }) => ({
           {
             src: 'placeholder.svg',
             sizes: '512x512',
-            type: 'image/svg+xml'
-          }
         ]
+      },
+      workbox: {
+        maximumFileSizeToCacheInBytes: 5000000 // 5 MB
       }
     })
   ].filter(Boolean),
