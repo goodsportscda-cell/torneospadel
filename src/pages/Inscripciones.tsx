@@ -871,10 +871,10 @@ export default function Inscripciones() {
         <>
           <div className="mb-6 flex justify-between items-end border-b pb-4">
             <div>
-              <h1 className="text-2xl font-bold uppercase tracking-wider">
+              <h1 className="text-xl font-semibold uppercase tracking-wider text-gray-600">
                 Planilla de Cobros y Acreditación
               </h1>
-              <p className="text-lg text-gray-600 mt-1">
+              <p className="text-3xl font-bold text-black mt-2">
                 {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
               </p>
             </div>
@@ -936,10 +936,10 @@ export default function Inscripciones() {
         <>
           <div className="mb-6 flex justify-between items-end border-b pb-4">
             <div>
-              <h1 className="text-2xl font-bold uppercase tracking-wider">
+              <h1 className="text-xl font-semibold uppercase tracking-wider text-gray-600">
                 Planilla de Disponibilidad Horaria
               </h1>
-              <p className="text-lg text-gray-600 mt-1">
+              <p className="text-3xl font-bold text-black mt-2">
                 {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
               </p>
             </div>
