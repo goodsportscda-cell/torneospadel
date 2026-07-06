@@ -11,7 +11,9 @@ import {
   ArrowRight,
   MapPin,
   Loader2,
+  Share2,
 } from "lucide-react";
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ESTADO_TORNEO_BADGE, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
@@ -228,17 +230,40 @@ const Index = () => {
           <PadelIdLogo size={48} showText={true} />
         </div>
         
-        {/* active client info badge */}
-        <div className="flex items-center gap-2.5 bg-muted/50 dark:bg-muted/20 border border-border/80 rounded-xl px-4 py-2 self-start sm:self-center">
-          <img
-            src={activeTenant.logo}
-            alt={activeTenant.name}
-            className="h-8 w-8 object-contain shrink-0 rounded"
-          />
-          <div className="min-w-0">
-            <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider leading-none">Organizado por</p>
-            <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{activeTenant.name}</h2>
-            <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">{activeTenant.subtext}</p>
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
+          {/* active client info badge */}
+          <div className="flex items-center gap-2.5 bg-muted/50 dark:bg-muted/20 border border-border/80 rounded-xl px-4 py-2 w-full sm:w-auto">
+            <img
+              src={activeTenant.logo}
+              alt={activeTenant.name}
+              className="h-8 w-8 object-contain shrink-0 rounded"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider leading-none">Organizado por</p>
+              <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{activeTenant.name}</h2>
+              <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">{activeTenant.subtext}</p>
+            </div>
+          </div>
+          
+          <div className="flex gap-2 w-full sm:w-auto">
+            <Button 
+              variant="default" 
+              size="sm" 
+              className="flex-1 sm:flex-none gap-2 font-semibold shadow-sm"
+              onClick={() => {
+                const url = `${window.location.origin}/c/${activeTenant.slug}/`;
+                navigator.clipboard.writeText(url);
+                toast.success("¡Enlace copiado al portapapeles!");
+              }}
+            >
+              <Share2 className="h-4 w-4" />
+              Compartir Portal
+            </Button>
+            <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
+              <Link to={`/c/${activeTenant.slug}/`} target="_blank">
+                Ver
+              </Link>
+            </Button>
           </div>
         </div>
       </header>
