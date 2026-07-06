@@ -324,6 +324,8 @@ export interface Database {
           sets_pareja1: number
           sets_pareja2: number
           estado: "pendiente" | "en_juego" | "finalizado"
+          fecha_programada: string | null
+          hora_programada: string | null
           created_at: string
           updated_at: string
         }
@@ -343,6 +345,8 @@ export interface Database {
           sets_pareja1?: number
           sets_pareja2?: number
           estado?: "pendiente" | "en_juego" | "finalizado"
+          fecha_programada?: string | null
+          hora_programada?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -362,6 +366,8 @@ export interface Database {
           sets_pareja1?: number
           sets_pareja2?: number
           estado?: "pendiente" | "en_juego" | "finalizado"
+          fecha_programada?: string | null
+          hora_programada?: string | null
           created_at?: string
           updated_at?: string
         }

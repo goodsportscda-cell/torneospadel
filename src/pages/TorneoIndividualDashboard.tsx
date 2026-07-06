@@ -151,6 +151,15 @@ export default function TorneoIndividualDashboard() {
     tercero2_partner: "",
   });
 
+  // Match config modal state
+  const [configMatchDialogOpen, setConfigMatchDialogOpen] = useState(false);
+  const [selectedPartidoConfig, setSelectedPartidoConfig] = useState<PartidoInd | null>(null);
+  const [matchConfigForm, setMatchConfigForm] = useState({
+    fecha_programada: "",
+    hora_programada: "",
+    cancha: "",
+  });
+
   // Settings modification state
   const [updatingSettings, setUpdatingSettings] = useState(false);
   const [settingsForm, setSettingsForm] = useState({
@@ -279,6 +288,28 @@ export default function TorneoIndividualDashboard() {
   useEffect(() => {
     fetchTournamentData();
   }, [fetchTournamentData]);
+
+  // Match config save
+  const handleSaveMatchConfig = async () => {
+    if (!selectedPartidoConfig) return;
+    try {
+      const { error } = await supabase
+        .from("partidos_individuales")
+        .update({
+          fecha_programada: matchConfigForm.fecha_programada || null,
+          hora_programada: matchConfigForm.hora_programada ? matchConfigForm.hora_programada + ":00" : null,
+          cancha: matchConfigForm.cancha || "",
+        })
+        .eq("id", selectedPartidoConfig.id);
+
+      if (error) throw error;
+      toast.success("Partido programado con éxito");
+      setConfigMatchDialogOpen(false);
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al programar partido: " + e.message);
+    }
+  };
 
   // General ranking / standings calculation logic
   const computedStandings = useMemo(() => {
@@ -2587,13 +2618,42 @@ export default function TorneoIndividualDashboard() {
 
                   return (
                     <Card key={p.id} className="relative overflow-hidden">
-                      <div className="bg-muted px-3 py-1.5 text-xs font-semibold flex items-center justify-between border-b">
-                        <span>{p.cancha}</span>
-                        {hasWinner && (
-                          <Badge variant="outline" className="border-emerald-600 text-emerald-600 py-0 text-[10px] h-4">
-                            Finalizado
-                          </Badge>
-                        )}
+                      <div className="bg-muted px-3 py-1.5 text-xs font-semibold flex items-start justify-between border-b gap-2">
+                        <div className="flex flex-col">
+                          <span>{p.cancha}</span>
+                          {(p.fecha_programada || p.hora_programada) && (
+                            <span className="text-[10px] text-muted-foreground font-normal mt-0.5 flex items-center gap-1">
+                              <Calendar className="h-2.5 w-2.5" />
+                              {p.fecha_programada ? p.fecha_programada.split("-").reverse().join("/") : "Sin fecha"} 
+                              {" - "}
+                              {p.hora_programada ? p.hora_programada.substring(0, 5) : "Sin hora"}
+                            </span>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {hasWinner && (
+                            <Badge variant="outline" className="border-emerald-600 text-emerald-600 py-0 text-[10px] h-4">
+                              Finalizado
+                            </Badge>
+                          )}
+                          <Button 
+                            variant="ghost" 
+                            size="icon" 
+                            className="h-6 w-6 text-muted-foreground hover:text-primary"
+                            onClick={() => {
+                              setSelectedPartidoConfig(p);
+                              setMatchConfigForm({
+                                fecha_programada: p.fecha_programada || "",
+                                hora_programada: p.hora_programada ? p.hora_programada.substring(0, 5) : "",
+                                cancha: p.cancha || "",
+                              });
+                              setConfigMatchDialogOpen(true);
+                            }}
+                            title="Programar Partido"
+                          >
+                            <CalendarDays className="h-3 w-3" />
+                          </Button>
+                        </div>
                       </div>
                       <CardContent className="p-4 space-y-4">
                         {/* Team A */}
@@ -2778,6 +2838,54 @@ export default function TorneoIndividualDashboard() {
           </TabsContent>
         </Tabs>
       )}
+
+      {/* Dialog: Configurar Partido */}
+      <Dialog open={configMatchDialogOpen} onOpenChange={setConfigMatchDialogOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Programar Partido</DialogTitle>
+            <DialogDescription>
+              Asigna fecha, hora y cancha para este partido.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4 text-sm">
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Fecha</Label>
+              <Input
+                type="date"
+                value={matchConfigForm.fecha_programada}
+                onChange={(e) => setMatchConfigForm({ ...matchConfigForm, fecha_programada: e.target.value })}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Hora</Label>
+              <Input
+                type="time"
+                value={matchConfigForm.hora_programada}
+                onChange={(e) => setMatchConfigForm({ ...matchConfigForm, hora_programada: e.target.value })}
+                className="h-9 text-xs"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Cancha / Info Extra</Label>
+              <Input
+                type="text"
+                value={matchConfigForm.cancha}
+                onChange={(e) => setMatchConfigForm({ ...matchConfigForm, cancha: e.target.value })}
+                className="h-9 text-xs"
+                placeholder="Ej. Cancha 1: Élite"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setConfigMatchDialogOpen(false)}>Cancelar</Button>
+            <Button size="sm" onClick={handleSaveMatchConfig}>Guardar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Score Input */}
       <Dialog open={scoreDialogOpen} onOpenChange={setScoreDialogOpen}>
