@@ -14,7 +14,7 @@ export default function AdminRoute({ children }: { children: React.ReactNode }) 
   }
 
   if (!isAdmin) {
-    return <Navigate to="/mi-panel" replace />;
+    return <Navigate to="/player/dashboard" replace />;
   }
 
   return <>{children}</>;

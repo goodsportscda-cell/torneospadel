@@ -468,7 +468,7 @@ export default function RankingPublico() {
         <p className="text-xs text-muted-foreground">Anita Quiroga — Gestión de Torneos</p>
         <div className="pt-4 flex justify-center gap-4 text-xs font-medium">
           <Link to="/" className="hover:text-primary transition-colors">Admin Login</Link>
-          <Link to="/mi-panel" className="hover:text-primary transition-colors">Mi Perfil</Link>
+          <Link to="/player/dashboard" className="hover:text-primary transition-colors">Mi Perfil</Link>
         </div>
       </footer>
     </div>

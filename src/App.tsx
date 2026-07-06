@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -64,6 +64,7 @@ const App = () => (
             <Route path="/torneo/:slug" element={<TorneoPublico />} />
             <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
+            <Route path="/mi-panel" element={<Navigate to="/player/dashboard" replace />} />
 
             {/* Player dashboard */}
             <Route

@@ -405,7 +405,7 @@ export default function TorneoPublico() {
         <p className="text-xs text-muted-foreground">Sistema de Gestión de Torneos por <span className="font-semibold text-primary">Anita Quiroga</span></p>
         <div className="pt-4 flex justify-center gap-4 text-xs font-medium">
           <Link to="/" className="hover:text-primary transition-colors">Admin Login</Link>
-          <Link to="/mi-panel" className="hover:text-primary transition-colors">Mi Perfil Jugador</Link>
+          <Link to="/player/dashboard" className="hover:text-primary transition-colors">Mi Perfil Jugador</Link>
         </div>
       </footer>
 
