@@ -7,11 +7,13 @@ export interface TenantConfig {
   logo: string;
   platformName: string;
   instagram?: string;
+  slug?: string;
 }
 
 export const activeTenant: TenantConfig = {
   id: "good-padel",
-  name: "Good Padel",
+  slug: "goodsports",
+  name: "Goodsports",
   subtext: "Anita Quiroga",
   logo: goodPadelLogo,
   platformName: "Padel ID",
