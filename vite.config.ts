@@ -36,6 +36,8 @@ export default defineConfig(({ mode }) => ({
           {
             src: 'placeholder.svg',
             sizes: '512x512',
+            type: 'image/svg+xml'
+          }
         ]
       },
       workbox: {

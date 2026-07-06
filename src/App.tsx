@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
+import SuperAdminRoute from "@/components/SuperAdminRoute";
 import AppLayout from "@/components/AppLayout";
 import { TenantProvider } from "@/contexts/TenantContext";
 import Auth from "./pages/Auth.tsx";
@@ -29,6 +30,7 @@ import RankingPublico from "./pages/RankingPublico.tsx";
 import CanchasEnVivo from "./pages/CanchasEnVivo.tsx";
 import TorneoIndividualDashboard from "./pages/TorneoIndividualDashboard.tsx";
 import TorneoIndividualPublico from "./pages/TorneoIndividualPublico.tsx";
+import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -72,7 +74,20 @@ const App = () => (
                 </ProtectedRoute>
               }
             />
-            {/* Admin routes */}
+
+            {/* Super Admin Dashboard (Standalone) */}
+            <Route
+              path="/super-admin"
+              element={
+                <ProtectedRoute>
+                  <SuperAdminRoute>
+                    <SuperAdminDashboard />
+                  </SuperAdminRoute>
+                </ProtectedRoute>
+              }
+            />
+
+            {/* Admin routes (Club Level) */}
             <Route
               element={
                 <ProtectedRoute>
