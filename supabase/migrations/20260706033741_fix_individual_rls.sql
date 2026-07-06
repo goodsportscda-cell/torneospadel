@@ -155,8 +155,12 @@ BEGIN
 
   -- Inscribir
   INSERT INTO public.torneo_individual_jugadores (torneo_id, jugador_id, estado)
-  VALUES (p_torneo_id, v_jugador_id, CASE WHEN v_is_waiting_list THEN 'lista_espera' ELSE 'confirmada' END);
+  VALUES (p_torneo_id, v_jugador_id, CASE WHEN v_is_waiting_list THEN 'lista_espera' ELSE 'pendiente_pago' END);
 
-  RETURN json_build_object('ok', true, 'estado', CASE WHEN v_is_waiting_list THEN 'lista_espera' ELSE 'confirmada' END);
+  RETURN json_build_object(
+    'ok', true, 
+    'estado', CASE WHEN v_is_waiting_list THEN 'lista_espera' ELSE 'pendiente_pago' END,
+    'jugador_id', v_jugador_id
+  );
 END;
 $$;

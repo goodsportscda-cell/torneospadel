@@ -186,9 +186,36 @@ export default function InscripcionPublica() {
           return;
         }
 
+        if (data.estado === "pendiente_pago" && torneo.costo_inscripcion && torneo.costo_inscripcion > 0) {
+          // Call Edge Function to create MercadoPago preference
+          const mpRes = await fetch(`${SUPABASE_URL}/functions/v1/mp-create-preference`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              torneoId: torneo.id,
+              jugadorId: data.jugador_id,
+              monto: torneo.costo_inscripcion
+            }),
+          });
+          
+          if (!mpRes.ok) {
+            toast.error("Tu inscripción está guardada, pero falló el inicio del pago. Contáctate con el organizador.");
+            setResultado({ ok: true, estado: "pendiente_pago", torneo: torneo.nombre });
+            setEnviando(false);
+            return;
+          }
+
+          const mpData = await mpRes.json();
+          if (mpData.init_point) {
+            // Redirect to MercadoPago
+            window.location.href = mpData.init_point;
+            return; // Detenemos aquí porque el usuario se va de la página
+          }
+        }
+
         setResultado({
           ok: true,
-          estado: isWaitingList ? "lista_espera" : "confirmada",
+          estado: data.estado,
           torneo: torneo.nombre,
         });
       } else {

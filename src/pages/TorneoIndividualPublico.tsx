@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -88,6 +88,18 @@ export default function TorneoIndividualPublico() {
   const { id } = useParams<{ id: string }>();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchParams] = useSearchParams();
+
+  useEffect(() => {
+    const pagoStatus = searchParams.get("pago");
+    if (pagoStatus === "exitoso") {
+      toast.success("¡Pago exitoso! Tu inscripción está confirmada.");
+    } else if (pagoStatus === "fallido") {
+      toast.error("El pago no se pudo completar. Intenta nuevamente.");
+    } else if (pagoStatus === "pendiente") {
+      toast.info("El pago está pendiente de acreditación. Te avisaremos cuando se confirme.");
+    }
+  }, [searchParams]);
 
   // Data lists
   const [jugadoresInscriptos, setJugadoresInscriptos] = useState<TorneoJugador[]>([]);
