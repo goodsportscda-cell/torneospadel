@@ -11,6 +11,7 @@ interface AuthContextType {
   clubActivo: { id: string; nombre: string; logo_url: string | null } | null;
   loading: boolean;
   setImpersonatedClubId: (id: string | null) => void;
+  refreshClub: () => Promise<void>;
   signOut: () => Promise<void>;
 }
 
@@ -123,13 +124,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshClub = async () => {
+    if (clubId) {
+      const clubInfo = await fetchClubDetails(clubId);
+      setClubActivo(clubInfo);
+    }
+  };
+
   const signOut = async () => {
     sessionStorage.removeItem("superAdminClubId");
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, clubActivo, loading, setImpersonatedClubId, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, clubActivo, loading, setImpersonatedClubId, refreshClub, signOut }}>
       {children}
     </AuthContext.Provider>
   );

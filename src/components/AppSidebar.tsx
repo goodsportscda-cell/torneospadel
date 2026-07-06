@@ -1,4 +1,4 @@
-import { Users, Calendar, Trophy, ClipboardList, LayoutGrid, Upload, GitBranch, BarChart3, Award, Star, Activity } from "lucide-react";
+import { Users, Calendar, Trophy, ClipboardList, LayoutGrid, Upload, GitBranch, BarChart3, Award, Star, Activity, Settings } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -28,6 +28,7 @@ const items = [
   { title: "Posiciones", url: "/posiciones", icon: BarChart3 },
   { title: "Ranking", url: "/ranking", icon: Award },
   { title: "Master", url: "/master", icon: Star },
+  { title: "Configuración", url: "/configuracion", icon: Settings },
 ];
 
 export function AppSidebar() {

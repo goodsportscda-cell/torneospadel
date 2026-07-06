@@ -31,6 +31,7 @@ import CanchasEnVivo from "./pages/CanchasEnVivo.tsx";
 import TorneoIndividualDashboard from "./pages/TorneoIndividualDashboard.tsx";
 import TorneoIndividualPublico from "./pages/TorneoIndividualPublico.tsx";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
+import Configuracion from "./pages/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
 
 const queryClient = new QueryClient();
@@ -110,6 +111,7 @@ const App = () => (
               <Route path="/posiciones" element={<Posiciones />} />
               <Route path="/ranking" element={<Ranking />} />
               <Route path="/master" element={<Master />} />
+              <Route path="/configuracion" element={<Configuracion />} />
               <Route path="/admin/torneo-individual/:id" element={<TorneoIndividualDashboard />} />
             </Route>
             <Route path="*" element={<NotFound />} />
