@@ -27,7 +27,7 @@ type UserProfile = {
 };
 
 export default function SuperAdminDashboard() {
-  const { signOut } = useAuth();
+  const { signOut, setImpersonatedClubId } = useAuth();
   const [stats, setStats] = useState({ clubes: 0, torneos: 0, perfiles: 0 });
   const [clubes, setClubes] = useState<Club[]>([]);
   const [loading, setLoading] = useState(true);
@@ -270,6 +270,16 @@ export default function SuperAdminDashboard() {
                           <h4 className="font-semibold truncate">{c.nombre}</h4>
                           <p className="text-xs text-muted-foreground truncate">/c/{c.slug}/</p>
                         </div>
+                        <Button 
+                          variant="outline" 
+                          size="sm" 
+                          onClick={() => {
+                            setImpersonatedClubId(c.id);
+                            window.location.href = "/";
+                          }}
+                        >
+                          Administrar Club
+                        </Button>
                       </div>
                     ))}
                   </div>

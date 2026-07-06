@@ -91,8 +91,8 @@ const Index = () => {
           .eq("activa", true)
           .order("orden");
 
-      // Filter by clubId if not superadmin
-      if (!isSuperAdmin && clubId) {
+      // Filter by clubId
+      if (clubId) {
         torneosQuery = torneosQuery.eq("club_id", clubId);
         inscripcionesQuery = inscripcionesQuery.eq("torneos.club_id", clubId);
         categoriasQuery = categoriasQuery.eq("club_id", clubId);

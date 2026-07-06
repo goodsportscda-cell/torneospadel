@@ -1,4 +1,4 @@
-import { Outlet } from "react-router-dom";
+import { Navigate, Outlet } from "react-router-dom";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { Button } from "@/components/ui/button";
@@ -8,7 +8,11 @@ import { toast } from "sonner";
 import { ModeToggle } from "./mode-toggle";
 
 export default function AppLayout() {
-  const { signOut, user, isAdmin } = useAuth();
+  const { signOut, user, isAdmin, isSuperAdmin, clubId } = useAuth();
+
+  if (isSuperAdmin && !clubId) {
+    return <Navigate to="/super-admin" replace />;
+  }
 
   const handleSignOut = async () => {
     await signOut();

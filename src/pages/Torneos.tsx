@@ -132,7 +132,7 @@ export default function Torneos() {
     let torneosQuery = supabase.from("torneos").select("*").order("fecha_inicio", { ascending: false });
     let categoriasQuery = supabase.from("categorias").select("*").eq("activa", true).order("orden");
     
-    if (!isSuperAdmin && clubId) {
+    if (clubId) {
       torneosQuery = torneosQuery.eq("club_id", clubId);
       categoriasQuery = categoriasQuery.eq("club_id", clubId);
     }

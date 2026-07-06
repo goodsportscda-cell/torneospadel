@@ -9,6 +9,7 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   clubId: string | null;
   loading: boolean;
+  setImpersonatedClubId: (id: string | null) => void;
   signOut: () => Promise<void>;
 }
 
@@ -53,9 +54,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       try {
         const profile = await fetchProfile(nextSession.user.id);
-        setIsSuperAdmin(profile?.rol === "super_admin");
-        setIsAdmin(profile?.rol === "super_admin" || profile?.rol === "club_admin");
-        setClubId(profile?.club_id ?? null);
+        const isSA = profile?.rol === "super_admin";
+        setIsSuperAdmin(isSA);
+        setIsAdmin(isSA || profile?.rol === "club_admin");
+        
+        let targetClub = profile?.club_id ?? null;
+        if (isSA) {
+          const storedClub = sessionStorage.getItem("superAdminClubId");
+          if (storedClub) {
+            targetClub = storedClub;
+          }
+        }
+        setClubId(targetClub);
       } catch (error) {
         setIsAdmin(false);
         setIsSuperAdmin(false);
@@ -76,12 +86,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const setImpersonatedClubId = (id: string | null) => {
+    if (!isSuperAdmin) return;
+    if (id) {
+      sessionStorage.setItem("superAdminClubId", id);
+      setClubId(id);
+    } else {
+      sessionStorage.removeItem("superAdminClubId");
+      setClubId(null);
+    }
+  };
+
   const signOut = async () => {
+    sessionStorage.removeItem("superAdminClubId");
     await supabase.auth.signOut();
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, loading, setImpersonatedClubId, signOut }}>
       {children}
     </AuthContext.Provider>
   );
