@@ -889,10 +889,9 @@ export default function Inscripciones() {
               <tr className="bg-gray-100 border-b-2 border-gray-800">
                 <th className="py-2 px-2 text-left font-bold w-8">N°</th>
                 <th className="py-2 px-2 text-left font-bold">Pareja</th>
-                <th className="py-2 px-2 text-left font-bold w-32">Estado Sistema</th>
-                <th className="py-2 px-2 text-left font-bold w-32">Seña / Abonado</th>
+                <th className="py-2 px-2 text-left font-bold w-40">Teléfonos</th>
                 <th className="py-2 px-2 text-left font-bold w-32">Falta Pagar</th>
-                <th className="py-2 px-2 text-center font-bold w-24">Acreditado</th>
+                <th className="py-2 px-2 text-center font-bold w-48">Forma de pago</th>
               </tr>
             </thead>
             <tbody>
@@ -908,17 +907,24 @@ export default function Inscripciones() {
                     <td className="py-3 px-2 font-semibold">
                       {n1} <br/> <span className="text-gray-500 font-normal">{n2}</span>
                     </td>
-                    <td className="py-3 px-2">
-                      {PAGO_LABELS[i.estado_pago]}
-                    </td>
-                    <td className="py-3 px-2">
-                      {(i.monto_pagado ?? 0) > 0 ? `$${Number(i.monto_pagado).toLocaleString("es-AR")}` : "—"}
+                    <td className="py-3 px-2 text-gray-700 text-xs">
+                      <div>{j1?.telefono || "—"}</div>
+                      <div className="text-gray-500 mt-2">{j2?.telefono || "—"}</div>
                     </td>
                     <td className="py-3 px-2">
                       <div className="h-6 border-b border-dashed border-gray-400 w-20"></div>
                     </td>
                     <td className="py-3 px-2 text-center">
-                      <div className="h-5 w-5 border-2 border-gray-400 rounded mx-auto"></div>
+                      <div className="flex items-center justify-center gap-4 text-xs font-medium text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <span>Efe</span>
+                          <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span>Trf</span>
+                          <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                        </div>
+                      </div>
                     </td>
                   </tr>
                 );
