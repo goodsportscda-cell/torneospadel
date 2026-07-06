@@ -74,9 +74,10 @@ type Props = {
   readOnly?: boolean;
   torneoNombre?: string;
   todasLasZonas?: Zona[];
+  parejaDisponibilidad?: (id: string) => string | null;
 };
 
-export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [] }: Props) {
+export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
@@ -465,7 +466,14 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                     <div className="flex-1 border rounded p-2 text-sm bg-background min-h-[40px] flex items-center justify-between">
                       {ocupado ? (
                         <>
-                          <span className="truncate">{parejaLabel(ocupado.inscripcion_id)}</span>
+                          <div className="flex flex-col overflow-hidden min-w-0">
+                            <span className="truncate">{parejaLabel(ocupado.inscripcion_id)}</span>
+                            {parejaDisponibilidad && parejaDisponibilidad(ocupado.inscripcion_id) && (
+                              <span className="text-[10px] text-muted-foreground truncate" title={parejaDisponibilidad(ocupado.inscripcion_id)!}>
+                                Disp: {parejaDisponibilidad(ocupado.inscripcion_id)}
+                              </span>
+                            )}
+                          </div>
                           {!readOnly && (
                             <div className="flex items-center gap-2">
                               <ArrowRightLeft 
@@ -488,9 +496,14 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                             <SelectValue placeholder="Asignar pareja..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {parejasDisponibles.map(p => (
-                              <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>{p.label}</SelectItem>
-                            ))}
+                            {parejasDisponibles.map(p => {
+                              const disp = parejaDisponibilidad ? parejaDisponibilidad(p.inscripcion_id) : null;
+                              return (
+                                <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>
+                                  {p.label} {disp ? `(${disp})` : ''}
+                                </SelectItem>
+                              );
+                            })}
                           </SelectContent>
                         </Select>
                       ) : "—"}

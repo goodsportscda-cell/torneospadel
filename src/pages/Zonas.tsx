@@ -260,6 +260,11 @@ export default function Zonas() {
     return `${j1?.apellido || "?"} / ${j2?.apellido || "?"}`;
   }, [inscripciones, jugadorMap]);
 
+  const parejaDisponibilidad = useCallback((inscripcionId: string): string | null => {
+    const ins = inscripciones.find((i) => i.id === inscripcionId);
+    return ins?.disponibilidad_horaria || null;
+  }, [inscripciones]);
+
   const todasLasParejas = useMemo(
     () =>
       inscripciones.map((ins) => ({
@@ -371,6 +376,7 @@ export default function Zonas() {
                     onUpdate={(updates) => handleUpdateZona(z.id, updates)}
                     torneoNombre={torneoNombre}
                     todasLasZonas={zonas}
+                    parejaDisponibilidad={parejaDisponibilidad}
                   />
                 ))}
               </div>
