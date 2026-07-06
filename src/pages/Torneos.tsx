@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink, Settings } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import { calcularRankingTorneo } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
 
@@ -118,6 +119,7 @@ const generateSlug = (nombre: string) => {
 };
 
 export default function Torneos() {
+  const { clubId, isSuperAdmin } = useAuth();
   const [torneos, setTorneos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,10 +129,15 @@ export default function Torneos() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: t, error: et }, { data: c, error: ec }] = await Promise.all([
-      supabase.from("torneos").select("*").order("fecha_inicio", { ascending: false }),
-      supabase.from("categorias").select("*").eq("activa", true).order("orden"),
-    ]);
+    let torneosQuery = supabase.from("torneos").select("*").order("fecha_inicio", { ascending: false });
+    let categoriasQuery = supabase.from("categorias").select("*").eq("activa", true).order("orden");
+    
+    if (!isSuperAdmin && clubId) {
+      torneosQuery = torneosQuery.eq("club_id", clubId);
+      categoriasQuery = categoriasQuery.eq("club_id", clubId);
+    }
+
+    const [{ data: t, error: et }, { data: c, error: ec }] = await Promise.all([torneosQuery, categoriasQuery]);
     if (et) toast.error("Error cargando torneos: " + et.message);
     if (ec) toast.error("Error cargando categorías: " + ec.message);
     setTorneos(t ?? []);
@@ -261,6 +268,7 @@ export default function Torneos() {
       gastos_regalos: form.tipo === "americano_individual" ? Number(form.gastos_regalos) || 0 : null,
       modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
       datos_bancarios: form.datos_bancarios || null,
+      club_id: clubId, // Se asigna automáticamente al club del admin
     };
 
     if (editing) {

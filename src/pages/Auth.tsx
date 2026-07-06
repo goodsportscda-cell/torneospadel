@@ -23,7 +23,7 @@ export default function Auth() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      navigate(isAdmin ? "/" : "/mi-panel", { replace: true });
+      navigate(isAdmin ? "/" : "/player/dashboard", { replace: true });
     }
   }, [user, isAdmin, authLoading, navigate]);
 

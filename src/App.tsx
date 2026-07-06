@@ -8,9 +8,11 @@ import { AuthProvider } from "@/hooks/useAuth";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AdminRoute from "@/components/AdminRoute";
 import AppLayout from "@/components/AppLayout";
+import { TenantProvider } from "@/contexts/TenantContext";
 import Auth from "./pages/Auth.tsx";
 import Index from "./pages/Index.tsx";
-import UserDashboard from "./pages/UserDashboard.tsx";
+import ClubHome from "./pages/ClubHome.tsx";
+import PlayerDashboard from "./pages/PlayerDashboard.tsx";
 import Jugadores from "./pages/Jugadores.tsx";
 import Calendario from "./pages/Calendario.tsx";
 import Torneos from "./pages/Torneos.tsx";
@@ -41,16 +43,32 @@ const App = () => (
         <AuthProvider>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            
+            {/* Rutas Publicas Hibridas - Especificas por Club */}
+            <Route path="/c/:clubSlug/*" element={
+              <TenantProvider>
+                <Routes>
+                  <Route path="/" element={<ClubHome />} />
+                  <Route path="/torneo/:slug" element={<TorneoPublico />} />
+                  <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
+                  <Route path="/ranking-publico" element={<RankingPublico />} />
+                  <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
+                </Routes>
+              </TenantProvider>
+            } />
+
+            {/* Legacy Public Routes (Fallback o redirect en el futuro) */}
             <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
             <Route path="/torneo/:slug" element={<TorneoPublico />} />
             <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
-            {/* User dashboard - authenticated but not admin */}
+
+            {/* Player dashboard */}
             <Route
-              path="/mi-panel"
+              path="/player/dashboard"
               element={
                 <ProtectedRoute>
-                  <UserDashboard />
+                  <PlayerDashboard />
                 </ProtectedRoute>
               }
             />

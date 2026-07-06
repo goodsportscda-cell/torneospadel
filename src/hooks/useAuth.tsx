@@ -6,6 +6,8 @@ interface AuthContextType {
   user: User | null;
   session: Session | null;
   isAdmin: boolean;
+  isSuperAdmin: boolean;
+  clubId: string | null;
   loading: boolean;
   signOut: () => Promise<void>;
 }
@@ -13,38 +15,49 @@ interface AuthContextType {
 // eslint-disable-next-line react-refresh/only-export-components
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-async function checkAdmin(userId: string): Promise<boolean> {
+async function fetchProfile(userId: string) {
   const { data } = await supabase
-    .from("user_roles")
-    .select("role")
-    .eq("user_id", userId)
-    .eq("role", "admin")
+    .from("perfiles")
+    .select("rol, club_id")
+    .eq("id", userId)
     .maybeSingle();
-  return !!data;
+  return data;
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [clubId, setClubId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const syncAuthState = (nextSession: Session | null) => {
+    const syncAuthState = async (nextSession: Session | null) => {
       setLoading(true);
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
       if (!nextSession?.user) {
         setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setClubId(null);
         setLoading(false);
         return;
       }
 
-      checkAdmin(nextSession.user.id)
-        .then(setIsAdmin)
-        .catch(() => setIsAdmin(false))
-        .finally(() => setLoading(false));
+      try {
+        const profile = await fetchProfile(nextSession.user.id);
+        setIsSuperAdmin(profile?.rol === "super_admin");
+        setIsAdmin(profile?.rol === "super_admin" || profile?.rol === "club_admin");
+        setClubId(profile?.club_id ?? null);
+      } catch (error) {
+        setIsAdmin(false);
+        setIsSuperAdmin(false);
+        setClubId(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -63,7 +76,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, loading, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   );

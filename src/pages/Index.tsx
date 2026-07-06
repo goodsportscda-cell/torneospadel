@@ -16,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ESTADO_TORNEO_BADGE, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { activeTenant } from "@/lib/tenant";
+import { useAuth } from "@/hooks/useAuth";
 
 type TorneoProx = {
   id: string;
@@ -54,6 +55,7 @@ const fmtFecha = (iso: string) =>
   });
 
 const Index = () => {
+  const { clubId, isSuperAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
   const [torneos, setTorneos] = useState<TorneoProx[]>([]);
   const [inscripciones, setInscripciones] = useState<InscripcionReciente[]>([]);
@@ -65,31 +67,39 @@ const Index = () => {
       setLoading(true);
       const hoy = new Date().toISOString().slice(0, 10);
 
-      const [torneosRes, inscRes, catsRes, rankingRes] = await Promise.all([
-        // Próximos torneos: no finalizados/cancelados, fecha >= hoy O en curso
-        supabase
+      let torneosQuery = supabase
           .from("torneos")
           .select("id, nombre, fecha_inicio, sede, tipo, estado, multiplicador_puntos, numero_fecha")
           .in("estado", ["proximamente", "inscripciones_abiertas", "inscripciones_cerradas", "en_curso"])
           .order("fecha_inicio", { ascending: true })
-          .limit(5),
+          .limit(5);
 
-        // Inscripciones de torneos con inscripciones abiertas
-        supabase
+      let inscripcionesQuery = supabase
           .from("inscripciones")
           .select(
-            "id, fecha_inscripcion, created_at, torneo_id, jugador1_id, jugador2_id, torneos!inner(id, nombre, estado)"
+            "id, fecha_inscripcion, created_at, torneo_id, jugador1_id, jugador2_id, torneos!inner(id, nombre, estado, club_id)"
           )
           .eq("torneos.estado", "inscripciones_abiertas")
           .order("created_at", { ascending: false })
-          .limit(8),
+          .limit(8);
 
-        supabase
+      let categoriasQuery = supabase
           .from("categorias")
           .select("id, nombre, genero, orden")
           .eq("activa", true)
-          .order("orden"),
+          .order("orden");
 
+      // Filter by clubId if not superadmin
+      if (!isSuperAdmin && clubId) {
+        torneosQuery = torneosQuery.eq("club_id", clubId);
+        inscripcionesQuery = inscripcionesQuery.eq("torneos.club_id", clubId);
+        categoriasQuery = categoriasQuery.eq("club_id", clubId);
+      }
+
+      const [torneosRes, inscRes, catsRes, rankingRes] = await Promise.all([
+        torneosQuery,
+        inscripcionesQuery,
+        categoriasQuery,
         supabase
           .from("ranking_jugadores")
           .select("jugador_id, puntos, categoria_id")

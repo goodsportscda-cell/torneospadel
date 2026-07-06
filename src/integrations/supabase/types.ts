@@ -9,6 +9,49 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      clubes: {
+        Row: {
+          id: string
+          nombre: string
+          slug: string
+          logo_url: string | null
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          nombre: string
+          slug: string
+          logo_url?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          nombre?: string
+          slug?: string
+          logo_url?: string | null
+          created_at?: string
+        }
+      }
+      perfiles: {
+        Row: {
+          id: string
+          rol: "super_admin" | "club_admin" | "jugador"
+          club_id: string | null
+          created_at: string
+        }
+        Insert: {
+          id: string
+          rol: "super_admin" | "club_admin" | "jugador"
+          club_id?: string | null
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          rol?: "super_admin" | "club_admin" | "jugador"
+          club_id?: string | null
+          created_at?: string
+        }
+      }
       torneos: {
         Row: {
           id: string
@@ -37,6 +80,7 @@ export interface Database {
           gastos_trofeos: number | null
           gastos_regalos: number | null
           datos_bancarios: string | null
+          club_id: string | null
           created_at: string
           updated_at: string
         }
@@ -67,6 +111,7 @@ export interface Database {
           gastos_trofeos?: number | null
           gastos_regalos?: number | null
           datos_bancarios?: string | null
+          club_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -97,6 +142,7 @@ export interface Database {
           gastos_trofeos?: number | null
           gastos_regalos?: number | null
           datos_bancarios?: string | null
+          club_id?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -146,6 +192,7 @@ export interface Database {
           genero: "caballeros" | "damas" | "mixto"
           orden: number
           activa: boolean
+          club_id: string | null
           created_at: string
         }
         Insert: {
@@ -154,6 +201,7 @@ export interface Database {
           genero: "caballeros" | "damas" | "mixto"
           orden?: number
           activa?: boolean
+          club_id?: string | null
           created_at?: string
         }
         Update: {
@@ -162,6 +210,7 @@ export interface Database {
           genero?: "caballeros" | "damas" | "mixto"
           orden?: number
           activa?: boolean
+          club_id?: string | null
           created_at?: string
         }
       }

@@ -26,6 +26,7 @@ import { HeadToHead } from "@/components/jugador/HeadToHead";
 import { PlayerInscriptions } from "@/components/jugador/PlayerInscriptions";
 import { PlayerPerformanceChart } from "@/components/jugador/PlayerPerformanceChart";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
+import { PlayerUpcomingMatches } from "@/components/jugador/PlayerUpcomingMatches";
 
 type Torneo = {
   id: string;
@@ -38,6 +39,7 @@ type Torneo = {
   numero_fecha: number | null;
   cupo_maximo: number | null;
   costo_inscripcion: number | null;
+  tipo: string;
 };
 
 type MiTorneo = {
@@ -61,7 +63,7 @@ const fmtFecha = (iso: string) =>
     year: "numeric",
   });
 
-export default function UserDashboard() {
+export default function PlayerDashboard() {
   const { user, signOut, isAdmin, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
@@ -127,7 +129,7 @@ export default function UserDashboard() {
       // Get upcoming/active tournaments
       const { data: torneosData } = await supabase
         .from("torneos")
-        .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, multiplicador_puntos, numero_fecha, cupo_maximo, costo_inscripcion")
+        .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, multiplicador_puntos, numero_fecha, cupo_maximo, costo_inscripcion, tipo")
         .in("estado", ["proximamente", "inscripciones_abiertas", "inscripciones_cerradas", "en_curso"])
         .order("fecha_inicio", { ascending: true })
         .limit(10);
@@ -250,6 +252,47 @@ export default function UserDashboard() {
   const handleSignOut = async () => {
     await signOut();
     toast.success("Sesión cerrada");
+  };
+
+  const handleQuickEnroll = async (torneoId: string) => {
+    if (!jugadorId) {
+      toast.error("Debes vincular tu ficha de jugador primero.");
+      return;
+    }
+
+    setLoading(true);
+    // Verificar si ya está inscrito
+    const { data: existing } = await supabase
+      .from("inscripciones")
+      .select("id")
+      .eq("torneo_id", torneoId)
+      .eq("jugador1_id", jugadorId)
+      .maybeSingle();
+
+    if (existing) {
+      toast.info("Ya estás inscrito en este torneo.");
+      setLoading(false);
+      return;
+    }
+
+    // Inscribir
+    const { error } = await supabase
+      .from("inscripciones")
+      .insert({
+        torneo_id: torneoId,
+        jugador1_id: jugadorId,
+        estado: "aprobado", // Auto-aprobar ya que es rápido (o pendiente si se cobra en cancha)
+        fecha_inscripcion: new Date().toISOString(),
+      });
+
+    setLoading(false);
+    if (error) {
+      toast.error("Error al inscribirte: " + error.message);
+    } else {
+      toast.success("¡Inscripción confirmada exitosamente!");
+      // Forzar recarga o actualizar lista local
+      window.location.reload();
+    }
   };
 
   const labelGenero = (g: string) =>
@@ -379,6 +422,11 @@ export default function UserDashboard() {
             {/* Global Stats */}
             {jugadorId && (
               <PlayerStats jugadorId={jugadorId} />
+            )}
+
+            {/* Próximos Partidos */}
+            {jugadorId && (
+              <PlayerUpcomingMatches jugadorId={jugadorId} />
             )}
 
             {/* Evolución de Rendimiento */}
@@ -516,14 +564,32 @@ export default function UserDashboard() {
                                 </Link>
                               </Button>
                               {t.estado === "inscripciones_abiertas" && (
-                                <Button
-                                  variant="default"
-                                  size="sm"
-                                  className="h-7 text-[10px] px-2 bg-primary/90 hover:bg-primary"
-                                  asChild
-                                >
-                                  <Link to={`/inscribirse/${t.id}`}>Inscribirme</Link>
-                                </Button>
+                                <>
+                                  {t.tipo === "americano_individual" ? (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-7 text-[10px] px-2 bg-green-600 hover:bg-green-700 text-white"
+                                      onClick={(e) => {
+                                        e.preventDefault();
+                                        if (window.confirm("¿Confirmás tu inscripción a este torneo?")) {
+                                          handleQuickEnroll(t.id);
+                                        }
+                                      }}
+                                    >
+                                      Inscripción Rápida (1 Clic)
+                                    </Button>
+                                  ) : (
+                                    <Button
+                                      variant="default"
+                                      size="sm"
+                                      className="h-7 text-[10px] px-2 bg-primary/90 hover:bg-primary"
+                                      asChild
+                                    >
+                                      <Link to={`/inscribirse/${t.id}${jugadorId ? `?j1=${jugadorId}` : ''}`}>Inscribirme</Link>
+                                    </Button>
+                                  )}
+                                </>
                               )}
                             </div>
                           </div>
