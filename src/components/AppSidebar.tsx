@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/sidebar";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { activeTenant } from "@/lib/tenant";
+import { useAuth } from "@/hooks/useAuth";
 
 const items = [
   { title: "Jugadores", url: "/jugadores", icon: Users },
@@ -32,6 +33,10 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
+  const { clubActivo } = useAuth();
+  
+  const displayNombre = clubActivo?.nombre || activeTenant.name;
+  const displayLogo = clubActivo?.logo_url || activeTenant.logo;
 
   return (
     <Sidebar collapsible="icon">
@@ -45,13 +50,13 @@ export function AppSidebar() {
             {/* Cliente Tenant Badge */}
             <div className="flex items-center gap-2.5 bg-muted/65 dark:bg-muted/30 border border-border/80 rounded-lg p-2 mt-1">
               <img
-                src={activeTenant.logo}
-                alt={activeTenant.name}
+                src={displayLogo}
+                alt={displayNombre}
                 className="h-6 w-6 object-contain shrink-0 rounded"
               />
               <div className="min-w-0 flex-1">
                 <p className="text-[9px] text-muted-foreground font-semibold leading-none uppercase tracking-wider">Cliente Activo</p>
-                <p className="text-xs font-bold truncate leading-tight mt-0.5 text-foreground">{activeTenant.name}</p>
+                <p className="text-xs font-bold truncate leading-tight mt-0.5 text-foreground">{displayNombre}</p>
                 <p className="text-[9px] text-muted-foreground truncate leading-none mt-0.5 font-medium">{activeTenant.subtext}</p>
               </div>
             </div>

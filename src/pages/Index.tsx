@@ -57,7 +57,7 @@ const fmtFecha = (iso: string) =>
   });
 
 const Index = () => {
-  const { clubId, isSuperAdmin } = useAuth();
+  const { clubId, isSuperAdmin, clubActivo } = useAuth();
   const [loading, setLoading] = useState(true);
   const [torneos, setTorneos] = useState<TorneoProx[]>([]);
   const [inscripciones, setInscripciones] = useState<InscripcionReciente[]>([]);
@@ -234,13 +234,13 @@ const Index = () => {
           {/* active client info badge */}
           <div className="flex items-center gap-2.5 bg-muted/50 dark:bg-muted/20 border border-border/80 rounded-xl px-4 py-2 w-full sm:w-auto">
             <img
-              src={activeTenant.logo}
-              alt={activeTenant.name}
+              src={clubActivo?.logo_url || activeTenant.logo}
+              alt={clubActivo?.nombre || activeTenant.name}
               className="h-8 w-8 object-contain shrink-0 rounded"
             />
             <div className="min-w-0 flex-1">
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider leading-none">Organizado por</p>
-              <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{activeTenant.name}</h2>
+              <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{clubActivo?.nombre || activeTenant.name}</h2>
               <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">{activeTenant.subtext}</p>
             </div>
           </div>

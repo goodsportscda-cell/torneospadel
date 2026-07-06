@@ -8,6 +8,7 @@ interface AuthContextType {
   isAdmin: boolean;
   isSuperAdmin: boolean;
   clubId: string | null;
+  clubActivo: { id: string; nombre: string; logo_url: string | null } | null;
   loading: boolean;
   setImpersonatedClubId: (id: string | null) => void;
   signOut: () => Promise<void>;
@@ -30,12 +31,27 @@ async function fetchProfile(userId: string) {
   return data;
 }
 
+async function fetchClubDetails(clubId: string) {
+  const { data, error } = await supabase
+    .from("clubes")
+    .select("id, nombre, logo_url")
+    .eq("id", clubId)
+    .maybeSingle();
+    
+  if (error) {
+    console.error("Error al obtener detalles del club:", error);
+  }
+  
+  return data;
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [clubId, setClubId] = useState<string | null>(null);
+  const [clubActivo, setClubActivo] = useState<{ id: string; nombre: string; logo_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -66,10 +82,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
         setClubId(targetClub);
+        
+        if (targetClub) {
+          const clubInfo = await fetchClubDetails(targetClub);
+          setClubActivo(clubInfo);
+        } else {
+          setClubActivo(null);
+        }
       } catch (error) {
         setIsAdmin(false);
         setIsSuperAdmin(false);
         setClubId(null);
+        setClubActivo(null);
       } finally {
         setLoading(false);
       }
@@ -91,9 +115,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (id) {
       sessionStorage.setItem("superAdminClubId", id);
       setClubId(id);
+      fetchClubDetails(id).then(data => setClubActivo(data));
     } else {
       sessionStorage.removeItem("superAdminClubId");
       setClubId(null);
+      setClubActivo(null);
     }
   };
 
@@ -103,7 +129,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, loading, setImpersonatedClubId, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, clubActivo, loading, setImpersonatedClubId, signOut }}>
       {children}
     </AuthContext.Provider>
   );
