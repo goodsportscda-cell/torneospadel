@@ -166,75 +166,25 @@ export default function InscripcionPublica() {
     setEnviando(true);
     try {
       if (torneo.tipo === "americano_individual") {
-        // Registro individual cliente-side
-        // 1. Buscar jugador por DNI
-        const { data: extJug } = await supabase
-          .from("jugadores")
-          .select("*")
-          .eq("dni", j1.dni.trim())
-          .maybeSingle();
+        const { data, error } = await supabase.rpc("inscribir_americano_individual", {
+          p_torneo_id: torneo.id,
+          p_dni: j1.dni.trim(),
+          p_nombre: j1.nombre.trim(),
+          p_apellido: j1.apellido.trim(),
+          p_telefono: j1.telefono.trim(),
+          p_email: j1.email.trim() || null,
+          p_club: j1.club.trim() || null
+        });
 
-        let jugadorId = "";
-        if (extJug) {
-          jugadorId = extJug.id;
-          if (j1.telefono !== extJug.telefono || j1.email !== extJug.email || j1.club !== extJug.club) {
-            await supabase
-              .from("jugadores")
-              .update({ telefono: j1.telefono, email: j1.email, club: j1.club })
-              .eq("id", extJug.id);
-          }
-        } else {
-          // Crear jugador nuevo
-          const { data: newJug, error: insErr } = await supabase
-            .from("jugadores")
-            .insert({
-              dni: j1.dni.trim(),
-              nombre: j1.nombre.trim(),
-              apellido: j1.apellido.trim(),
-              telefono: j1.telefono.trim(),
-              email: j1.email.trim() || null,
-              club: j1.club.trim() || null,
-            })
-            .select()
-            .single();
-
-          if (insErr) throw insErr;
-          jugadorId = newJug.id;
+        if (error) {
+          throw error;
         }
 
-        // 2. Comprobar si ya está inscripto
-        const { data: checkReg } = await supabase
-          .from("torneo_individual_jugadores")
-          .select("*")
-          .eq("torneo_id", torneo.id)
-          .eq("jugador_id", jugadorId)
-          .maybeSingle();
-
-        if (checkReg) {
-          toast.error("Ya estás registrado en este torneo");
+        if (!data.ok) {
+          toast.error(data.error || "Error al inscribirse");
           setEnviando(false);
           return;
         }
-
-        // 3. Determinar lista de espera
-        const { data: regList } = await supabase
-          .from("torneo_individual_jugadores")
-          .select("id")
-          .eq("torneo_id", torneo.id);
-
-        const maxPlayers = (torneo.canchas_count ?? 3) * 4;
-        const isWaitingList = (regList ?? []).length >= maxPlayers;
-
-        // 4. Inscribir
-        const { error: regErr } = await supabase
-          .from("torneo_individual_jugadores")
-          .insert({
-            torneo_id: torneo.id,
-            jugador_id: jugadorId,
-            estado: isWaitingList ? "lista_espera" : "confirmada",
-          });
-
-        if (regErr) throw regErr;
 
         setResultado({
           ok: true,
