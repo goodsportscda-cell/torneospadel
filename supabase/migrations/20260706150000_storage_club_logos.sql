@@ -3,8 +3,6 @@ INSERT INTO storage.buckets (id, name, public)
 VALUES ('club-logos', 'club-logos', true)
 ON CONFLICT (id) DO UPDATE SET public = true;
 
--- Enable RLS
-ALTER TABLE storage.objects ENABLE ROW LEVEL SECURITY;
 
 -- Allow public read access
 CREATE POLICY "Public Access" ON storage.objects
