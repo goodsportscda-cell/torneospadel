@@ -21,22 +21,22 @@ export default defineConfig(({ mode }) => ({
       registerType: 'autoUpdate',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
-        name: 'Pádel App',
-        short_name: 'Pádel App',
-        description: 'Aplicación para gestionar torneos de Pádel',
+        name: 'Padel ID',
+        short_name: 'Padel ID',
+        description: 'Plataforma integral de gestión de torneos',
         theme_color: '#0f172a',
         background_color: '#ffffff',
         display: 'standalone',
         icons: [
           {
-            src: 'placeholder.svg',
+            src: 'pwa-icon.jpg',
             sizes: '192x192',
-            type: 'image/svg+xml'
+            type: 'image/jpeg'
           },
           {
-            src: 'placeholder.svg',
+            src: 'pwa-icon.jpg',
             sizes: '512x512',
-            type: 'image/svg+xml'
+            type: 'image/jpeg'
           }
         ]
       },

@@ -209,10 +209,10 @@ export default function ClubHome() {
         <div className="max-w-4xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
           <div className="flex items-center gap-3">
             {club.logo_url ? (
-              <img src={club.logo_url} alt={club.nombre} className="h-10 w-10 object-contain rounded-md" />
+              <img src={club.logo_url} alt={club.nombre} className="h-10 w-10 object-contain rounded-full border bg-background" />
             ) : (
-              <div className="bg-primary p-2 rounded-lg">
-                <Trophy className="h-6 w-6 text-primary-foreground" />
+              <div className="h-10 w-10 bg-primary/10 border border-primary/20 rounded-full flex items-center justify-center">
+                <span className="font-black text-primary text-lg">{club.nombre.charAt(0).toUpperCase()}</span>
               </div>
             )}
             <div>
@@ -236,6 +236,26 @@ export default function ClubHome() {
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 sm:py-8 space-y-6">
         
+        {/* Hero Section */}
+        <div className="flex flex-col items-center text-center space-y-4 pb-2 animate-in fade-in slide-in-from-top-4 duration-500">
+          <div className="relative">
+            <div className="absolute -inset-0.5 bg-gradient-to-tr from-primary via-primary/50 to-transparent rounded-full blur opacity-40"></div>
+            <div className="relative h-24 w-24 sm:h-28 sm:w-28 bg-background border shadow-lg rounded-full flex items-center justify-center overflow-hidden p-2">
+              {club.logo_url ? (
+                <img src={club.logo_url} alt={club.nombre} className="w-full h-full object-contain" />
+              ) : (
+                <div className="flex flex-col items-center justify-center h-full w-full bg-muted/20 rounded-full">
+                  <span className="text-4xl font-black text-primary opacity-80">{club.nombre.charAt(0).toUpperCase()}</span>
+                </div>
+              )}
+            </div>
+          </div>
+          <div>
+            <h2 className="text-2xl sm:text-3xl font-black tracking-tight">{club.nombre}</h2>
+            <p className="text-sm text-muted-foreground font-medium mt-1">Torneos y Ranking Oficial</p>
+          </div>
+        </div>
+
         <Tabs defaultValue="torneos" className="w-full">
           <TabsList className="grid w-full grid-cols-3 h-12">
             <TabsTrigger value="torneos" className="text-xs sm:text-sm font-bold">Torneos</TabsTrigger>
