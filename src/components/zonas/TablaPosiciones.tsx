@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
@@ -93,41 +93,45 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
           </Button>
         </div>
       )}
-      <div className="rounded-md border overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-8">#</TableHead>
-              {!readOnly && <TableHead className="w-14"></TableHead>}
-              <TableHead>Pareja</TableHead>
-              <TableHead className="text-center w-10">PJ</TableHead>
-              <TableHead className="text-center w-10">PG</TableHead>
-              <TableHead className="text-center w-10">PP</TableHead>
-              <TableHead className="text-center w-12">Pts</TableHead>
+      <div className={`rounded-md border ${readOnly ? 'bg-black/40 border-white/10' : 'overflow-x-auto'}`}>
+        <table className={`w-full ${readOnly ? 'text-[15px]' : 'text-sm caption-bottom'}`}>
+          <thead className={readOnly ? 'border-b border-white/10' : '[&_tr]:border-b'}>
+            <tr className={readOnly ? 'border-b border-white/10' : 'border-b transition-colors hover:bg-muted/50'}>
+              <th className={`h-12 px-4 text-left align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-12`}>#</th>
+              {!readOnly && <th className="h-12 px-4 align-middle w-14"></th>}
+              <th className={`h-12 px-4 text-left align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'}`}>Pareja</th>
+              <th className={`h-12 px-4 text-center align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-12`}>PJ</th>
+              <th className={`h-12 px-4 text-center align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-12`}>PG</th>
+              <th className={`h-12 px-4 text-center align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-12`}>PP</th>
+              <th className={`h-12 px-4 text-center align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-14`}>Pts</th>
               {!hideDiferencias && (
                 <>
-                  <TableHead className="text-center w-14">DifS</TableHead>
-                  <TableHead className="text-center w-14">DifG</TableHead>
+                  <th className={`h-12 px-4 text-center align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-14`}>DifS</th>
+                  <th className={`h-12 px-4 text-center align-middle font-medium ${readOnly ? 'text-white/70' : 'text-muted-foreground'} w-14`}>DifG</th>
                 </>
               )}
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+            </tr>
+          </thead>
+          <tbody className={readOnly ? '[&_tr:last-child]:border-0' : '[&_tr:last-child]:border-0'}>
             {tablaOrdenada.map((s, idx) => {
               const clasifica = idx < clasifican;
               return (
-                <TableRow key={s.inscripcion_id} className={clasifica ? "bg-primary/5 border-l-2 border-l-primary" : ""}>
-                  <TableCell className="font-medium">
+                <tr 
+                  key={s.inscripcion_id} 
+                  className={`${clasifica ? (readOnly ? "bg-white/5 border-l-2 border-l-primary" : "bg-primary/5 border-l-2 border-l-primary") : ""} ${readOnly ? 'border-b border-white/10' : 'border-b transition-colors hover:bg-muted/50'}`}
+                >
+                  <td className="p-4 align-middle font-medium">
                     {clasifica ? (
-                      <span className="flex items-center justify-center w-5 h-5 rounded-full bg-primary text-primary-foreground text-xs font-bold font-mono">
-                        {idx + 1}
-                      </span>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="12" cy="12" r="10" fill="hsl(var(--primary))" />
+                        <text x="12" y="16" fontSize="12" fontWeight="bold" fill="hsl(var(--primary-foreground))" textAnchor="middle">{idx + 1}</text>
+                      </svg>
                     ) : (
-                      <span className="text-muted-foreground pl-1.5 font-mono text-sm">{idx + 1}</span>
+                      <span className={`${readOnly ? 'text-white/50' : 'text-muted-foreground'} pl-1.5 font-mono text-sm`}>{idx + 1}</span>
                     )}
-                  </TableCell>
+                  </td>
                   {!readOnly && (
-                    <TableCell className="p-1">
+                    <td className="p-1 align-middle">
                       <div className="flex flex-col gap-0.5">
                         <button
                           onClick={() => mover(idx, -1)}
@@ -146,28 +150,28 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
                           <ChevronDown className="h-3 w-3" />
                         </button>
                       </div>
-                    </TableCell>
+                    </td>
                   )}
-                  <TableCell className="truncate max-w-[200px]">{parejaLabel(s.inscripcion_id)}</TableCell>
-                  <TableCell className="text-center">{s.pj}</TableCell>
-                  <TableCell className="text-center">{s.pg}</TableCell>
-                  <TableCell className="text-center">{s.pp}</TableCell>
-                  <TableCell className="text-center font-semibold">{s.puntos}</TableCell>
+                  <td className={`p-4 align-middle truncate max-w-[200px] ${readOnly ? 'text-white font-semibold' : ''}`}>{parejaLabel(s.inscripcion_id)}</td>
+                  <td className={`p-4 align-middle text-center ${readOnly ? 'text-white/90 font-medium' : ''}`}>{s.pj}</td>
+                  <td className={`p-4 align-middle text-center ${readOnly ? 'text-white/90 font-medium' : ''}`}>{s.pg}</td>
+                  <td className={`p-4 align-middle text-center ${readOnly ? 'text-white/90 font-medium' : ''}`}>{s.pp}</td>
+                  <td className={`p-4 align-middle text-center font-bold ${readOnly ? 'text-white' : ''}`}>{s.puntos}</td>
                   {!hideDiferencias && (
                     <>
-                      <TableCell className="text-center">
+                      <td className="p-4 align-middle text-center">
                         {s.difSets > 0 ? `+${s.difSets}` : s.difSets}
-                      </TableCell>
-                      <TableCell className="text-center">
+                      </td>
+                      <td className="p-4 align-middle text-center">
                         {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
-                      </TableCell>
+                      </td>
                     </>
                   )}
-                </TableRow>
+                </tr>
               );
             })}
-          </TableBody>
-        </Table>
+          </tbody>
+        </table>
       </div>
     </div>
   );
