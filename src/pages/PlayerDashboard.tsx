@@ -263,10 +263,10 @@ export default function PlayerDashboard() {
     setLoading(true);
     // Verificar si ya está inscrito
     const { data: existing } = await supabase
-      .from("inscripciones")
+      .from("torneo_individual_jugadores")
       .select("id")
       .eq("torneo_id", torneoId)
-      .eq("jugador1_id", jugadorId)
+      .eq("jugador_id", jugadorId)
       .maybeSingle();
 
     if (existing) {
@@ -277,12 +277,11 @@ export default function PlayerDashboard() {
 
     // Inscribir
     const { error } = await supabase
-      .from("inscripciones")
+      .from("torneo_individual_jugadores")
       .insert({
         torneo_id: torneoId,
-        jugador1_id: jugadorId,
-        estado: "aprobado", // Auto-aprobar ya que es rápido (o pendiente si se cobra en cancha)
-        fecha_inscripcion: new Date().toISOString(),
+        jugador_id: jugadorId,
+        estado: "confirmada", // Auto-aprobar ya que es rápido
       });
 
     setLoading(false);

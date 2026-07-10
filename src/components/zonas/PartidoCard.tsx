@@ -251,6 +251,13 @@ export function PartidoCard({
           games_local: s.games_local,
           games_visitante: s.games_visitante,
         }));
+
+      if (ganador && setsToInsert.length === 0) {
+        toast.error("Debe ingresar los resultados de los sets para marcar un ganador.");
+        setSaving(false);
+        return;
+      }
+
       if (setsToInsert.length > 0) {
         const { error } = await supabase.from("sets_partido").insert(setsToInsert as never);
         if (error) throw error;

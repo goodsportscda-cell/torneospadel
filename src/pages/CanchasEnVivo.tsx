@@ -235,8 +235,6 @@ export default function CanchasEnVivo() {
     try {
       const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
       
-      await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
-      
       const inserts = sets
         .map((s, i) => ({
           numero_set: i + 1,
@@ -246,6 +244,13 @@ export default function CanchasEnVivo() {
           partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
         }))
         .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
+
+      if (inserts.length === 0) {
+        toast.error("Debe ingresar los resultados de los sets para marcar un ganador.", { id: toastId });
+        return;
+      }
+
+      await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
 
       if (inserts.length > 0) {
         await supabase.from("sets_partido").insert(inserts as never);

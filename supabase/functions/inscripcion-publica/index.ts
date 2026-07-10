@@ -238,7 +238,7 @@ Deno.serve(async (req) => {
       estado: estadoInscripcion,
       estado_pago: "pendiente",
       disponibilidad_horaria: data.disponibilidad_horaria ?? null,
-      observaciones: data.observaciones ?? null,
+      notas: data.observaciones ?? null,
       comprobante_url: data.comprobante_url ?? null,
     });
     if (errInsc) throw errInsc;
