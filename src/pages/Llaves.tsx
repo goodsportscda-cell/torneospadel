@@ -237,7 +237,25 @@ export default function Llaves() {
           })),
           partidos,
         );
-        map[z.nombre.trim()] = tabla.map((t) => t.inscripcion_id);
+        
+        let ordenIds = tabla.map((t) => t.inscripcion_id);
+        
+        // Aplicar orden manual si el usuario lo ajustó en la zona
+        try {
+          const raw = localStorage.getItem(`zona-orden-manual-${z.id}`);
+          if (raw) {
+            const saved: string[] = JSON.parse(raw);
+            const tablaIds = [...ordenIds].sort().join(",");
+            const savedIds = [...saved].sort().join(",");
+            if (tablaIds === savedIds) {
+              ordenIds = saved;
+            }
+          }
+        } catch {
+          // ignorar errores de localStorage
+        }
+        
+        map[z.nombre.trim()] = ordenIds;
       }
     });
     return map;
