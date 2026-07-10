@@ -364,6 +364,46 @@ function llave32(): PartidoLlavePlantilla[] {
   ];
 }
 
+// 36 parejas (Federación Argentina de Padel)
+// 12 zonas de 3 (A-L). Clasifican 1° y 2° de todas = 24 clasificados.
+// 8 byes (1°A-1°H pasan a octavos), 16 juegan dieciseisavos (previa).
+function llave36(): PartidoLlavePlantilla[] {
+  return [
+    // Dieciseisavos (Previa)
+    { numero: 34, ronda: "dieciseisavos", ref_local: "2°G", ref_visitante: "2°J" },
+    { numero: 35, ronda: "dieciseisavos", ref_local: "1°I", ref_visitante: "2°B" },
+    { numero: 38, ronda: "dieciseisavos", ref_local: "2°C", ref_visitante: "1°L" },
+    { numero: 39, ronda: "dieciseisavos", ref_local: "2°K", ref_visitante: "2°F" },
+    { numero: 42, ronda: "dieciseisavos", ref_local: "2°E", ref_visitante: "2°L" },
+    { numero: 43, ronda: "dieciseisavos", ref_local: "1°K", ref_visitante: "2°D" },
+    { numero: 46, ronda: "dieciseisavos", ref_local: "2°A", ref_visitante: "1°J" },
+    { numero: 47, ronda: "dieciseisavos", ref_local: "2°I", ref_visitante: "2°H" },
+
+    // Octavos
+    { numero: 49, ronda: "octavos", ref_local: "1°A", ref_visitante: "G:34" },
+    { numero: 50, ronda: "octavos", ref_local: "G:35", ref_visitante: "1°H" },
+    { numero: 51, ronda: "octavos", ref_local: "1°E", ref_visitante: "G:38" },
+    { numero: 52, ronda: "octavos", ref_local: "G:39", ref_visitante: "1°D" },
+    { numero: 53, ronda: "octavos", ref_local: "1°C", ref_visitante: "G:42" },
+    { numero: 54, ronda: "octavos", ref_local: "G:43", ref_visitante: "1°F" },
+    { numero: 55, ronda: "octavos", ref_local: "1°G", ref_visitante: "G:46" },
+    { numero: 56, ronda: "octavos", ref_local: "G:47", ref_visitante: "1°B" },
+
+    // Cuartos
+    { numero: 57, ronda: "cuartos", ref_local: "G:49", ref_visitante: "G:50" },
+    { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+    { numero: 59, ronda: "cuartos", ref_local: "G:53", ref_visitante: "G:54" },
+    { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "G:56" },
+
+    // Semis
+    { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
+    { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
+
+    // Final
+    { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
+  ];
+}
+
 // 41 parejas (Manual Oficial FAP/APA)
 // 13 zonas (A-M). Clasifican 1° y 2° de todas, más 3°A y 3°B.
 // 4 cabezas de serie (1°A, 1°B, 1°C, 1°D) pasan directo a octavos.
@@ -539,6 +579,7 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   28: llave28(),
   30: llave30(),
   32: llave32(),
+  36: llave36(),
   41: llave41(),
   42: llave42(),
   47: llave47(),
