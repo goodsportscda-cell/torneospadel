@@ -432,7 +432,7 @@ export default function InscripcionPublica() {
               </p>
             </header>
             <JugadorStep value={j1} onChange={setJ1} />
-            <Button className="w-full" size="lg" onClick={irPaso2}>
+            <Button type="button" className="w-full" size="lg" onClick={irPaso2}>
               Siguiente <ArrowRight className="h-4 w-4" />
             </Button>
           </CardContent>
@@ -450,11 +450,11 @@ export default function InscripcionPublica() {
             </header>
             <JugadorCompaneroStep value={j2} onChange={setJ2} excludeDni={j1.dni} />
             <div className="flex gap-2">
-              <Button variant="outline" size="lg" onClick={() => setPaso(1)}>
+              <Button type="button" variant="outline" size="lg" onClick={() => setPaso(1)}>
                 <ArrowLeft className="h-4 w-4" />
                 Atrás
               </Button>
-              <Button className="flex-1" size="lg" onClick={irPaso3}>
+              <Button type="button" className="flex-1" size="lg" onClick={irPaso3}>
                 Siguiente <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -496,11 +496,11 @@ export default function InscripcionPublica() {
               />
             </div>
             <div className="flex gap-2">
-              <Button variant="outline" size="lg" onClick={() => setPaso(torneo.tipo === "americano_individual" ? 1 : 2)}>
+              <Button type="button" variant="outline" size="lg" onClick={() => setPaso(torneo.tipo === "americano_individual" ? 1 : 2)}>
                 <ArrowLeft className="h-4 w-4" />
                 Atrás
               </Button>
-              <Button className="flex-1" size="lg" onClick={irPaso4}>
+              <Button type="button" className="flex-1" size="lg" onClick={irPaso4}>
                 Revisar <ArrowRight className="h-4 w-4" />
               </Button>
             </div>
@@ -571,11 +571,11 @@ export default function InscripcionPublica() {
             )}
 
             <div className="flex gap-2 mt-4">
-              <Button variant="outline" size="lg" onClick={() => setPaso(3)} disabled={enviando}>
+              <Button type="button" variant="outline" size="lg" onClick={() => setPaso(3)} disabled={enviando}>
                 <ArrowLeft className="h-4 w-4" />
                 Atrás
               </Button>
-              <Button className="flex-1" size="lg" onClick={enviar} disabled={enviando}>
+              <Button type="button" className="flex-1" size="lg" onClick={enviar} disabled={enviando}>
                 {enviando ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />
