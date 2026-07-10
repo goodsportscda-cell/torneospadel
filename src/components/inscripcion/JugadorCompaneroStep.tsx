@@ -284,7 +284,10 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
                   <p className="text-xs text-muted-foreground">DNI {s.dni}</p>
                 )}
               </div>
-              <CheckCircle2 className="h-4 w-4 text-primary shrink-0" />
+              <div className="flex items-center gap-1.5 text-primary bg-primary/10 px-2 py-1 rounded-md">
+                <span className="text-[10px] font-bold uppercase tracking-wider">Elegir</span>
+                <CheckCircle2 className="h-3.5 w-3.5" />
+              </div>
             </button>
           ))}
         </div>

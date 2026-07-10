@@ -124,7 +124,7 @@ export default function InscripcionPublica() {
 
   const validarJugador2 = (j: JugadorForm): boolean => {
     if (!j.dni.trim() || !/^\d{7,9}$/.test(j.dni.trim())) {
-      toast.error("Compañero: DNI obligatorio (7 a 9 dígitos)");
+      toast.error("Compañero: Por favor seleccioná a tu compañero de la lista tocando su nombre, o registralo como nuevo.");
       return false;
     }
     if (!j.apellido.trim()) return toast.error("Compañero: falta el apellido"), false;
