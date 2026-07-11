@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { parseRef, NOMBRE_RONDA, ORDEN_RONDA, type RondaLlave } from "@/lib/llaves";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 import { toast } from "sonner";
 
 interface CompartirLlaveDialogProps {
@@ -255,13 +255,13 @@ export function CompartirLlaveDialog({
     try {
       await document.fonts.ready;
 
-      // Configuraciones óptimas para html2canvas (evita bordes pixelados y asegura CORS)
-      const canvas = await html2canvas(captureRef.current, {
-        useCORS: true,
-        allowTaint: true,
-        scale: 2, // Calidad 2x para redes sociales
-        backgroundColor: null,
-        logging: false,
+      // Utilizamos html-to-image para mejor soporte de fuentes tipográficas
+      const dataUrl = await toPng(captureRef.current, {
+        cacheBust: true,
+        pixelRatio: 2, // Calidad 2x para redes sociales
+        style: {
+          transform: 'scale(1)',
+        }
       });
 
       if (action === "download") {
@@ -273,7 +273,10 @@ export function CompartirLlaveDialog({
         link.click();
         toast.success("Imagen descargada con éxito!", { id: toastId });
       } else {
-        canvas.toBlob(async (blob) => {
+        try {
+          const res = await fetch(dataUrl);
+          const blob = await res.blob();
+          
           if (!blob) {
             toast.error("Error al generar la imagen", { id: toastId });
             return;
@@ -297,7 +300,9 @@ export function CompartirLlaveDialog({
             document.body.removeChild(tempInput);
             toast.error("Tu navegador no soporta copiado directo de imágenes. Descargala en su lugar.", { id: toastId });
           }
-        }, "image/png");
+        } catch (err) {
+            toast.error("Error al procesar la imagen", { id: toastId });
+        }
       }
     } catch (e) {
       console.error(e);
