@@ -192,7 +192,7 @@ export function CompartirLlaveDialog({
       scoreWinStyle: {
         backgroundColor: "#f59e0b",
         color: "#000000",
-        fontWeight: "bold" as const,
+        fontWeight: 500 as const,
       },
       scoreLoseStyle: {
         backgroundColor: "#1c1917",
@@ -224,7 +224,7 @@ export function CompartirLlaveDialog({
       scoreWinStyle: {
         backgroundColor: "#06b6d4",
         color: "#0f172a",
-        fontWeight: "bold" as const,
+        fontWeight: 500 as const,
       },
       scoreLoseStyle: {
         backgroundColor: "#0f172a",
@@ -476,10 +476,10 @@ export function CompartirLlaveDialog({
                         <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
                           <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
                             <div
-                              className={`flex items-center gap-2 font-bold min-w-0 ${
+                              className={`flex items-center gap-2 min-w-0 ${
                                 isFinished
                                   ? localWinner
-                                    ? "text-white font-extrabold"
+                                    ? "text-white"
                                     : "text-white/60"
                                   : "text-white/95"
                               }`}
@@ -527,11 +527,12 @@ export function CompartirLlaveDialog({
                                       width: '32px',
                                       height: '32px',
                                       fontSize: '15px',
+                                      fontFamily: 'system-ui, -apple-system, sans-serif',
                                       ...(s.games_local > s.games_visitante
                                         ? currentThemePreset.scoreWinStyle
                                         : currentThemePreset.scoreLoseStyle)
                                     }}
-                                    className="flex items-center justify-center rounded font-extrabold"
+                                    className="flex items-center justify-center rounded font-medium"
                                   >
                                     {s.games_local}
                                   </span>
@@ -545,10 +546,10 @@ export function CompartirLlaveDialog({
                         <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
                           <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
                             <div
-                              className={`flex items-center gap-2 font-bold min-w-0 ${
+                              className={`flex items-center gap-2 min-w-0 ${
                                 isFinished
                                   ? visiWinner
-                                    ? "text-white font-extrabold"
+                                    ? "text-white"
                                     : "text-white/60"
                                   : "text-white/95"
                               }`}
@@ -596,11 +597,12 @@ export function CompartirLlaveDialog({
                                       width: '32px',
                                       height: '32px',
                                       fontSize: '15px',
+                                      fontFamily: 'system-ui, -apple-system, sans-serif',
                                       ...(s.games_visitante > s.games_local
                                         ? currentThemePreset.scoreWinStyle
                                         : currentThemePreset.scoreLoseStyle)
                                     }}
-                                    className="flex items-center justify-center rounded font-extrabold"
+                                    className="flex items-center justify-center rounded font-medium"
                                   >
                                     {s.games_visitante}
                                   </span>
