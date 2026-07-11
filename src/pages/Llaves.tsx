@@ -262,9 +262,9 @@ export default function Llaves() {
   }, [zonas, partidosZona, zonasParejas, setsZona]);
 
   const resolverRefSiFinalizada = useCallback((ref: string | null, rankings: Record<string, string[]>) => {
-    if (!ref) return null;
+    if (!ref) return undefined;
     const parsed = parseRef(ref);
-    if (parsed.tipo !== "clasificado") return null;
+    if (parsed.tipo !== "clasificado") return undefined;
 
     // Buscar zona normalizando nombre
     const zonaNombreNorm = parsed.zona.trim().toUpperCase();
@@ -273,7 +273,7 @@ export default function Llaves() {
       return n === zonaNombreNorm;
     })?.[1];
 
-    if (!ranking) return null;
+    if (!ranking) return undefined;
     return ranking[parsed.posicion - 1] || null;
   }, []);
 
