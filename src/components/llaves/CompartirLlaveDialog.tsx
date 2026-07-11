@@ -253,6 +253,8 @@ export function CompartirLlaveDialog({
     );
 
     try {
+      await document.fonts.ready;
+
       // Configuraciones óptimas para html2canvas (evita bordes pixelados y asegura CORS)
       const canvas = await html2canvas(captureRef.current, {
         useCORS: true,
@@ -495,17 +497,17 @@ export function CompartirLlaveDialog({
                                   if (parts.length === 2) {
                                     return (
                                       <>
-                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {parts[0]}
                                         </span>
-                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
                                           {parts[1]}
                                         </span>
                                       </>
                                     );
                                   }
                                   return (
-                                    <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {name}
                                     </span>
                                   );
@@ -564,17 +566,17 @@ export function CompartirLlaveDialog({
                                   if (parts.length === 2) {
                                     return (
                                       <>
-                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                           {parts[0]}
                                         </span>
-                                        <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
                                           {parts[1]}
                                         </span>
                                       </>
                                     );
                                   }
                                   return (
-                                    <span style={{ fontSize: '15px', fontWeight: '800', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                    <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                       {name}
                                     </span>
                                   );
