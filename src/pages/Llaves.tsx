@@ -88,7 +88,15 @@ export default function Llaves() {
 
   const [llave, setLlave] = useState<Llave | null>(null);
   const [partidosLlave, setPartidosLlave] = useState<PartidoLlaveRow[]>([]);
-  const [autoAvance, setAutoAvance] = useState(true);
+  const [autoAvance, setAutoAvance] = useState(() => {
+    const saved = localStorage.getItem("padel_auto_avance");
+    return saved !== null ? saved === "true" : true;
+  });
+
+  // Guardar preferencia de autoAvance
+  useEffect(() => {
+    localStorage.setItem("padel_auto_avance", autoAvance.toString());
+  }, [autoAvance]);
   const [setsLlave, setSetsLlave] = useState<
     Record<string, { numero_set: number; games_local: number; games_visitante: number }[]>
   >({});
