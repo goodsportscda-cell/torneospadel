@@ -428,6 +428,10 @@ export default function Llaves() {
               supabase.from("partidos_llave").update(payload).eq("id", siguiente.id),
             ),
           );
+          
+          // Notificar al usuario que el sistema avanzó a un ganador
+          const equipoGanador = p.ganador_id ? parejaLabel(p.ganador_id) : "Un equipo";
+          toast.info(`Auto-avance: ${equipoGanador} avanzó al Partido ${siguiente.numero}`);
         }
       }
       if (updates.length > 0) {
