@@ -52,7 +52,7 @@ import {
 
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
-type JugadorSimple = { id: string; nombre: string; apellido: string; club: string | null; telefono: string | null };
+type JugadorSimple = { id: string; nombre: string; apellido: string; club: string | null; telefono: string | null; dni: string | null; };
 type InscripcionConJugadores = Inscripcion & {
   jugador1?: JugadorSimple | null;
   jugador2?: JugadorSimple | null;
@@ -166,8 +166,8 @@ export default function Inscripciones() {
         .from("inscripciones")
         .select(`
           *,
-          jugador1:jugadores!inscripciones_jugador1_id_fkey(id, nombre, apellido, club, telefono),
-          jugador2:jugadores!inscripciones_jugador2_id_fkey(id, nombre, apellido, club, telefono)
+          jugador1:jugadores!inscripciones_jugador1_id_fkey(id, nombre, apellido, club, telefono, dni),
+          jugador2:jugadores!inscripciones_jugador2_id_fkey(id, nombre, apellido, club, telefono, dni)
         `);
 
       if (filtroTorneo !== "todos") {
