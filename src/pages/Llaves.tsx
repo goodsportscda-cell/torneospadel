@@ -104,12 +104,17 @@ export default function Llaves() {
 
   // Carga torneos
   useEffect(() => {
-    supabase
+    let tQuery = supabase
       .from("torneos")
       .select("id, nombre, multiplicador_puntos, numero_fecha, sede")
       .eq("tipo", "oficial")
-      .order("fecha_inicio", { ascending: false })
-      .then(({ data }) => {
+      .order("fecha_inicio", { ascending: false });
+    
+    if (clubId) {
+      tQuery = tQuery.eq("club_id", clubId);
+    }
+
+    tQuery.then(({ data }) => {
         setTorneos((data ?? []) as Torneo[]);
         
         const savedId = localStorage.getItem("ultimo_torneo_consultado");

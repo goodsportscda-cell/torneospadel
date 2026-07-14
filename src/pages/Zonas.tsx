@@ -22,12 +22,14 @@ import { PanelDisponibles } from "@/components/zonas/PanelDisponibles";
 import { CronogramaPartidos } from "@/components/zonas/CronogramaPartidos";
 import { calcularDistribucionZonas, nombreZona } from "@/lib/zonas";
 import type { Database } from "@/integrations/supabase/types";
+import { useAuth } from "@/hooks/useAuth";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
 
 export default function Zonas() {
+  const { clubId } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>(() => {
     return localStorage.getItem("ultimo_torneo_consultado") || "";
@@ -216,11 +218,15 @@ export default function Zonas() {
   useEffect(() => {
     const start = async () => {
       try {
-        const { data: ts } = await supabase
+        let tQuery = supabase
           .from("torneos")
           .select("*")
           .eq("tipo", "oficial")
           .order("fecha_inicio", { ascending: false });
+        if (clubId) {
+          tQuery = tQuery.eq("club_id", clubId);
+        }
+        const { data: ts } = await tQuery;
         setTorneos((ts ?? []) as Torneo[]);
         
         const savedId = localStorage.getItem("ultimo_torneo_consultado");

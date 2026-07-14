@@ -99,6 +99,8 @@ interface FormState {
   disponibilidad_horaria: string;
 }
 
+import { useAuth } from "@/hooks/useAuth";
+
 const today = () => new Date().toISOString().slice(0, 10);
 
 const emptyForm = (): FormState => ({
@@ -113,6 +115,7 @@ const emptyForm = (): FormState => ({
 });
 
 export default function Inscripciones() {
+  const { clubId } = useAuth();
   const [inscripciones, setInscripciones] = useState<InscripcionConJugadores[]>([]);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
@@ -137,10 +140,16 @@ export default function Inscripciones() {
   // Carga torneos iniciales
   useEffect(() => {
     const fetchTorneos = async () => {
-      const { data, error } = await supabase
+      let tQuery = supabase
         .from("torneos")
         .select("*")
         .order("fecha_inicio", { ascending: false });
+
+      if (clubId) {
+        tQuery = tQuery.eq("club_id", clubId);
+      }
+
+      const { data, error } = await tQuery;
       
       if (error) {
         toast.error("Error al cargar torneos: " + error.message);
