@@ -37,6 +37,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 import {
   ESTADO_TORNEO_LABELS as ESTADO_LABELS,
@@ -125,6 +126,7 @@ const sameDay = (a: Date, b: Date) =>
   a.getDate() === b.getDate();
 
 export default function Calendario() {
+  const { clubId } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,10 +142,15 @@ export default function Calendario() {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [{ data: t }, { data: c }] = await Promise.all([
-      supabase.from("torneos").select("*").order("fecha_inicio", { ascending: true }),
-      supabase.from("categorias").select("*").eq("activa", true).order("orden"),
-    ]);
+    let tQuery = supabase.from("torneos").select("*").order("fecha_inicio", { ascending: true });
+    let cQuery = supabase.from("categorias").select("*").eq("activa", true).order("orden");
+
+    if (clubId) {
+      tQuery = tQuery.eq("club_id", clubId);
+      cQuery = cQuery.eq("club_id", clubId);
+    }
+
+    const [{ data: t }, { data: c }] = await Promise.all([tQuery, cQuery]);
     setTorneos(t ?? []);
     setCategorias(c ?? []);
     setLoading(false);
@@ -302,6 +309,7 @@ export default function Calendario() {
       costo_fecha_cancha: form.tipo === "americano_individual" ? Number(form.costo_fecha_cancha) || 22000 : null,
       porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) || 60 : null,
       modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
+      club_id: clubId,
     };
 
     if (editing) {
