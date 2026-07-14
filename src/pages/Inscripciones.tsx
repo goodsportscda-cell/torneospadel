@@ -915,14 +915,26 @@ export default function Inscripciones() {
                       <div className="h-6 border-b border-dashed border-gray-400 w-20"></div>
                     </td>
                     <td className="py-3 px-2 text-center">
-                      <div className="flex items-center justify-center gap-4 text-xs font-medium text-gray-600">
-                        <div className="flex items-center gap-1">
-                          <span>Efe</span>
-                          <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                      <div className="flex flex-col gap-2 items-center justify-center text-xs font-medium text-gray-600">
+                        <div className="flex items-center gap-4">
+                          <div className="flex items-center gap-1">
+                            <span>Efe</span>
+                            <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span>Trf</span>
+                            <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1">
-                          <span>Trf</span>
-                          <div className="h-5 w-5 border-2 border-gray-400 rounded"></div>
+                        <div className="flex items-center gap-4 text-gray-400">
+                          <div className="flex items-center gap-1">
+                            <span>Efe</span>
+                            <div className="h-5 w-5 border-2 border-gray-300 rounded"></div>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span>Trf</span>
+                            <div className="h-5 w-5 border-2 border-gray-300 rounded"></div>
+                          </div>
                         </div>
                       </div>
                     </td>
