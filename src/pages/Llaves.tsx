@@ -35,6 +35,7 @@ import {
 } from "@/lib/llaves";
 import { PartidoCard } from "@/components/zonas/PartidoCard";
 import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 type Torneo = { id: string; nombre: string; multiplicador_puntos: number; numero_fecha: number | null; sede?: string | null };
 
@@ -74,6 +75,7 @@ type PartidoLlaveRow = {
 };
 
 export default function Llaves() {
+  const { clubId } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>(() => {
     return localStorage.getItem("ultimo_torneo_consultado") || "";

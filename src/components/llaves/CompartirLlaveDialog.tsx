@@ -253,7 +253,7 @@ export function CompartirLlaveDialog({
     );
 
     try {
-      await document.fonts.ready;
+      await (document as any).fonts?.ready;
 
       // Utilizamos html-to-image para mejor soporte de fuentes tipográficas
       const dataUrl = await toPng(captureRef.current, {
@@ -282,7 +282,7 @@ export function CompartirLlaveDialog({
           }
           try {
             await navigator.clipboard.write([
-              new ClipboardItem({ "image/png": blob }),
+              new (window as any).ClipboardItem({ "image/png": blob }),
             ]);
             setCopied(true);
             toast.success("Imagen copiada al portapapeles!", { id: toastId });
