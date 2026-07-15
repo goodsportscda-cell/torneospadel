@@ -287,6 +287,10 @@ export default function CanchasEnVivo() {
           transformOrigin: "top left",
           width: flyerRef.current.offsetWidth + "px",
           height: flyerRef.current.offsetHeight + "px",
+          opacity: "1",
+          position: "relative",
+          top: "0",
+          left: "0"
         },
         pixelRatio: 2,
         fontEmbedCSS: ''
@@ -315,6 +319,10 @@ export default function CanchasEnVivo() {
           transformOrigin: "top left",
           width: flyerRef.current.offsetWidth + "px",
           height: flyerRef.current.offsetHeight + "px",
+          opacity: "1",
+          position: "relative",
+          top: "0",
+          left: "0"
         },
         pixelRatio: 2,
         fontEmbedCSS: ''
@@ -576,7 +584,7 @@ export default function CanchasEnVivo() {
       {/* Contenedor oculto para exportar a Flyer IG (Relación de aspecto 9:16 aprox) */}
       <div 
         ref={flyerRef}
-        className="fixed top-[-9999px] left-[-9999px] w-[540px] h-[960px] bg-slate-900 text-slate-50 flex flex-col p-8 z-[-10]"
+        className="fixed top-0 left-0 opacity-[0.0001] pointer-events-none w-[540px] h-[960px] bg-slate-900 text-slate-50 flex flex-col p-8 z-[-100]"
       >
         <div className="flex justify-center mb-6">
           <img src={activeTenant.logo} alt={activeTenant.name} className="h-16 object-contain" />

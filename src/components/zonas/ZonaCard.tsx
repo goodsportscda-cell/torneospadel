@@ -334,6 +334,10 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           transformOrigin: "top left",
           width: storyRef.current.offsetWidth + "px",
           height: storyRef.current.offsetHeight + "px",
+          opacity: "1",
+          position: "relative",
+          top: "0",
+          left: "0"
         },
         pixelRatio: 2,
         fontEmbedCSS: ''
@@ -363,6 +367,10 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           transformOrigin: "top left",
           width: storyRef.current.offsetWidth + "px",
           height: storyRef.current.offsetHeight + "px",
+          opacity: "1",
+          position: "relative",
+          top: "0",
+          left: "0"
         },
         pixelRatio: 2,
         fontEmbedCSS: ''
@@ -647,8 +655,10 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           width: '540px',
           height: '960px',
           position: 'fixed',
-          top: '-9999px',
-          left: '-9999px',
+          top: 0,
+          left: 0,
+          opacity: 0.0001,
+          pointerEvents: 'none',
           background: 'linear-gradient(135deg, #022c22 0%, #060b11 50%, #021a14 100%)',
           display: 'flex',
           flexDirection: 'column',
