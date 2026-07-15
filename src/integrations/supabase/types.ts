@@ -227,6 +227,12 @@ export interface Database {
           disponibilidad_horaria: string | null
           estado: "pendiente_confirmacion" | "confirmada" | "lista_espera" | "cancelada"
           comprobante_url: string | null
+          pago_j1_estado: string | null
+          pago_j1_metodo: string | null
+          pago_j1_comprobante: string | null
+          pago_j2_estado: string | null
+          pago_j2_metodo: string | null
+          pago_j2_comprobante: string | null
           created_at: string
           updated_at: string
         }
@@ -242,6 +248,12 @@ export interface Database {
           disponibilidad_horaria?: string | null
           estado?: "pendiente_confirmacion" | "confirmada" | "lista_espera" | "cancelada"
           comprobante_url?: string | null
+          pago_j1_estado?: string | null
+          pago_j1_metodo?: string | null
+          pago_j1_comprobante?: string | null
+          pago_j2_estado?: string | null
+          pago_j2_metodo?: string | null
+          pago_j2_comprobante?: string | null
           created_at?: string
           updated_at?: string
         }
@@ -257,6 +269,12 @@ export interface Database {
           disponibilidad_horaria?: string | null
           estado?: "pendiente_confirmacion" | "confirmada" | "lista_espera" | "cancelada"
           comprobante_url?: string | null
+          pago_j1_estado?: string | null
+          pago_j1_metodo?: string | null
+          pago_j1_comprobante?: string | null
+          pago_j2_estado?: string | null
+          pago_j2_metodo?: string | null
+          pago_j2_comprobante?: string | null
           created_at?: string
           updated_at?: string
         }

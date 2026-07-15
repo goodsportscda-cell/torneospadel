@@ -325,10 +325,19 @@ export default function Inscripciones() {
     fetchAll();
   };
 
-  const handleQuickPago = async (i: Inscripcion, estado: EstadoPago) => {
-    const { error } = await supabase.from("inscripciones").update({ estado_pago: estado }).eq("id", i.id);
+  const handleQuickPagoJugador = async (i: Inscripcion, jugador: 1 | 2, estado: string) => {
+    const field = jugador === 1 ? "pago_j1_estado" : "pago_j2_estado";
+    const { error } = await supabase.from("inscripciones").update({ [field]: estado }).eq("id", i.id);
     if (error) return toast.error("Error: " + error.message);
-    toast.success("Pago actualizado");
+    toast.success("Estado de pago actualizado");
+    fetchAll();
+  };
+
+  const handleQuickMetodoJugador = async (i: Inscripcion, jugador: 1 | 2, metodo: string) => {
+    const field = jugador === 1 ? "pago_j1_metodo" : "pago_j2_metodo";
+    const { error } = await supabase.from("inscripciones").update({ [field]: metodo }).eq("id", i.id);
+    if (error) return toast.error("Error: " + error.message);
+    toast.success("Método de pago actualizado");
     fetchAll();
   };
 
@@ -772,59 +781,116 @@ export default function Inscripciones() {
                     </div>
                   )}
 
-                  {(i.monto_pagado ?? 0) > 0 && (
-                    <p className="text-xs text-muted-foreground">
-                      Pagado: ${Number(i.monto_pagado).toLocaleString("es-AR")}
-                    </p>
-                  )}
-
                   {i.comprobante_url && (
                     <div className="flex items-center gap-1.5 mt-1 text-xs font-medium text-primary hover:underline">
                       <a href={i.comprobante_url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1">
                         <FileText className="h-3.5 w-3.5" />
-                        Ver Comprobante
+                        Ver Comprobante Global
                       </a>
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 pt-1">
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs text-muted-foreground">Estado</Label>
-                      <Select
-                        value={(i as Inscripcion & { estado: EstadoInscripcion }).estado as EstadoInscripcion}
-                        onValueChange={(v: EstadoInscripcion) => handleCambiarEstado(i, v)}
-                      >
-                        <SelectTrigger
-                          className={`h-8 ${ESTADO_INSC_CLASSES[(i as Inscripcion & { estado: EstadoInscripcion }).estado as EstadoInscripcion]}`}
-                        >
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(ESTADO_INSC_LABELS) as EstadoInscripcion[]).map((e) => (
-                            <SelectItem key={e} value={e}>
-                              {ESTADO_INSC_LABELS[e]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                  <div className="pt-2 border-t mt-3 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">Estado de Pagos</p>
+                      <Label className="text-[10px] text-muted-foreground mr-1">Estado General</Label>
                     </div>
-                    <div className="grid gap-1.5">
-                      <Label className="text-xs text-muted-foreground">Pago</Label>
-                      <Select
-                        value={i.estado_pago}
-                        onValueChange={(v: EstadoPago) => handleQuickPago(i, v)}
-                      >
-                        <SelectTrigger className="h-8">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {(Object.keys(PAGO_LABELS) as EstadoPago[]).map((e) => (
-                            <SelectItem key={e} value={e}>
-                              {PAGO_LABELS[e]}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+
+                    <div className="flex gap-2 items-start">
+                      {/* JUGADOR 1 */}
+                      <div className="flex-1 flex flex-col gap-1.5 p-2 bg-muted/30 rounded-md border border-border/50">
+                        <p className="text-xs font-medium truncate" title={jugadorLabel(i.jugador1_id, i)}>{jugadorLabel(i.jugador1_id, i).split(',')[0]}</p>
+                        <div className="flex flex-col gap-1.5">
+                          <Select
+                            value={i.pago_j1_estado || "pendiente"}
+                            onValueChange={(v) => handleQuickPagoJugador(i, 1, v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs px-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pendiente" className="text-xs">Pendiente</SelectItem>
+                              <SelectItem value="pagado" className="text-xs">Pagado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={i.pago_j1_metodo || "none"}
+                            onValueChange={(v) => handleQuickMetodoJugador(i, 1, v === "none" ? "" : v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs px-2">
+                              <SelectValue placeholder="Método" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none" className="text-xs">S/D</SelectItem>
+                              <SelectItem value="efectivo" className="text-xs">Efectivo</SelectItem>
+                              <SelectItem value="transferencia" className="text-xs">Transf.</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {i.pago_j1_comprobante && (
+                          <a href={i.pago_j1_comprobante} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-1">
+                            <FileText className="h-3 w-3" /> Ver comprobante
+                          </a>
+                        )}
+                      </div>
+
+                      {/* JUGADOR 2 */}
+                      <div className="flex-1 flex flex-col gap-1.5 p-2 bg-muted/30 rounded-md border border-border/50">
+                        <p className="text-xs font-medium truncate" title={jugadorLabel(i.jugador2_id, i)}>{jugadorLabel(i.jugador2_id, i).split(',')[0]}</p>
+                        <div className="flex flex-col gap-1.5">
+                          <Select
+                            value={i.pago_j2_estado || "pendiente"}
+                            onValueChange={(v) => handleQuickPagoJugador(i, 2, v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs px-2">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pendiente" className="text-xs">Pendiente</SelectItem>
+                              <SelectItem value="pagado" className="text-xs">Pagado</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <Select
+                            value={i.pago_j2_metodo || "none"}
+                            onValueChange={(v) => handleQuickMetodoJugador(i, 2, v === "none" ? "" : v)}
+                          >
+                            <SelectTrigger className="h-7 text-xs px-2">
+                              <SelectValue placeholder="Método" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="none" className="text-xs">S/D</SelectItem>
+                              <SelectItem value="efectivo" className="text-xs">Efectivo</SelectItem>
+                              <SelectItem value="transferencia" className="text-xs">Transf.</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        {i.pago_j2_comprobante && (
+                          <a href={i.pago_j2_comprobante} target="_blank" rel="noopener noreferrer" className="text-[10px] text-primary hover:underline flex items-center gap-1 mt-1">
+                            <FileText className="h-3 w-3" /> Ver comprobante
+                          </a>
+                        )}
+                      </div>
+                      
+                      {/* ESTADO GENERAL */}
+                      <div className="flex flex-col gap-1.5 shrink-0 self-stretch">
+                        <Select
+                          value={(i as Inscripcion & { estado: EstadoInscripcion }).estado as EstadoInscripcion}
+                          onValueChange={(v: EstadoInscripcion) => handleCambiarEstado(i, v)}
+                        >
+                          <SelectTrigger
+                            className={`h-7 text-xs px-2 w-[110px] ${ESTADO_INSC_CLASSES[(i as Inscripcion & { estado: EstadoInscripcion }).estado as EstadoInscripcion]}`}
+                          >
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(Object.keys(ESTADO_INSC_LABELS) as EstadoInscripcion[]).map((e) => (
+                              <SelectItem key={e} value={e} className="text-xs">
+                                {ESTADO_INSC_LABELS[e]}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
                     </div>
                   </div>
 
