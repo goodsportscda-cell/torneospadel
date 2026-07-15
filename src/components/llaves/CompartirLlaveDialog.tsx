@@ -15,15 +15,15 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { 
-  Trophy, 
-  Download, 
-  Copy, 
-  Calendar, 
-  MapPin, 
-  Image as ImageIcon, 
-  Sparkles, 
-  Check, 
+import {
+  Trophy,
+  Download,
+  Copy,
+  Calendar,
+  MapPin,
+  Image as ImageIcon,
+  Sparkles,
+  Check,
   X,
   Share2
 } from "lucide-react";
@@ -275,7 +275,7 @@ export function CompartirLlaveDialog({
         try {
           const res = await fetch(dataUrl);
           const blob = await res.blob();
-          
+
           if (!blob) {
             toast.error("Error al generar la imagen", { id: toastId });
             return;
@@ -299,7 +299,7 @@ export function CompartirLlaveDialog({
             toast.error("Tu navegador no soporta copiado directo de imágenes. Descargala en su lugar.", { id: toastId });
           }
         } catch (err) {
-            toast.error("Error al procesar la imagen", { id: toastId });
+          toast.error("Error al procesar la imagen", { id: toastId });
         }
       }
     } catch (e) {
@@ -324,10 +324,10 @@ export function CompartirLlaveDialog({
   // Renderizar la estructura del Cuadro (reutilizada para el canvas off-screen y la vista previa)
   const renderBracketContent = (isExportSize: boolean) => {
     const isSquare = ratio === "square";
-    
+
     // Altura fija del contenedor según ratio
     const containerHeight = isSquare ? "1080px" : "1920px";
-    
+
     return (
       <div
         style={{
@@ -399,11 +399,11 @@ export function CompartirLlaveDialog({
                 </span>
               )}
             </div>
-            
+
             <h1 className="text-5xl font-black tracking-tight text-white leading-none mt-3.5">
               {torneo?.nombre}
             </h1>
-            
+
             <div className="flex items-center gap-6 text-base font-bold text-white/60 mt-4">
               {(torneo?.categoria_libre || categoriaNombre) && (
                 <span style={{ color: currentThemePreset.accentTextColor }} className="flex items-center gap-2">
@@ -479,18 +479,17 @@ export function CompartirLlaveDialog({
                         <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
                           <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
                             <div
-                              className={`flex items-center gap-2 min-w-0 ${
-                                isFinished
+                              className={`flex items-center gap-2 min-w-0 ${isFinished
                                   ? localWinner
                                     ? "text-white"
                                     : "text-white/60"
                                   : "text-white/95"
-                              }`}
+                                }`}
                             >
                               {localWinner && (
-                                <Trophy 
-                                  className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
-                                  style={{ display: 'inline-block', verticalAlign: 'middle' }} 
+                                <Trophy
+                                  className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse"
+                                  style={{ display: 'inline-block', verticalAlign: 'middle' }}
                                 />
                               )}
                               <div style={{ display: 'block', textAlign: 'left', lineHeight: '1.2' }} className="min-w-0 flex-1">
@@ -549,18 +548,17 @@ export function CompartirLlaveDialog({
                         <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
                           <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
                             <div
-                              className={`flex items-center gap-2 min-w-0 ${
-                                isFinished
+                              className={`flex items-center gap-2 min-w-0 ${isFinished
                                   ? visiWinner
                                     ? "text-white"
                                     : "text-white/60"
                                   : "text-white/95"
-                              }`}
+                                }`}
                             >
                               {visiWinner && (
-                                <Trophy 
-                                  className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse" 
-                                  style={{ display: 'inline-block', verticalAlign: 'middle' }} 
+                                <Trophy
+                                  className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse"
+                                  style={{ display: 'inline-block', verticalAlign: 'middle' }}
                                 />
                               )}
                               <div style={{ display: 'block', textAlign: 'left', lineHeight: '1.2' }} className="min-w-0 flex-1">
@@ -685,7 +683,7 @@ export function CompartirLlaveDialog({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-5 overflow-hidden flex flex-col md:grid md:grid-cols-12 gap-5 max-h-[90vh]">
-        
+
         {/* Lado Izquierdo: Configuración (4 columnas en md) */}
         <div className="md:col-span-5 flex flex-col justify-between space-y-5 pr-2 md:border-r border-muted md:h-full">
           <div className="space-y-4">
@@ -766,7 +764,7 @@ export function CompartirLlaveDialog({
               {/* Opciones de Visualización */}
               <div className="space-y-2 pt-2 border-t">
                 <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Detalles a mostrar</label>
-                
+
                 <div className="flex items-center space-x-2">
                   <Checkbox
                     id="showSchedule"
@@ -808,7 +806,7 @@ export function CompartirLlaveDialog({
               <Download className="h-4 w-4" />
               Descargar Imagen (PNG)
             </Button>
-            
+
             <Button
               variant="outline"
               className="w-full font-semibold h-10 gap-2"
