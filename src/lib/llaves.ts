@@ -310,35 +310,27 @@ function llave30(): PartidoLlavePlantilla[] {
   ];
 }
 
-// 32 parejas (~10 zonas) → ronda previa + octavos
-// Manual APA pág 148. Implementación basada en el cuadro mostrado.
-// Cuadro de 32 parejas (31 partidos) - Formato estándar 16vos -> Final
-// Ideal para cuando hay entre 11 y 16 zonas.
-// 32 parejas (Manual Oficial APA - 10 zonas + mejores terceros)
-// Según imagen proporcionada: 6 previas + 8 octavos + 4 cuartos + 2 semis + 1 final.
-// 32 parejas (Cuadro completo de 16vos de final)
-// Manual APA: Cuadro estándar para 11-16 zonas o 32 equipos.
-// Se usa numeración 33-64 según el manual oficial.
-function llave32(): PartidoLlavePlantilla[] {
+// 48 parejas (16 zonas completas) -> Clasifican 1° y 2° (32 equipos en total)
+// Cuadro FAP Oficial de 48 parejas (Transcrito exactamente de la placa APA).
+function llave48(): PartidoLlavePlantilla[] {
   return [
     // Dieciseisavos (16 partidos: 33-48)
-    { numero: 33, ronda: "dieciseisavos", ref_local: "1°A", ref_visitante: "2°P" },
-    { numero: 34, ronda: "dieciseisavos", ref_local: "2°H", ref_visitante: "1°I" },
-    { numero: 35, ronda: "dieciseisavos", ref_local: "1°E", ref_visitante: "2°L" },
-    { numero: 36, ronda: "dieciseisavos", ref_local: "2°D", ref_visitante: "1°M" },
-    { numero: 37, ronda: "dieciseisavos", ref_local: "1°C", ref_visitante: "2°N" },
-    { numero: 38, ronda: "dieciseisavos", ref_local: "2°F", ref_visitante: "1°K" },
-    { numero: 39, ronda: "dieciseisavos", ref_local: "1°G", ref_visitante: "2°J" },
-    { numero: 40, ronda: "dieciseisavos", ref_local: "2°B", ref_visitante: "1°O" },
-    
-    { numero: 41, ronda: "dieciseisavos", ref_local: "1°B", ref_visitante: "2°O" },
-    { numero: 42, ronda: "dieciseisavos", ref_local: "2°G", ref_visitante: "1°J" },
-    { numero: 43, ronda: "dieciseisavos", ref_local: "1°F", ref_visitante: "2°K" },
-    { numero: 44, ronda: "dieciseisavos", ref_local: "2°C", ref_visitante: "1°N" },
-    { numero: 45, ronda: "dieciseisavos", ref_local: "1°D", ref_visitante: "2°M" },
-    { numero: 46, ronda: "dieciseisavos", ref_local: "2°E", ref_visitante: "1°L" },
-    { numero: 47, ronda: "dieciseisavos", ref_local: "1°H", ref_visitante: "2°I" },
-    { numero: 48, ronda: "dieciseisavos", ref_local: "2°A", ref_visitante: "1°P" },
+    { numero: 33, ronda: "dieciseisavos", ref_local: "1°A", ref_visitante: "2°B" },
+    { numero: 34, ronda: "dieciseisavos", ref_local: "2°O", ref_visitante: "1°P" },
+    { numero: 35, ronda: "dieciseisavos", ref_local: "1°I", ref_visitante: "2°J" },
+    { numero: 36, ronda: "dieciseisavos", ref_local: "2°G", ref_visitante: "1°H" },
+    { numero: 37, ronda: "dieciseisavos", ref_local: "1°E", ref_visitante: "2°F" },
+    { numero: 38, ronda: "dieciseisavos", ref_local: "2°K", ref_visitante: "1°L" },
+    { numero: 39, ronda: "dieciseisavos", ref_local: "1°M", ref_visitante: "2°N" },
+    { numero: 40, ronda: "dieciseisavos", ref_local: "2°C", ref_visitante: "1°D" },
+    { numero: 41, ronda: "dieciseisavos", ref_local: "1°C", ref_visitante: "2°D" },
+    { numero: 42, ronda: "dieciseisavos", ref_local: "2°M", ref_visitante: "1°N" },
+    { numero: 43, ronda: "dieciseisavos", ref_local: "1°K", ref_visitante: "2°L" },
+    { numero: 44, ronda: "dieciseisavos", ref_local: "2°E", ref_visitante: "1°F" },
+    { numero: 45, ronda: "dieciseisavos", ref_local: "1°G", ref_visitante: "2°H" },
+    { numero: 46, ronda: "dieciseisavos", ref_local: "2°I", ref_visitante: "1°J" },
+    { numero: 47, ronda: "dieciseisavos", ref_local: "1°O", ref_visitante: "2°P" },
+    { numero: 48, ronda: "dieciseisavos", ref_local: "2°A", ref_visitante: "1°B" },
 
     // Octavos (49-56)
     { numero: 49, ronda: "octavos", ref_local: "G:33", ref_visitante: "G:34" },
@@ -579,11 +571,11 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   26: llave26(),
   28: llave28(),
   30: llave30(),
-  32: llave32(),
   36: llave36(),
   41: llave41(),
   42: llave42(),
   47: llave47(),
+  48: llave48(),
 };
 
 // Devuelve los casos soportados por defecto
