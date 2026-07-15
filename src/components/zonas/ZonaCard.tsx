@@ -22,7 +22,7 @@ import {
 import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2, RefreshCw, Edit2, ArrowRightLeft } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 import { activeTenant } from "@/lib/tenant";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
@@ -326,19 +326,67 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     if (!storyRef.current) return;
     setDescargando(true);
     try {
-      const canvas = await html2canvas(storyRef.current, {
-        scale: 2, // Scale 2 is enough for high-res 1080x1920 since base is 540x960
-        useCORS: true,
+      const dataUrl = await toPng(storyRef.current, {
+        cacheBust: true,
         backgroundColor: "#09090b",
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+          width: storyRef.current.offsetWidth + "px",
+          height: storyRef.current.offsetHeight + "px",
+        },
+        pixelRatio: 2,
+        fontEmbedCSS: ''
       });
       const link = document.createElement("a");
       link.download = `Historia-Zona-${zona.nombre}.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = dataUrl;
       link.click();
       toast.success("Imagen generada");
     } catch (error) {
       console.error("Error al generar imagen:", error);
       toast.error("Error al generar la imagen");
+    } finally {
+      setDescargando(false);
+    }
+  };
+
+  const compartirImagen = async () => {
+    if (!storyRef.current) return;
+    setDescargando(true);
+    try {
+      const dataUrl = await toPng(storyRef.current, {
+        cacheBust: true,
+        backgroundColor: "#09090b",
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+          width: storyRef.current.offsetWidth + "px",
+          height: storyRef.current.offsetHeight + "px",
+        },
+        pixelRatio: 2,
+        fontEmbedCSS: ''
+      });
+      
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `Historia-Zona-${zona.nombre}.png`, { type: "image/png" });
+      
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: `Zona ${zona.nombre}`,
+          text: `Mirá la Zona ${zona.nombre} del torneo`,
+          files: [file],
+        });
+      } else {
+        toast.error("Tu navegador no soporta compartir directamente. Se descargará la imagen.");
+        const link = document.createElement("a");
+        link.download = `Historia-Zona-${zona.nombre}.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (error) {
+      console.error("Error sharing image:", error);
+      toast.error("Error al compartir la imagen");
     } finally {
       setDescargando(false);
     }
@@ -412,7 +460,17 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                 size="icon" 
                 onClick={descargarImagen} 
                 disabled={descargando}
-                title="Descargar placa para Instagram"
+                title="Descargar placa"
+                className="text-primary hover:text-primary/80 hover:bg-primary/10"
+              >
+                {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>}
+              </Button>
+              <Button 
+                variant="ghost" 
+                size="icon" 
+                onClick={compartirImagen} 
+                disabled={descargando}
+                title="Compartir placa"
                 className="text-primary hover:text-primary/80 hover:bg-primary/10"
               >
                 {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}

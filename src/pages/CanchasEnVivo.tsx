@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import html2canvas from "html2canvas";
+import { toPng } from "html-to-image";
 import { activeTenant } from "@/lib/tenant";
 
 type Torneo = { id: string; nombre: string };
@@ -279,18 +279,64 @@ export default function CanchasEnVivo() {
     if (!flyerRef.current) return;
     setDescargando(true);
     try {
-      const canvas = await html2canvas(flyerRef.current, {
-        scale: 2,
-        useCORS: true,
+      const dataUrl = await toPng(flyerRef.current, {
+        cacheBust: true,
         backgroundColor: "#0f172a", // Dark bg
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+          width: flyerRef.current.offsetWidth + "px",
+          height: flyerRef.current.offsetHeight + "px",
+        },
+        pixelRatio: 2,
+        fontEmbedCSS: ''
       });
       const link = document.createElement("a");
       link.download = `Canchas-En-Vivo.png`;
-      link.href = canvas.toDataURL("image/png");
+      link.href = dataUrl;
       link.click();
       toast.success("Flyer descargado");
     } catch (error) {
       toast.error("Error al generar flyer");
+    } finally {
+      setDescargando(false);
+    }
+  };
+
+  const compartirImagen = async () => {
+    if (!flyerRef.current) return;
+    setDescargando(true);
+    try {
+      const dataUrl = await toPng(flyerRef.current, {
+        cacheBust: true,
+        backgroundColor: "#0f172a", // Dark bg
+        style: {
+          transform: "scale(1)",
+          transformOrigin: "top left",
+          width: flyerRef.current.offsetWidth + "px",
+          height: flyerRef.current.offsetHeight + "px",
+        },
+        pixelRatio: 2,
+        fontEmbedCSS: ''
+      });
+      const blob = await (await fetch(dataUrl)).blob();
+      const file = new File([blob], `Canchas-En-Vivo.png`, { type: "image/png" });
+      
+      if (navigator.share && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          title: "Torre de Control",
+          text: "Mirá los partidos en vivo",
+          files: [file],
+        });
+      } else {
+        toast.error("Tu navegador no soporta compartir directamente. Se descargará la imagen.");
+        const link = document.createElement("a");
+        link.download = `Canchas-En-Vivo.png`;
+        link.href = dataUrl;
+        link.click();
+      }
+    } catch (error) {
+      toast.error("Error al compartir flyer");
     } finally {
       setDescargando(false);
     }
@@ -306,9 +352,13 @@ export default function CanchasEnVivo() {
           <p className="text-sm text-muted-foreground">Monitor en vivo de canchas</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
-          <Button variant="outline" size="sm" onClick={descargarImagen} disabled={descargando} className="gap-2">
+          <Button variant="outline" size="sm" onClick={descargarImagen} disabled={descargando} className="gap-2 text-xs h-7">
+            {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>}
+            Descargar
+          </Button>
+          <Button variant="outline" size="sm" onClick={compartirImagen} disabled={descargando} className="gap-2 text-xs h-7">
             {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
-            Flyer IG
+            Compartir IG
           </Button>
           <div className="flex items-center gap-2 border px-3 py-1 rounded-md">
             <Label className="text-xs">Canchas:</Label>
