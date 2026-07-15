@@ -265,7 +265,6 @@ export function CompartirLlaveDialog({
       });
 
       if (action === "download") {
-        const dataUrl = canvas.toDataURL("image/png");
         const link = document.createElement("a");
         const categoryLabel = torneo?.categoria_libre || categoriaNombre || "categoria";
         link.download = `bracket-${torneo?.nombre.toLowerCase().replace(/\s+/g, "-")}-${categoryLabel.toLowerCase().replace(/\s+/g, "-")}.png`;
@@ -291,7 +290,6 @@ export function CompartirLlaveDialog({
           } catch (err) {
             console.error("Clipboard write failed: ", err);
             // Fallback si el navegador bloquea la API del portapapeles
-            const dataUrl = canvas.toDataURL("image/png");
             const tempInput = document.createElement("input");
             tempInput.value = dataUrl;
             document.body.appendChild(tempInput);
