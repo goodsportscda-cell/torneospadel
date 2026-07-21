@@ -30,7 +30,8 @@ import {
   Award,
   AlertTriangle,
   HelpCircle,
-  Globe
+  Globe,
+  RefreshCw
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
