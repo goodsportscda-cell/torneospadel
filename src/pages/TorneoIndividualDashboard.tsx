@@ -10,6 +10,8 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Textarea } from "@/components/ui/textarea";
 import { Combobox } from "@/components/Combobox";
 import {
   Trophy,
@@ -174,6 +176,7 @@ export default function TorneoIndividualDashboard() {
     premios: "",
     efectivo_1: "0",
     efectivo_2: "0",
+    notas: "",
   });
 
   const fetchTournamentData = useCallback(async () => {
@@ -234,6 +237,7 @@ export default function TorneoIndividualDashboard() {
         premios: parsed.gifts,
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
+        notas: tRes.notas ?? "",
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -946,6 +950,7 @@ export default function TorneoIndividualDashboard() {
         gastos_trofeos: gastosTrofeos,
         gastos_regalos: gastosRegalos,
         premios: premiosTexto || null,
+        notas: settingsForm.notas.trim() || null,
       })
       .eq("id", id);
 
@@ -988,6 +993,36 @@ export default function TorneoIndividualDashboard() {
 
       if (error) toast.error(error.message);
       else fetchTournamentData();
+    }
+  };
+
+  const handleReSortearFecha1 = async () => {
+    if (!id || !torneo) return;
+    if (!window.confirm("¿Estás seguro de que quieres volver a sortear la Fecha 1? Se borrarán los cruces actuales de esta fecha.")) return;
+
+    try {
+      // 1. Borrar los partidos actuales de la fecha 1
+      const { error: delErr } = await supabase
+        .from("partidos_individuales")
+        .delete()
+        .eq("torneo_id", id)
+        .eq("fecha", 1);
+        
+      if (delErr) throw delErr;
+
+      // 2. Borrar la fecha 1 para evitar conflictos de constraint al insertarla de nuevo
+      const { error: fDelErr } = await supabase
+        .from("torneo_individual_fechas")
+        .delete()
+        .eq("torneo_id", id)
+        .eq("fecha", 1);
+
+      if (fDelErr) throw fDelErr;
+
+      // 3. Volver a llamar al generador
+      await handleGenerarFecha1();
+    } catch (e: any) {
+      toast.error("Error al re-sortear: " + e.message);
     }
   };
 
@@ -2518,6 +2553,16 @@ export default function TorneoIndividualDashboard() {
                       />
                     </div>
 
+                    <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Reglamento (Notas adicionales)</Label>
+                      <Textarea
+                        value={settingsForm.notas}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, notas: e.target.value })}
+                        placeholder="Escribe el reglamento aquí..."
+                        className="h-20 text-xs font-semibold"
+                      />
+                    </div>
+
                     <Button
                       size="sm"
                       className="w-full mt-2 font-bold"
@@ -2562,19 +2607,33 @@ export default function TorneoIndividualDashboard() {
                 </div>
               </div>
 
-              {/* Closure button */}
-              {selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
-                  onClick={handleCerrarFecha}
-                  disabled={!partidosDeFecha.every((p) => p.estado === "finalizado")}
-                >
-                  <CheckCircle2 className="h-4 w-4 mr-1.5" />
-                  Cerrar Fecha {selectedFechaNum}
-                </Button>
-              )}
+              {/* Closure button and Re-sortear for Week 1 */}
+              <div className="flex gap-2">
+                {selectedFechaNum === 1 && selectedFecha?.estado === "pendiente" && partidosDeFecha.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                    onClick={handleReSortearFecha1}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1.5" />
+                    Re-sortear Fecha 1
+                  </Button>
+                )}
+
+                {selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                    onClick={handleCerrarFecha}
+                    disabled={!partidosDeFecha.every((p) => p.estado === "finalizado")}
+                  >
+                    <CheckCircle2 className="h-4 w-4 mr-1.5" />
+                    Cerrar Fecha {selectedFechaNum}
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* If not generated yet */}

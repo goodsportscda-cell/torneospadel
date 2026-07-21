@@ -896,7 +896,9 @@ export default function TorneoIndividualPublico() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-xs leading-relaxed text-muted-foreground">
-                  {torneo?.modalidad === "parejas" ? (
+                  {torneo?.notas ? (
+                    <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas}</div>
+                  ) : torneo?.modalidad === "parejas" ? (
                     <>
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
