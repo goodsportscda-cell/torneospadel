@@ -372,6 +372,15 @@ export default function Torneos() {
 
   const handleCopiarLinkPublico = async (t: any) => {
     const identificador = t.id;
+    const url = `${SHARE_TORNEO_URL}/${identificador}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      toast.success("Link del muro (por ID) copiado");
+    } catch {
+      window.prompt("Copiá el link:", url);
+    }
+  };
+
   const renderTorneoCard = (t: any) => (
     <Card key={t.id}>
       <CardHeader className="pb-2">
