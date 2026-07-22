@@ -28,6 +28,7 @@ import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
 import { PartidoCard } from "./PartidoCard";
 import { TablaPosiciones } from "./TablaPosiciones";
+import { CompartirFixtureZonaDialog } from "./CompartirFixtureZonaDialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 export type Zona = {
@@ -85,6 +86,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
   const [partidosCargados, setPartidosCargados] = useState(false);
   const [generandoFixture, setGenerandoFixture] = useState(false);
   const [setsByPartido, setSetsByPartido] = useState<Record<string, any>>({});
+  const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
   const storyRef = useRef<HTMLDivElement>(null);
 
   // Transfer state
@@ -580,7 +582,20 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
             </div>
 
             <div className="space-y-2">
-              <p className="text-xs font-bold uppercase text-muted-foreground">Fixture</p>
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase text-muted-foreground">Fixture</p>
+                {partidos.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 px-2 py-0"
+                    onClick={() => setShareFixtureOpen(true)}
+                  >
+                    <Share2 className="h-3 w-3 mr-1.5" />
+                    Compartir Fixture
+                  </Button>
+                )}
+              </div>
               
               {/* Aviso si faltan partidos en zona de 4 */}
               {!readOnly && zona.tamanio === 4 && partidosCargados && partidos.length > 0 && partidos.length < 4 && (() => {
@@ -776,12 +791,33 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           </div>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={handleTransferirPareja} disabled={!transferDestZona || !transferDestPosicion}>
-              Transferir
-            </AlertDialogAction>
+            <AlertDialogAction onClick={handleTransferirPareja} disabled={!transferDestZona || !transferDestPosicion}>Transferir</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <CompartirFixtureZonaDialog
+        isOpen={shareFixtureOpen}
+        onOpenChange={setShareFixtureOpen}
+        torneoNombre={torneoNombre}
+        zonaNombre={zona.nombre}
+        partidos={partidos.map(p => ({
+          id: p.id,
+          orden: p.orden,
+          parejaLocal: p.pareja_local_id ? {
+            inscripcion_id: p.pareja_local_id,
+            posicion_siembra: p.posicion_local ?? 0,
+            label: parejaLabel(p.pareja_local_id)
+          } : null,
+          parejaVisitante: p.pareja_visitante_id ? {
+            inscripcion_id: p.pareja_visitante_id,
+            posicion_siembra: p.posicion_visitante ?? 0,
+            label: parejaLabel(p.pareja_visitante_id)
+          } : null,
+          fechaHora: p.fecha_hora,
+          cancha: p.cancha,
+        }))}
+      />
     </>
   );
 }
