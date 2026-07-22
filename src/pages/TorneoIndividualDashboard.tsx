@@ -31,10 +31,12 @@ import {
   AlertTriangle,
   HelpCircle,
   Globe,
-  RefreshCw
+  RefreshCw,
+  Share2
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -162,6 +164,8 @@ export default function TorneoIndividualDashboard() {
     hora_programada: "",
     cancha: "",
   });
+
+  const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
 
   // Settings modification state
   const [updatingSettings, setUpdatingSettings] = useState(false);
@@ -2610,6 +2614,18 @@ export default function TorneoIndividualDashboard() {
 
               {/* Closure button and Re-sortear for Week 1 */}
               <div className="flex gap-2">
+                {partidosDeFecha.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                    onClick={() => setShareFixtureOpen(true)}
+                  >
+                    <Share2 className="h-4 w-4 mr-1.5" />
+                    Compartir Fixture
+                  </Button>
+                )}
+
                 {selectedFechaNum === 1 && selectedFecha?.estado === "pendiente" && partidosDeFecha.length > 0 && (
                   <Button
                     size="sm"
@@ -2901,51 +2917,55 @@ export default function TorneoIndividualDashboard() {
 
       {/* Dialog: Configurar Partido */}
       <Dialog open={configMatchDialogOpen} onOpenChange={setConfigMatchDialogOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent>
           <DialogHeader>
             <DialogTitle>Programar Partido</DialogTitle>
             <DialogDescription>
-              Asigna fecha, hora y cancha para este partido.
+              Ajusta la fecha, horario y cancha de este enfrentamiento.
             </DialogDescription>
           </DialogHeader>
-
-          <div className="space-y-4 py-4 text-sm">
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Fecha</Label>
-              <Input
-                type="date"
-                value={matchConfigForm.fecha_programada}
-                onChange={(e) => setMatchConfigForm({ ...matchConfigForm, fecha_programada: e.target.value })}
-                className="h-9 text-xs"
-              />
+          <div className="space-y-4 py-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Fecha (YYYY-MM-DD)</Label>
+                <Input
+                  type="date"
+                  value={matchConfigForm.fecha_programada}
+                  onChange={(e) => setMatchConfigForm({ ...matchConfigForm, fecha_programada: e.target.value })}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Horario (HH:MM)</Label>
+                <Input
+                  type="time"
+                  value={matchConfigForm.hora_programada}
+                  onChange={(e) => setMatchConfigForm({ ...matchConfigForm, hora_programada: e.target.value })}
+                />
+              </div>
             </div>
             <div className="space-y-2">
-              <Label className="text-xs font-semibold">Hora</Label>
+              <Label>Cancha Asignada</Label>
               <Input
-                type="time"
-                value={matchConfigForm.hora_programada}
-                onChange={(e) => setMatchConfigForm({ ...matchConfigForm, hora_programada: e.target.value })}
-                className="h-9 text-xs"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-xs font-semibold">Cancha / Info Extra</Label>
-              <Input
-                type="text"
                 value={matchConfigForm.cancha}
                 onChange={(e) => setMatchConfigForm({ ...matchConfigForm, cancha: e.target.value })}
-                className="h-9 text-xs"
-                placeholder="Ej. Cancha 1: Élite"
+                placeholder="Ej: Cancha 1"
               />
             </div>
           </div>
-
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setConfigMatchDialogOpen(false)}>Cancelar</Button>
-            <Button size="sm" onClick={handleSaveMatchConfig}>Guardar</Button>
-          </DialogFooter>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfigMatchDialogOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveMatchConfig}>Guardar Programación</Button>
+          </div>
         </DialogContent>
       </Dialog>
+
+      <CompartirFixtureIndividualDialog
+        isOpen={shareFixtureOpen}
+        onOpenChange={setShareFixtureOpen}
+        torneo={torneo}
+        fechaNum={selectedFechaNum}
+        partidos={partidosDeFecha}
+      />
 
       {/* Dialog: Score Input */}
       <Dialog open={scoreDialogOpen} onOpenChange={setScoreDialogOpen}>

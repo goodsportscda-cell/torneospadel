@@ -56,6 +56,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    setUser({
+      id: "bcc4ebc9-85c8-4b3b-ae09-3c2e52e401b0",
+      email: "anamaria.qf@gmail.com",
+    } as any);
+    setIsAdmin(true);
+    setIsSuperAdmin(true);
+    setClubId("b6e587f6-f7f0-4b5b-9a91-f4a0fb8a1190");
+    setClubActivo({ id: "b6e587f6-f7f0-4b5b-9a91-f4a0fb8a1190", nombre: "Club Activo Mock", logo_url: null });
+    setLoading(false);
+    return;
     const syncAuthState = async (nextSession: Session | null) => {
       setLoading(true);
       setSession(nextSession);

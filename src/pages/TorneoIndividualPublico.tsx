@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
+import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
 import {
   Trophy,
   Calendar,
@@ -22,7 +23,8 @@ import {
   TrendingUp,
   TrendingDown,
   Info,
-  Gift
+  Gift,
+  Share2
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -108,6 +110,7 @@ export default function TorneoIndividualPublico() {
   const [partidos, setPartidos] = useState<PartidoInd[]>([]);
   const [standings, setStandings] = useState<any[]>([]);
   const [parejas, setParejas] = useState<any[]>([]);
+  const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
 
   // Active selections
   const [activeTab, setActiveTab] = useState("ranking");
@@ -794,6 +797,18 @@ export default function TorneoIndividualPublico() {
                     </Button>
                   );
                 })}
+
+                {partidosDeFecha.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="ml-auto h-7 text-[10px] font-bold border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                    onClick={() => setShareFixtureOpen(true)}
+                  >
+                    <Share2 className="h-3 w-3 mr-1" />
+                    Compartir
+                  </Button>
+                )}
               </div>
 
               {partidosDeFecha.length === 0 ? (
@@ -1158,6 +1173,14 @@ export default function TorneoIndividualPublico() {
       <footer className="text-center text-xs text-muted-foreground/60 border-t pt-4 mt-8">
         <p>© 2026 Anita Quiroga Pádel · Gestión de Torneos por Padel ID</p>
       </footer>
+
+      <CompartirFixtureIndividualDialog
+        isOpen={shareFixtureOpen}
+        onOpenChange={setShareFixtureOpen}
+        torneo={torneo}
+        fechaNum={selectedFechaNum}
+        partidos={partidosDeFecha}
+      />
     </div>
   );
 }
