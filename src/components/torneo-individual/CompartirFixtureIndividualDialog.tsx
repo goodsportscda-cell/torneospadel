@@ -198,11 +198,9 @@ export function CompartirFixtureIndividualDialog({
             {/* Header */}
             <div className="p-6 pb-2 flex justify-between items-center z-10 relative">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 bg-[#ccff00] rounded flex items-center justify-center">
-                  <span className="text-black font-bold text-xl leading-none -mt-0.5" style={{ fontFamily: "Arial, sans-serif" }}>P</span>
-                </div>
+                <PadelIdLogo className="w-8 h-8" />
                 <span className="font-bold text-white tracking-tight" style={{ fontSize: "16px" }}>
-                  padelero.app
+                  Padel ID
                 </span>
               </div>
               <div className="text-[10px] font-bold tracking-widest uppercase" style={{ color: currentTheme.titleColor }}>
@@ -307,12 +305,10 @@ export function CompartirFixtureIndividualDialog({
             {/* Footer */}
             <div className="mt-auto pb-4 pt-4 px-6 text-center z-10 relative">
               <div className="flex items-center justify-end gap-1.5 opacity-80">
-                <span className="text-[10px] text-white">Anotate en</span>
-                <div className="h-4 w-4 bg-[#ccff00] rounded-sm flex items-center justify-center">
-                  <span className="text-black font-bold text-[10px] leading-none" style={{ fontFamily: "Arial, sans-serif" }}>P</span>
-                </div>
+                <span className="text-[10px] text-white">Gestionado con</span>
+                <PadelIdLogo className="w-4 h-4 text-[#ccff00]" />
                 <span className="font-bold text-white tracking-tight" style={{ fontSize: "10px" }}>
-                  padelero.app
+                  Padel ID
                 </span>
               </div>
             </div>
