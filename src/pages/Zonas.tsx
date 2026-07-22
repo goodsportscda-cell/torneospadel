@@ -369,7 +369,7 @@ export default function Zonas() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
-              <PanelDisponibles parejas={parejasDisponibles} />
+              <PanelDisponibles parejas={parejasDisponibles} parejaDisponibilidad={parejaDisponibilidad} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {zonas.map((z) => (
                   <ZonaCard

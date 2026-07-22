@@ -531,11 +531,11 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                 return (
                   <div key={pos} className="flex items-center gap-2">
                     <span className="text-xs font-bold w-4">{pos}.</span>
-                    <div className="flex-1 border rounded p-2 text-sm bg-background min-h-[40px] flex items-center justify-between">
+                    <div className="flex-1 border rounded p-2 text-sm bg-background min-h-[40px] flex items-center justify-between gap-2 overflow-hidden">
                       {ocupado ? (
                         <>
-                          <div className="flex flex-col overflow-hidden min-w-0">
-                            <span className="truncate">{parejaLabel(ocupado.inscripcion_id)}</span>
+                          <div className="flex flex-col overflow-hidden min-w-0 flex-1">
+                            <span className="font-semibold truncate">{parejaLabel(ocupado.inscripcion_id)}</span>
                             {parejaDisponibilidad && parejaDisponibilidad(ocupado.inscripcion_id) && (
                               <span className="text-[10px] text-muted-foreground truncate" title={parejaDisponibilidad(ocupado.inscripcion_id)!}>
                                 Disp: {parejaDisponibilidad(ocupado.inscripcion_id)}
@@ -543,9 +543,12 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                             )}
                           </div>
                           {!readOnly && (
-                            <div className="flex items-center gap-2">
-                              <ArrowRightLeft 
-                                className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-primary" 
+                            <div className="flex items-center gap-1 shrink-0 ml-1">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-primary hover:bg-primary/10 shrink-0"
                                 onClick={() => {
                                   setTransferOcupado(ocupado);
                                   setTransferDestZona("");
@@ -553,8 +556,19 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                                   setTransferDialogOpen(true);
                                 }}
                                 title="Cambiar a otra zona"
-                              />
-                              <X className="h-4 w-4 cursor-pointer text-muted-foreground hover:text-destructive" onClick={() => quitarPareja(ocupado.id)} title="Quitar pareja" />
+                              >
+                                <ArrowRightLeft className="h-3.5 w-3.5" />
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                                onClick={() => quitarPareja(ocupado.id)}
+                                title="Quitar pareja de esta zona"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </Button>
                             </div>
                           )}
                         </>
@@ -563,12 +577,15 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                           <SelectTrigger className="h-7 text-xs border-none bg-transparent">
                             <SelectValue placeholder="Asignar pareja..." />
                           </SelectTrigger>
-                          <SelectContent>
+                          <SelectContent className="max-w-[320px]">
                             {parejasDisponibles.map(p => {
                               const disp = parejaDisponibilidad ? parejaDisponibilidad(p.inscripcion_id) : null;
                               return (
                                 <SelectItem key={p.inscripcion_id} value={p.inscripcion_id}>
-                                  {p.label} {disp ? `(${disp})` : ''}
+                                  <div className="flex flex-col min-w-0 max-w-[280px]">
+                                    <span className="truncate">{p.label}</span>
+                                    {disp && <span className="text-[10px] text-muted-foreground truncate">Disp: {disp}</span>}
+                                  </div>
                                 </SelectItem>
                               );
                             })}

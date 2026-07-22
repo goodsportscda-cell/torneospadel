@@ -3,19 +3,25 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 type Pareja = {
   inscripcion_id: string;
   label: string;
+  disponibilidad?: string | null;
 };
 
-function ParejaStatic({ label }: { label: string }) {
+function ParejaStatic({ label, disponibilidad }: { label: string; disponibilidad?: string | null }) {
   return (
     <div
-      className="flex items-center gap-2 rounded border bg-card px-2 py-1.5 text-sm shadow-sm select-none"
+      className="flex flex-col gap-0.5 rounded border bg-card px-2.5 py-1.5 text-sm shadow-sm select-none min-w-0"
     >
-      <span className="flex-1 truncate">{label}</span>
+      <span className="font-medium truncate">{label}</span>
+      {disponibilidad && (
+        <span className="text-[10px] text-muted-foreground truncate" title={disponibilidad}>
+          Disp: {disponibilidad}
+        </span>
+      )}
     </div>
   );
 }
 
-export function PanelDisponibles({ parejas }: { parejas: Pareja[] }) {
+export function PanelDisponibles({ parejas, parejaDisponibilidad }: { parejas: Pareja[]; parejaDisponibilidad?: (id: string) => string | null }) {
   return (
     <Card className="sticky top-4">
       <CardHeader className="pb-3">
@@ -27,7 +33,11 @@ export function PanelDisponibles({ parejas }: { parejas: Pareja[] }) {
           <p className="text-sm text-muted-foreground">Todas las parejas están asignadas a una zona.</p>
         ) : (
           parejas.map((p) => (
-            <ParejaStatic key={p.inscripcion_id} label={p.label} />
+            <ParejaStatic 
+              key={p.inscripcion_id} 
+              label={p.label} 
+              disponibilidad={p.disponibilidad || (parejaDisponibilidad ? parejaDisponibilidad(p.inscripcion_id) : null)} 
+            />
           ))
         )}
       </CardContent>
