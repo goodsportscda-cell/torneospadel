@@ -13,6 +13,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -371,14 +372,139 @@ export default function Torneos() {
 
   const handleCopiarLinkPublico = async (t: any) => {
     const identificador = t.id;
-    const url = `${SHARE_TORNEO_URL}/${identificador}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      toast.success("Link del muro (por ID) copiado");
-    } catch {
-      window.prompt("Copiá el link:", url);
-    }
-  };
+  const renderTorneoCard = (t: any) => (
+    <Card key={t.id}>
+      <CardHeader className="pb-2">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <CardTitle className="text-base truncate">{t.nombre}</CardTitle>
+              {Number(t.multiplicador_puntos) >= 2 && (
+                <Badge className="shrink-0 bg-primary text-primary-foreground text-[10px] px-1.5 py-0 h-5">
+                  x{Number(t.multiplicador_puntos)}
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {t.tipo === "americano" ? "Americano" : t.tipo === "americano_individual" ? "Individual" : "Oficial"} · {categoriaNombre(t)}
+              {t.numero_fecha && ` · Fecha ${t.numero_fecha}`}
+            </p>
+          </div>
+          <Badge className={`shrink-0 ${ESTADO_TORNEO_BADGE[t.estado as EstadoTorneo]}`}>
+            {ESTADO_LABELS[t.estado as EstadoTorneo]}
+          </Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-2 text-sm">
+        <div className="flex items-center gap-1.5 text-muted-foreground">
+          <CalIcon className="h-3.5 w-3.5" />
+          <span>
+            {new Date(t.fecha_inicio).toLocaleDateString("es-AR")}
+            {t.fecha_fin && ` → ${new Date(t.fecha_fin).toLocaleDateString("es-AR")}`}
+          </span>
+        </div>
+        {t.sede && (
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <MapPin className="h-3.5 w-3.5" />
+            <span className="truncate">{t.sede}</span>
+          </div>
+        )}
+
+        <div className="grid gap-1.5 pt-1">
+          <Label className="text-xs text-muted-foreground">Cambiar estado</Label>
+          <Select value={t.estado} onValueChange={(v: EstadoTorneo) => handleQuickEstado(t, v)}>
+            <SelectTrigger className="h-8">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ESTADO_TORNEO_ORDEN.map((e) => (
+                <SelectItem key={e} value={e}>
+                  {ESTADO_LABELS[e]}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {t.estado === "finalizado" && t.tipo !== "americano_individual" && (
+          <Button
+            size="sm"
+            variant="secondary"
+            className="w-full"
+            onClick={() => handleRecalcularRanking(t)}
+          >
+            <Award className="h-3.5 w-3.5" />
+            Recalcular ranking
+          </Button>
+        )}
+
+        {t.tipo === "americano_individual" && (
+          <Button
+            size="sm"
+            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
+            asChild
+          >
+            <Link to={`/admin/torneo-individual/${t.id}`}>
+              <Settings className="h-3.5 w-3.5 mr-1" />
+              Gestionar Americano
+            </Link>
+          </Button>
+        )}
+
+        <div className="flex gap-2 pt-2">
+          <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(t)}>
+            <Pencil className="h-3.5 w-3.5" />
+            Editar
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => handleCopiarLinkInscripcion(t)}
+            title="Copiar link de inscripción"
+          >
+            <Link2 className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              const path = t.tipo === "americano_individual" ? `/torneo-individual/${t.id}` : `/torneo/${t.id}`;
+              const url = `${window.location.origin}${path}`;
+              navigator.clipboard.writeText(url);
+              toast.success("¡Link del muro público copiado!");
+            }}
+            title="Copiar link del muro de resultados"
+          >
+            <Globe className="h-3.5 w-3.5" />
+          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Trash2 className="h-3.5 w-3.5" />
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar torneo?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Esta acción eliminará "{t.nombre}" y no se puede deshacer.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                <AlertDialogAction onClick={() => handleDelete(t.id)}>
+                  Eliminar
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  const torneosOficiales = torneos.filter(t => t.tipo !== "americano_individual");
+  const torneosSemanales = torneos.filter(t => t.tipo === "americano_individual");
 
   const categoriaNombre = (t: Torneo) => {
     if (t.tipo === "americano" || t.tipo === "americano_individual") return t.categoria_libre ?? "—";
@@ -769,138 +895,38 @@ export default function Torneos() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {torneos.map((t) => (
-            <Card key={t.id}>
-              <CardHeader className="pb-2">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <CardTitle className="text-base truncate">{t.nombre}</CardTitle>
-                      {Number(t.multiplicador_puntos) >= 2 && (
-                        <Badge className="shrink-0 bg-primary text-primary-foreground text-[10px] px-1.5 py-0 h-5">
-                          x{Number(t.multiplicador_puntos)}
-                        </Badge>
-                      )}
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      {t.tipo === "americano" ? "Americano" : t.tipo === "americano_individual" ? "Individual" : "Oficial"} · {categoriaNombre(t)}
-                      {t.numero_fecha && ` · Fecha ${t.numero_fecha}`}
-                    </p>
-                  </div>
-                  <Badge className={`shrink-0 ${ESTADO_TORNEO_BADGE[t.estado]}`}>
-                    {ESTADO_LABELS[t.estado]}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                <div className="flex items-center gap-1.5 text-muted-foreground">
-                  <CalIcon className="h-3.5 w-3.5" />
-                  <span>
-                    {new Date(t.fecha_inicio).toLocaleDateString("es-AR")}
-                    {t.fecha_fin && ` → ${new Date(t.fecha_fin).toLocaleDateString("es-AR")}`}
-                  </span>
-                </div>
-                {t.sede && (
-                  <div className="flex items-center gap-1.5 text-muted-foreground">
-                    <MapPin className="h-3.5 w-3.5" />
-                    <span className="truncate">{t.sede}</span>
-                  </div>
-                )}
-
-                <div className="grid gap-1.5 pt-1">
-                  <Label className="text-xs text-muted-foreground">Cambiar estado</Label>
-                  <Select value={t.estado} onValueChange={(v: EstadoTorneo) => handleQuickEstado(t, v)}>
-                    <SelectTrigger className="h-8">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ESTADO_TORNEO_ORDEN.map((e) => (
-                        <SelectItem key={e} value={e}>
-                          {ESTADO_LABELS[e]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                 {t.estado === "finalizado" && t.tipo !== "americano_individual" && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="w-full"
-                    onClick={() => handleRecalcularRanking(t)}
-                  >
-                    <Award className="h-3.5 w-3.5" />
-                    Recalcular ranking
-                  </Button>
-                )}
-
-                {t.tipo === "americano_individual" && (
-                  <Button
-                    size="sm"
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium"
-                    asChild
-                  >
-                    <Link to={`/admin/torneo-individual/${t.id}`}>
-                      <Settings className="h-3.5 w-3.5 mr-1" />
-                      Gestionar Americano
-                    </Link>
-                  </Button>
-                )}
-
-                <div className="flex gap-2 pt-2">
-                  <Button size="sm" variant="outline" className="flex-1" onClick={() => openEdit(t)}>
-                    <Pencil className="h-3.5 w-3.5" />
-                    Editar
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => handleCopiarLinkInscripcion(t)}
-                    title="Copiar link de inscripción"
-                  >
-                    <Link2 className="h-3.5 w-3.5" />
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const path = t.tipo === "americano_individual" ? `/torneo-individual/${t.id}` : `/torneo/${t.id}`;
-                      const url = `${window.location.origin}${path}`;
-                      navigator.clipboard.writeText(url);
-                      toast.success("¡Link del muro público copiado!");
-                    }}
-                    title="Copiar link del muro de resultados"
-                  >
-                    <Globe className="h-3.5 w-3.5" />
-                  </Button>
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button size="sm" variant="outline">
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent>
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>¿Eliminar torneo?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                          Esta acción eliminará "{t.nombre}" y no se puede deshacer.
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                        <AlertDialogAction onClick={() => handleDelete(t.id)}>
-                          Eliminar
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <Tabs defaultValue="oficiales" className="w-full">
+          <TabsList className="mb-4">
+            <TabsTrigger value="oficiales">Torneos Oficiales</TabsTrigger>
+            <TabsTrigger value="semanales">Desafíos Semanales</TabsTrigger>
+          </TabsList>
+          <TabsContent value="oficiales" className="mt-0">
+            {torneosOficiales.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                  No hay torneos oficiales cargados.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {torneosOficiales.map(renderTorneoCard)}
+              </div>
+            )}
+          </TabsContent>
+          <TabsContent value="semanales" className="mt-0">
+            {torneosSemanales.length === 0 ? (
+              <Card>
+                <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                  No hay desafíos semanales cargados.
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {torneosSemanales.map(renderTorneoCard)}
+              </div>
+            )}
+          </TabsContent>
+        </Tabs>
       )}
     </div>
   );
