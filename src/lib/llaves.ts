@@ -19,7 +19,8 @@ export type PartidoLlavePlantilla = {
 export type RefParsed =
   | { tipo: "clasificado"; posicion: number; zona: string } // 1°A => {1, 'A'}
   | { tipo: "ganador"; numeroPartido: number }
-  | { tipo: "bye" };
+  | { tipo: "bye" }
+  | { tipo: "manual"; label: string };
 
 export function parseRef(ref: string): RefParsed {
   if (ref === "BYE") return { tipo: "bye" };
@@ -31,13 +32,6 @@ export function parseRef(ref: string): RefParsed {
   if (!m) return { tipo: "manual", label: ref };
   return { tipo: "clasificado", posicion: parseInt(m[1], 10), zona: m[2] };
 }
-
-// Actualizamos el tipo RefParsed
-export type RefParsed =
-  | { tipo: "clasificado"; posicion: number; zona: string }
-  | { tipo: "ganador"; numeroPartido: number }
-  | { tipo: "bye" }
-  | { tipo: "manual"; label: string };
 
 // 6 parejas (2 zonas de 3) → 4 clasificados → semis directas
 function llave6(): PartidoLlavePlantilla[] {
