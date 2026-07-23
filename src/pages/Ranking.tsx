@@ -28,9 +28,28 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2, Check } from "lucide-react";
+import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2, Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { INSTANCIA_LABEL, type Instancia } from "@/lib/ranking";
+import { activeTenant } from "@/lib/tenant";
+
+// Convierte una imagen importada a dataURL para incrustarla en el PDF
+const loadImageAsDataURL = (src: string): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = img.naturalWidth;
+      canvas.height = img.naturalHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("No canvas ctx"));
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = reject;
+    img.src = src;
+  });
 
 type DetalleTorneo = {
   torneo_id: string;
@@ -106,6 +125,303 @@ export default function Ranking() {
     setCopiado(true);
     toast.success("¡Enlace del ranking público copiado! Listo para compartir en WhatsApp.");
     setTimeout(() => setCopiado(false), 2000);
+  };
+
+  const [exportingMaster, setExportingMaster] = useState(false);
+
+  const exportarPDFMaster = async () => {
+    setExportingMaster(true);
+    try {
+      const [{ data: cats }, { data: cupos }, { data: ranking }, { data: ascensos }] = await Promise.all([
+        supabase
+          .from("categorias")
+          .select("id, nombre, genero, orden")
+          .eq("activa", true)
+          .order("orden"),
+        supabase.from("cupos_master").select("categoria_id, cupos"),
+        supabase
+          .from("ranking_jugadores")
+          .select("jugador_id, puntos, categoria_id")
+          .eq("anio", filtroAnio),
+        supabase
+          .from("ascensos")
+          .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id")
+          .eq("anio", filtroAnio),
+      ]);
+
+      const cuposMap = new Map<string, number>();
+      (cupos ?? []).forEach((c: { categoria_id: string; cupos: number }) =>
+        cuposMap.set(c.categoria_id, c.cupos)
+      );
+
+      const ascendidosDesde = new Map<string, Set<string>>();
+      const ascensoMapByCat = new Map<string, Map<string, number>>();
+
+      (ascensos ?? []).forEach((a) => {
+        if (!ascensoMapByCat.has(a.categoria_destino_id)) {
+          ascensoMapByCat.set(a.categoria_destino_id, new Map());
+        }
+        const m = ascensoMapByCat.get(a.categoria_destino_id)!;
+        m.set(a.jugador_id, (m.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
+
+        if (!ascendidosDesde.has(a.categoria_origen_id)) {
+          ascendidosDesde.set(a.categoria_origen_id, new Set());
+        }
+        ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
+      });
+
+      const puntosPorCat = new Map<string, Map<string, number>>();
+      (ranking ?? []).forEach((r) => {
+        if (!r.categoria_id) return;
+        const catAscendidos = ascendidosDesde.get(r.categoria_id);
+        if (catAscendidos && catAscendidos.has(r.jugador_id)) {
+          return;
+        }
+        if (!puntosPorCat.has(r.categoria_id)) {
+          puntosPorCat.set(r.categoria_id, new Map());
+        }
+        const m = puntosPorCat.get(r.categoria_id)!;
+        m.set(r.jugador_id, (m.get(r.jugador_id) ?? 0) + r.puntos);
+      });
+
+      ascensoMapByCat.forEach((jugadorMap, catId) => {
+        if (!puntosPorCat.has(catId)) {
+          puntosPorCat.set(catId, new Map());
+        }
+        const m = puntosPorCat.get(catId)!;
+        jugadorMap.forEach((pts, jId) => {
+          m.set(jId, (m.get(jId) ?? 0) + pts);
+        });
+      });
+
+      const todosIds = new Set<string>();
+      puntosPorCat.forEach((m) => m.forEach((_, id) => todosIds.add(id)));
+      let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
+      if (todosIds.size > 0) {
+        const idsArray = Array.from(todosIds);
+        const chunkSize = 100;
+        const chunks = [];
+        for (let i = 0; i < idsArray.length; i += chunkSize) {
+          chunks.push(idsArray.slice(i, i + chunkSize));
+        }
+        try {
+          const results = await Promise.all(
+            chunks.map(chunk =>
+              supabase
+                .from("jugadores")
+                .select("id, nombre, apellido, club")
+                .in("id", chunk)
+            )
+          );
+          for (const res of results) {
+            if (res.data) {
+              jugadores = [...jugadores, ...res.data];
+            }
+          }
+        } catch (err) {
+          console.error("Error fetching jugadores for master pdf:", err);
+        }
+      }
+      const jugadorMap = new Map(
+        jugadores.map((j) => [j.id, j] as const)
+      );
+
+      type ClasificadoRowData = {
+        jugador_id: string;
+        apellido: string;
+        nombre: string;
+        club: string | null;
+        puntos: number;
+      };
+
+      type CatMasterData = {
+        categoria: Categoria;
+        cupos: number;
+        clasificados: ClasificadoRowData[];
+      };
+
+      const masterData: CatMasterData[] = (cats ?? []).map((cat) => {
+        const defCupo = cat.nombre.toLowerCase().includes("suma 7") ? 8 : 16;
+        const cupos = cuposMap.get(cat.id) ?? defCupo;
+        const puntos = puntosPorCat.get(cat.id);
+        let clasificados: ClasificadoRowData[] = [];
+        if (puntos) {
+          clasificados = Array.from(puntos.entries())
+            .map(([jugador_id, p]) => {
+              const j = jugadorMap.get(jugador_id);
+              return {
+                jugador_id,
+                apellido: j?.apellido ?? "?",
+                nombre: j?.nombre ?? "?",
+                club: j?.club ?? null,
+                puntos: p,
+              };
+            })
+            .sort((a, b) => b.puntos - a.puntos)
+            .slice(0, cupos);
+        }
+        return { categoria: cat as Categoria, cupos, clasificados };
+      });
+
+      const totalClasificados = masterData.reduce((acc, d) => acc + d.clasificados.length, 0);
+      if (totalClasificados === 0) {
+        toast.error("No hay clasificados con puntos registrados para el año seleccionado.");
+        return;
+      }
+
+      const jspdfMod = await import("jspdf");
+      const jsPDF = jspdfMod.jsPDF;
+
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const marginX = 12;
+      const marginTop = 14;
+      const headerOffset = 22;
+      const marginBottom = 16;
+      const colGap = 6;
+      const colW = (pageW - marginX * 2 - colGap) / 2;
+      const rowH = 5.2;
+      const headerH = 9;
+
+      let logoData: string | null = null;
+      try {
+        logoData = await loadImageAsDataURL(activeTenant.logo);
+      } catch (err) {
+        console.warn("No se pudo cargar el logo", err);
+      }
+
+      const drawHeaderFooter = () => {
+        if (logoData) {
+          const logoH = 14;
+          const logoW = 14;
+          pdf.addImage(logoData, "PNG", marginX, marginTop - 4, logoW, logoH);
+        }
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(15);
+        pdf.setTextColor(0);
+        pdf.text(`Clasificados al Master ${filtroAnio}`, pageW / 2, marginTop + 2, {
+          align: "center",
+        });
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(120);
+        pdf.text(
+          `Generado el ${new Date().toLocaleDateString("es-AR")} · ${totalClasificados} clasificados en ${masterData.length} categorías`,
+          pageW / 2,
+          marginTop + 7,
+          { align: "center" }
+        );
+        pdf.setTextColor(0);
+
+        pdf.setDrawColor(220);
+        pdf.setLineWidth(0.3);
+        pdf.line(marginX, marginTop + 11, pageW - marginX, marginTop + 11);
+
+        const footerY = pageH - 8;
+        pdf.setDrawColor(230);
+        pdf.line(marginX, footerY - 5, pageW - marginX, footerY - 5);
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(8.5);
+        pdf.setTextColor(227, 6, 19);
+        pdf.text(activeTenant.name.toUpperCase(), marginX, footerY);
+        pdf.setFont("helvetica", "normal");
+        pdf.setTextColor(120);
+        pdf.text(activeTenant.instagram || activeTenant.subtext, pageW / 2, footerY, { align: "center" });
+        const pageNum = pdf.getCurrentPageInfo().pageNumber;
+        const totalPages = pdf.getNumberOfPages();
+        pdf.text(`Página ${pageNum} de ${totalPages}`, pageW - marginX, footerY, {
+          align: "right",
+        });
+        pdf.setTextColor(0);
+      };
+
+      let col = 0;
+      const startY = marginTop + headerOffset - 8;
+      const colY = [startY, startY];
+
+      const labelGenero = (g: string) =>
+        g === "caballeros" ? "Caballeros" : g === "damas" ? "Damas" : "Mixto";
+
+      const drawCategoria = (d: CatMasterData) => {
+        const titulo = `${labelGenero(d.categoria.genero)} — ${d.categoria.nombre}`;
+        const filas = d.clasificados.length;
+        const altoCard = headerH + (filas === 0 ? 8 : filas * rowH) + 6;
+
+        if (colY[col] + altoCard > pageH - marginBottom) {
+          col += 1;
+          if (col > 1) {
+            pdf.addPage();
+            col = 0;
+            colY[0] = startY;
+            colY[1] = startY;
+          }
+        }
+
+        const x = marginX + col * (colW + colGap);
+        const y = colY[col];
+
+        pdf.setDrawColor(220);
+        pdf.setLineWidth(0.2);
+        pdf.roundedRect(x, y, colW, altoCard, 1.5, 1.5);
+
+        pdf.setFont("helvetica", "bold");
+        pdf.setFontSize(10);
+        pdf.text(titulo, x + 3, y + 6);
+        pdf.setFont("helvetica", "normal");
+        pdf.setFontSize(8);
+        pdf.setTextColor(120);
+        const cuposText = `${filas}/${d.cupos}`;
+        pdf.text(cuposText, x + colW - 3, y + 6, { align: "right" });
+        pdf.setTextColor(0);
+
+        pdf.setDrawColor(230);
+        pdf.line(x + 3, y + headerH - 1, x + colW - 3, y + headerH - 1);
+
+        if (filas === 0) {
+          pdf.setFont("helvetica", "italic");
+          pdf.setFontSize(8);
+          pdf.setTextColor(140);
+          pdf.text("Sin puntos registrados aún.", x + 3, y + headerH + 4);
+          pdf.setTextColor(0);
+        } else {
+          pdf.setFontSize(8.5);
+          d.clasificados.forEach((c, idx) => {
+            const ry = y + headerH + 3 + idx * rowH;
+            pdf.setFont("helvetica", "normal");
+            pdf.setTextColor(140);
+            pdf.text(`${idx + 1}.`, x + 3, ry, { align: "left" });
+            pdf.setTextColor(0);
+            pdf.setFont("helvetica", "bold");
+            const nombre = `${c.apellido}, ${c.nombre}`;
+            const maxNombreW = colW - 18;
+            const nombreFit = pdf.splitTextToSize(nombre, maxNombreW)[0];
+            pdf.text(nombreFit, x + 8, ry);
+            pdf.setFont("helvetica", "bold");
+            pdf.text(String(c.puntos), x + colW - 3, ry, { align: "right" });
+          });
+        }
+
+        colY[col] += altoCard + 4;
+      };
+
+      masterData.forEach(drawCategoria);
+
+      const totalPages = pdf.getNumberOfPages();
+      for (let p = 1; p <= totalPages; p++) {
+        pdf.setPage(p);
+        drawHeaderFooter();
+      }
+
+      pdf.save(`Master-${filtroAnio}.pdf`);
+      toast.success("PDF del Master descargado correctamente");
+    } catch (e) {
+      console.error(e);
+      toast.error("Error al generar el PDF del Master");
+    } finally {
+      setExportingMaster(false);
+    }
   };
 
   const [puntosCfg, setPuntosCfg] = useState<{ instancia: Instancia; puntos: number; orden: number }[]>([]);
@@ -697,6 +1013,19 @@ export default function Ranking() {
           </p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={exportarPDFMaster}
+            disabled={exportingMaster}
+          >
+            {exportingMaster ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Download className="h-4 w-4" />
+            )}
+            Descargar PDF Master
+          </Button>
           <Button variant="outline" size="sm" onClick={() => { resetAscensoForm(); setAscensoOpen(true); }}>
             <ArrowUpCircle className="h-4 w-4" />
             Registrar ascenso

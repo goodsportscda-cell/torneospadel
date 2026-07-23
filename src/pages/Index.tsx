@@ -471,13 +471,10 @@ const Index = () => {
                   <Link to="/llaves">Llaves</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm" className="justify-start">
-                  <Link to="/posiciones">Posiciones</Link>
+                  <Link to="/ranking">Ranking</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm" className="justify-start">
                   <Link to="/calendario">Calendario</Link>
-                </Button>
-                <Button asChild variant="outline" size="sm" className="justify-start">
-                  <Link to="/master">Master</Link>
                 </Button>
                 <Button asChild variant="outline" size="sm" className="justify-start">
                   <Link to="/importar">Importar</Link>

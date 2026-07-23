@@ -21,9 +21,7 @@ import Inscripciones from "./pages/Inscripciones.tsx";
 import Zonas from "./pages/Zonas.tsx";
 import Importar from "./pages/Importar.tsx";
 import Llaves from "./pages/Llaves.tsx";
-import Posiciones from "./pages/Posiciones.tsx";
 import Ranking from "./pages/Ranking.tsx";
-import Master from "./pages/Master.tsx";
 import InscripcionPublica from "./pages/InscripcionPublica.tsx";
 import TorneoPublico from "./pages/TorneoPublico.tsx";
 import RankingPublico from "./pages/RankingPublico.tsx";
@@ -108,9 +106,9 @@ const App = () => (
               <Route path="/canchas-en-vivo" element={<CanchasEnVivo />} />
               <Route path="/importar" element={<Importar />} />
               <Route path="/llaves" element={<Llaves />} />
-              <Route path="/posiciones" element={<Posiciones />} />
+              <Route path="/posiciones" element={<Navigate to="/ranking" replace />} />
               <Route path="/ranking" element={<Ranking />} />
-              <Route path="/master" element={<Master />} />
+              <Route path="/master" element={<Navigate to="/ranking" replace />} />
               <Route path="/configuracion" element={<Configuracion />} />
               <Route path="/admin/torneo-individual/:id" element={<TorneoIndividualDashboard />} />
             </Route>

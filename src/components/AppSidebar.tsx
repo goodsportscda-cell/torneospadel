@@ -25,9 +25,7 @@ const items = [
   { title: "Canchas en vivo", url: "/canchas-en-vivo", icon: Activity },
   { title: "Importar inscriptos", url: "/importar", icon: Upload },
   { title: "Llaves", url: "/llaves", icon: GitBranch },
-  { title: "Posiciones", url: "/posiciones", icon: BarChart3 },
   { title: "Ranking", url: "/ranking", icon: Award },
-  { title: "Master", url: "/master", icon: Star },
   { title: "Configuración", url: "/configuracion", icon: Settings },
 ];
 
