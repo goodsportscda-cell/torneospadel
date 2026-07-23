@@ -132,21 +132,13 @@ export default function Ranking() {
   const exportarPDFMaster = async () => {
     setExportingMaster(true);
     try {
-      const [{ data: cats }, { data: cupos }, { data: ranking }, { data: ascensos }] = await Promise.all([
+      const [{ data: allCats }, { data: cupos }] = await Promise.all([
         supabase
           .from("categorias")
           .select("id, nombre, genero, orden")
           .eq("activa", true)
           .order("orden"),
         supabase.from("cupos_master").select("categoria_id, cupos"),
-        supabase
-          .from("ranking_jugadores")
-          .select("jugador_id, puntos, categoria_id")
-          .eq("anio", filtroAnio),
-        supabase
-          .from("ascensos")
-          .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id")
-          .eq("anio", filtroAnio),
       ]);
 
       const cuposMap = new Map<string, number>();
@@ -154,77 +146,28 @@ export default function Ranking() {
         cuposMap.set(c.categoria_id, c.cupos)
       );
 
-      const ascendidosDesde = new Map<string, Set<string>>();
-      const ascensoMapByCat = new Map<string, Map<string, number>>();
+      const MASTER_CATEGORIES_CONFIG = [
+        { nombre: "8va", genero: "damas" },
+        { nombre: "7ma", genero: "damas" },
+        { nombre: "6ta", genero: "damas" },
+        { nombre: "8va", genero: "caballeros" },
+        { nombre: "7ma", genero: "caballeros" },
+        { nombre: "6ta", genero: "caballeros" },
+        { nombre: "5ta", genero: "caballeros" },
+        { nombre: "Suma 7", genero: "caballeros" },
+      ];
 
-      (ascensos ?? []).forEach((a) => {
-        if (!ascensoMapByCat.has(a.categoria_destino_id)) {
-          ascensoMapByCat.set(a.categoria_destino_id, new Map());
-        }
-        const m = ascensoMapByCat.get(a.categoria_destino_id)!;
-        m.set(a.jugador_id, (m.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
-
-        if (!ascendidosDesde.has(a.categoria_origen_id)) {
-          ascendidosDesde.set(a.categoria_origen_id, new Set());
-        }
-        ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
-      });
-
-      const puntosPorCat = new Map<string, Map<string, number>>();
-      (ranking ?? []).forEach((r) => {
-        if (!r.categoria_id) return;
-        const catAscendidos = ascendidosDesde.get(r.categoria_id);
-        if (catAscendidos && catAscendidos.has(r.jugador_id)) {
-          return;
-        }
-        if (!puntosPorCat.has(r.categoria_id)) {
-          puntosPorCat.set(r.categoria_id, new Map());
-        }
-        const m = puntosPorCat.get(r.categoria_id)!;
-        m.set(r.jugador_id, (m.get(r.jugador_id) ?? 0) + r.puntos);
-      });
-
-      ascensoMapByCat.forEach((jugadorMap, catId) => {
-        if (!puntosPorCat.has(catId)) {
-          puntosPorCat.set(catId, new Map());
-        }
-        const m = puntosPorCat.get(catId)!;
-        jugadorMap.forEach((pts, jId) => {
-          m.set(jId, (m.get(jId) ?? 0) + pts);
-        });
-      });
-
-      const todosIds = new Set<string>();
-      puntosPorCat.forEach((m) => m.forEach((_, id) => todosIds.add(id)));
-      let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
-      if (todosIds.size > 0) {
-        const idsArray = Array.from(todosIds);
-        const chunkSize = 100;
-        const chunks = [];
-        for (let i = 0; i < idsArray.length; i += chunkSize) {
-          chunks.push(idsArray.slice(i, i + chunkSize));
-        }
-        try {
-          const results = await Promise.all(
-            chunks.map(chunk =>
-              supabase
-                .from("jugadores")
-                .select("id, nombre, apellido, club")
-                .in("id", chunk)
-            )
-          );
-          for (const res of results) {
-            if (res.data) {
-              jugadores = [...jugadores, ...res.data];
-            }
-          }
-        } catch (err) {
-          console.error("Error fetching jugadores for master pdf:", err);
+      const masterCats: Categoria[] = [];
+      for (const cfg of MASTER_CATEGORIES_CONFIG) {
+        const found = (allCats ?? []).find(
+          (c) =>
+            c.nombre.toLowerCase().trim() === cfg.nombre.toLowerCase().trim() &&
+            c.genero === cfg.genero
+        );
+        if (found) {
+          masterCats.push(found as Categoria);
         }
       }
-      const jugadorMap = new Map(
-        jugadores.map((j) => [j.id, j] as const)
-      );
 
       type ClasificadoRowData = {
         jugador_id: string;
@@ -240,28 +183,78 @@ export default function Ranking() {
         clasificados: ClasificadoRowData[];
       };
 
-      const masterData: CatMasterData[] = (cats ?? []).map((cat) => {
+      const masterData: CatMasterData[] = [];
+
+      for (const cat of masterCats) {
         const defCupo = cat.nombre.toLowerCase().includes("suma 7") ? 8 : 16;
-        const cupos = cuposMap.get(cat.id) ?? defCupo;
-        const puntos = puntosPorCat.get(cat.id);
-        let clasificados: ClasificadoRowData[] = [];
-        if (puntos) {
-          clasificados = Array.from(puntos.entries())
-            .map(([jugador_id, p]) => {
-              const j = jugadorMap.get(jugador_id);
-              return {
-                jugador_id,
-                apellido: j?.apellido ?? "?",
-                nombre: j?.nombre ?? "?",
-                club: j?.club ?? null,
-                puntos: p,
-              };
-            })
-            .sort((a, b) => b.puntos - a.puntos)
-            .slice(0, cupos);
+        const cuposCount = cuposMap.get(cat.id) ?? defCupo;
+
+        const [{ data: ranking }, { data: ascDestino }, { data: ascOrigen }] = await Promise.all([
+          supabase
+            .from("ranking_jugadores")
+            .select("jugador_id, puntos")
+            .eq("anio", filtroAnio)
+            .eq("categoria_id", cat.id),
+          supabase
+            .from("ascensos")
+            .select("jugador_id, puntos_transferidos")
+            .eq("anio", filtroAnio)
+            .eq("categoria_destino_id", cat.id),
+          supabase
+            .from("ascensos")
+            .select("jugador_id")
+            .eq("anio", filtroAnio)
+            .eq("categoria_origen_id", cat.id),
+        ]);
+
+        const ascendidosDesde = new Set((ascOrigen ?? []).map((a) => a.jugador_id));
+        const ascensoMap = new Map<string, number>();
+        (ascDestino ?? []).forEach((a) => {
+          ascensoMap.set(a.jugador_id, (ascensoMap.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
+        });
+
+        const puntosMap = new Map<string, number>();
+        (ranking ?? []).forEach((r) => {
+          if (ascendidosDesde.has(r.jugador_id)) return;
+          puntosMap.set(r.jugador_id, (puntosMap.get(r.jugador_id) ?? 0) + r.puntos);
+        });
+
+        for (const [jId, pts] of ascensoMap.entries()) {
+          puntosMap.set(jId, (puntosMap.get(jId) ?? 0) + pts);
         }
-        return { categoria: cat as Categoria, cupos, clasificados };
-      });
+
+        const sortedEntries = Array.from(puntosMap.entries())
+          .sort((a, b) => b[1] - a[1])
+          .slice(0, cuposCount);
+
+        let clasificados: ClasificadoRowData[] = [];
+        if (sortedEntries.length > 0) {
+          const ids = sortedEntries.map(([id]) => id);
+          const { data: jugData } = await supabase
+            .from("jugadores")
+            .select("id, nombre, apellido, club")
+            .in("id", ids);
+
+          const jugMap = new Map((jugData ?? []).map((j) => [j.id, j]));
+
+          clasificados = sortedEntries.map(([jId, pts]) => {
+            const j = jugMap.get(jId);
+            return {
+              jugador_id: jId,
+              apellido: j?.apellido ?? "?",
+              nombre: j?.nombre ?? "?",
+              club: j?.club ?? null,
+              puntos: pts,
+            };
+          });
+        }
+
+        masterData.push({
+          categoria: cat,
+          cupos: cuposCount,
+          clasificados,
+        });
+      }
 
       const totalClasificados = masterData.reduce((acc, d) => acc + d.clasificados.length, 0);
       if (totalClasificados === 0) {
