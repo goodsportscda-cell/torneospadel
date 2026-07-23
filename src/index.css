@@ -110,14 +110,42 @@ All colors MUST be HSL.
 }
 
 @media print {
-  body, html {
+  header, footer, nav, aside, [data-sidebar], .print\:hidden {
+    display: none !important;
+  }
+
+  body, html, main, #root {
+    background: #ffffff !important;
     background-color: #ffffff !important;
     color: #000000 !important;
     -webkit-print-color-adjust: exact !important;
     print-color-adjust: exact !important;
   }
-  .print\:block {
+
+  .print\:block, .print\:block * {
     color: #000000 !important;
+    opacity: 1 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    text-shadow: none !important;
+    filter: none !important;
+  }
+
+  .print\:block table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  .print\:block th {
+    background-color: #e5e7eb !important;
+    color: #000000 !important;
+    border-bottom: 2px solid #000000 !important;
+    font-weight: 800 !important;
+  }
+
+  .print\:block td {
+    color: #000000 !important;
+    border-bottom: 1px solid #6b7280 !important;
   }
 }
 

@@ -1080,26 +1080,26 @@ export default function Inscripciones() {
         <>
           <div className="mb-6 flex justify-between items-end border-b-2 border-black pb-4 text-black">
             <div>
-              <h1 className="text-xl font-semibold uppercase tracking-wider text-gray-700">
-                Planilla para Sorteo (con DNI)
+              <h1 className="text-2xl font-black uppercase tracking-wider text-black">
+                PLANILLA PARA SORTEO (CON DNI)
               </h1>
-              <p className="text-3xl font-bold text-black mt-2">
+              <p className="text-xl font-extrabold text-black mt-1">
                 {filtroTorneo !== "todos" ? torneoMap.get(filtroTorneo)?.nombre : "Todos los torneos"}
               </p>
             </div>
-            <div className="text-right text-sm text-black font-medium">
-              <p>Total jugadores: <span className="font-bold text-black">{filtered.reduce((acc, i) => acc + (i.jugador1_id ? 1 : 0) + (i.jugador2_id ? 1 : 0), 0)}</span></p>
+            <div className="text-right text-sm text-black font-bold">
+              <p>Total jugadores: <span className="font-black text-black">{filtered.reduce((acc, i) => acc + (i.jugador1_id ? 1 : 0) + (i.jugador2_id ? 1 : 0), 0)}</span></p>
               <p>Fecha: {new Date().toLocaleDateString("es-AR")}</p>
             </div>
           </div>
 
-          <table className="w-full text-sm border-collapse text-black">
+          <table className="w-full border-collapse text-black">
             <thead>
               <tr className="bg-gray-200 border-b-2 border-black text-black">
-                <th className="py-2.5 px-3 text-left font-bold text-black w-12">N°</th>
-                <th className="py-2.5 px-3 text-left font-bold text-black">Apellido y Nombre</th>
-                <th className="py-2.5 px-3 text-left font-bold text-black w-48">DNI</th>
-                <th className="py-2.5 px-3 text-left font-bold text-black w-36">Firma / Control</th>
+                <th className="py-3 px-3 text-left font-black text-black w-14 text-sm uppercase">N°</th>
+                <th className="py-3 px-3 text-left font-black text-black text-sm uppercase">Apellido y Nombre</th>
+                <th className="py-3 px-3 text-left font-black text-black w-52 text-sm uppercase">DNI</th>
+                <th className="py-3 px-3 text-left font-black text-black w-44 text-sm uppercase">Firma / Control</th>
               </tr>
             </thead>
             <tbody>
@@ -1114,11 +1114,11 @@ export default function Inscripciones() {
                 rows.sort((a, b) => a.name.toLowerCase().localeCompare(b.name.toLowerCase()));
                 return rows.map((row, index) => (
                   <tr key={index} className="border-b border-gray-400 text-black">
-                    <td className="py-3 px-3 font-mono font-bold text-black">{index + 1}</td>
-                    <td className="py-3 px-3 font-bold text-black">{row.name}</td>
-                    <td className="py-3 px-3 font-mono font-semibold text-black">{row.dni}</td>
+                    <td className="py-3 px-3 font-bold text-black text-base w-14">{index + 1}</td>
+                    <td className="py-3 px-3 font-black text-black text-base">{row.name}</td>
+                    <td className="py-3 px-3 font-mono font-black text-black text-base tracking-wider">{row.dni}</td>
                     <td className="py-3 px-3">
-                      <div className="h-6 border-b-2 border-dashed border-gray-600 w-28"></div>
+                      <div className="h-6 border-b-2 border-dashed border-black w-36"></div>
                     </td>
                   </tr>
                 ));

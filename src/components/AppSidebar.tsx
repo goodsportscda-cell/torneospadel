@@ -38,7 +38,7 @@ export function AppSidebar() {
   const displayLogo = clubActivo?.logo_url || activeTenant.logo;
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar collapsible="icon" className="print:hidden">
       <SidebarHeader className="border-b px-4 py-3 flex flex-col gap-2">
         {!collapsed ? (
           <>
