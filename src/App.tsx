@@ -31,6 +31,7 @@ import TorneoIndividualPublico from "./pages/TorneoIndividualPublico.tsx";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
 import Configuracion from "./pages/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
+import Marcador from "./pages/Marcador.tsx";
 
 const queryClient = new QueryClient();
 
@@ -110,6 +111,7 @@ const App = () => (
               <Route path="/ranking" element={<Ranking />} />
               <Route path="/master" element={<Navigate to="/ranking" replace />} />
               <Route path="/configuracion" element={<Configuracion />} />
+              <Route path="/marcador" element={<Marcador />} />
               <Route path="/admin/torneo-individual/:id" element={<TorneoIndividualDashboard />} />
             </Route>
             <Route path="*" element={<NotFound />} />

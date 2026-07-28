@@ -26,6 +26,7 @@ const items = [
   { title: "Importar inscriptos", url: "/importar", icon: Upload },
   { title: "Llaves", url: "/llaves", icon: GitBranch },
   { title: "Ranking", url: "/ranking", icon: Award },
+  { title: "Marcador en Vivo", url: "/marcador", icon: Activity },
   { title: "Configuración", url: "/configuracion", icon: Settings },
 ];
 

@@ -107,6 +107,10 @@ All colors MUST be HSL.
     font-feature-settings: "rlig" 1, "calt" 1;
     overscroll-behavior-y: none;
   }
+
+  .glass-card { 
+    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-2xl; 
+  }
 }
 
 @media print {

@@ -62,6 +62,10 @@ export default {
           border: "hsl(var(--sidebar-border))",
           ring: "hsl(var(--sidebar-ring))",
         },
+        padel: {
+          dark: '#0a192f',
+          accent: '#c4ff00'
+        },
       },
       borderRadius: {
         lg: "var(--radius)",
