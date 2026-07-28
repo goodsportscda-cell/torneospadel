@@ -10,7 +10,7 @@ interface ConfigModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   state: PadelState;
-  onSave: (config: Partial<PadelConfig>, nombres: { p1: string; p2: string }) => void;
+  onSave: (config: Partial<PadelConfig>, nombres: { p1: string; p2: string }, manualSets: {p1: number, p2: number}[]) => void;
 }
 
 export const ConfigModal: React.FC<ConfigModalProps> = ({ open, onOpenChange, state, onSave }) => {
@@ -19,17 +19,24 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ open, onOpenChange, st
     modoDeuce: true,
     superTieBreak3erSet: true,
     modoSoloSuperTieBreak: false,
+    modoSoloTieBreak: false,
   });
+  const [manualSets, setManualSets] = useState<{p1: number, p2: number}[]>([
+    { p1: 0, p2: 0 },
+    { p1: 0, p2: 0 }
+  ]);
 
   useEffect(() => {
     if (open) {
       setNombres(state.nombres);
       setConfig(state.config);
+      // Reset manual sets whenever opened to avoid accidental overwrites
+      setManualSets([{ p1: 0, p2: 0 }, { p1: 0, p2: 0 }]);
     }
   }, [open, state]);
 
   const handleSave = () => {
-    onSave(config, nombres);
+    onSave(config, nombres, manualSets);
     onOpenChange(false);
   };
 
@@ -59,6 +66,45 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ open, onOpenChange, st
                 value={nombres.p2} 
                 onChange={e => setNombres({ ...nombres, p2: e.target.value })}
                 className="bg-slate-800 border-slate-700"
+              />
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-slate-400 uppercase tracking-wider">Cargar Sets Previos</h3>
+            <p className="text-xs text-slate-500">Dejar en 0 si no hubo sets previos.</p>
+            
+            <div className="flex gap-4 items-center">
+              <Label className="w-12">Set 1</Label>
+              <Input 
+                type="number" min="0" max="7" 
+                value={manualSets[0].p1} 
+                onChange={e => setManualSets(prev => [{...prev[0], p1: parseInt(e.target.value) || 0}, prev[1]])}
+                className="bg-slate-800 border-slate-700 text-center"
+              />
+              <span className="text-slate-400">-</span>
+              <Input 
+                type="number" min="0" max="7" 
+                value={manualSets[0].p2} 
+                onChange={e => setManualSets(prev => [{...prev[0], p2: parseInt(e.target.value) || 0}, prev[1]])}
+                className="bg-slate-800 border-slate-700 text-center"
+              />
+            </div>
+
+            <div className="flex gap-4 items-center">
+              <Label className="w-12">Set 2</Label>
+              <Input 
+                type="number" min="0" max="7" 
+                value={manualSets[1].p1} 
+                onChange={e => setManualSets(prev => [prev[0], {...prev[1], p1: parseInt(e.target.value) || 0}])}
+                className="bg-slate-800 border-slate-700 text-center"
+              />
+              <span className="text-slate-400">-</span>
+              <Input 
+                type="number" min="0" max="7" 
+                value={manualSets[1].p2} 
+                onChange={e => setManualSets(prev => [prev[0], {...prev[1], p2: parseInt(e.target.value) || 0}])}
+                className="bg-slate-800 border-slate-700 text-center"
               />
             </div>
           </div>
@@ -97,7 +143,7 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ open, onOpenChange, st
 
             <div className="flex items-center justify-between">
               <Label htmlFor="soloSuper" className="flex flex-col gap-1 cursor-pointer">
-                <span className="text-padel-accent">Partido Rápido</span>
+                <span className="text-padel-accent">Partido Rápido (a 10)</span>
                 <span className="font-normal text-xs text-slate-400">
                   Jugar 1 solo Super Tie-Break a 10 puntos
                 </span>
@@ -105,7 +151,21 @@ export const ConfigModal: React.FC<ConfigModalProps> = ({ open, onOpenChange, st
               <Switch 
                 id="soloSuper" 
                 checked={config.modoSoloSuperTieBreak}
-                onCheckedChange={c => setConfig({ ...config, modoSoloSuperTieBreak: c })}
+                onCheckedChange={c => setConfig({ ...config, modoSoloSuperTieBreak: c, modoSoloTieBreak: c ? false : config.modoSoloTieBreak })}
+              />
+            </div>
+
+            <div className="flex items-center justify-between">
+              <Label htmlFor="soloTie" className="flex flex-col gap-1 cursor-pointer">
+                <span className="text-padel-accent">Partido Rápido (a 7)</span>
+                <span className="font-normal text-xs text-slate-400">
+                  Jugar 1 solo Tie-Break normal a 7 puntos
+                </span>
+              </Label>
+              <Switch 
+                id="soloTie" 
+                checked={config.modoSoloTieBreak}
+                onCheckedChange={c => setConfig({ ...config, modoSoloTieBreak: c, modoSoloSuperTieBreak: c ? false : config.modoSoloSuperTieBreak })}
               />
             </div>
 

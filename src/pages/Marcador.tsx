@@ -5,7 +5,9 @@ import {
   sumarPunto, 
   deshacerPunto, 
   reiniciarPartido, 
-  actualizarConfiguracion 
+  actualizarConfiguracion,
+  forzarSetsPrevios,
+  SetScore
 } from '@/logic/padelLogic';
 import { Scoreboard } from '@/components/marcador/Scoreboard';
 import { ControlPanel } from '@/components/marcador/ControlPanel';
@@ -52,8 +54,12 @@ const Marcador: React.FC = () => {
     setIsVictoryOpen(false);
   };
 
-  const handleSaveConfig = (config: any, nombres: any) => {
-    setState(prev => actualizarConfiguracion(prev, config, nombres));
+  const handleSaveConfig = (config: any, nombres: any, manualSets: SetScore[]) => {
+    setState(prev => {
+      let nextState = actualizarConfiguracion(prev, config, nombres);
+      nextState = forzarSetsPrevios(nextState, manualSets);
+      return nextState;
+    });
   };
 
   return (

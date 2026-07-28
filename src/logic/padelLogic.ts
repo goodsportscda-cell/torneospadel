@@ -4,6 +4,7 @@ export interface PadelConfig {
   modoDeuce: boolean; // true = Ventaja, false = Punto de Oro
   superTieBreak3erSet: boolean; // true = 3er set es a 10 puntos, false = set normal
   modoSoloSuperTieBreak: boolean; // true = partido de 1 solo super tie break a 10
+  modoSoloTieBreak: boolean; // true = partido de 1 solo tie break normal a 7
 }
 
 export interface SetScore {
@@ -27,7 +28,7 @@ export interface PadelState {
 
 export const initialState: PadelState = {
   nombres: { p1: 'Pareja 1', p2: 'Pareja 2' },
-  config: { modoDeuce: true, superTieBreak3erSet: true, modoSoloSuperTieBreak: false },
+  config: { modoDeuce: true, superTieBreak3erSet: true, modoSoloSuperTieBreak: false, modoSoloTieBreak: false },
   points: { p1: 0, p2: 0 },
   games: { p1: 0, p2: 0 },
   sets: [],
@@ -75,17 +76,19 @@ export const sumarPunto = (state: PadelState, player: Player): PadelState => {
   const stateSinHistoria = { ...state, history: [] };
   newState.history.push(stateSinHistoria);
 
-  // --- Caso: Solo Super Tie Break ---
-  if (newState.config.modoSoloSuperTieBreak) {
-    newState.isSuperTieBreak = true;
+  // --- Caso: Solo Super Tie Break o Solo Tie Break a 7 ---
+  if (newState.config.modoSoloSuperTieBreak || newState.config.modoSoloTieBreak) {
+    newState.isSuperTieBreak = newState.config.modoSoloSuperTieBreak; // Super tiebreak a 10 si true, sino es normal a 7
+    newState.isTieBreak = newState.config.modoSoloTieBreak; // Tiebreak a 7 si true
     newState.points[player]++;
     
     // Rotación de saque 1-2-2
     const totalPoints = newState.points.p1 + newState.points.p2;
     if (totalPoints % 2 === 1) newState.server = swapServer(newState.server);
 
-    // Chequear ganador de partido (a 10, dif de 2)
-    if (newState.points[player] >= 10 && newState.points[player] - newState.points[opponent] >= 2) {
+    // Chequear ganador de partido (a 10 o 7, dif de 2)
+    const targetScore = newState.config.modoSoloSuperTieBreak ? 10 : 7;
+    if (newState.points[player] >= targetScore && newState.points[player] - newState.points[opponent] >= 2) {
       newState.winner = player;
       newState.sets.push({ p1: newState.points.p1, p2: newState.points.p2 });
     }
@@ -205,4 +208,42 @@ export const actualizarConfiguracion = (state: PadelState, config: Partial<Padel
     nombres,
     config: { ...state.config, ...config }
   };
+};
+
+export const forzarSetsPrevios = (state: PadelState, nuevosSets: SetScore[]): PadelState => {
+  // Solo se mantienen los sets válidos que realmente se ingresaron
+  const setsFiltrados = nuevosSets.filter(s => s.p1 > 0 || s.p2 > 0);
+  
+  if (setsFiltrados.length === 0) {
+    return state; // No hay cambios si están vacíos
+  }
+
+  let newState: PadelState = { ...state };
+  
+  // Guardar historia
+  const stateSinHistoria = { ...state, history: [] };
+  newState.history.push(stateSinHistoria);
+
+  newState.sets = setsFiltrados;
+  
+  // Reiniciar juegos y puntos para el set actual
+  newState.games = { p1: 0, p2: 0 };
+  newState.points = { p1: 0, p2: 0 };
+  newState.isTieBreak = false;
+  newState.isSuperTieBreak = false;
+  
+  // Calcular currentSet
+  newState.currentSet = setsFiltrados.length + 1;
+
+  // Chequear si con estos sets ya hay un ganador (ej: alguien ganó 2 sets)
+  const p1SetWins = setsFiltrados.filter(s => s.p1 > s.p2).length;
+  const p2SetWins = setsFiltrados.filter(s => s.p2 > s.p1).length;
+
+  if (p1SetWins === 2 || p2SetWins === 2) {
+    newState.winner = p1SetWins === 2 ? 'p1' : 'p2';
+  } else if (newState.currentSet === 3 && newState.config.superTieBreak3erSet) {
+    newState.isSuperTieBreak = true;
+  }
+
+  return newState;
 };
