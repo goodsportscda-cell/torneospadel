@@ -153,14 +153,20 @@ export function PartidoCard({
     }
   };
 
-  const fechaHoraLabel = fechaHora
-    ? new Date(fechaHora).toLocaleString("es-AR", {
-        day: "2-digit",
-        month: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-      })
-    : null;
+  let fechaHoraLabel = null;
+  if (fechaHora) {
+    const d = new Date(fechaHora);
+    let weekday = d.toLocaleString("es-AR", { weekday: "short" }).replace(".", "");
+    weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    const time = d.toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    fechaHoraLabel = `${weekday} ${time} hs`;
+  }
+
+  let canchaLabel = null;
+  if (cancha) {
+    const t = cancha.trim();
+    canchaLabel = t.toLowerCase().includes('cancha') ? t : `Cancha ${t}`;
+  }
 
   const abrirEditorEquipos = () => {
     setEditLocalId(parejaLocal?.inscripcion_id || "none");
@@ -417,10 +423,10 @@ export function PartidoCard({
                 {fechaHoraLabel}
               </span>
             )}
-            {cancha && (
+            {canchaLabel && (
               <span className="inline-flex items-center gap-1">
                 <MapPin className="h-3 w-3" />
-                {cancha}
+                {canchaLabel}
               </span>
             )}
           </div>

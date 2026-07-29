@@ -275,12 +275,16 @@ export function CronogramaPartidos({ torneoId, inscripciones, jugadorMap }: Prop
                         </div>
                       </div>
                       <div className="shrink-0 flex flex-col items-end gap-1">
-                        {p.cancha && (
-                          <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
-                            <MapPin className="h-3 w-3" />
-                            {p.cancha}
-                          </span>
-                        )}
+                        {p.cancha && (() => {
+                          const c = p.cancha.trim();
+                          const canchaLabel = c.toLowerCase().includes('cancha') ? c : `Cancha ${c}`;
+                          return (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground">
+                              <MapPin className="h-3 w-3" />
+                              {canchaLabel}
+                            </span>
+                          );
+                        })()}
                         <Badge variant="outline" className="text-[10px]">
                           Zona {zonaMap.get(p.zona_id) ?? "?"}
                         </Badge>

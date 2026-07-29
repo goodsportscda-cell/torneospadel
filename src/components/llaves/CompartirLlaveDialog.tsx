@@ -313,12 +313,16 @@ export function CompartirLlaveDialog({
   // Formato para mostrar fecha y hora corta en la imagen
   const formatFechaHora = (isoString: string | null) => {
     if (!isoString) return "";
-    const date = new Date(isoString);
-    return date.toLocaleString("es-AR", {
-      weekday: "short",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).replace(".", ""); // Quita el punto del día ej: "sáb."
+    const d = new Date(isoString);
+    let weekday = d.toLocaleString("es-AR", { weekday: "short" }).replace(".", "");
+    weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
+    const time = d.toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit" });
+    return `${weekday} ${time} hs`;
+  };
+
+  const formatCancha = (c: string) => {
+    const t = c.trim();
+    return t.toLowerCase().includes('cancha') ? t : `Cancha ${t}`;
   };
 
   // Renderizar la estructura del Cuadro (reutilizada para el canvas off-screen y la vista previa)
@@ -467,7 +471,7 @@ export function CompartirLlaveDialog({
                           {p.cancha && (
                             <span style={{ maxWidth: '110px' }} className="flex items-center gap-1.5 truncate">
                               <MapPin className="h-3.5 w-3.5 text-primary/80 shrink-0" />
-                              {p.cancha}
+                              {formatCancha(p.cancha)}
                             </span>
                           )}
                         </div>
