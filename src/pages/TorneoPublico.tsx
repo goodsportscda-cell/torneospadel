@@ -14,11 +14,12 @@ import { calcularTabla, type PartidoConSets } from "@/lib/zonas";
 import { NOMBRE_RONDA, ORDEN_RONDA, parseRef, type RondaLlave } from "@/lib/llaves";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
+import PublicFooter from "@/components/PublicFooter";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
-type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
-type PartidoLlaveRow = Database["public"]["Tables"]["partidos_llave"]["Row"];
+type Jugador = any; // Database["public"]["Tables"]["jugadores"]["Row"]
+type PartidoLlaveRow = any; // Database["public"]["Tables"]["partidos_llave"]["Row"]
 
 export default function TorneoPublico() {
   const { slug } = useParams<{ slug: string }>();
@@ -57,11 +58,11 @@ export default function TorneoPublico() {
       { data: lData },
       { data: llavesData }
     ] = await Promise.all([
-      supabase.from("zonas").select("*").eq("torneo_id", tData.id).order("orden"),
-      supabase.from("inscripciones").select("*, jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido), jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)").eq("torneo_id", tData.id).eq("estado", "confirmada"),
-      supabase.from("jugadores").select("*"),
-      supabase.from("llaves").select("*").eq("torneo_id", tData.id).maybeSingle(),
-      supabase.from("partidos_llave").select("*").order("numero")
+      (supabase as any).from("zonas").select("*").eq("torneo_id", tData.id).order("orden"),
+      (supabase as any).from("inscripciones").select("*, jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido), jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)").eq("torneo_id", tData.id).eq("estado", "confirmada"),
+      (supabase as any).from("jugadores").select("*"),
+      (supabase as any).from("llaves").select("*").eq("torneo_id", tData.id).maybeSingle(),
+      (supabase as any).from("partidos_llave").select("*").order("numero")
     ]);
 
     setZonas((zData ?? []) as Zona[]);
@@ -74,7 +75,7 @@ export default function TorneoPublico() {
       
       if (filteredPartidos.length > 0) {
         const pIds = filteredPartidos.map(p => p.id);
-        const { data: sData } = await supabase.from("sets_partido").select("*").in("partido_llave_id", pIds);
+        const { data: sData } = await (supabase as any).from("sets_partido").select("*").in("partido_llave_id", pIds);
         const map: Record<string, any[]> = {};
         (sData ?? []).forEach(s => {
           if (!map[s.partido_llave_id!]) map[s.partido_llave_id!] = [];
@@ -86,7 +87,7 @@ export default function TorneoPublico() {
 
     // Fetch Category Name if official
     if (tData.tipo === "oficial" && tData.categoria_id) {
-      const { data: cData } = await supabase.from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
+      const { data: cData } = await (supabase as any).from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
       if (cData) setCategoriaNombre(cData.nombre);
     }
     
@@ -400,14 +401,7 @@ export default function TorneoPublico() {
         </Tabs>
       </main>
 
-      <footer className="max-w-5xl mx-auto px-4 pt-12 border-t text-center space-y-2">
-        <p className="text-sm font-bold">Padel ID</p>
-        <p className="text-xs text-muted-foreground">Sistema de Gestión de Torneos por <span className="font-semibold text-primary">Anita Quiroga</span></p>
-        <div className="pt-4 flex justify-center gap-4 text-xs font-medium">
-          <Link to="/" className="hover:text-primary transition-colors">Admin Login</Link>
-          <Link to="/player/dashboard" className="hover:text-primary transition-colors">Mi Perfil Jugador</Link>
-        </div>
-      </footer>
+      <PublicFooter />
 
       <CompartirLlaveDialog
         isOpen={isCompartirOpen}

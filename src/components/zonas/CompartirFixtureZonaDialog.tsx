@@ -273,12 +273,15 @@ export function CompartirFixtureZonaDialog({
 
             {/* Footer */}
             <div className="mt-auto pb-4 pt-4 px-6 text-center z-10 relative">
-              <div className="flex items-center justify-end gap-1.5 opacity-80">
-                <span className="text-[10px] text-white">Gestionado con</span>
-                <PadelIdLogo className="w-4 h-4 text-[#ccff00]" />
-                <span className="font-bold text-white tracking-tight" style={{ fontSize: "10px" }}>
-                  Padel ID
-                </span>
+              <div 
+                className="flex items-center justify-center gap-1.5 opacity-80 text-[9px] font-bold tracking-widest uppercase"
+                style={{ color: currentTheme.titleColor }}
+              >
+                <span>Padel ID</span>
+                <span className="opacity-50">•</span>
+                <span>Todos los derechos reservados</span>
+                <span className="opacity-50">•</span>
+                <span>padel-id.com</span>
               </div>
             </div>
           </div>

@@ -38,6 +38,7 @@ type Props = {
   onUpdated: () => void;
   // Tabla destino: 'partidos_zona' (default) o 'partidos_llave'
   tabla?: "partidos_zona" | "partidos_llave";
+  labelPartido?: string;
   ref_local?: string | null;
   ref_visitante?: string | null;
   // Programación (opcional, se muestra si se pasa showProgramacion)

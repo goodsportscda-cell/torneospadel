@@ -669,7 +669,7 @@ export function CompartirLlaveDialog({
         {/* FOOTER / WATERMARK */}
         <div className="flex items-center justify-between border-t pt-4 z-10 border-white/5 text-sm font-bold">
           <span style={{ color: currentThemePreset.watermarkColor }}>
-            padel-id.com • Anita Quiroga
+            Padel ID • Todos los derechos reservados • padel-id.com
           </span>
           <span className="text-white/20">
             {new Date().toLocaleDateString("es-AR", { year: "numeric", month: "long" })}

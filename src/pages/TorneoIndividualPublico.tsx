@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
+import PublicFooter from "@/components/PublicFooter";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -129,11 +130,11 @@ export default function TorneoIndividualPublico() {
         { data: tpRes },
       ] = await Promise.all([
         supabase.from("torneos").select("*").eq("id", id).maybeSingle(),
-        supabase.from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
-        supabase.from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
-        supabase.from("torneo_individual_pagos").select("*").eq("torneo_id", id),
-        supabase.from("partidos_individuales").select("*").eq("torneo_id", id),
-        supabase.from("torneo_individual_parejas").select("*").eq("torneo_id", id),
+        (supabase as any).from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
+        (supabase as any).from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
+        (supabase as any).from("torneo_individual_pagos").select("*").eq("torneo_id", id),
+        (supabase as any).from("partidos_individuales").select("*").eq("torneo_id", id),
+        (supabase as any).from("torneo_individual_parejas").select("*").eq("torneo_id", id),
       ]);
 
       if (!tRes) {
@@ -156,8 +157,8 @@ export default function TorneoIndividualPublico() {
 
       // Fetch sets for each match
       if (partRes && partRes.length > 0) {
-        const pIds = partRes.map((p) => p.id);
-        const { data: setsRes } = await supabase
+        const pIds = partRes.map((p: any) => p.id);
+        const { data: setsRes } = await (supabase as any)
           .from("sets_partido_individual")
           .select("*")
           .in("partido_individual_id", pIds)
@@ -169,7 +170,7 @@ export default function TorneoIndividualPublico() {
           setsMap[s.partido_individual_id].push(s);
         });
 
-        const fullPartidos: PartidoInd[] = partRes.map((p) => ({
+        const fullPartidos: PartidoInd[] = partRes.map((p: any) => ({
           ...p,
           jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
           jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
@@ -1169,10 +1170,7 @@ export default function TorneoIndividualPublico() {
         )}
       </div>
 
-      {/* Footer / Branding */}
-      <footer className="text-center text-xs text-muted-foreground/60 border-t pt-4 mt-8">
-        <p>© 2026 Anita Quiroga Pádel · Gestión de Torneos por Padel ID</p>
-      </footer>
+      <PublicFooter />
 
       <CompartirFixtureIndividualDialog
         isOpen={shareFixtureOpen}

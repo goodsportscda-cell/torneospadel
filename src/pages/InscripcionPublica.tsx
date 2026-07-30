@@ -13,6 +13,7 @@ import { activeTenant } from "@/lib/tenant";
 import JugadorStep, { type JugadorForm, emptyJugador } from "@/components/inscripcion/JugadorStep";
 import JugadorCompaneroStep from "@/components/inscripcion/JugadorCompaneroStep";
 import type { Database } from "@/integrations/supabase/types";
+import PublicFooter from "@/components/PublicFooter";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 
@@ -20,7 +21,7 @@ const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 type Resultado = {
   ok: boolean;
-  estado: "pendiente_confirmacion" | "lista_espera";
+  estado: "pendiente_confirmacion" | "lista_espera" | "pendiente_pago";
   torneo: string;
 };
 
@@ -55,7 +56,7 @@ export default function InscripcionPublica() {
       
       // Auto-fill user if logged in
       if (user) {
-        const { data: profile } = await supabase
+        const { data: profile } = await (supabase as any)
           .from("profiles")
           .select("jugador_id")
           .eq("user_id", user.id)
@@ -168,7 +169,7 @@ export default function InscripcionPublica() {
     setEnviando(true);
     try {
       if (torneo.tipo === "americano_individual") {
-        const { data, error } = await supabase.rpc("inscribir_americano_individual", {
+        const { data, error } = await (supabase.rpc as any)("inscribir_americano_individual", {
           p_torneo_id: torneo.id,
           p_dni: j1.dni.trim(),
           p_nombre: j1.nombre.trim(),
@@ -182,7 +183,7 @@ export default function InscripcionPublica() {
           throw error;
         }
 
-        if (!data.ok) {
+        if (!data || !data.ok) {
           toast.error(data.error || "Error al inscribirse");
           setEnviando(false);
           return;
@@ -616,10 +617,7 @@ function Wrapper({ children, torneo }: { children: React.ReactNode; torneo?: Tor
         </div>
       </header>
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">{children}</main>
-      <footer className="max-w-2xl mx-auto px-4 py-6 text-center text-xs text-muted-foreground border-t mt-8">
-        <p>© {new Date().getFullYear()} Padel ID</p>
-        <p className="mt-1">Sistema de Gestión por <span className="font-semibold text-primary">Anita Quiroga</span></p>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

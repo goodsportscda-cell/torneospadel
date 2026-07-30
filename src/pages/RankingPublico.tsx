@@ -23,6 +23,7 @@ import {
 import { Trophy, Medal, Star, Search, Filter, Loader2, Award, Share2, Check } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { toast } from "sonner";
+import PublicFooter from "@/components/PublicFooter";
 
 type RankingRow = {
   jugador_id: string;
@@ -117,7 +118,7 @@ export default function RankingPublico() {
 
   const cargarRanking = async () => {
     setLoading(true);
-    let query = supabase
+    let query = (supabase as any)
       .from("ranking_jugadores")
       .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
       .eq("anio", filtroAnio);
@@ -137,7 +138,7 @@ export default function RankingPublico() {
     }
 
     // Load ascensos to handle point transfers
-    const { data: ascensosData } = await supabase
+    const { data: ascensosData } = await (supabase as any)
       .from("ascensos")
       .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id")
       .eq("anio", filtroAnio);
@@ -156,7 +157,7 @@ export default function RankingPublico() {
     });
 
     const map = new Map<string, { puntos: number; torneos: number }>();
-    (data ?? []).forEach((r) => {
+    (data ?? []).forEach((r: any) => {
       const catAscendidos = ascendidosDesde.get(r.categoria_id);
       if (catAscendidos && catAscendidos.has(r.jugador_id)) return;
       
@@ -463,14 +464,7 @@ export default function RankingPublico() {
         )}
       </main>
 
-      <footer className="max-w-4xl mx-auto px-4 pt-12 border-t text-center space-y-2">
-        <p className="text-sm font-bold">Padel ID</p>
-        <p className="text-xs text-muted-foreground">Anita Quiroga — Gestión de Torneos</p>
-        <div className="pt-4 flex justify-center gap-4 text-xs font-medium">
-          <Link to="/" className="hover:text-primary transition-colors">Admin Login</Link>
-          <Link to="/player/dashboard" className="hover:text-primary transition-colors">Mi Perfil</Link>
-        </div>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }

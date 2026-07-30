@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal } from "lucide-react";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
+import PublicFooter from "@/components/PublicFooter";
 
 type Torneo = {
   id: string;
@@ -450,10 +451,7 @@ export default function ClubHome() {
         </Tabs>
       </main>
 
-      <footer className="mt-auto border-t py-6 bg-muted/10 text-center">
-        <p className="text-xs font-semibold">{club.nombre}</p>
-        <p className="text-[10px] text-muted-foreground mt-1">Potenciado por Padel ID</p>
-      </footer>
+      <PublicFooter />
     </div>
   );
 }
