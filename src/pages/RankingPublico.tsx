@@ -65,8 +65,8 @@ export default function RankingPublico() {
   const [copiado, setCopiado] = useState(false);
 
   const copiarEnlace = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
+    const texto = `🏆 Portal Público de Ranking - Padel ID\nMirá las posiciones actualizadas acá:\n${window.location.href}`;
+    navigator.clipboard.writeText(texto);
     setCopiado(true);
     toast.success("¡Enlace copiado al portapapeles! Listo para compartir en WhatsApp.");
     setTimeout(() => setCopiado(false), 2000);

@@ -185,7 +185,8 @@ export default function ClubHome() {
   }, [torneos]);
 
   const copiarEnlace = () => {
-    navigator.clipboard.writeText(window.location.href);
+    const textoCompartir = `🏆 Portal Público de ${club?.nombre || "Club"} - Padel ID\nMirá los torneos y el ranking oficial acá:\n${window.location.href}`;
+    navigator.clipboard.writeText(textoCompartir);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   };
