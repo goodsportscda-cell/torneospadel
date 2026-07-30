@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check } from "lucide-react";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
@@ -53,6 +53,7 @@ export default function ClubHome() {
   const [filtroAnio, setFiltroAnio] = useState<number>(new Date().getFullYear());
   const [aniosDisp, setAniosDisp] = useState<number[]>([new Date().getFullYear()]);
   const [rankingRows, setRankingRows] = useState<RankingRow[]>([]);
+  const [copiado, setCopiado] = useState(false);
 
   useEffect(() => {
     if (club) {
@@ -179,9 +180,15 @@ export default function ClubHome() {
     return torneos.filter(t => t.estado === "inscripciones_abiertas");
   }, [torneos]);
 
-  const torneosHistoricos = useMemo(() => {
-    return torneos.filter(t => t.estado !== "inscripciones_abiertas");
+  const torneosEnCurso = useMemo(() => {
+    return torneos.filter(t => t.estado === "en_curso");
   }, [torneos]);
+
+  const copiarEnlace = () => {
+    navigator.clipboard.writeText(window.location.href);
+    setCopiado(true);
+    setTimeout(() => setCopiado(false), 2000);
+  };
 
   if (tenantLoading) {
     return (
@@ -277,15 +284,15 @@ export default function ClubHome() {
             
             {loadingTorneos ? (
               <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-            ) : torneosHistoricos.length === 0 && inscripcionesAbiertas.length === 0 ? (
+            ) : torneosEnCurso.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="py-12 text-center text-muted-foreground">
-                  No hay torneos registrados en este club aún.
+                  No hay torneos en curso en este momento.
                 </CardContent>
               </Card>
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
-                {[...inscripcionesAbiertas, ...torneosHistoricos].map((t) => (
+                {torneosEnCurso.map((t) => (
                   <Link key={t.id} to={`/c/${club.slug}/torneo/${t.id}`}>
                     <Card className="hover:border-primary/50 transition-colors h-full flex flex-col group cursor-pointer">
                       <CardHeader className="pb-3 flex-row items-start justify-between space-y-0 gap-2">
@@ -328,7 +335,26 @@ export default function ClubHome() {
           <TabsContent value="rankings" className="mt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <Card className="border-none shadow-md overflow-hidden bg-card">
               <CardHeader className="bg-muted/30 pb-4 border-b">
-                <CardTitle className="text-lg">Ranking Interno</CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg">Ranking Interno</CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={copiarEnlace}
+                    disabled={torneosEnCurso.length > 0}
+                    title={torneosEnCurso.length > 0 ? "El ranking estará disponible para compartir cuando finalicen los torneos en curso" : ""}
+                    className="h-8 text-xs font-bold gap-1"
+                  >
+                    {copiado ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
+                    Compartir Ranking
+                  </Button>
+                </div>
+                {torneosEnCurso.length > 0 && (
+                  <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200 rounded-md p-3 flex items-start gap-2">
+                    <span className="mt-0.5 text-base leading-none">ℹ️</span>
+                    <p className="text-xs sm:text-sm">Ranking en actualización. Se actualizará oficialmente al finalizar la fecha en curso.</p>
+                  </div>
+                )}
                 <div className="grid gap-3 sm:grid-cols-3 mt-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Categoría</label>
