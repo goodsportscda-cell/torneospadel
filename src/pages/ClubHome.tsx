@@ -8,7 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock } from "lucide-react";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
@@ -429,7 +429,14 @@ export default function ClubHome() {
                             {r.jugador_apellido}, {r.jugador_nombre}
                           </TableCell>
                           <TableCell className="text-right font-black text-primary">
-                            {r.puntos}
+                            {torneosEnCurso.length > 0 ? (
+                              <div className="flex items-center justify-end gap-1.5 opacity-50" title="Puntos en actualización">
+                                <Clock className="h-3.5 w-3.5" />
+                                <span>-</span>
+                              </div>
+                            ) : (
+                              r.puntos
+                            )}
                           </TableCell>
                         </TableRow>
                       ))}
