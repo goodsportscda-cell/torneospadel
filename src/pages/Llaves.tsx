@@ -74,6 +74,8 @@ type PartidoLlaveRow = {
   cancha: string | null;
 };
 
+const setsVacios: any[] = [];
+
 export default function Llaves() {
   const { clubId } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
@@ -820,7 +822,7 @@ export default function Llaves() {
                         }
                         estado={p.estado}
                         ganadorId={p.ganador_id}
-                        setsExistentes={setsLlave[p.id] ?? []}
+                        setsExistentes={setsLlave[p.id] || setsVacios}
                         onUpdated={cargarTodo}
                         fechaHora={p.fecha_hora}
                         cancha={p.cancha}

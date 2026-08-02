@@ -255,7 +255,7 @@ export function PartidoCard({
       const existingMap = new Map((existingSets || []).map(s => [s.numero_set, s.id]));
       
       const setsToInsert = sets
-        .filter((s) => s.games_local > 0 || s.games_visitante > 0)
+        .filter((s) => s.games_local > 0 || s.games_visitante > 0 || (ganadorOverride !== null && s.numero_set <= 2))
         .map((s) => ({
           id: existingMap.get(s.numero_set), // incluir ID si existe para forzar UPSERT o UPDATE
           partido_id: tabla === "partidos_zona" ? partidoId : null,
@@ -271,16 +271,24 @@ export function PartidoCard({
         return;
       }
 
+      console.log("Guardando sets:", setsToInsert);
+
       // Procesar actualizaciones e inserciones
       for (const set of setsToInsert) {
         if (set.id) {
           const { id, ...updateData } = set;
           const { error } = await supabase.from("sets_partido").update(updateData).eq("id", id);
-          if (error) throw error;
+          if (error) {
+            console.error("Error al actualizar set:", error);
+            throw error;
+          }
         } else {
           const { id, ...insertData } = set;
           const { error } = await supabase.from("sets_partido").insert(insertData as never);
-          if (error) throw error;
+          if (error) {
+            console.error("Error al insertar set:", error);
+            throw error;
+          }
         }
       }
       
