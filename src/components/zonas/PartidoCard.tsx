@@ -246,12 +246,18 @@ export function PartidoCard({
     setSaving(true);
     try {
       const fkColumn = tabla === "partidos_llave" ? "partido_llave_id" : "partido_id";
-      // Borrar sets anteriores
-      await supabase.from("sets_partido").delete().eq(fkColumn, partidoId);
-      // Insertar nuevos
+      // Obtener sets existentes para actualizarlos en lugar de borrarlos (evita problemas de RLS DELETE)
+      const { data: existingSets } = await supabase
+        .from("sets_partido")
+        .select("id, numero_set")
+        .eq(fkColumn, partidoId);
+        
+      const existingMap = new Map((existingSets || []).map(s => [s.numero_set, s.id]));
+      
       const setsToInsert = sets
         .filter((s) => s.games_local > 0 || s.games_visitante > 0)
         .map((s) => ({
+          id: existingMap.get(s.numero_set), // incluir ID si existe para forzar UPSERT o UPDATE
           partido_id: tabla === "partidos_zona" ? partidoId : null,
           partido_llave_id: tabla === "partidos_llave" ? partidoId : null,
           numero_set: s.numero_set,
@@ -265,10 +271,28 @@ export function PartidoCard({
         return;
       }
 
-      if (setsToInsert.length > 0) {
-        const { error } = await supabase.from("sets_partido").insert(setsToInsert as never);
-        if (error) throw error;
+      // Procesar actualizaciones e inserciones
+      for (const set of setsToInsert) {
+        if (set.id) {
+          const { id, ...updateData } = set;
+          const { error } = await supabase.from("sets_partido").update(updateData).eq("id", id);
+          if (error) throw error;
+        } else {
+          const { id, ...insertData } = set;
+          const { error } = await supabase.from("sets_partido").insert(insertData as never);
+          if (error) throw error;
+        }
       }
+      
+      // Los sets que ya no se usan (ej. se borró el 3er set), los ponemos en 0-0
+      if (existingSets) {
+        const usedSets = setsToInsert.map(s => s.numero_set);
+        const extraSets = existingSets.filter(s => !usedSets.includes(s.numero_set));
+        for (const extra of extraSets) {
+           await supabase.from("sets_partido").update({ games_local: 0, games_visitante: 0 }).eq("id", extra.id);
+        }
+      };
+
       const { error: updErr } = await supabase
         .from(tabla)
         .update({
