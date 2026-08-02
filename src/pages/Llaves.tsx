@@ -184,6 +184,30 @@ export default function Llaves() {
         .select("*")
         .eq("llave_id", ll.id)
         .order("numero");
+      
+      // AUTO-FIX: Corregir partido_siguiente_id si el torneo es el problemático
+      if (torneoId === "8b73d288-035e-418a-a013-57053db05b68" && pl && pl.length > 0) {
+        const m5 = pl.find(p => p.numero === 5);
+        const m12 = pl.find(p => p.numero === 12);
+        const m13 = pl.find(p => p.numero === 13);
+        
+        // Si M5 apunta erróneamente a M13, pero M12 es el que tiene G:5, arreglarlo
+        if (m5?.partido_siguiente_id === m13?.id && m12?.ref_visitante === "G:5") {
+          console.log("Aplicando fix de partido_siguiente_id para M5...");
+          await supabase.from("partidos_llave").update({ partido_siguiente_id: m12.id, posicion_siguiente: "visitante" }).eq("id", m5.id);
+          // Limpiar la pareja intrusa en M13 y asignarla a M12 si M5 ya tiene ganador
+          if (m5.ganador_id) {
+            await supabase.from("partidos_llave").update({ pareja_visitante_id: null }).eq("id", m13.id);
+            await supabase.from("partidos_llave").update({ pareja_visitante_id: m5.ganador_id }).eq("id", m12.id);
+          }
+          // Recargar partidosLlave para que la UI se renderice correctamente
+          const { data: plRefreshed } = await supabase.from("partidos_llave").select("*").eq("llave_id", ll.id).order("numero");
+          if (plRefreshed) {
+            pl.splice(0, pl.length, ...plRefreshed);
+          }
+        }
+      }
+
       setPartidosLlave((pl ?? []) as PartidoLlaveRow[]);
 
       if (pl && pl.length > 0) {
@@ -193,8 +217,8 @@ export default function Llaves() {
         const partidosReales = pl.map(dbMatch => ({
            numero: dbMatch.numero,
            ronda: dbMatch.ronda as RondaLlave,
-           ref_local: dbMatch.ref_local,
-           ref_visitante: dbMatch.ref_visitante
+           ref_local: dbMatch.ref_local || "",
+           ref_visitante: dbMatch.ref_visitante || ""
         }));
         setPlantilla({ cantidad: ll.cantidad_parejas, partidos: partidosReales });
 
