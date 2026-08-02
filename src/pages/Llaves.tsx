@@ -187,6 +187,17 @@ export default function Llaves() {
       setPartidosLlave((pl ?? []) as PartidoLlaveRow[]);
 
       if (pl && pl.length > 0) {
+        // Reconstruimos la plantilla basándonos en los refs reales guardados en la BD
+        // Esto permite que si los organizadores editan manualmente ref_local/ref_visitante en la BD,
+        // la UI (nodos y arcos) se dibuje correctamente.
+        const partidosReales = pl.map(dbMatch => ({
+           numero: dbMatch.numero,
+           ronda: dbMatch.ronda as RondaLlave,
+           ref_local: dbMatch.ref_local,
+           ref_visitante: dbMatch.ref_visitante
+        }));
+        setPlantilla({ cantidad: ll.cantidad_parejas, partidos: partidosReales });
+
         const ids = pl.map((p) => p.id);
         const { data: sets } = await supabase
           .from("sets_partido")
