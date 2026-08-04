@@ -109,12 +109,24 @@ export default function ClubHome() {
   const cargarRanking = async () => {
     if (!club) return;
     setLoadingRankings(true);
-    
-    // Obtener puntos solo de torneos de este club (Inner join manual o filtrando)
+    // Obtener torneos de este club para filtrar
+    const { data: torneosDelClub } = await supabase
+      .from("torneos")
+      .select("id")
+      .eq("club_id", club.id);
+
+    const torneosIds = (torneosDelClub || []).map(t => t.id);
+
+    if (torneosIds.length === 0) {
+      setRankingRows([]);
+      setLoadingRankings(false);
+      return;
+    }
+
     let query = supabase
       .from("ranking_jugadores")
-      .select("jugador_id, puntos, categoria_id, genero, torneos!inner(club_id)")
-      .eq("torneos.club_id", club.id)
+      .select("jugador_id, puntos, categoria_id, genero, torneo_id, anio")
+      .in("torneo_id", torneosIds)
       .eq("anio", filtroAnio);
 
     if (filtroCategoria !== "todas") {
