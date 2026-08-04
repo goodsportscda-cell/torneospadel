@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock, Eye, ArrowUpCircle } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
@@ -23,15 +24,37 @@ type Torneo = {
   numero_fecha: number | null;
 };
 
+type DetalleTorneo = {
+  torneo_id: string;
+  torneo_nombre: string;
+  fecha: string;
+  numero_fecha: number | null;
+  instancia: string;
+  puntos: number;
+  multiplicador: number;
+  puntos_base: number;
+};
+
 type RankingRow = {
   jugador_id: string;
   puntos: number;
   torneos: number;
   jugador_nombre: string;
   jugador_apellido: string;
+  puntos_ascenso: number;
 };
 
 type Categoria = { id: string; nombre: string; genero: string };
+
+const INSTANCIA_LABEL: Record<string, string> = {
+  campeon: "Campeón",
+  subcampeon: "Subcampeón",
+  semifinal: "Semifinal",
+  cuartos: "Cuartos",
+  octavos: "Octavos",
+  dieciseisavos: "16avos",
+  zona: "Zona",
+};
 
 const GENEROS = [
   { value: "todos", label: "Todos los géneros" },
@@ -54,6 +77,11 @@ export default function ClubHome() {
   const [aniosDisp, setAniosDisp] = useState<number[]>([new Date().getFullYear()]);
   const [rankingRows, setRankingRows] = useState<RankingRow[]>([]);
   const [copiado, setCopiado] = useState(false);
+
+  const [detalleOpen, setDetalleOpen] = useState(false);
+  const [detalleJugador, setDetalleJugador] = useState<RankingRow | null>(null);
+  const [detalleData, setDetalleData] = useState<DetalleTorneo[]>([]);
+  const [loadingDetalle, setLoadingDetalle] = useState(false);
 
   useEffect(() => {
     if (club) {
@@ -143,14 +171,41 @@ export default function ClubHome() {
       return;
     }
 
+    // Load ascensos to handle point transfers
+    const { data: ascensosData } = await supabase
+      .from("ascensos")
+      .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id")
+      .eq("anio", filtroAnio);
+
+    const ascendidosDesde = new Map<string, Set<string>>();
+    const ascensoMap = new Map<string, number>();
+
+    (ascensosData ?? []).forEach((a) => {
+      if (filtroCategoria === "todas" || a.categoria_destino_id === filtroCategoria) {
+        ascensoMap.set(a.jugador_id, (ascensoMap.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
+      }
+      if (!ascendidosDesde.has(a.categoria_origen_id)) ascendidosDesde.set(a.categoria_origen_id, new Set());
+      ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
+    });
+
     // Agrupar puntos
-    const map = new Map<string, { puntos: number; torneos: number }>();
+    const map = new Map<string, { puntos: number; torneos: number; puntos_ascenso: number }>();
     (data || []).forEach((r) => {
-      const cur = map.get(r.jugador_id) ?? { puntos: 0, torneos: 0 };
+      const catAscendidos = ascendidosDesde.get(r.categoria_id);
+      if (catAscendidos && catAscendidos.has(r.jugador_id)) return;
+      
+      const cur = map.get(r.jugador_id) ?? { puntos: 0, torneos: 0, puntos_ascenso: 0 };
       cur.puntos += r.puntos;
       cur.torneos += 1;
       map.set(r.jugador_id, cur);
     });
+
+    for (const [jId, pts] of ascensoMap.entries()) {
+      const cur = map.get(jId) ?? { puntos: 0, torneos: 0, puntos_ascenso: 0 };
+      cur.puntos += pts;
+      cur.puntos_ascenso += pts;
+      map.set(jId, cur);
+    }
 
     const ids = Array.from(map.keys());
     if (ids.length === 0) {
@@ -178,6 +233,7 @@ export default function ClubHome() {
         jugador_id: id,
         puntos: m.puntos,
         torneos: m.torneos,
+        puntos_ascenso: m.puntos_ascenso,
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
       };
@@ -191,6 +247,61 @@ export default function ClubHome() {
   const inscripcionesAbiertas = useMemo(() => {
     return torneos.filter(t => t.estado === "inscripciones_abiertas");
   }, [torneos]);
+
+  const abrirDetalle = async (jugador: RankingRow) => {
+    setDetalleJugador(jugador);
+    setDetalleOpen(true);
+    setLoadingDetalle(true);
+    setDetalleData([]);
+    try {
+      const { data: playerAscensos } = await supabase
+        .from("ascensos")
+        .select("categoria_origen_id")
+        .eq("jugador_id", jugador.jugador_id)
+        .eq("anio", filtroAnio);
+      const ascendidosDesdeIds = new Set((playerAscensos ?? []).map(a => a.categoria_origen_id));
+
+      let q = supabase
+        .from("ranking_jugadores")
+        .select("torneo_id, instancia, puntos, categoria_id")
+        .eq("jugador_id", jugador.jugador_id)
+        .in("torneo_id", torneos.map(t => t.id))
+        .eq("anio", filtroAnio);
+      if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
+      if (filtroGenero !== "todos") q = q.eq("genero", filtroGenero);
+      const { data: rj, error } = await q;
+      if (error) throw error;
+
+      const rjFiltrados = (rj ?? []).filter((r) => !ascendidosDesdeIds.has(r.categoria_id));
+
+      const { data: puntosCfg } = await supabase
+        .from("puntos_ranking")
+        .select("instancia, puntos");
+      const puntosBaseMap = new Map<string, number>();
+      (puntosCfg ?? []).forEach((p) => puntosBaseMap.set(p.instancia, p.puntos));
+
+      const detalle: DetalleTorneo[] = rjFiltrados.map((r) => {
+        const t = torneos.find((x) => x.id === r.torneo_id);
+        const mult = Number(t?.multiplicador_puntos ?? 1) || 1;
+        return {
+          torneo_id: r.torneo_id,
+          torneo_nombre: t?.nombre ?? "Torneo",
+          fecha: t?.fecha_inicio ?? "",
+          numero_fecha: t?.numero_fecha ?? null,
+          instancia: r.instancia,
+          puntos: r.puntos,
+          multiplicador: mult,
+          puntos_base: puntosBaseMap.get(r.instancia) ?? 0,
+        };
+      });
+      detalle.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+      setDetalleData(detalle);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingDetalle(false);
+    }
+  };
 
   const torneosEnCurso = useMemo(() => {
     return torneos.filter(t => t.estado === "en_curso" && t.numero_fecha != null);
@@ -427,6 +538,7 @@ export default function ClubHome() {
                         <TableHead className="w-12 text-center">#</TableHead>
                         <TableHead>Jugador</TableHead>
                         <TableHead className="text-right">Puntos</TableHead>
+                        <TableHead className="w-10"></TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -448,6 +560,17 @@ export default function ClubHome() {
                                 <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-50" title="Puntos en actualización" />
                               )}
                             </div>
+                          </TableCell>
+                          <TableCell className="w-10 pl-0">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-8 w-8"
+                              onClick={() => abrirDetalle(r)}
+                              title="Ver detalle"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -496,6 +619,73 @@ export default function ClubHome() {
       </main>
 
       <PublicFooter />
+
+      <Dialog open={detalleOpen} onOpenChange={setDetalleOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              {detalleJugador
+                ? `${detalleJugador.jugador_apellido}, ${detalleJugador.jugador_nombre}`
+                : "Detalle"}
+            </DialogTitle>
+            <DialogDescription>
+              Desglose de puntos por torneo en {filtroAnio}
+            </DialogDescription>
+          </DialogHeader>
+          {loadingDetalle ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">Cargando...</p>
+          ) : detalleData.length === 0 && (!detalleJugador || detalleJugador.puntos_ascenso === 0) ? (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              No hay torneos cargados para este jugador con los filtros actuales.
+            </p>
+          ) : (
+            <div className="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+              {detalleData.map((d, i) => (
+                <div
+                  key={i}
+                  className="flex items-start justify-between gap-3 rounded-md border p-3"
+                >
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm truncate">{d.torneo_nombre}</div>
+                    <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
+                      {d.fecha && <span>{new Date(d.fecha).toLocaleDateString()}</span>}
+                      {d.numero_fecha && (
+                        <Badge variant="outline" className="h-4 px-1 text-[10px]">
+                          Fecha {d.numero_fecha}
+                        </Badge>
+                      )}
+                      <span>· {INSTANCIA_LABEL[d.instancia] || d.instancia}</span>
+                    </div>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <div className="font-bold text-base">{d.puntos}</div>
+                    <div className="text-[10px] text-muted-foreground">
+                      {d.puntos_base}
+                      {d.multiplicador !== 1 && ` × ${d.multiplicador}`}
+                    </div>
+                  </div>
+                </div>
+              ))}
+              {detalleJugador && detalleJugador.puntos_ascenso > 0 && (
+                <div className="flex items-center justify-between gap-3 rounded-md border border-primary/30 bg-primary/5 p-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm flex items-center gap-1.5">
+                      <ArrowUpCircle className="h-3.5 w-3.5 text-primary" />
+                      Puntos por ascenso
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5">Transferidos de categoría anterior (50%)</div>
+                  </div>
+                  <div className="font-bold text-base">{detalleJugador.puntos_ascenso}</div>
+                </div>
+              )}
+              <div className="flex items-center justify-between pt-2 border-t font-semibold">
+                <span>Total</span>
+                <span>{(detalleData.reduce((acc, d) => acc + d.puntos, 0) + (detalleJugador?.puntos_ascenso ?? 0))} pts</span>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
