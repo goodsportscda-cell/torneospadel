@@ -193,7 +193,7 @@ export default function ClubHome() {
   }, [torneos]);
 
   const torneosEnCurso = useMemo(() => {
-    return torneos.filter(t => t.estado === "en_curso");
+    return torneos.filter(t => t.estado === "en_curso" && t.numero_fecha != null);
   }, [torneos]);
 
   const copiarEnlace = () => {
@@ -442,14 +442,12 @@ export default function ClubHome() {
                             {r.jugador_apellido}, {r.jugador_nombre}
                           </TableCell>
                           <TableCell className="text-right font-black text-primary">
-                            {torneosEnCurso.length > 0 ? (
-                              <div className="flex items-center justify-end gap-1.5 opacity-50" title="Puntos en actualización">
-                                <Clock className="h-3.5 w-3.5" />
-                                <span>-</span>
-                              </div>
-                            ) : (
-                              r.puntos
-                            )}
+                            <div className="flex items-center justify-end gap-1.5">
+                              {r.puntos}
+                              {torneosEnCurso.length > 0 && (
+                                <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-50" title="Puntos en actualización" />
+                              )}
+                            </div>
                           </TableCell>
                         </TableRow>
                       ))}
