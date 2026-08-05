@@ -555,6 +555,11 @@ export default function TorneoIndividualDashboard() {
     });
 
     const finalizedMatches = partidos.filter((p) => p.estado === "finalizado");
+    // Ordenar por fecha para procesar cronológicamente las ausencias
+    finalizedMatches.sort((a, b) => (a.fecha || 0) - (b.fecha || 0));
+
+    // Contador de ausencias por jugador
+    const absenceCountMap = new Map<string, number>();
 
     finalizedMatches.forEach((p) => {
       const canchaNumMatch = p.cancha.match(/\d+/);
@@ -586,9 +591,30 @@ export default function TorneoIndividualDashboard() {
         if (!s) return;
 
         s.partidosJugados++;
+        
         if (wasAbsent) {
-          s.puntos += 0;
+          // Contabilizar ausencia
+          const prevAbsences = absenceCountMap.get(jugId) || 0;
+          const newAbsences = prevAbsences + 1;
+          absenceCountMap.set(jugId, newAbsences);
+
+          if (newAbsences > 2) {
+            // Ausencia 3+: 0 puntos y pierde 6-0 6-0 (-12 games, 0 sets)
+            s.puntos += 0;
+            s.setsGanados += 0;
+            s.setsPerdidos += 2;
+            s.gamesGanados += 0;
+            s.gamesPerdidos += 12;
+          } else {
+            // Ausencia 1 o 2: se lleva los puntos y games del suplente (resultado real)
+            s.puntos += isWinner ? ptsWinner : ptsLoser;
+            s.setsGanados += setsOwn;
+            s.setsPerdidos += setsOpp;
+            s.gamesGanados += gamesOwn;
+            s.gamesPerdidos += gamesOpp;
+          }
         } else {
+          // Asistió normalmente
           s.puntos += isWinner ? ptsWinner : ptsLoser;
           s.setsGanados += setsOwn;
           s.setsPerdidos += setsOpp;
@@ -2908,11 +2934,9 @@ export default function TorneoIndividualDashboard() {
                         )}
 
                         {/* Action buttons */}
-                        {selectedFecha?.estado === "pendiente" && (
-                          <Button size="sm" variant="outline" className="w-full" onClick={() => handleOpenScoreDialog(p)}>
-                            {hasWinner ? "Modificar Resultado" : "Cargar Resultado"}
-                          </Button>
-                        )}
+                                                <Button size="sm" variant="outline" className="w-full" onClick={() => handleOpenScoreDialog(p)}>
+                          {hasWinner ? "Modificar Resultado" : "Cargar Resultado"}
+                        </Button>
                       </CardContent>
                     </Card>
                   );
