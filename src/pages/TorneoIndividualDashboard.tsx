@@ -2966,7 +2966,9 @@ export default function TorneoIndividualDashboard() {
                       <TableHead>{torneo?.modalidad === "parejas" ? "Suplencias Usadas" : "DNI"}</TableHead>
                       <TableHead className="text-center">PJ</TableHead>
                       <TableHead className="text-center">Sets G - P</TableHead>
-                      <TableHead className="text-center">Games Diff</TableHead>
+                      <TableHead className="text-center">GF</TableHead>
+                      <TableHead className="text-center">GC</TableHead>
+                      <TableHead className="text-center">DG</TableHead>
                       <TableHead className="text-right w-[120px]">Puntos Totales</TableHead>
                     </TableRow>
                   </TableHeader>
