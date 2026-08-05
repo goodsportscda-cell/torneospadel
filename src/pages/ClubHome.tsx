@@ -440,7 +440,7 @@ export default function ClubHome() {
                             </div>
                           </TableCell>
                           <TableCell className="text-center text-muted-foreground">
-                            {r.torneos_jugados}
+                            {r.torneos_jugados || 0}
                           </TableCell>
                           <TableCell className="text-right font-black text-primary">
                             <div className="flex items-center justify-end gap-1.5">

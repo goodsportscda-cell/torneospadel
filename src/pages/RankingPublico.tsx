@@ -65,7 +65,8 @@ export default function RankingPublico() {
     undefined,
     filtroCategoria,
     filtroGenero,
-    filtroAnio
+    filtroAnio,
+    false
   );
   
   const loading = loadingFiltros || rankingLoading;
@@ -343,7 +344,7 @@ export default function RankingPublico() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center hidden sm:table-cell">
-                        <Badge variant="outline" className="font-mono">{r.torneos}</Badge>
+                        <Badge variant="outline" className="font-mono">{r.torneos_jugados || 0}</Badge>
                       </TableCell>
                       <TableCell className="text-right">
                         <span className="text-lg font-black tracking-tight text-primary">

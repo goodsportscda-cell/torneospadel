@@ -123,9 +123,6 @@ export function useClubRanking(
       const map = new Map<string, { puntos_torneos: number; torneos_jugados: number; desglose: DesglosePunto[] }>();
 
       (rankingData || []).forEach((r) => {
-        // Si el jugador ascendió desde esta categoría, se ignoran sus puntos
-        const catAscendidos = ascendidosDesde.get(r.categoria_id);
-        if (catAscendidos && catAscendidos.has(r.jugador_id)) return;
 
         const cur = map.get(r.jugador_id) ?? { puntos_torneos: 0, torneos_jugados: 0, desglose: [] };
         cur.puntos_torneos += r.puntos;
