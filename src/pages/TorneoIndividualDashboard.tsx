@@ -3002,11 +3002,13 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="text-center text-xs text-muted-foreground font-mono">
                             {s.setsGanados} - {s.setsPerdidos}
                           </TableCell>
-                          <TableCell className="text-center font-mono text-xs">
-                            <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
-                              {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
-                            </span>
-                          </TableCell>
+                          <TableCell className="text-center font-mono text-xs">{s.gamesGanados}</TableCell>
+                            <TableCell className="text-center font-mono text-xs">{s.gamesPerdidos}</TableCell>
+                            <TableCell className="text-center font-mono text-xs">
+                              <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                                {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
+                              </span>
+                            </TableCell>
                           <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
                             {s.puntos} pts
                           </TableCell>
@@ -3028,11 +3030,13 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="text-center text-xs text-muted-foreground font-mono">
                             {s.setsGanados} - {s.setsPerdidos}
                           </TableCell>
-                          <TableCell className="text-center font-mono text-xs">
-                            <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
-                              {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
-                            </span>
-                          </TableCell>
+                          <TableCell className="text-center font-mono text-xs">{s.gamesGanados}</TableCell>
+                            <TableCell className="text-center font-mono text-xs">{s.gamesPerdidos}</TableCell>
+                            <TableCell className="text-center font-mono text-xs">
+                              <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                                {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
+                              </span>
+                            </TableCell>
                           <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
                             {s.puntos} pts
                           </TableCell>
