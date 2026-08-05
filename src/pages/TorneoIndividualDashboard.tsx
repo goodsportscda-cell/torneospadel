@@ -3354,6 +3354,111 @@ export default function TorneoIndividualDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Editar Cruces Manualmente */}
+      <Dialog open={editCrucesOpen} onOpenChange={setEditCrucesOpen}>
+        <DialogContent className="max-w-4xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Cruces Manualmente</DialogTitle>
+            <DialogDescription>
+              Puedes reasignar qué jugadores van a cada cancha. Guarda los cambios antes de salir.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-6 py-4">
+            {editingCruces.map((partido, pIndex) => (
+              <div key={partido.id} className="border rounded-xl p-4 bg-muted/20">
+                <h4 className="font-semibold mb-4 text-primary">{partido.cancha}</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Pareja 1 */}
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium border-b pb-1">Pareja / Equipo 1</p>
+                    <div className="space-y-2">
+                      <Select
+                        value={partido.jugador1_id || ""}
+                        onValueChange={(val) => {
+                          const newM = [...editingCruces];
+                          newM[pIndex].jugador1_id = val;
+                          setEditingCruces(newM);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Seleccionar Jugador 1" /></SelectTrigger>
+                        <SelectContent>
+                          {jugadoresInscriptos.map(tj => (
+                            <SelectItem key={tj.jugador_id} value={tj.jugador_id}>{tj.jugador?.apellido}, {tj.jugador?.nombre}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={partido.jugador2_id || ""}
+                        onValueChange={(val) => {
+                          const newM = [...editingCruces];
+                          newM[pIndex].jugador2_id = val;
+                          setEditingCruces(newM);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Seleccionar Jugador 2" /></SelectTrigger>
+                        <SelectContent>
+                          {jugadoresInscriptos.map(tj => (
+                            <SelectItem key={tj.jugador_id} value={tj.jugador_id}>{tj.jugador?.apellido}, {tj.jugador?.nombre}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+
+                  {/* Pareja 2 */}
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium border-b pb-1">Pareja / Equipo 2</p>
+                    <div className="space-y-2">
+                      <Select
+                        value={partido.jugador3_id || ""}
+                        onValueChange={(val) => {
+                          const newM = [...editingCruces];
+                          newM[pIndex].jugador3_id = val;
+                          setEditingCruces(newM);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Seleccionar Jugador 3" /></SelectTrigger>
+                        <SelectContent>
+                          {jugadoresInscriptos.map(tj => (
+                            <SelectItem key={tj.jugador_id} value={tj.jugador_id}>{tj.jugador?.apellido}, {tj.jugador?.nombre}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={partido.jugador4_id || ""}
+                        onValueChange={(val) => {
+                          const newM = [...editingCruces];
+                          newM[pIndex].jugador4_id = val;
+                          setEditingCruces(newM);
+                        }}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Seleccionar Jugador 4" /></SelectTrigger>
+                        <SelectContent>
+                          {jugadoresInscriptos.map(tj => (
+                            <SelectItem key={tj.jugador_id} value={tj.jugador_id}>{tj.jugador?.apellido}, {tj.jugador?.nombre}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+            {editingCruces.length === 0 && (
+              <p className="text-center text-muted-foreground">No hay partidos pendientes en esta fecha para editar.</p>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditCrucesOpen(false)}>Cancelar</Button>
+            <Button onClick={handleSaveCrucesManuales} disabled={savingCruces || editingCruces.length === 0}>
+              {savingCruces ? "Guardando..." : "Guardar Cruces"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
