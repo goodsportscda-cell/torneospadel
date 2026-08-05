@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -53,9 +54,19 @@ import {
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
 type JugadorSimple = { id: string; nombre: string; apellido: string; club: string | null; telefono: string | null; dni: string | null; };
+type DispFranja = {
+  franja: {
+    id: string;
+    label_franja: string;
+    dia_nombre: string;
+    hora_inicio: string;
+    hora_fin: string;
+  };
+};
 type InscripcionConJugadores = Inscripcion & {
   jugador1?: JugadorSimple | null;
   jugador2?: JugadorSimple | null;
+  disponibilidades?: DispFranja[] | null;
 };
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -97,6 +108,7 @@ interface FormState {
   fecha_inscripcion: string;
   notas: string;
   disponibilidad_horaria: string;
+  franjas_ids: string[];
 }
 
 import { useAuth } from "@/hooks/useAuth";
@@ -112,6 +124,7 @@ const emptyForm = (): FormState => ({
   fecha_inscripcion: today(),
   notas: "",
   disponibilidad_horaria: "",
+  franjas_ids: [],
 });
 
 export default function Inscripciones() {
@@ -129,6 +142,25 @@ export default function Inscripciones() {
   const [editing, setEditing] = useState<Inscripcion | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm());
   const [tipoImpresion, setTipoImpresion] = useState<"acreditacion" | "disponibilidad" | "sorteo">("acreditacion");
+  const [franjasTorneo, setFranjasTorneo] = useState<any[]>([]);
+
+  // Cargar franjas del torneo seleccionado en el form
+  useEffect(() => {
+    if (!form.torneo_id) {
+      setFranjasTorneo([]);
+      return;
+    }
+    const fetchFranjas = async () => {
+      const { data } = await supabase
+        .from("torneo_franjas_horarias")
+        .select("*")
+        .eq("torneo_id", form.torneo_id)
+        .order("dia_nombre")
+        .order("hora_inicio");
+      setFranjasTorneo(data || []);
+    };
+    fetchFranjas();
+  }, [form.torneo_id]);
 
   const handlePrint = (tipo: "acreditacion" | "disponibilidad" | "sorteo") => {
     setTipoImpresion(tipo);
@@ -176,7 +208,8 @@ export default function Inscripciones() {
         .select(`
           *,
           jugador1:jugadores!inscripciones_jugador1_id_fkey(id, nombre, apellido, club, telefono, dni),
-          jugador2:jugadores!inscripciones_jugador2_id_fkey(id, nombre, apellido, club, telefono, dni)
+          jugador2:jugadores!inscripciones_jugador2_id_fkey(id, nombre, apellido, club, telefono, dni),
+          disponibilidades:inscripcion_disponibilidades(franja:torneo_franjas_horarias(id, label_franja, dia_nombre, hora_inicio, hora_fin))
         `);
 
       if (filtroTorneo !== "todos") {
@@ -254,7 +287,7 @@ export default function Inscripciones() {
     setDialogOpen(true);
   };
 
-  const openEdit = (i: Inscripcion) => {
+  const openEdit = (i: InscripcionConJugadores) => {
     setEditing(i);
     setForm({
       torneo_id: i.torneo_id,
@@ -265,6 +298,7 @@ export default function Inscripciones() {
       fecha_inscripcion: i.fecha_inscripcion,
       notas: i.notas ?? "",
       disponibilidad_horaria: (i as any).disponibilidad_horaria ?? "",
+      franjas_ids: i.disponibilidades?.map((d) => d.franja.id) || [],
     });
     setDialogOpen(true);
   };
@@ -285,20 +319,32 @@ export default function Inscripciones() {
       disponibilidad_horaria: form.disponibilidad_horaria.trim() || null,
     };
 
+    let inscripcionId = editing?.id;
+
     if (editing) {
       const { error } = await supabase.from("inscripciones").update(payload).eq("id", editing.id);
       if (error) return toast.error("Error al guardar: " + error.message);
       toast.success("Inscripción actualizada");
     } else {
-      const { error } = await supabase.from("inscripciones").insert(payload);
+      const { data, error } = await supabase.from("inscripciones").insert(payload).select("id").maybeSingle();
       if (error) {
         if (error.code === "23505") {
           return toast.error("Esa pareja ya está inscripta en este torneo");
         }
         return toast.error("Error al crear: " + error.message);
       }
+      if (data) inscripcionId = data.id;
       toast.success("Inscripción creada");
     }
+
+    if (inscripcionId) {
+      await supabase.from("inscripcion_disponibilidades").delete().eq("inscripcion_id", inscripcionId);
+      if (form.franjas_ids.length > 0) {
+        const dPayload = form.franjas_ids.map(fId => ({ inscripcion_id: inscripcionId, franja_id: fId }));
+        await supabase.from("inscripcion_disponibilidades").insert(dPayload);
+      }
+    }
+
     setDialogOpen(false);
     fetchAll();
   };
@@ -626,15 +672,56 @@ export default function Inscripciones() {
                       onChange={(e) => setForm({ ...form, fecha_inscripcion: e.target.value })}
                     />
                   </div>
-                  <div className="grid gap-1.5">
-                    <Label htmlFor="disponibilidad">Disponibilidad horaria</Label>
-                    <Input
-                      id="disponibilidad"
-                      placeholder="Ej: Viernes desde las 19hs, Sábado todo el día"
-                      value={form.disponibilidad_horaria}
-                      onChange={(e) => setForm({ ...form, disponibilidad_horaria: e.target.value })}
-                    />
-                  </div>
+                  {franjasTorneo.length > 0 ? (
+                    <div className="grid gap-2 border rounded-md p-3">
+                      <Label className="font-semibold">Disponibilidad Horaria (Franjas)</Label>
+                      {Object.entries(
+                        franjasTorneo.reduce((acc, f) => {
+                          if (!acc[f.dia_nombre]) acc[f.dia_nombre] = [];
+                          acc[f.dia_nombre].push(f);
+                          return acc;
+                        }, {} as Record<string, any[]>)
+                      ).map(([dia, franjasPorDia]: [string, any]) => (
+                        <div key={dia} className="space-y-1 mb-2">
+                          <Label className="text-xs text-muted-foreground">{dia}</Label>
+                          <div className="grid grid-cols-1 gap-2">
+                            {franjasPorDia.map((f: any) => (
+                              <div key={f.id} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`admin-franja-${f.id}`}
+                                  checked={form.franjas_ids.includes(f.id)}
+                                  onCheckedChange={(checked) => {
+                                    setForm(prev => {
+                                      const ids = checked
+                                        ? [...prev.franjas_ids, f.id]
+                                        : prev.franjas_ids.filter(id => id !== f.id);
+                                      return { ...prev, franjas_ids: ids };
+                                    });
+                                  }}
+                                />
+                                <label
+                                  htmlFor={`admin-franja-${f.id}`}
+                                  className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70"
+                                >
+                                  {f.label_franja}
+                                </label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="grid gap-1.5">
+                      <Label htmlFor="disponibilidad">Disponibilidad horaria</Label>
+                      <Input
+                        id="disponibilidad"
+                        placeholder="Ej: Viernes desde las 19hs, Sábado todo el día"
+                        value={form.disponibilidad_horaria}
+                        onChange={(e) => setForm({ ...form, disponibilidad_horaria: e.target.value })}
+                      />
+                    </div>
+                  )}
                   <div className="grid gap-1.5">
                     <Label htmlFor="notas">Notas</Label>
                     <Textarea
@@ -766,14 +853,28 @@ export default function Inscripciones() {
                     </div>
                   </div>
 
-                  {i.disponibilidad_horaria && (
+                  {i.disponibilidades && i.disponibilidades.length > 0 ? (
+                    <div className="flex flex-col gap-1.5 mt-2">
+                      <div className="flex items-center gap-1.5">
+                        <Clock className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                        <span className="text-xs font-medium text-foreground">Disponibilidad (Franjas):</span>
+                      </div>
+                      <div className="flex flex-wrap gap-1 pl-5">
+                        {i.disponibilidades.map((d: any) => (
+                          <Badge key={d.franja.id} variant="outline" className="text-[10px] bg-muted/20 whitespace-nowrap">
+                            {d.franja.dia_nombre} {d.franja.hora_inicio.slice(0,5)} a {d.franja.hora_fin.slice(0,5)}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : i.disponibilidad_horaria ? (
                     <div className="flex items-start gap-1.5 mt-2">
                       <Clock className="h-3.5 w-3.5 text-muted-foreground mt-0.5 shrink-0" />
                       <p className="text-xs text-muted-foreground line-clamp-2" title={i.disponibilidad_horaria}>
                         <span className="font-medium text-foreground">Disponibilidad:</span> {i.disponibilidad_horaria}
                       </p>
                     </div>
-                  )}
+                  ) : null}
 
                   {i.notas && (
                     <div className="mt-1 bg-amber-50 dark:bg-amber-950/20 p-2 rounded text-xs text-amber-800 dark:text-amber-300 italic border border-amber-200 dark:border-amber-900/50">
@@ -1065,7 +1166,19 @@ export default function Inscripciones() {
                       {t1} <br/> <span className="text-gray-500">{t2}</span>
                     </td>
                     <td className="py-3 px-2 font-medium">
-                      {i.disponibilidad_horaria || <span className="text-gray-400 italic">No especificada</span>}
+                      {i.disponibilidades && i.disponibilidades.length > 0 ? (
+                        <div className="flex flex-col gap-1">
+                          {i.disponibilidades.map((d: any) => (
+                            <div key={d.franja.id} className="text-xs bg-gray-100 px-1 py-0.5 rounded border border-gray-300 w-fit">
+                              {d.franja.dia_nombre} {d.franja.hora_inicio.slice(0,5)} a {d.franja.hora_fin.slice(0,5)}
+                            </div>
+                          ))}
+                        </div>
+                      ) : i.disponibilidad_horaria ? (
+                        <span>{i.disponibilidad_horaria}</span>
+                      ) : (
+                        <span className="text-gray-400 italic">No especificada</span>
+                      )}
                     </td>
                     <td className="py-3 px-2 text-xs text-gray-600 italic">
                       {i.notas || "—"}
