@@ -428,6 +428,7 @@ export default function Ranking() {
   const [detalleJugador, setDetalleJugador] = useState<RankingRow | null>(null);
   const [detalleData, setDetalleData] = useState<DetalleTorneo[]>([]);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
+  const [detalleAscensoNotas, setDetalleAscensoNotas] = useState<string | null>(null);
 
   // Ascensos
   const [ascensoOpen, setAscensoOpen] = useState(false);
@@ -733,14 +734,17 @@ export default function Ranking() {
     setDetalleOpen(true);
     setLoadingDetalle(true);
     setDetalleData([]);
+    setDetalleAscensoNotas(null);
     try {
       // 1. Obtener ascensos del jugador para identificar categorías de origen excluidas
       const { data: playerAscensos } = await supabase
         .from("ascensos")
-        .select("categoria_origen_id")
+        .select("categoria_origen_id, notas")
         .eq("jugador_id", jugador.jugador_id)
         .eq("anio", filtroAnio);
       const ascendidosDesdeIds = new Set((playerAscensos ?? []).map(a => a.categoria_origen_id));
+      const notasList = (playerAscensos ?? []).map(a => a.notas).filter(Boolean);
+      setDetalleAscensoNotas(notasList.length > 0 ? notasList.join(" | ") : null);
 
       let q = supabase
         .from("ranking_jugadores")
@@ -1317,7 +1321,10 @@ export default function Ranking() {
                       <ArrowUpCircle className="h-3.5 w-3.5 text-primary" />
                       Puntos por ascenso
                     </div>
-                    <div className="text-xs text-muted-foreground mt-0.5">Transferidos de categoría anterior (50%)</div>
+                    <div className="text-xs text-muted-foreground mt-0.5">
+                      Transferidos de categoría anterior (50%)
+                      {detalleAscensoNotas && <span className="block mt-1 font-medium text-primary">Nota: {detalleAscensoNotas}</span>}
+                    </div>
                   </div>
                   <div className="font-bold text-base">{detalleJugador.puntos_ascenso}</div>
                 </div>
