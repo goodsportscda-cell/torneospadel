@@ -22,17 +22,12 @@ import {
 } from "@/components/ui/table";
 import { Trophy, Medal, Star, Search, Filter, Loader2, Award, Share2, Check } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
+import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
+import { DesglosePuntosModal } from "@/components/ranking/DesglosePuntosModal";
+import { Info } from "lucide-react";
 import { toast } from "sonner";
 import PublicFooter from "@/components/PublicFooter";
 
-type RankingRow = {
-  jugador_id: string;
-  puntos: number;
-  torneos: number;
-  jugador_nombre: string;
-  jugador_apellido: string;
-  jugador_club: string | null;
-};
 
 type Categoria = { id: string; nombre: string; genero: string };
 
@@ -45,8 +40,10 @@ const GENEROS = [
 
 export default function RankingPublico() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<RankingRow[]>([]);
+  const [loadingFiltros, setLoadingFiltros] = useState(true);
+  
+  const [jugadorModal, setJugadorModal] = useState<RankingRowUnified | null>(null);
+  const [modalOpen, setModalOpen] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [aniosDisp, setAniosDisp] = useState<number[]>([]);
   const [cuposMaster, setCuposMaster] = useState<Record<string, number>>({});
@@ -63,6 +60,15 @@ export default function RankingPublico() {
   });
   const [busqueda, setBusqueda] = useState("");
   const [copiado, setCopiado] = useState(false);
+  
+  const { rankingRows: rows, loading: rankingLoading } = useClubRanking(
+    undefined,
+    filtroCategoria,
+    filtroGenero,
+    filtroAnio
+  );
+  
+  const loading = loadingFiltros || rankingLoading;
 
   const copiarEnlace = () => {
     const texto = `🏆 Portal Público de Ranking - Padel ID\nMirá las posiciones actualizadas acá:\n${window.location.href}`;
@@ -73,6 +79,7 @@ export default function RankingPublico() {
   };
 
   const cargarFiltros = async () => {
+    setLoadingFiltros(true);
     const [{ data: cats }, { data: anios }, { data: cupos }] = await Promise.all([
       supabase.from("categorias").select("id, nombre, genero").eq("activa", true).order("orden"),
       supabase.from("ranking_jugadores").select("anio"),
@@ -114,127 +121,15 @@ export default function RankingPublico() {
         }
       }
     }
+    setLoadingFiltros(false);
   };
 
-  const cargarRanking = async () => {
-    setLoading(true);
-    let query = (supabase as any)
-      .from("ranking_jugadores")
-      .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
-      .eq("anio", filtroAnio);
-
-    if (filtroCategoria !== "todas") {
-      query = query.eq("categoria_id", filtroCategoria);
-    }
-    if (filtroGenero !== "todos") {
-      query = query.eq("genero", filtroGenero);
-    }
-    
-    const { data, error } = await query;
-    if (error) {
-      toast.error("Error cargando ranking");
-      setLoading(false);
-      return;
-    }
-
-    // Load ascensos to handle point transfers
-    const { data: ascensosData } = await (supabase as any)
-      .from("ascensos")
-      .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id")
-      .eq("anio", filtroAnio);
-
-    const ascendidosDesde = new Map<string, Set<string>>();
-    const ascensoMap = new Map<string, number>();
-
-    (ascensosData ?? []).forEach((a) => {
-      // Destino points
-      if (filtroCategoria === "todas" || a.categoria_destino_id === filtroCategoria) {
-        ascensoMap.set(a.jugador_id, (ascensoMap.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
-      }
-      // Origin exclusion
-      if (!ascendidosDesde.has(a.categoria_origen_id)) ascendidosDesde.set(a.categoria_origen_id, new Set());
-      ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
-    });
-
-    const map = new Map<string, { puntos: number; torneos: number }>();
-    (data ?? []).forEach((r: any) => {
-      const catAscendidos = ascendidosDesde.get(r.categoria_id);
-      if (catAscendidos && catAscendidos.has(r.jugador_id)) return;
-      
-      const cur = map.get(r.jugador_id) ?? { puntos: 0, torneos: 0 };
-      cur.puntos += r.puntos;
-      cur.torneos += 1;
-      map.set(r.jugador_id, cur);
-    });
-
-    for (const [jId, pts] of ascensoMap.entries()) {
-      const cur = map.get(jId) ?? { puntos: 0, torneos: 0 };
-      cur.puntos += pts;
-      map.set(jId, cur);
-    }
-
-    const ids = Array.from(map.keys());
-    if (ids.length === 0) {
-      setRows([]);
-      setLoading(false);
-      return;
-    }
-
-    // Chunk ids array to avoid URL length limit in Supabase (.in with many elements)
-    const chunkSize = 100;
-    const chunks = [];
-    for (let i = 0; i < ids.length; i += chunkSize) {
-      chunks.push(ids.slice(i, i + chunkSize));
-    }
-    
-    let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
-    try {
-      const results = await Promise.all(
-        chunks.map(chunk => 
-          supabase
-            .from("jugadores")
-            .select("id, nombre, apellido, club")
-            .in("id", chunk)
-        )
-      );
-      
-      for (const res of results) {
-        if (res.error) {
-          console.error("Error fetching chunk of jugadores:", res.error);
-        }
-        if (res.data) {
-          jugadores = [...jugadores, ...res.data];
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching jugadores in chunks:", err);
-    }
-
-    const result: RankingRow[] = ids.map((id) => {
-      const j = jugadores?.find((x) => x.id === id);
-      const m = map.get(id)!;
-      return {
-        jugador_id: id,
-        puntos: m.puntos,
-        torneos: m.torneos,
-        jugador_nombre: j?.nombre ?? "?",
-        jugador_apellido: j?.apellido ?? "?",
-        jugador_club: j?.club ?? null,
-      };
-    });
-    
-    result.sort((a, b) => b.puntos - a.puntos);
-    setRows(result);
-    setLoading(false);
-  };
-
+  
   useEffect(() => {
-    cargarFiltros().then(cargarRanking);
+    cargarFiltros();
   }, []);
 
   useEffect(() => {
-    cargarRanking();
-    
     // Sincronizar filtros con la URL
     const params: Record<string, string> = {};
     if (filtroAnio !== new Date().getFullYear()) {
@@ -452,7 +347,7 @@ export default function RankingPublico() {
                       </TableCell>
                       <TableCell className="text-right">
                         <span className="text-lg font-black tracking-tight text-primary">
-                          {r.puntos}
+                          {r.puntos_totales}
                         </span>
                       </TableCell>
                     </TableRow>

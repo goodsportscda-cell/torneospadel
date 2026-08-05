@@ -32,6 +32,8 @@ import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2
 import { toast } from "sonner";
 import { INSTANCIA_LABEL, type Instancia } from "@/lib/ranking";
 import { activeTenant } from "@/lib/tenant";
+import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
+import { DesglosePuntosModal } from "@/components/ranking/DesglosePuntosModal";
 
 // Convierte una imagen importada a dataURL para incrustarla en el PDF
 const loadImageAsDataURL = (src: string): Promise<string> =>
@@ -97,7 +99,7 @@ const CUPO_DEFAULT = 16;
 
 export default function Ranking() {
   const [loading, setLoading] = useState(true);
-  const [rows, setRows] = useState<RankingRow[]>([]);
+  const [rows, setRows] = useState<RankingRowUnified[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [aniosDisp, setAniosDisp] = useState<number[]>([]);
   const [cuposMaster, setCuposMaster] = useState<Record<string, number>>({});
@@ -634,7 +636,7 @@ export default function Ranking() {
       console.error("Error fetching jugadores in chunks:", err);
     }
 
-    const result: RankingRow[] = ids.map((id) => {
+    const result: RankingRowUnified[] = ids.map((id) => {
       const j = jugadores?.find((x) => x.id === id);
       const m = map.get(id)!;
       const ptsAscenso = ascensoMap.get(id) ?? 0;
