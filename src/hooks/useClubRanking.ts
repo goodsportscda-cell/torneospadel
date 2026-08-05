@@ -186,19 +186,23 @@ export function useClubRanking(
       }
 
       // 7. Mapear y Ordenar
-      const finalResult: RankingRowUnified[] = ids.map((id) => {
-        const j = jugadores.find((x) => x.id === id);
+      const finalResult: RankingRowUnified[] = (ids || []).map((id) => {
+        const j = (jugadores || []).find((x) => x.id === id);
         const m = map.get(id)!;
         
-        const puntos_ascenso = m.desglose.filter(d => d.tipo === "ascenso").reduce((acc, curr) => acc + curr.puntos, 0);
-        const puntos_totales = m.puntos_torneos + puntos_ascenso;
+        const desgloseSeguro = m.desglose || [];
 
         // Sort desglose by date descending (rough approximation if fecha is present)
-        m.desglose.sort((a, b) => {
+        desgloseSeguro.sort((a, b) => {
           if (!a.fecha) return 1;
           if (!b.fecha) return -1;
           return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
         });
+
+        const puntos_totales = desgloseSeguro.reduce((sum, item) => sum + item.puntos, 0);
+        const torneos_jugados = desgloseSeguro.filter(item => item.tipo === 'torneo').length;
+        const puntos_ascenso = desgloseSeguro.filter(d => d.tipo === "ascenso").reduce((acc, curr) => acc + curr.puntos, 0);
+        const puntos_torneos = desgloseSeguro.filter(d => d.tipo === "torneo").reduce((acc, curr) => acc + curr.puntos, 0);
 
         return {
           posicion: 0, // se calcula después de ordenar
@@ -207,10 +211,10 @@ export function useClubRanking(
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
           puntos_totales,
-          puntos_torneos: m.puntos_torneos,
+          puntos_torneos,
           puntos_ascenso,
-          torneos_jugados: m.torneos_jugados,
-          desglose: m.desglose,
+          torneos_jugados,
+          desglose: desgloseSeguro,
         };
       });
 
@@ -231,6 +235,7 @@ export function useClubRanking(
     } catch (err: any) {
       console.error(err);
       setError(err.message || "Error desconocido");
+      setRankingRows([]);
     } finally {
       setLoading(false);
     }

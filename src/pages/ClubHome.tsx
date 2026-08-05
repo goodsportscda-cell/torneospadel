@@ -8,11 +8,12 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock, Eye, ArrowUpCircle } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock, Eye, ArrowUpCircle, Info } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
+import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 
 type Torneo = {
   id: string;
@@ -61,17 +62,17 @@ export default function ClubHome() {
   const [loadingTorneos, setLoadingTorneos] = useState(false);
   
   // Rankings state
-  const [loadingRankings, setLoadingRankings] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
   const [filtroGenero, setFiltroGenero] = useState<string>("todos");
   const [filtroAnio, setFiltroAnio] = useState<number>(new Date().getFullYear());
   const [aniosDisp, setAniosDisp] = useState<number[]>([new Date().getFullYear()]);
-  const [rankingRows, setRankingRows] = useState<RankingRow[]>([]);
   const [copiado, setCopiado] = useState(false);
 
+  const { rankingRows, loading: loadingRankings } = useClubRanking(club?.id, filtroCategoria, filtroGenero, filtroAnio);
+
   const [detalleOpen, setDetalleOpen] = useState(false);
-  const [detalleJugador, setDetalleJugador] = useState<RankingRow | null>(null);
+  const [detalleJugador, setDetalleJugador] = useState<RankingRowUnified | null>(null);
   const [detalleData, setDetalleData] = useState<DetalleTorneo[]>([]);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [detalleAscensoNotas, setDetalleAscensoNotas] = useState<string | null>(null);
@@ -83,12 +84,6 @@ export default function ClubHome() {
       cargarFiltrosRanking();
     }
   }, [club]);
-
-  useEffect(() => {
-    if (club) {
-      cargarRanking();
-    }
-  }, [club, filtroAnio, filtroCategoria, filtroGenero]);
 
   const cargarTorneos = async () => {
     if (!club) return;
@@ -132,7 +127,7 @@ export default function ClubHome() {
     return torneos.filter(t => t.estado === "inscripciones_abiertas");
   }, [torneos]);
 
-  const abrirDetalle = async (jugador: RankingRow) => {
+  const abrirDetalle = async (jugador: RankingRowUnified) => {
     setDetalleJugador(jugador);
     setDetalleOpen(true);
     setLoadingDetalle(true);
@@ -452,8 +447,7 @@ export default function ClubHome() {
                           </TableCell>
                           <TableCell className="text-right">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => {
-                              setJugadorModal(r);
-                              setModalOpen(true);
+                              abrirDetalle(r);
                             }}>
                               <Info className="h-4 w-4" />
                             </Button>
