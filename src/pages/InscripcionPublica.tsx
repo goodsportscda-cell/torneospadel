@@ -366,12 +366,12 @@ export default function InscripcionPublica() {
 
             <div className="space-y-2">
               <h2 className="text-2xl font-bold tracking-tight text-foreground">
-                {esListaEspera ? "¡En Lista de Espera!" : "¡Inscripción Registrada!"}
+                {esListaEspera ? "¡En Lista de Espera!" : "¡Inscripción Exitosa!"}
               </h2>
               <p className="text-sm text-muted-foreground px-4">
                 {esListaEspera 
                   ? "El cupo máximo del torneo ha sido completado. Has quedado registrado como suplente en lista de espera."
-                  : "Tu pre-inscripción ha sido recibida con éxito y tu lugar ha sido reservado."
+                  : "Tu inscripción ha sido recibida con éxito."
                 }
               </p>
             </div>
@@ -389,13 +389,13 @@ export default function InscripcionPublica() {
                   <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
                 )}
                 <p className="text-sm font-bold uppercase tracking-wider">
-                  {esListaEspera ? "Estado: Suplentes / Lista de Espera" : "Estado: Pre-inscriptos (Por Confirmar)"}
+                  {esListaEspera ? "Estado: Suplentes / Lista de Espera" : "ESTADO: INSCRIPCIÓN CONFIRMADA"}
                 </p>
               </div>
               <p className="text-xs opacity-90 leading-relaxed">
                 {esListaEspera 
                   ? "No es necesario realizar ningún pago en este momento. Si se libera un cupo en el torneo, nos contactaremos contigo inmediatamente por WhatsApp para confirmar tu ingreso."
-                  : "Para confirmar tu participación de forma definitiva y asegurar tu lugar, deberás realizar el pago de la inscripción. Nos contactaremos contigo por WhatsApp para coordinar los detalles."
+                  : "Ya tienes tu lugar asegurado en el torneo, salvo que se haya superado el límite de cupos disponibles."
                 }
               </p>
             </div>
@@ -427,6 +427,10 @@ export default function InscripcionPublica() {
                 ✨ La inscripción ya está ingresada en el sistema. Su compañero no necesita confirmar ningún dato en la web.
               </p>
             )}
+
+            <p className="text-xs font-medium pt-2 border-t mt-4">
+              Ante cualquier consulta, puedes comunicarte por WhatsApp con Ana al 11-65942709.
+            </p>
 
             <div className="border-t pt-4 space-y-1">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wider">Torneo</p>
