@@ -383,6 +383,11 @@ export default function TorneoIndividualPublico() {
     });
 
     const finalizedMatches = partidos.filter((p) => p.estado === "finalizado");
+    // Ordenar por fecha para procesar cronológicamente las ausencias
+    finalizedMatches.sort((a, b) => (a.fecha || 0) - (b.fecha || 0));
+
+    // Contador de ausencias por jugador
+    const absenceCountMap = new Map<string, number>();
 
     finalizedMatches.forEach((p) => {
       const canchaNumMatch = p.cancha.match(/\d+/);
@@ -414,9 +419,30 @@ export default function TorneoIndividualPublico() {
         if (!s) return;
 
         s.partidosJugados++;
+        
         if (wasAbsent) {
-          s.puntos += 0;
+          // Contabilizar ausencia
+          const prevAbsences = absenceCountMap.get(jugId) || 0;
+          const newAbsences = prevAbsences + 1;
+          absenceCountMap.set(jugId, newAbsences);
+
+          if (newAbsences > 2) {
+            // Ausencia 3+: 0 puntos y pierde 6-0 6-0 (-12 games, 0 sets)
+            s.puntos += 0;
+            s.setsGanados += 0;
+            s.setsPerdidos += 2;
+            s.gamesGanados += 0;
+            s.gamesPerdidos += 12;
+          } else {
+            // Ausencia 1 o 2: se lleva los puntos y games del suplente (resultado real)
+            s.puntos += isWinner ? ptsWinner : ptsLoser;
+            s.setsGanados += setsOwn;
+            s.setsPerdidos += setsOpp;
+            s.gamesGanados += gamesOwn;
+            s.gamesPerdidos += gamesOpp;
+          }
         } else {
+          // Asistió normalmente
           s.puntos += isWinner ? ptsWinner : ptsLoser;
           s.setsGanados += setsOwn;
           s.setsPerdidos += setsOpp;
@@ -653,7 +679,9 @@ export default function TorneoIndividualPublico() {
                         <TableHead>{torneo?.modalidad === "parejas" ? "Suplencias Usadas" : "Club/Ciudad"}</TableHead>
                         <TableHead className="text-center w-[50px]">PJ</TableHead>
                         <TableHead className="text-center w-[80px]">Sets G-P</TableHead>
-                        <TableHead className="text-center w-[80px]">Games Diff</TableHead>
+                        <TableHead className="text-center w-[50px]">GF</TableHead>
+                        <TableHead className="text-center w-[50px]">GC</TableHead>
+                        <TableHead className="text-center w-[80px]">DG</TableHead>
                         <TableHead className="text-right w-[90px]">Puntos</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -705,6 +733,8 @@ export default function TorneoIndividualPublico() {
                               <TableCell className="text-center font-mono text-muted-foreground">
                                 {s.setsGanados}-{s.setsPerdidos}
                               </TableCell>
+                              <TableCell className="text-center font-mono">{s.gamesGanados}</TableCell>
+                              <TableCell className="text-center font-mono">{s.gamesPerdidos}</TableCell>
                               <TableCell className="text-center font-mono font-medium">
                                 <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
                                   {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
@@ -755,6 +785,8 @@ export default function TorneoIndividualPublico() {
                               <TableCell className="text-center font-mono text-muted-foreground">
                                 {s.setsGanados}-{s.setsPerdidos}
                               </TableCell>
+                              <TableCell className="text-center font-mono">{s.gamesGanados}</TableCell>
+                              <TableCell className="text-center font-mono">{s.gamesPerdidos}</TableCell>
                               <TableCell className="text-center font-mono font-medium">
                                 <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
                                   {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
