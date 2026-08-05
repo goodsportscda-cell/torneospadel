@@ -7,6 +7,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send, Clock, DollarSign } from "lucide-react";
 import { toast } from "sonner";
 import { activeTenant } from "@/lib/tenant";
@@ -35,6 +36,8 @@ export default function InscripcionPublica() {
   const [resultado, setResultado] = useState<Resultado | null>(null);
   const [j1, setJ1] = useState<JugadorForm>(emptyJugador());
   const [j2, setJ2] = useState<JugadorForm>(emptyJugador());
+  const [franjasTorneo, setFranjasTorneo] = useState<any[]>([]);
+  const [selectedFranjas, setSelectedFranjas] = useState<string[]>([]);
   const [disponibilidad, setDisponibilidad] = useState("");
   const [observaciones, setObservaciones] = useState("");
   const [comprobanteFile, setComprobanteFile] = useState<File | null>(null);
@@ -53,6 +56,14 @@ export default function InscripcionPublica() {
         .maybeSingle();
       if (error) console.error(error);
       setTorneo(data ?? null);
+      
+      const { data: fData } = await supabase
+        .from("torneo_franjas_horarias")
+        .select("*")
+        .eq("torneo_id", torneoId)
+        .order("dia_nombre")
+        .order("hora_inicio");
+      setFranjasTorneo(fData || []);
       
       // Auto-fill user if logged in
       if (user) {
@@ -157,9 +168,21 @@ export default function InscripcionPublica() {
   };
 
   const irPaso4 = () => {
-    if (!disponibilidad.trim() || disponibilidad.trim().length < 3) {
-      toast.error("La disponibilidad horaria es obligatoria");
-      return;
+    if (franjasTorneo.length > 0) {
+      if (selectedFranjas.length < 2) {
+        toast.error("Debes seleccionar al menos 2 franjas horarias.");
+        return;
+      }
+      const days = new Set(selectedFranjas.map(id => franjasTorneo.find(f => f.id === id)?.dia_nombre));
+      if (days.size < 2) {
+        toast.error("Debes seleccionar franjas en al menos 2 días distintos.");
+        return;
+      }
+    } else {
+      if (!disponibilidad.trim() || disponibilidad.trim().length < 3) {
+        toast.error("La disponibilidad horaria es obligatoria");
+        return;
+      }
     }
     setPaso(4);
   };
@@ -260,6 +283,7 @@ export default function InscripcionPublica() {
             disponibilidad_horaria: disponibilidad.trim() || undefined,
             observaciones: observaciones.trim() || undefined,
             comprobante_url: comprobanteUrl,
+            franjas_ids: selectedFranjas.length > 0 ? selectedFranjas : undefined,
           }),
         });
         const data = await res.json();
@@ -475,17 +499,61 @@ export default function InscripcionPublica() {
             </header>
             <div className="grid gap-1.5">
               <Label htmlFor="disp">Disponibilidad horaria *</Label>
-              <Textarea
-                id="disp"
-                rows={3}
-                placeholder="Ej: jueves a la noche, viernes a partir de las 20hs"
-                value={disponibilidad}
-                onChange={(e) => setDisponibilidad(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                ℹ️ Las zonas se juegan <strong>jueves y viernes</strong>. Si la cantidad
-                de parejas es menor a 24, podrían jugarse también el <strong>sábado</strong>.
-              </p>
+              {franjasTorneo.length > 0 ? (
+                <div className="space-y-4 border rounded-md p-4 bg-muted/10">
+                  <p className="text-sm text-muted-foreground mb-2">
+                    Por favor seleccioná al menos 2 franjas horarias en al menos 2 días distintos.
+                  </p>
+                  {Object.entries(
+                    franjasTorneo.reduce((acc, f) => {
+                      if (!acc[f.dia_nombre]) acc[f.dia_nombre] = [];
+                      acc[f.dia_nombre].push(f);
+                      return acc;
+                    }, {} as Record<string, any[]>)
+                  ).map(([dia, franjas]) => (
+                    <div key={dia} className="space-y-2">
+                      <h4 className="font-medium text-sm text-primary">{dia}</h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {(franjas as any[]).map((f) => (
+                          <div key={f.id} className="flex items-start space-x-2 bg-background p-2 rounded border">
+                            <Checkbox 
+                              id={f.id} 
+                              checked={selectedFranjas.includes(f.id)}
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setSelectedFranjas([...selectedFranjas, f.id]);
+                                } else {
+                                  setSelectedFranjas(selectedFranjas.filter(id => id !== f.id));
+                                }
+                              }}
+                            />
+                            <Label
+                              htmlFor={f.id}
+                              className="text-xs font-normal leading-tight cursor-pointer"
+                            >
+                              {f.label_franja}
+                            </Label>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <>
+                  <Textarea
+                    id="disp"
+                    rows={3}
+                    placeholder="Ej: jueves a la noche, viernes a partir de las 20hs"
+                    value={disponibilidad}
+                    onChange={(e) => setDisponibilidad(e.target.value)}
+                  />
+                  <p className="text-xs text-muted-foreground leading-relaxed">
+                    ℹ️ Las zonas se juegan <strong>jueves y viernes</strong>. Si la cantidad
+                    de parejas es menor a 24, podrían jugarse también el <strong>sábado</strong>.
+                  </p>
+                </>
+              )}
             </div>
             <div className="grid gap-1.5">
               <Label htmlFor="obs">Observaciones (opcional)</Label>
@@ -532,9 +600,11 @@ export default function InscripcionPublica() {
                   <ResumenItem label="Tel. Compañero" value={j2.telefono} />
                 </>
               )}
-              {disponibilidad && (
+              {franjasTorneo.length > 0 && selectedFranjas.length > 0 ? (
+                <ResumenItem label="Disponibilidad" value={selectedFranjas.map(id => franjasTorneo.find(f => f.id === id)?.label_franja).join(" / ")} />
+              ) : disponibilidad ? (
                 <ResumenItem label="Disponibilidad" value={disponibilidad} />
-              )}
+              ) : null}
               {observaciones && (
                 <ResumenItem label="Observaciones" value={observaciones} />
               )}

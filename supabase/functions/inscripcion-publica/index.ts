@@ -39,6 +39,7 @@ const BodySchema = z.object({
   disponibilidad_horaria: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
   observaciones: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
   comprobante_url: z.string().url().optional(),
+  franjas_ids: z.array(z.string().uuid()).optional(),
 });
 
 type JugadorInput = z.infer<typeof JugadorSchema>;
@@ -231,7 +232,7 @@ Deno.serve(async (req) => {
     }
 
     // 5. Crear inscripción
-    const { error: errInsc } = await supabase.from("inscripciones").insert({
+    const { data: inscData, error: errInsc } = await supabase.from("inscripciones").insert({
       torneo_id: data.torneo_id,
       jugador1_id: jugador1Id,
       jugador2_id: jugador2Id,
@@ -240,8 +241,20 @@ Deno.serve(async (req) => {
       disponibilidad_horaria: data.disponibilidad_horaria ?? null,
       notas: data.observaciones ?? null,
       comprobante_url: data.comprobante_url ?? null,
-    });
+    }).select("id").single();
     if (errInsc) throw errInsc;
+
+    // 6. Insertar disponibilidades de franjas horarias
+    if (data.franjas_ids && data.franjas_ids.length > 0) {
+      const dispPayload = data.franjas_ids.map(fId => ({
+        inscripcion_id: inscData.id,
+        franja_id: fId
+      }));
+      const { error: errDisp } = await supabase
+        .from("inscripcion_disponibilidades")
+        .insert(dispPayload);
+      if (errDisp) throw errDisp;
+    }
 
     return new Response(
       JSON.stringify({

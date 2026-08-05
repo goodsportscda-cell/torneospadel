@@ -22,6 +22,7 @@ import { PanelDisponibles } from "@/components/zonas/PanelDisponibles";
 import { CronogramaPartidos } from "@/components/zonas/CronogramaPartidos";
 import { calcularDistribucionZonas, nombreZona } from "@/lib/zonas";
 import type { Database } from "@/integrations/supabase/types";
+import { GenerarZonasAutoDialog } from "@/components/zonas/GenerarZonasAutoDialog";
 import { useAuth } from "@/hooks/useAuth";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
@@ -169,51 +170,7 @@ export default function Zonas() {
     }
   };
 
-  const handleGenerarZonas = async () => {
-    if (!torneoId) return;
-    const toastId = toast.loading("Generando zonas...");
-    const { data: ins } = await supabase
-      .from("inscripciones")
-      .select("*")
-      .eq("torneo_id", torneoId)
-      .eq("estado", "confirmada");
-
-    if (!ins || ins.length === 0) {
-      toast.error("No hay inscripciones confirmadas para este torneo", { id: toastId });
-      return;
-    }
-
-    if (zonas.length > 0) {
-      toast.error("Ya existen zonas. Borralas primero.", { id: toastId });
-      return;
-    }
-
-    const distribucion = calcularDistribucionZonas(ins.length);
-    if (distribucion.length === 0) {
-      toast.error("Mínimo 3 parejas para armar zonas", { id: toastId });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      const inserts = distribucion.map((tamanio, i) => ({
-        torneo_id: torneoId,
-        nombre: nombreZona(i),
-        tamanio,
-        orden: i,
-      }));
-
-      const { error } = await supabase.from("zonas").insert(inserts);
-      if (error) throw error;
-      
-      toast.success("Zonas generadas!", { id: toastId });
-      cargarDatos();
-    } catch (e: any) {
-      toast.error("Error: " + e.message, { id: toastId });
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Antiguo handleGenerarZonas eliminado a favor de GenerarZonasAutoDialog
 
   useEffect(() => {
     const start = async () => {
@@ -338,10 +295,10 @@ export default function Zonas() {
               </Button>
 
               {zonas.length === 0 ? (
-                <Button size="sm" onClick={handleGenerarZonas}>
-                  <Wand2 className="h-4 w-4 mr-2" />
-                  Generar Automáticamente
-                </Button>
+                <GenerarZonasAutoDialog 
+                  torneoId={torneoId}
+                  onZonasCreadas={() => cargarDatos()}
+                />
               ) : (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>

@@ -80,6 +80,7 @@ export interface Database {
           gastos_trofeos: number | null
           gastos_regalos: number | null
           datos_bancarios: string | null
+          canchas_disponibles: number | null
           club_id: string | null
           created_at: string
           updated_at: string
@@ -111,6 +112,7 @@ export interface Database {
           gastos_trofeos?: number | null
           gastos_regalos?: number | null
           datos_bancarios?: string | null
+          canchas_disponibles?: number | null
           club_id?: string | null
           created_at?: string
           updated_at?: string
@@ -142,6 +144,7 @@ export interface Database {
           gastos_trofeos?: number | null
           gastos_regalos?: number | null
           datos_bancarios?: string | null
+          canchas_disponibles?: number | null
           club_id?: string | null
           created_at?: string
           updated_at?: string
@@ -277,6 +280,55 @@ export interface Database {
           pago_j2_comprobante?: string | null
           created_at?: string
           updated_at?: string
+        }
+      }
+      torneo_franjas_horarias: {
+        Row: {
+          id: string
+          torneo_id: string
+          dia_nombre: string
+          hora_inicio: string
+          hora_fin: string
+          label_franja: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          torneo_id: string
+          dia_nombre: string
+          hora_inicio: string
+          hora_fin: string
+          label_franja: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          torneo_id?: string
+          dia_nombre?: string
+          hora_inicio?: string
+          hora_fin?: string
+          label_franja?: string
+          created_at?: string
+        }
+      }
+      inscripcion_disponibilidades: {
+        Row: {
+          id: string
+          inscripcion_id: string
+          franja_id: string
+          created_at: string
+        }
+        Insert: {
+          id?: string
+          inscripcion_id: string
+          franja_id: string
+          created_at?: string
+        }
+        Update: {
+          id?: string
+          inscripcion_id?: string
+          franja_id?: string
+          created_at?: string
         }
       }
       torneo_individual_jugadores: {

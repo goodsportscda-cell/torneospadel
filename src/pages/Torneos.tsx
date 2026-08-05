@@ -40,6 +40,7 @@ import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { calcularRankingTorneo } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
+import { TorneoFranjasDialog } from "@/components/torneos/TorneoFranjasDialog";
 
 import {
   ESTADO_TORNEO_LABELS as ESTADO_LABELS,
@@ -508,6 +509,9 @@ export default function Torneos() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+        {t.tipo !== "americano_individual" && (
+          <TorneoFranjasDialog torneo={t} onUpdateCanchas={() => fetchAll()} />
+        )}
       </CardContent>
     </Card>
   );
