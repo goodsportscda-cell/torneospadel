@@ -120,13 +120,16 @@ export function useClubRanking(
       });
 
       // 5. Construcción de Desgloses y Puntos
-      const map = new Map<string, { puntos_torneos: number; torneos_jugados: number; desglose: DesglosePunto[] }>();
+      const map = new Map<string, { desglose: DesglosePunto[] }>();
 
       (rankingData || []).forEach((r) => {
+        // EXCLUSIÓN: Si el jugador ascendió DESDE esta categoría, no sumamos sus torneos
+        const ascendedSet = ascendidosDesde.get(r.categoria_id);
+        if (ascendedSet && ascendedSet.has(r.jugador_id)) {
+          return; // saltar torneo
+        }
 
-        const cur = map.get(r.jugador_id) ?? { puntos_torneos: 0, torneos_jugados: 0, desglose: [] };
-        cur.puntos_torneos += r.puntos;
-        cur.torneos_jugados += 1;
+        const cur = map.get(r.jugador_id) ?? { desglose: [] };
         
         const tInfo = torneosMap.get(r.torneo_id);
         if (tInfo) {
@@ -143,7 +146,7 @@ export function useClubRanking(
 
       // Añadir jugadores que SOLO tengan puntos de ascenso (o agregar ascensos a los existentes)
       for (const [jId, ascensosList] of ascensosPorJugador.entries()) {
-        const cur = map.get(jId) ?? { puntos_torneos: 0, torneos_jugados: 0, desglose: [] };
+        const cur = map.get(jId) ?? { desglose: [] };
         
         for (const asc of ascensosList) {
           cur.desglose.push({

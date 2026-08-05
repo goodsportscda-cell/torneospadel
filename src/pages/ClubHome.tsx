@@ -8,7 +8,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock, Eye, ArrowUpCircle, Info } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Trophy, Calendar, MapPin, Loader2, User, ChevronRight, AlertCircle, Medal, Share2, Check, Clock, Eye, ArrowUpCircle, Info, Search } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -68,8 +69,18 @@ export default function ClubHome() {
   const [filtroAnio, setFiltroAnio] = useState<number>(new Date().getFullYear());
   const [aniosDisp, setAniosDisp] = useState<number[]>([new Date().getFullYear()]);
   const [copiado, setCopiado] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
 
   const { rankingRows, loading: loadingRankings } = useClubRanking(club?.id, filtroCategoria, filtroGenero, filtroAnio);
+
+  const rankingFiltrado = useMemo(() => {
+    if (!busqueda.trim()) return rankingRows;
+    const lower = busqueda.toLowerCase();
+    return rankingRows.filter(r => 
+      r.jugador_nombre.toLowerCase().includes(lower) || 
+      r.jugador_apellido.toLowerCase().includes(lower)
+    );
+  }, [rankingRows, busqueda]);
 
   const [detalleOpen, setDetalleOpen] = useState(false);
   const [detalleJugador, setDetalleJugador] = useState<RankingRowUnified | null>(null);
@@ -361,7 +372,19 @@ export default function ClubHome() {
                     <p className="text-xs sm:text-sm">Ranking en actualización. Se actualizará oficialmente al finalizar la fecha en curso.</p>
                   </div>
                 )}
-                <div className="grid gap-3 sm:grid-cols-3 mt-4">
+                <div className="grid gap-3 sm:grid-cols-4 mt-4">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Buscar Jugador</label>
+                    <div className="relative">
+                      <Search className="absolute left-2 top-2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Nombre o apellido..."
+                        value={busqueda}
+                        onChange={(e) => setBusqueda(e.target.value)}
+                        className="h-8 text-xs bg-background pl-8"
+                      />
+                    </div>
+                  </div>
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Categoría</label>
                     <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
@@ -409,9 +432,11 @@ export default function ClubHome() {
               <CardContent className="p-0">
                 {loadingRankings ? (
                   <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-                ) : rankingRows.length === 0 ? (
+                ) : rankingFiltrado.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground text-sm">
-                    No hay puntos registrados para esta categoría.
+                    {rankingRows.length === 0 
+                      ? "No hay puntos registrados para esta categoría."
+                      : "No se encontraron jugadores que coincidan con la búsqueda."}
                   </div>
                 ) : (
                   <Table>
@@ -424,7 +449,7 @@ export default function ClubHome() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {rankingRows.map((r, idx) => (
+                      {rankingFiltrado.map((r, idx) => (
                         <TableRow key={r.jugador_id}>
                           <TableCell className="font-medium text-center text-muted-foreground w-12">
                             {r.posicion}
