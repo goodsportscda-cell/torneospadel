@@ -88,7 +88,7 @@ export default function InscripcionPublica() {
               telefono: jug.telefono || "",
               email: jug.email || user.email || "",
               club: jug.club || "",
-              categoria_id: jug.categoria_id || "ninguna",
+              encontrado: true,
             });
             // Auto skip step 1 since it's pre-filled
             if (jug.dni && jug.nombre && jug.apellido && jug.telefono) {
