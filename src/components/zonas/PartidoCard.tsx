@@ -39,7 +39,6 @@ type Props = {
   // Tabla destino: 'partidos_zona' (default) o 'partidos_llave'
   tabla?: "partidos_zona" | "partidos_llave";
   labelPartido?: string;
-  ronda?: string;
   ref_local?: string | null;
   ref_visitante?: string | null;
   // Programación (opcional, se muestra si se pasa showProgramacion)
@@ -63,7 +62,6 @@ export function PartidoCard({
   onUpdated,
   tabla = "partidos_zona",
   labelPartido,
-  ronda,
   ref_local,
   ref_visitante,
   fechaHora,
@@ -311,19 +309,6 @@ export function PartidoCard({
         })
         .eq("id", partidoId);
       if (updErr) throw updErr;
-
-      // Update inscripciones for finals
-      if (tabla === "partidos_llave" && ronda === "final") {
-        if (ganador && parejaLocal?.inscripcion_id && parejaVisitante?.inscripcion_id) {
-          const perdedor = ganador === parejaLocal.inscripcion_id ? parejaVisitante.inscripcion_id : parejaLocal.inscripcion_id;
-          await supabase.from("inscripciones").update({ estado: "campeon" }).eq("id", ganador);
-          await supabase.from("inscripciones").update({ estado: "subcampeon" }).eq("id", perdedor);
-        } else if (!ganador && parejaLocal?.inscripcion_id && parejaVisitante?.inscripcion_id) {
-          // Fallback to "pagado" if winner is cleared
-          await supabase.from("inscripciones").update({ estado: "pagado" }).in("id", [parejaLocal.inscripcion_id, parejaVisitante.inscripcion_id]);
-        }
-      }
-
       toast.success("Resultado guardado");
       onUpdated();
     } catch (e) {
