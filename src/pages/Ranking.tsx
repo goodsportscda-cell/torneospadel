@@ -528,22 +528,45 @@ export default function Ranking() {
   };
 
   const cargarRanking = async () => {
-    let query = supabase
-      .from("ranking_jugadores")
-      .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
-      .eq("anio", filtroAnio);
+    let rankingData: any[] = [];
+    let isFetchingRanking = true;
+    let rankingOffset = 0;
+    const step = 1000;
 
-    if (filtroCategoria !== "todas") {
-      query = query.eq("categoria_id", filtroCategoria);
+    while (isFetchingRanking) {
+      let query = supabase
+        .from("ranking_jugadores")
+        .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
+        .eq("anio", filtroAnio)
+        .order("id")
+        .range(rankingOffset, rankingOffset + step - 1);
+
+      if (filtroCategoria !== "todas") {
+        query = query.eq("categoria_id", filtroCategoria);
+      }
+      if (filtroGenero !== "todos") {
+        query = query.eq("genero", filtroGenero);
+      }
+      
+      const { data, error } = await query;
+      if (error) {
+        toast.error("Error cargando ranking");
+        return;
+      }
+      
+      if (data && data.length > 0) {
+        rankingData = rankingData.concat(data);
+      }
+      
+      if (!data || data.length < step) {
+        isFetchingRanking = false;
+      } else {
+        rankingOffset += step;
+      }
     }
-    if (filtroGenero !== "todos") {
-      query = query.eq("genero", filtroGenero);
-    }
-    const { data, error } = await query;
-    if (error) {
-      toast.error("Error cargando ranking");
-      return;
-    }
+    
+    // Asignar los datos completos para seguir con el resto de la función
+    const data = rankingData;
 
     // Cargar ascensos DESTINO (puntos transferidos a nueva categoría)
     let ascensosDestinoQuery = supabase

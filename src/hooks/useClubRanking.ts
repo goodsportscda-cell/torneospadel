@@ -74,6 +74,7 @@ export function useClubRanking(
           .from("ranking_jugadores")
           .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
           .eq("anio", filtroAnio)
+          .order("id")
           .range(rankingOffset, rankingOffset + step - 1);
 
         if (torneosIds.length > 0) {
