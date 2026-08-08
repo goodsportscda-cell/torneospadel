@@ -10,6 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { useQueryClient } from "@tanstack/react-query";
 import { Trophy, Save, CalendarClock, MapPin, Pencil, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -87,6 +88,8 @@ export function PartidoCard({
   // Selección explícita de ganador (tiene prioridad sobre cálculo por sets)
   const [ganadorOverride, setGanadorOverride] = useState<string | null>(ganadorId);
 
+  const queryClient = useQueryClient();
+
   useEffect(() => {
     if (setsExistentes.length > 0) {
       setSets(setsExistentes);
@@ -146,6 +149,8 @@ export function PartidoCard({
       toast.success("Programación guardada");
       setShowProgEditor(false);
       onUpdated();
+      queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });
     } catch (e) {
       console.error(e);
       toast.error("Error al guardar programación");
@@ -204,6 +209,8 @@ export function PartidoCard({
       toast.success("Equipos actualizados");
       setEditingEquipos(false);
       onUpdated();
+      queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });
     } catch (e: any) {
       toast.error("Error: " + e.message);
     } finally {
@@ -297,6 +304,8 @@ export function PartidoCard({
 
       toast.success("Resultado guardado");
       onUpdated();
+      queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });
     } catch (e) {
       console.error(e);
       toast.error("Error al guardar");

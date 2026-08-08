@@ -43,7 +43,16 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       workbox: {
-        maximumFileSizeToCacheInBytes: 5000000 // 5 MB
+        maximumFileSizeToCacheInBytes: 5000000, // 5 MB
+        runtimeCaching: [
+          {
+            urlPattern: /^https:\/\/okmmwahmhxuyojdtksnr\.supabase\.co\/.*/i,
+            handler: 'NetworkOnly',
+            options: {
+              cacheName: 'supabase-api-cache-bypass',
+            },
+          },
+        ],
       }
     })
   ].filter(Boolean),

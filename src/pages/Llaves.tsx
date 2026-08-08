@@ -24,6 +24,7 @@ import { Trophy, Trash2, Sparkles, AlertCircle, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { calcularTabla, type PartidoConSets } from "@/lib/zonas";
+import { useQuery } from "@tanstack/react-query";
 import {
   obtenerPlantilla,
   CASOS_SOPORTADOS,
@@ -247,9 +248,14 @@ export default function Llaves() {
     }
   }, [torneoId]);
 
-  useEffect(() => {
-    cargarTodo();
-  }, [cargarTodo]);
+  useQuery({
+    queryKey: ["torneo-llaves", torneoId],
+    queryFn: async () => {
+      await cargarTodo();
+      return Date.now();
+    },
+    enabled: !!torneoId,
+  });
 
   const parejaLabel = useCallback(
     (id: string | null) => {
