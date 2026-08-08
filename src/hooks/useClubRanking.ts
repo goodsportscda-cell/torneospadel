@@ -63,29 +63,43 @@ export function useClubRanking(
 
       const torneosIds = Array.from(torneosMap.keys());
 
-      // 2. Obtener Ranking Jugadores (Puntos de Torneos)
-      let rankingQuery = supabase
-        .from("ranking_jugadores")
-        .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
-        .eq("anio", filtroAnio);
+      // 2. Obtener Ranking Jugadores (Puntos de Torneos) - Paginado para superar el límite de 1000
+      let rankingData: any[] = [];
+      let isFetchingRanking = true;
+      let rankingOffset = 0;
+      const step = 1000;
 
-      // Solo filtramos por in si hay torneos (para evitar errores SQL con array vacio)
-      if (torneosIds.length > 0) {
-        rankingQuery = rankingQuery.in("torneo_id", torneosIds);
-      } else {
-        // Si no hay torneos y no hay clubId, podría ser un caso borde.
-        // Pero si torneosIds.length === 0 y NO hay clubId, la DB no tiene torneos en absoluto.
-      }
+      while (isFetchingRanking) {
+        let rankingQuery = supabase
+          .from("ranking_jugadores")
+          .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
+          .eq("anio", filtroAnio)
+          .range(rankingOffset, rankingOffset + step - 1);
 
-      if (filtroCategoria !== "todas") {
-        rankingQuery = rankingQuery.eq("categoria_id", filtroCategoria);
-      }
-      if (filtroGenero !== "todos") {
-        rankingQuery = rankingQuery.eq("genero", filtroGenero);
-      }
+        if (torneosIds.length > 0) {
+          rankingQuery = rankingQuery.in("torneo_id", torneosIds);
+        }
 
-      const { data: rankingData, error: rankingError } = await rankingQuery;
-      if (rankingError) throw new Error("Error obteniendo puntos de torneos");
+        if (filtroCategoria !== "todas") {
+          rankingQuery = rankingQuery.eq("categoria_id", filtroCategoria);
+        }
+        if (filtroGenero !== "todos") {
+          rankingQuery = rankingQuery.eq("genero", filtroGenero);
+        }
+
+        const { data: chunk, error: rankingError } = await rankingQuery;
+        if (rankingError) throw new Error("Error obteniendo puntos de torneos");
+
+        if (chunk && chunk.length > 0) {
+          rankingData = rankingData.concat(chunk);
+        }
+        
+        if (!chunk || chunk.length < step) {
+          isFetchingRanking = false;
+        } else {
+          rankingOffset += step;
+        }
+      }
 
       // 3. Obtener Ascensos
       let ascensosQuery = supabase
