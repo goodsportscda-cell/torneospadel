@@ -787,6 +787,7 @@ export default function Llaves() {
                         partidoId={p.id}
                         orden={p.numero}
                         labelPartido={`Partido ${p.numero}`}
+                        ronda={ronda}
                         tabla="partidos_llave"
                         ref_local={p.ref_local}
                         ref_visitante={p.ref_visitante}
