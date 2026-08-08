@@ -274,23 +274,17 @@ export function PartidoCard({
       console.log("Guardando sets:", setsToInsert);
 
       // Procesar actualizaciones e inserciones
-      for (const set of setsToInsert) {
-        if (set.id) {
-          const { id, ...updateData } = set;
-          const { error } = await supabase.from("sets_partido").update(updateData).eq("id", id);
-          if (error) {
-            console.error("Error al actualizar set:", error);
-            throw error;
-          }
-        } else {
-          const { id, ...insertData } = set;
-          const { error } = await supabase.from("sets_partido").insert(insertData as never);
-          if (error) {
-            console.error("Error al insertar set:", error);
-            throw error;
-          }
-        }
-      }
+      // Crear el payload completo
+      const payloadRPC = {
+        p_partido_id: partidoId,
+        p_tabla: tabla,
+        p_ganador_id: ganador,
+        p_estado: ganador ? "finalizado" : (setsToInsert.length > 0 ? "en_juego" : "pendiente"),
+        p_sets: setsToInsert
+      };
+
+      const { error: rpcErr } = await supabase.rpc("guardar_resultado_partido_transaction", payloadRPC);
+      if (rpcErr) throw rpcErr;
       
       // Los sets que ya no se usan (ej. se borró el 3er set), los ponemos en 0-0
       if (existingSets) {
@@ -299,16 +293,8 @@ export function PartidoCard({
         for (const extra of extraSets) {
            await supabase.from("sets_partido").update({ games_local: 0, games_visitante: 0 }).eq("id", extra.id);
         }
-      };
+      }
 
-      const { error: updErr } = await supabase
-        .from(tabla)
-        .update({
-          ganador_id: ganador,
-          estado: ganador ? "finalizado" : (setsToInsert.length > 0 ? "en_juego" : "pendiente"),
-        })
-        .eq("id", partidoId);
-      if (updErr) throw updErr;
       toast.success("Resultado guardado");
       onUpdated();
     } catch (e) {
