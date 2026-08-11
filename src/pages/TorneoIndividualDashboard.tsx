@@ -1237,6 +1237,37 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
+  const handleGenerarFecha8Individual = async () => {
+    if (!id || !torneo) return;
+    
+    // Obtenemos los 8 mejores jugadores ordenados usando la lógica de ranking local
+    if (standings.length < 8) {
+      toast.error("No hay suficientes jugadores en el ranking para generar la final.");
+      return;
+    }
+    
+    const top8 = standings.slice(0, 8).map(s => s.jugador_id);
+    
+    try {
+      const { error } = await supabase.rpc("generar_fixture_final_8", { 
+        p_torneo_id: id,
+        p_jugadores: top8 
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Fecha 8 (La Gran Final) generada con éxito");
+      
+      queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo"] });
+      
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar final: " + e.message);
+    }
+  };
+
   // Matchmaking engine: Weeks 2-6 (Ascensos/Descensos + Ranking order) and Week 7 (Semifinales)
   const handleGenerarFechaRegular = async (fechaNum: number) => {
     if (!id || !torneo) return;
@@ -2841,9 +2872,17 @@ export default function TorneoIndividualDashboard() {
                         Generar Gran Final y Cruces Finales (Semana {torneo?.desafio_semanas ?? 8})
                       </Button>
                     ) : (
-                      <Button onClick={handleOpenDraftWeek8}>
-                        Armar Gran Final (Semana {torneo?.desafio_semanas ?? 8})
-                      </Button>
+                      <div className="flex flex-col gap-2">
+                        <Button onClick={handleOpenDraftWeek8}>
+                          Armar Gran Final Manualmente (Semana {torneo?.desafio_semanas ?? 8})
+                        </Button>
+                        {jugadoresInscriptos.length === 8 && (
+                          <Button onClick={handleGenerarFecha8Individual} className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm border border-amber-600">
+                            <Trophy className="h-4 w-4 mr-1.5" />
+                            Generar Fecha 8 (Final Automática)
+                          </Button>
+                        )}
+                      </div>
                     )
                   ) : (
                     <Button onClick={() => handleGenerarFechaRegular(selectedFechaNum)}>
