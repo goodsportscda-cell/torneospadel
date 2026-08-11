@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -102,6 +103,7 @@ const serializePremiosString = (cash1: number, cash2: number, gifts: string) => 
 export default function TorneoIndividualDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -1208,6 +1210,30 @@ export default function TorneoIndividualDashboard() {
     } catch (e: any) {
       console.error(e);
       toast.error("Error al generar la Fecha 1: " + e.message);
+    }
+  };
+
+  const handleGenerarFixture8 = async () => {
+    if (!id || !torneo) return;
+    if (jugadoresInscriptos.length !== 8) {
+      toast.error("El torneo debe tener exactamente 8 jugadores inscriptos.");
+      return;
+    }
+    
+    try {
+      const { error } = await supabase.rpc("generar_fixture_americano_8", { p_torneo_id: id });
+      
+      if (error) throw error;
+      
+      toast.success("Fixture automático generado con éxito (14 partidos en 7 fechas)");
+      
+      queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo"] });
+      
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar fixture: " + e.message);
     }
   };
 
@@ -2797,10 +2823,18 @@ export default function TorneoIndividualDashboard() {
                     </p>
                   </div>
                   {selectedFechaNum === 1 ? (
-                    <Button onClick={handleGenerarFecha1}>
-                      <Settings className="h-4 w-4 mr-1.5" />
-                      Sorteo Inicial e Inaugurar Fecha 1
-                    </Button>
+                    <div className="flex flex-col gap-2">
+                      <Button onClick={handleGenerarFecha1}>
+                        <Settings className="h-4 w-4 mr-1.5" />
+                        Sorteo Inicial e Inaugurar Fecha 1
+                      </Button>
+                      {jugadoresInscriptos.length === 8 && torneo?.modalidad !== "parejas" && (
+                        <Button onClick={handleGenerarFixture8} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                          <Settings className="h-4 w-4 mr-1.5" />
+                          Generar Fixture (8 Jugadores)
+                        </Button>
+                      )}
+                    </div>
                   ) : selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
                     torneo?.modalidad === "parejas" ? (
                       <Button onClick={handleGenerarFecha8Parejas}>
