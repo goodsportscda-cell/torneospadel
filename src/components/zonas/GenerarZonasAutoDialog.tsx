@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Wand2, CalendarDays, Loader2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { generarZonasAuto, type ZonaGenerada, type FranjaData } from "@/lib/GeneradorZonasAuto";
 import { generarFixture } from "@/lib/zonas";
 
@@ -69,7 +70,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
         id: ins.id,
         jugador1: ins.jugador1,
         jugador2: ins.jugador2,
-        franjas_ids: ins.inscripcion_disponibilidades.map((d: any) => d.franja_id)
+        franjas_ids: ins.inscripcion_disponibilidades?.map((d: any) => d.franja_id) || []
       }));
 
       // 5. Ejecutar algoritmo
@@ -193,7 +194,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
                   <div className="space-y-1 mb-4 flex-1">
                     {zp.parejas.map((p, pIdx) => (
                       <div key={p.id} className="text-sm bg-muted/30 px-2 py-1.5 rounded flex items-center justify-between">
-                        <span className="truncate">{p.jugador1.apellido} / {p.jugador2.apellido}</span>
+                        <span className="truncate">{p.jugador1?.apellido || 'N/A'} / {p.jugador2?.apellido || 'N/A'}</span>
                       </div>
                     ))}
                   </div>
