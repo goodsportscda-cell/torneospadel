@@ -1268,6 +1268,81 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
+  const handleGenerarFixture12 = async () => {
+    if (!id || !torneo) return;
+    if (jugadoresInscriptos.length !== 12) {
+      toast.error("El torneo debe tener exactamente 12 jugadores inscriptos.");
+      return;
+    }
+    
+    try {
+      const currentFechas = fechas.map(f => f.fecha);
+      const missingFechas = [];
+      
+      for (let i = 1; i <= 12; i++) {
+        if (!currentFechas.includes(i)) {
+          missingFechas.push({
+            torneo_id: id,
+            fecha: i,
+            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * (torneo.canchas_count ?? 3),
+            estado: "pendiente",
+          });
+        }
+      }
+      
+      if (missingFechas.length > 0) {
+        await supabase.from("torneo_individual_fechas").insert(missingFechas);
+      }
+
+      const { error } = await supabase.rpc("generar_fixture_americano_12", { p_torneo_id: id });
+      
+      if (error) throw error;
+      
+      toast.success("Fixture automático generado con éxito (33 partidos en 11 fechas)");
+      
+      queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo"] });
+      queryClient.invalidateQueries({ queryKey: ["fechas"] });
+      
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar fixture: " + e.message);
+    }
+  };
+
+  const handleGenerarFecha12Individual = async () => {
+    if (!id || !torneo) return;
+    
+    if (standings.length < 12) {
+      toast.error("No hay suficientes jugadores en el ranking para generar la final.");
+      return;
+    }
+    
+    const top12 = standings.slice(0, 12).map(s => s.jugador_id);
+    
+    try {
+      const { error } = await supabase.rpc("generar_fixture_final_12", { 
+        p_torneo_id: id,
+        p_jugadores: top12 
+      });
+      
+      if (error) throw error;
+      
+      toast.success("Fecha 12 (La Gran Final) generada con éxito");
+      
+      queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      queryClient.invalidateQueries({ queryKey: ["torneo"] });
+      queryClient.invalidateQueries({ queryKey: ["fechas"] });
+      
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar final: " + e.message);
+    }
+  };
+
+
   // Matchmaking engine: Weeks 2-6 (Ascensos/Descensos + Ranking order) and Week 7 (Semifinales)
   const handleGenerarFechaRegular = async (fechaNum: number) => {
     if (!id || !torneo) return;
@@ -2865,6 +2940,12 @@ export default function TorneoIndividualDashboard() {
                           Generar Fixture (8 Jugadores)
                         </Button>
                       )}
+                      {jugadoresInscriptos.length === 12 && torneo?.modalidad !== "parejas" && (
+                        <Button onClick={handleGenerarFixture12} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                          <Settings className="h-4 w-4 mr-1.5" />
+                          Generar Fixture (12 Jugadores)
+                        </Button>
+                      )}
                     </div>
                   ) : selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
                     torneo?.modalidad === "parejas" ? (
@@ -2880,6 +2961,12 @@ export default function TorneoIndividualDashboard() {
                           <Button onClick={handleGenerarFecha8Individual} className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm border border-amber-600">
                             <Trophy className="h-4 w-4 mr-1.5" />
                             Generar Fecha 8 (Final Automática)
+                          </Button>
+                        )}
+                        {jugadoresInscriptos.length === 12 && (
+                          <Button onClick={handleGenerarFecha12Individual} className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm border border-amber-600">
+                            <Trophy className="h-4 w-4 mr-1.5" />
+                            Generar Fecha 12 (Final)
                           </Button>
                         )}
                       </div>
