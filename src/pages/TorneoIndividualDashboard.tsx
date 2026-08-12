@@ -1063,33 +1063,40 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
-  const handleReSortearFecha1 = async () => {
-    if (!id || !torneo) return;
-    if (!window.confirm("¿Estás seguro de que quieres volver a sortear la Fecha 1? Se borrarán los cruces actuales de esta fecha.")) return;
+  const handleEliminarFixtureFecha = async () => {
+    if (!id || !selectedFecha) return;
+    
+    const hasFinalized = partidosDeFecha.some(p => p.estado === "finalizado");
+    if (hasFinalized) {
+       toast.error("No puedes eliminar el fixture de una fecha que ya tiene partidos finalizados. Modifica los resultados a pendientes primero si deseas eliminarla.");
+       return;
+    }
+
+    if (!window.confirm(`¿Estás seguro de que quieres eliminar el fixture de la Fecha ${selectedFechaNum}? Se borrarán los cruces actuales.`)) return;
 
     try {
-      // 1. Borrar los partidos actuales de la fecha 1
+      // 1. Borrar los partidos actuales de la fecha
       const { error: delErr } = await supabase
         .from("partidos_individuales")
         .delete()
         .eq("torneo_id", id)
-        .eq("fecha", 1);
+        .eq("fecha", selectedFechaNum);
         
       if (delErr) throw delErr;
 
-      // 2. Borrar la fecha 1 para evitar conflictos de constraint al insertarla de nuevo
+      // 2. Borrar la fecha
       const { error: fDelErr } = await supabase
         .from("torneo_individual_fechas")
         .delete()
         .eq("torneo_id", id)
-        .eq("fecha", 1);
+        .eq("fecha", selectedFechaNum);
 
       if (fDelErr) throw fDelErr;
 
-      // 3. Volver a llamar al generador
-      await handleGenerarFecha1();
+      toast.success(`Fixture de la Fecha ${selectedFechaNum} eliminado correctamente.`);
+      fetchTournamentData();
     } catch (e: any) {
-      toast.error("Error al re-sortear: " + e.message);
+      toast.error("Error al eliminar fixture: " + e.message);
     }
   };
 
@@ -2036,6 +2043,25 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
+  // Reopen Date
+  const handleReabrirFecha = async () => {
+    if (!selectedFecha) return;
+    
+    if (!window.confirm(`¿Estás seguro de que quieres reabrir la Fecha ${selectedFechaNum}?`)) return;
+
+    const { error } = await supabase
+      .from("torneo_individual_fechas")
+      .update({ estado: "pendiente" })
+      .eq("id", selectedFecha.id);
+
+    if (error) {
+      toast.error("Error al reabrir la fecha: " + error.message);
+    } else {
+      toast.success(`Fecha ${selectedFechaNum} reabierta con éxito`);
+      fetchTournamentData();
+    }
+  };
+
   // Helpers for combobox
   const comboboxOptions = useMemo(() => {
     return todosJugadores
@@ -2878,15 +2904,15 @@ export default function TorneoIndividualDashboard() {
                   </Button>
                 )}
 
-                {selectedFechaNum === 1 && selectedFecha?.estado === "pendiente" && partidosDeFecha.length > 0 && (
+                {selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
-                    onClick={handleReSortearFecha1}
+                    className="border-destructive text-destructive hover:bg-destructive/10"
+                    onClick={handleEliminarFixtureFecha}
                   >
-                    <RefreshCw className="h-4 w-4 mr-1.5" />
-                    Re-sortear Fecha 1
+                    <Trash2 className="h-4 w-4 mr-1.5" />
+                    Eliminar Fixture
                   </Button>
                 )}
 
@@ -2912,6 +2938,18 @@ export default function TorneoIndividualDashboard() {
                   >
                     <CheckCircle2 className="h-4 w-4 mr-1.5" />
                     Cerrar Fecha {selectedFechaNum}
+                  </Button>
+                )}
+
+                {selectedFecha && selectedFecha.estado === "completada" && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                    onClick={handleReabrirFecha}
+                  >
+                    <RefreshCw className="h-4 w-4 mr-1.5" />
+                    Reabrir Fecha {selectedFechaNum}
                   </Button>
                 )}
               </div>
