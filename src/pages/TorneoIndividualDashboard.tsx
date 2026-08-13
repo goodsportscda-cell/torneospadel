@@ -1370,12 +1370,12 @@ export default function TorneoIndividualDashboard() {
     try {
       const { data: dateRow, error: fErr } = await supabase
         .from("torneo_individual_fechas")
-        .insert({
+        .upsert({
           torneo_id: id,
           fecha: fechaNum,
           costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * courtsCount,
           estado: "pendiente",
-        })
+        }, { onConflict: "torneo_id, fecha" })
         .select()
         .single();
 
@@ -1783,12 +1783,12 @@ export default function TorneoIndividualDashboard() {
     try {
       const { data: dateRow, error: fErr } = await supabase
         .from("torneo_individual_fechas")
-        .insert({
+        .upsert({
           torneo_id: id,
           fecha: finalWeek,
           costo_canchas: (torneo?.costo_fecha_cancha ?? 22000) * courtsCount,
           estado: "pendiente",
-        })
+        }, { onConflict: "torneo_id, fecha" })
         .select()
         .single();
 
