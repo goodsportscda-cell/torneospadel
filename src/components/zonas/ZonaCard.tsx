@@ -156,6 +156,11 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     cargar();
   }, [cargar]);
 
+  // Recargar cuando cambia el tamaño de la zona (ya que el padre puede haber borrado los partidos para forzar regeneración)
+  useEffect(() => {
+    cargar();
+  }, [zona.tamanio, cargar]);
+
   // Generar fixture si no existe
   useEffect(() => {
     if (!partidosCargados || partidos.length > 0 || generandoFixture) return;
@@ -450,7 +455,14 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                     <span className="text-[10px] text-muted-foreground uppercase font-bold text-red-500">Tam:</span>
                     <Select 
                       value={zona.tamanio.toString()} 
-                      onValueChange={(val) => onUpdate({ tamanio: parseInt(val) })}
+                      onValueChange={(val) => {
+                        const newTamanio = parseInt(val);
+                        if (newTamanio !== zona.tamanio) {
+                          if (window.confirm(`¿Cambiar a ${newTamanio} parejas? Se regenerará el fixture y se perderán los resultados actuales.`)) {
+                            onUpdate({ tamanio: newTamanio });
+                          }
+                        }
+                      }}
                     >
                       <SelectTrigger className="w-14 h-7 text-xs px-1 bg-red-50 border-red-200">
                         <SelectValue />
