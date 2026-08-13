@@ -306,9 +306,9 @@ export function PartidoCard({
       onUpdated();
       queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
       queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });
-    } catch (e) {
+    } catch (e: any) {
       console.error(e);
-      toast.error("Error al guardar");
+      toast.error("Error al guardar: " + (e.message || "Error desconocido"));
     } finally {
       setSaving(false);
     }

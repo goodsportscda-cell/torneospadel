@@ -16,6 +16,10 @@ BEGIN
     UPDATE partidos_llave 
     SET ganador_id = p_ganador_id, estado = p_estado
     WHERE id = p_partido_id;
+  ELSIF p_tabla = 'partidos_individuales' THEN
+    UPDATE partidos_individuales
+    SET ganador_id = p_ganador_id, estado = p_estado
+    WHERE id = p_partido_id;
   ELSE
     RAISE EXCEPTION 'Tabla no soportada: %', p_tabla;
   END IF;
@@ -38,6 +42,14 @@ BEGIN
         );
       ELSIF p_tabla = 'partidos_llave' THEN
         INSERT INTO sets_partido (partido_llave_id, numero_set, games_local, games_visitante)
+        VALUES (
+          p_partido_id, 
+          (v_set->>'numero_set')::integer, 
+          (v_set->>'games_local')::integer, 
+          (v_set->>'games_visitante')::integer
+        );
+      ELSIF p_tabla = 'partidos_individuales' THEN
+        INSERT INTO sets_partido (partido_individual_id, numero_set, games_local, games_visitante)
         VALUES (
           p_partido_id, 
           (v_set->>'numero_set')::integer, 
