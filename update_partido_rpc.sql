@@ -10,15 +10,15 @@ DECLARE
 BEGIN
   IF p_tabla = 'partidos_zona' THEN
     UPDATE partidos_zona 
-    SET ganador_id = p_ganador_id, estado = p_estado
+    SET ganador_id = p_ganador_id, estado = p_estado::estado_partido
     WHERE id = p_partido_id;
   ELSIF p_tabla = 'partidos_llave' THEN
     UPDATE partidos_llave 
-    SET ganador_id = p_ganador_id, estado = p_estado
+    SET ganador_id = p_ganador_id, estado = p_estado::estado_partido
     WHERE id = p_partido_id;
   ELSIF p_tabla = 'partidos_individuales' THEN
     UPDATE partidos_individuales
-    SET ganador_id = p_ganador_id, estado = p_estado
+    SET ganador_id = p_ganador_id, estado = p_estado::estado_partido
     WHERE id = p_partido_id;
   ELSE
     RAISE EXCEPTION 'Tabla no soportada: %', p_tabla;
