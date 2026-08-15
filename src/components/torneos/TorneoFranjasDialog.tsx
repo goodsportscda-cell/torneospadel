@@ -24,6 +24,13 @@ import type { Database } from "@/integrations/supabase/types";
 
 type Franja = Database["public"]["Tables"]["torneo_franjas_horarias"]["Row"];
 
+const HORARIOS = [
+  "09:00", "10:00", "11:00", "12:00", 
+  "13:00", "14:00", "15:00", "16:00", 
+  "17:00", "18:00", "19:00", "20:00", 
+  "21:00", "22:00", "23:00"
+];
+
 export function TorneoFranjasDialog({ torneo, onUpdateCanchas }: { torneo: any, onUpdateCanchas: () => void }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -195,11 +202,25 @@ export function TorneoFranjasDialog({ torneo, onUpdateCanchas }: { torneo: any, 
                   </div>
                   <div className="grid gap-1.5 w-full sm:w-1/4">
                     <Label className="text-xs">Inicio</Label>
-                    <Input type="time" className="h-8 text-xs" value={f.hora_inicio?.substring(0,5)} onChange={(e) => handleChange(i, "hora_inicio", e.target.value)} />
+                    <Select value={f.hora_inicio?.substring(0,5)} onValueChange={(v) => handleChange(i, "hora_inicio", v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HORARIOS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-1.5 w-full sm:w-1/4">
                     <Label className="text-xs">Fin</Label>
-                    <Input type="time" className="h-8 text-xs" value={f.hora_fin?.substring(0,5)} onChange={(e) => handleChange(i, "hora_fin", e.target.value)} />
+                    <Select value={f.hora_fin?.substring(0,5)} onValueChange={(v) => handleChange(i, "hora_fin", v)}>
+                      <SelectTrigger className="h-8 text-xs">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {HORARIOS.map(h => <SelectItem key={h} value={h}>{h}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid gap-1.5 w-full sm:w-1/3">
                     <Label className="text-xs">Etiqueta (Auto)</Label>
