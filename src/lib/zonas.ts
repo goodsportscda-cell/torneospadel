@@ -213,7 +213,11 @@ export function calcularTabla(
     );
     if (partidoDirecto?.ganador_id === a.inscripcion_id) return -1;
     if (partidoDirecto?.ganador_id === b.inscripcion_id) return 1;
-    return 0;
+    
+    // Desempate final por siembra (seed)
+    const siembraA = a.posicion_siembra || 999;
+    const siembraB = b.posicion_siembra || 999;
+    return siembraA - siembraB;
   });
 
   return arr;

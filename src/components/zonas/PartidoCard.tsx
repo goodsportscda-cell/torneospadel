@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trophy, Save, CalendarClock, MapPin, Pencil, X } from "lucide-react";
+import { Trophy, Save, CalendarClock, MapPin, Pencil, X, Lock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -246,6 +246,21 @@ export function PartidoCard({
     return null;
   };
 
+  const calcularGanadorDB = (): string | null => {
+    if (!parejaLocal || !parejaVisitante) return null;
+    let setsLocal = 0;
+    let setsVis = 0;
+    setsExistentes.forEach((s) => {
+      if (s.games_local > s.games_visitante) setsLocal++;
+      else if (s.games_visitante > s.games_local) setsVis++;
+    });
+    if (setsLocal >= 2) return parejaLocal.inscripcion_id;
+    if (setsVis >= 2) return parejaVisitante.inscripcion_id;
+    return null;
+  };
+
+  const esForzadoDB = ganadorId && ganadorId !== calcularGanadorDB();
+
   const guardar = async () => {
     if (!parejaLocal || !parejaVisitante) return;
     // Si no hay override explícito, intentar calcular por sets
@@ -354,8 +369,11 @@ export function PartidoCard({
           <div className="flex items-center gap-1 flex-wrap justify-end">
             {tipoBadge && <Badge variant="outline" className="text-xs">{tipoBadge}</Badge>}
             {estado !== "pendiente" && (
-              <Badge variant={estadoBadgeVariant(estado)} className="text-xs">
+              <Badge variant={estadoBadgeVariant(estado)} className="text-xs flex items-center gap-1">
                 {estadoLabel(estado)}
+                {estado === "finalizado" && esForzadoDB && (
+                  <Lock className="h-3 w-3 text-amber-500" title="Ganador forzado manualmente" />
+                )}
               </Badge>
             )}
             {/* Botón editar equipos: visible cuando hay parejas disponibles y no es readOnly */}
@@ -634,7 +652,10 @@ export function PartidoCard({
                 {/* Selector explícito de ganador */}
                 {parejaLocal && parejaVisitante && (
                   <div className="space-y-1 pb-1">
-                    <p className="text-[10px] text-muted-foreground uppercase font-bold">¿Quién ganó?</p>
+                    <p className="text-[10px] text-muted-foreground uppercase font-bold flex items-center gap-1">
+                      <Lock className="h-3 w-3" />
+                      ¿Forzar Ganador?
+                    </p>
                     <div className="flex gap-2">
                       <button
                         type="button"
