@@ -93,6 +93,7 @@ export default function Llaves() {
 
   const [llave, setLlave] = useState<Llave | null>(null);
   const [partidosLlave, setPartidosLlave] = useState<PartidoLlaveRow[]>([]);
+  const [plantillaOverride, setPlantilla] = useState<{cantidad: number, partidos: any[]} | null>(null);
   const [autoAvance, setAutoAvance] = useState(() => {
     const saved = localStorage.getItem("padel_auto_avance");
     return saved !== null ? saved === "true" : true;
@@ -346,7 +347,8 @@ export default function Llaves() {
 
 
   const totalParejas = inscripciones.length;
-  const plantilla = useMemo(() => obtenerPlantilla(totalParejas), [totalParejas]);
+  const plantillaBase = useMemo(() => obtenerPlantilla(totalParejas), [totalParejas]);
+  const plantilla = plantillaOverride || plantillaBase;
 
   // Genera el cuadro
   const generarCuadro = async () => {
@@ -548,7 +550,7 @@ export default function Llaves() {
       }
     } catch (e: any) {
       console.error(e);
-      if (!silencioso && toastId) toast.error("Error al recalcular");
+      if (!silencioso && toastId) toast.error("Error al recalcular", { id: toastId });
     }
   }, [torneoId, partidosLlave, obtenerRankingsFinalizados, resolverRefSiFinalizada, cargarTodo]);
 
