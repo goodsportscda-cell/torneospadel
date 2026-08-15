@@ -56,10 +56,10 @@ export function TorneoFranjasDialog({ torneo, onUpdateCanchas }: { torneo: any, 
       ...franjas,
       {
         torneo_id: torneo.id,
-        dia_nombre: "Jueves",
+        dia_nombre: "Miércoles",
         hora_inicio: "17:00",
         hora_fin: "19:00",
-        label_franja: "Jueves 17:00 a 19:00 hs",
+        label_franja: "Miércoles 17:00 a 19:00 hs",
       }
     ]);
   };
@@ -185,6 +185,7 @@ export function TorneoFranjasDialog({ torneo, onUpdateCanchas }: { torneo: any, 
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="Miércoles">Miércoles</SelectItem>
                         <SelectItem value="Jueves">Jueves</SelectItem>
                         <SelectItem value="Viernes">Viernes</SelectItem>
                         <SelectItem value="Sábado">Sábado</SelectItem>
