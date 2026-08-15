@@ -471,6 +471,15 @@ export default function Llaves() {
         if (!siguiente) continue;
         const esLocal = p.posicion_siguiente === "local";
         const valorActual = esLocal ? siguiente.pareja_local_id : siguiente.pareja_visitante_id;
+        
+        // Verificar que el partido destino todavía espere a este ganador.
+        // Si el admin editó manualmente ref_local/ref_visitante para poner algo como "1°J"
+        // en lugar de "G:numero", debemos abortar el auto-avance para no sobrescribir su decisión.
+        const refEsperada = esLocal ? siguiente.ref_local : siguiente.ref_visitante;
+        if (refEsperada !== `G:${p.numero}`) {
+          continue;
+        }
+
         if (valorActual !== p.ganador_id) {
           const payload = esLocal
             ? { pareja_local_id: p.ganador_id }
