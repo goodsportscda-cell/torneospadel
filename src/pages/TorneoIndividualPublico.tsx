@@ -213,6 +213,10 @@ export default function TorneoIndividualPublico() {
   const computedStandings = useMemo((): any[] => {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
+    const esPuntosPorSet = Boolean(
+      (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
+      torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+    );
 
     if (torneo.modalidad === "parejas") {
       const standingsMap = new Map<string, any>();
@@ -324,8 +328,8 @@ export default function TorneoIndividualPublico() {
           sB.gamesPerdidos += 12;
         } else {
           // Normal scoring
-          sA.puntos += p1Won ? ptsWinner : ptsLoser;
-          sB.puntos += !p1Won ? ptsWinner : ptsLoser;
+          sA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWinner : ptsLoser);
+          sB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWinner : ptsLoser);
 
           sA.setsGanados += m.sets_pareja1;
           sA.setsPerdidos += m.sets_pareja2;
@@ -435,7 +439,7 @@ export default function TorneoIndividualPublico() {
             s.gamesPerdidos += 12;
           } else {
             // Ausencia 1 o 2: se lleva los puntos y games del suplente (resultado real)
-            s.puntos += isWinner ? ptsWinner : ptsLoser;
+            s.puntos += esPuntosPorSet ? setsOwn : (isWinner ? ptsWinner : ptsLoser);
             s.setsGanados += setsOwn;
             s.setsPerdidos += setsOpp;
             s.gamesGanados += gamesOwn;
@@ -443,7 +447,7 @@ export default function TorneoIndividualPublico() {
           }
         } else {
           // Asistió normalmente
-          s.puntos += isWinner ? ptsWinner : ptsLoser;
+          s.puntos += esPuntosPorSet ? setsOwn : (isWinner ? ptsWinner : ptsLoser);
           s.setsGanados += setsOwn;
           s.setsPerdidos += setsOpp;
           s.gamesGanados += gamesOwn;

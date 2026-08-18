@@ -218,6 +218,7 @@ export default function TorneoIndividualDashboard() {
     efectivo_1: "0",
     efectivo_2: "0",
     notas: "",
+    sistema_puntuacion: "por_cancha",
   });
 
   const fetchTournamentData = useCallback(async () => {
@@ -265,6 +266,10 @@ export default function TorneoIndividualDashboard() {
       const pctPremios = tRes.porcentaje_premios ?? 60;
       const parsed = parsePremiosString(tRes.premios);
       const totalCash = Math.round((ganProj * pctPremios) / 100);
+      const isPuntosPorSet = Boolean(
+        (tRes as any)?.sistema_puntuacion === "puntos_por_set" ||
+        tRes?.notas?.includes("[SISTEMA:puntos_por_set]")
+      );
 
       setSettingsForm({
         canchas_count: totalCanchas.toString(),
@@ -278,7 +283,8 @@ export default function TorneoIndividualDashboard() {
         premios: parsed.gifts,
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
-        notas: tRes.notas ?? "",
+        notas: tRes.notas?.replace(/\[SISTEMA:.*?\]/g, "").trim() || "",
+        sistema_puntuacion: isPuntosPorSet ? "puntos_por_set" : "por_cancha",
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -360,6 +366,10 @@ export default function TorneoIndividualDashboard() {
   const computedStandings = useMemo(() => {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
+    const esPuntosPorSet = Boolean(
+      (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
+      torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+    );
 
     if (torneo.modalidad === "parejas") {
       interface CoupleStanding {
@@ -494,7 +504,7 @@ export default function TorneoIndividualDashboard() {
         standA.setsPerdidos += setsP2;
         standA.gamesGanados += gamesP1;
         standA.gamesPerdidos += gamesP2;
-        standA.puntos += p1Won ? ptsWin : ptsLose;
+        standA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWin : ptsLose);
 
         // Couple B
         standB.partidosJugados++;
@@ -502,7 +512,7 @@ export default function TorneoIndividualDashboard() {
         standB.setsPerdidos += setsP1;
         standB.gamesGanados += gamesP2;
         standB.gamesPerdidos += gamesP1;
-        standB.puntos += !p1Won ? ptsWin : ptsLose;
+        standB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWin : ptsLose);
       });
 
       const list = Array.from(standingsMap.values()).map((s) => ({
@@ -609,7 +619,7 @@ export default function TorneoIndividualDashboard() {
             s.gamesPerdidos += 12;
           } else {
             // Ausencia 1 o 2: se lleva los puntos y games del suplente (resultado real)
-            s.puntos += isWinner ? ptsWinner : ptsLoser;
+            s.puntos += esPuntosPorSet ? setsOwn : (isWinner ? ptsWinner : ptsLoser);
             s.setsGanados += setsOwn;
             s.setsPerdidos += setsOpp;
             s.gamesGanados += gamesOwn;
@@ -617,7 +627,7 @@ export default function TorneoIndividualDashboard() {
           }
         } else {
           // Asistió normalmente
-          s.puntos += isWinner ? ptsWinner : ptsLoser;
+          s.puntos += esPuntosPorSet ? setsOwn : (isWinner ? ptsWinner : ptsLoser);
           s.setsGanados += setsOwn;
           s.setsPerdidos += setsOpp;
           s.gamesGanados += gamesOwn;
@@ -1005,6 +1015,11 @@ export default function TorneoIndividualDashboard() {
 
     const premiosTexto = serializePremiosString(cash1, cash2, settingsForm.premios.trim());
 
+    let finalNotas = settingsForm.notas.replace(/\[SISTEMA:.*?\]/g, "").trim();
+    if (settingsForm.sistema_puntuacion === "puntos_por_set") {
+      finalNotas = finalNotas ? `${finalNotas} [SISTEMA:puntos_por_set]` : "[SISTEMA:puntos_por_set]";
+    }
+
     const { error } = await supabase
       .from("torneos")
       .update({
@@ -1017,7 +1032,7 @@ export default function TorneoIndividualDashboard() {
         gastos_trofeos: gastosTrofeos,
         gastos_regalos: gastosRegalos,
         premios: premiosTexto || null,
-        notas: settingsForm.notas.trim() || null,
+        notas: finalNotas || null,
       })
       .eq("id", id);
 
@@ -1926,25 +1941,32 @@ export default function TorneoIndividualDashboard() {
     const g3_local = parseInt(set3_local, 10);
     const g3_visi = parseInt(set3_visitante, 10);
 
+    const esPuntosPorSet = Boolean(
+      (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
+      torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+    );
+
     if (setsLocal === 1 && setsVisi === 1) {
-      if (isNaN(g3_local) || isNaN(g3_visi)) {
-        toast.error("Se requiere Supertiebreak (Set 3) en caso de empate 1-1");
-        return;
-      }
-
-      if (torneo?.modalidad === "parejas") {
-        if (g3_local !== 7 && g3_visi !== 7) {
-          toast.error("El Supertiebreak es 'a 7 a morir'. El ganador debe tener exactamente 7 puntos.");
+      if (!esPuntosPorSet) {
+        if (isNaN(g3_local) || isNaN(g3_visi)) {
+          toast.error("Se requiere Supertiebreak (Set 3) en caso de empate 1-1");
           return;
         }
-        if (g3_local > 7 || g3_visi > 7) {
-          toast.error("El Supertiebreak es 'a 7 a morir' sin diferencia. No puede haber puntajes mayores a 7.");
-          return;
-        }
-      }
 
-      if (g3_local > g3_visi) setsLocal++;
-      else setsVisi++;
+        if (torneo?.modalidad === "parejas") {
+          if (g3_local !== 7 && g3_visi !== 7) {
+            toast.error("El Supertiebreak es 'a 7 a morir'. El ganador debe tener exactamente 7 puntos.");
+            return;
+          }
+          if (g3_local > 7 || g3_visi > 7) {
+            toast.error("El Supertiebreak es 'a 7 a morir' sin diferencia. No puede haber puntajes mayores a 7.");
+            return;
+          }
+        }
+
+        if (g3_local > g3_visi) setsLocal++;
+        else setsVisi++;
+      }
     }
 
     try {
@@ -2721,22 +2743,27 @@ export default function TorneoIndividualDashboard() {
                   <CardContent className="space-y-3 pt-0">
                     <div className="grid grid-cols-2 gap-2">
                       <div className="space-y-1">
+                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sistema de Puntuación</Label>
+                        <Select
+                          value={settingsForm.sistema_puntuacion}
+                          onValueChange={(val) => setSettingsForm({ ...settingsForm, sistema_puntuacion: val })}
+                        >
+                          <SelectTrigger className="h-8 text-xs font-semibold bg-background">
+                            <SelectValue placeholder="Seleccionar..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="por_cancha">Por Cancha (Ganador/Perdedor según cancha)</SelectItem>
+                            <SelectItem value="puntos_por_set">1 Punto por Set Ganado (2-0 = 2pts, 1-1 = 1pt c/u)</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-1">
                         <Label className="text-[10px] uppercase font-bold text-muted-foreground">Semanas</Label>
                         <Input
                           type="number"
                           min="7"
                           value={settingsForm.desafio_semanas}
                           onChange={(e) => setSettingsForm({ ...settingsForm, desafio_semanas: e.target.value })}
-                          className="h-8 text-xs font-semibold"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-[10px] uppercase font-bold text-muted-foreground">Canchas</Label>
-                        <Input
-                          type="number"
-                          min="1"
-                          value={settingsForm.canchas_count}
-                          onChange={(e) => setSettingsForm({ ...settingsForm, canchas_count: e.target.value })}
                           className="h-8 text-xs font-semibold"
                         />
                       </div>
