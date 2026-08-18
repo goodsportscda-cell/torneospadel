@@ -1932,16 +1932,17 @@ export default function TorneoIndividualDashboard() {
     let setsVisi = 0;
 
     if (g1_local > g1_visi) setsLocal++;
-    else setsVisi++;
+    else if (g1_visi > g1_local) setsVisi++;
 
     if (g2_local > g2_visi) setsLocal++;
-    else setsVisi++;
+    else if (g2_visi > g2_local) setsVisi++;
 
     // Set 3 (Supertiebreak)
     const g3_local = parseInt(set3_local, 10);
     const g3_visi = parseInt(set3_visitante, 10);
 
     const esPuntosPorSet = Boolean(
+      settingsForm.sistema_puntuacion === "puntos_por_set" ||
       (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
       torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
     );
@@ -1965,7 +1966,12 @@ export default function TorneoIndividualDashboard() {
         }
 
         if (g3_local > g3_visi) setsLocal++;
-        else setsVisi++;
+        else if (g3_visi > g3_local) setsVisi++;
+      } else {
+        if (!isNaN(g3_local) && !isNaN(g3_visi)) {
+          if (g3_local > g3_visi) setsLocal++;
+          else if (g3_visi > g3_local) setsVisi++;
+        }
       }
     }
 
@@ -3337,6 +3343,12 @@ export default function TorneoIndividualDashboard() {
               Introduce los games por set de cada pareja y la lista opcional de suplentes si algún titular faltó.
             </DialogDescription>
           </DialogHeader>
+
+          {(settingsForm.sistema_puntuacion === "puntos_por_set" || torneo?.notas?.includes("[SISTEMA:puntos_por_set]")) && (
+            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-2.5 rounded-lg text-xs font-medium">
+              ✨ <strong>Modalidad 1 Punto por Set Ganado:</strong> Cada set ganado suma 1 punto. En caso de 1-1 en sets no se exige Supertiebreak.
+            </div>
+          )}
 
           <div className="space-y-4 py-2">
             {/* Score Grid */}
