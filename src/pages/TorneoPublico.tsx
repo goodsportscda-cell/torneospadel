@@ -288,7 +288,18 @@ export default function TorneoPublico() {
 
           {/* Tab: ZONAS */}
           <TabsContent value="zonas" className="mt-6 space-y-6">
-            {zonas.length === 0 ? (
+            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" ? (
+              <Card className="border-dashed bg-muted/20">
+                <CardContent className="py-12 text-center text-muted-foreground space-y-3">
+                  <LayoutGrid className="h-10 w-10 mx-auto opacity-40 text-primary" />
+                  <h3 className="font-bold text-base text-foreground">Fixture en Preparación</h3>
+                  <p className="text-sm max-w-md mx-auto">
+                    Las zonas, cruces y programación están siendo organizados por la administración del club.
+                    Se publicarán oficialmente en este muro en cuanto el torneo pase a estado <strong>En Curso</strong>.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : zonas.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground space-y-2">
                   <LayoutGrid className="h-10 w-10 mx-auto opacity-20" />
@@ -315,7 +326,17 @@ export default function TorneoPublico() {
 
           {/* Tab: LLAVES */}
           <TabsContent value="llaves" className="mt-6">
-            {partidosLlave.length === 0 ? (
+            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" ? (
+              <Card className="border-dashed bg-muted/20">
+                <CardContent className="py-12 text-center text-muted-foreground space-y-3">
+                  <GitBranch className="h-10 w-10 mx-auto opacity-40 text-primary" />
+                  <h3 className="font-bold text-base text-foreground">Cuadro Final en Preparación</h3>
+                  <p className="text-sm max-w-md mx-auto">
+                    El cuadro de eliminatorias se habilitará una vez que comience el torneo y finalicen los partidos de zona.
+                  </p>
+                </CardContent>
+              </Card>
+            ) : partidosLlave.length === 0 ? (
               <Card>
                 <CardContent className="py-12 text-center text-muted-foreground space-y-2">
                   <GitBranch className="h-10 w-10 mx-auto opacity-20" />
