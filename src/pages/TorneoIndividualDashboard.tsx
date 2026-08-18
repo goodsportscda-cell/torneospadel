@@ -268,7 +268,8 @@ export default function TorneoIndividualDashboard() {
       const totalCash = Math.round((ganProj * pctPremios) / 100);
       const isPuntosPorSet = Boolean(
         (tRes as any)?.sistema_puntuacion === "puntos_por_set" ||
-        tRes?.notas?.includes("[SISTEMA:puntos_por_set]")
+        tRes?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+        tRes?.canchas_count === 2
       );
 
       setSettingsForm({
@@ -367,8 +368,10 @@ export default function TorneoIndividualDashboard() {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
     const esPuntosPorSet = Boolean(
+      settingsForm.sistema_puntuacion === "puntos_por_set" ||
       (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-      torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+      torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+      torneo?.canchas_count === 2
     );
 
     if (torneo.modalidad === "parejas") {
@@ -1944,7 +1947,8 @@ export default function TorneoIndividualDashboard() {
     const esPuntosPorSet = Boolean(
       settingsForm.sistema_puntuacion === "puntos_por_set" ||
       (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-      torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+      torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+      torneo?.canchas_count === 2
     );
 
     if (setsLocal === 1 && setsVisi === 1) {

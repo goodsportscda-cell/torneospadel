@@ -215,7 +215,8 @@ export default function TorneoIndividualPublico() {
     const countCanchas = torneo.canchas_count ?? 3;
     const esPuntosPorSet = Boolean(
       (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-      torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+      torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+      torneo?.canchas_count === 2
     );
 
     if (torneo.modalidad === "parejas") {
