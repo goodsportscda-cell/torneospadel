@@ -105,29 +105,55 @@ export function useClubRanking(
       // 3. Obtener Ascensos
       let ascensosQuery = supabase
         .from("ascensos")
-        .select("jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id, notas, fecha")
+        .select("id, jugador_id, puntos_origen, puntos_transferidos, categoria_destino_id, categoria_origen_id, notas, fecha, created_at")
         .eq("anio", filtroAnio);
         
       const { data: ascensosData, error: ascensosError } = await ascensosQuery;
       if (ascensosError) throw new Error("Error obteniendo ascensos");
 
+      // Calcular puntos totales de torneos por (jugador_id, categoria_id)
+      const torneosPtsPorJugadorYCat = new Map<string, Map<string, number>>();
+      (rankingData || []).forEach((r) => {
+        if (!r.categoria_id) return;
+        if (!torneosPtsPorJugadorYCat.has(r.jugador_id)) {
+          torneosPtsPorJugadorYCat.set(r.jugador_id, new Map());
+        }
+        const cMap = torneosPtsPorJugadorYCat.get(r.jugador_id)!;
+        cMap.set(r.categoria_id, (cMap.get(r.categoria_id) ?? 0) + r.puntos);
+      });
+
+      // Deduplicar ascensos por (jugador_id, categoria_origen_id, categoria_destino_id)
+      const ascensosDeduplicados = new Map<string, any>();
+      (ascensosData || []).forEach((a) => {
+        const key = `${a.jugador_id}_${a.categoria_origen_id}_${a.categoria_destino_id}`;
+        const existing = ascensosDeduplicados.get(key);
+        if (!existing || new Date(a.created_at || a.fecha).getTime() > new Date(existing.created_at || existing.fecha).getTime()) {
+          ascensosDeduplicados.set(key, a);
+        }
+      });
+
       // 4. Lógica de agrupamiento
       const ascendidosDesde = new Map<string, Set<string>>();
       const ascensosPorJugador = new Map<string, Array<{ pts: number, nota: string, fecha: string }>>();
 
-      (ascensosData || []).forEach((a) => {
+      ascensosDeduplicados.forEach((a) => {
         // Exclusión de origen
         if (!ascendidosDesde.has(a.categoria_origen_id)) {
           ascendidosDesde.set(a.categoria_origen_id, new Set());
         }
         ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
 
+        // Puntos reales calculados: 50% de la suma de torneos de la categoría origen (o a.puntos_transferidos si fuera mayor)
+        const ptsTorneosOrigen = torneosPtsPorJugadorYCat.get(a.jugador_id)?.get(a.categoria_origen_id) ?? 0;
+        const ptsCalc = Math.floor(ptsTorneosOrigen / 2);
+        const ptsFinales = Math.max(a.puntos_transferidos || 0, ptsCalc);
+
         // Sumar a destino
         if (filtroCategoria === "todas" || a.categoria_destino_id === filtroCategoria) {
           const arr = ascensosPorJugador.get(a.jugador_id) || [];
           arr.push({
-            pts: a.puntos_transferidos,
-            nota: a.notas || "Transferencia de categoría anterior",
+            pts: ptsFinales,
+            nota: a.notas || "Transferencia de categoría anterior (50%)",
             fecha: a.fecha
           });
           ascensosPorJugador.set(a.jugador_id, arr);
