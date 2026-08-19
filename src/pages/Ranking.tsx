@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2, Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { INSTANCIA_LABEL, type Instancia } from "@/lib/ranking";
+import { INSTANCIA_LABEL, type Instancia, recalcularTodosLosAscensos } from "@/lib/ranking";
 import { activeTenant } from "@/lib/tenant";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { DesglosePuntosModal } from "@/components/ranking/DesglosePuntosModal";
@@ -910,15 +910,41 @@ export default function Ranking() {
     }
     setSavingAscenso(true);
     const ptsTransferidos = Math.floor(ascensoPuntosOrigen / 2);
-    const { error } = await supabase.from("ascensos").insert({
-      jugador_id: ascensoJugadorId,
-      categoria_origen_id: ascensoCatOrigen,
-      categoria_destino_id: ascensoCatDestino,
-      puntos_origen: ascensoPuntosOrigen,
-      puntos_transferidos: ptsTransferidos,
-      anio: filtroAnio,
-      notas: ascensoNotas || null,
-    });
+
+    // Buscar si ya existe un registro de ascenso para este jugador en las mismas categorías
+    const { data: ascExistente } = await supabase
+      .from("ascensos")
+      .select("id")
+      .eq("jugador_id", ascensoJugadorId)
+      .eq("categoria_origen_id", ascensoCatOrigen)
+      .eq("categoria_destino_id", ascensoCatDestino)
+      .eq("anio", filtroAnio)
+      .maybeSingle();
+
+    let error = null;
+    if (ascExistente) {
+      const res = await supabase
+        .from("ascensos")
+        .update({
+          puntos_origen: ascensoPuntosOrigen,
+          puntos_transferidos: ptsTransferidos,
+          notas: ascensoNotas || null,
+        })
+        .eq("id", ascExistente.id);
+      error = res.error;
+    } else {
+      const res = await supabase.from("ascensos").insert({
+        jugador_id: ascensoJugadorId,
+        categoria_origen_id: ascensoCatOrigen,
+        categoria_destino_id: ascensoCatDestino,
+        puntos_origen: ascensoPuntosOrigen,
+        puntos_transferidos: ptsTransferidos,
+        anio: filtroAnio,
+        notas: ascensoNotas || null,
+      });
+      error = res.error;
+    }
+
     if (error) {
       toast.error("Error al guardar: " + error.message);
       setSavingAscenso(false);
@@ -938,8 +964,11 @@ export default function Ranking() {
         await supabase.from("jugadores").update({ categoria_id: catJug.id }).eq("id", ascensoJugadorId);
       }
     }
+
+    // Recalcular todos los ascensos del año para garantizar coherencia
+    await recalcularTodosLosAscensos(filtroAnio);
     
-    toast.success(`Ascenso registrado. ${ptsTransferidos} puntos transferidos.`);
+    toast.success(`Ascenso guardado. ${ptsTransferidos} puntos transferidos.`);
     setSavingAscenso(false);
     setAscensoOpen(false);
     resetAscensoForm();
@@ -1004,6 +1033,7 @@ export default function Ranking() {
   const eliminarAscenso = async (id: string) => {
     const { error } = await supabase.from("ascensos").delete().eq("id", id);
     if (error) { toast.error("Error: " + error.message); return; }
+    await recalcularTodosLosAscensos(filtroAnio);
     toast.success("Ascenso eliminado");
     cargarAscensos();
     cargarRanking();
@@ -1447,14 +1477,20 @@ export default function Ranking() {
                     </SelectContent>
                   </Select>
                 </div>
-                <div className="rounded-md border p-3 bg-muted/30 space-y-1">
-                  <div className="flex justify-between text-sm">
-                    <span>Puntos en categoría origen</span>
-                    <span className="font-bold">{ascensoPuntosOrigen}</span>
+                <div className="rounded-md border p-3 bg-muted/30 space-y-2">
+                  <div className="space-y-1">
+                    <label className="text-xs text-muted-foreground font-medium">Puntos en categoría origen (Editables)</label>
+                    <Input
+                      type="number"
+                      min="0"
+                      value={ascensoPuntosOrigen}
+                      onChange={(e) => setAscensoPuntosOrigen(Number(e.target.value) || 0)}
+                      className="h-8 font-bold text-sm bg-background"
+                    />
                   </div>
-                  <div className="flex justify-between text-sm text-primary">
-                    <span>Puntos transferidos (50%)</span>
-                    <span className="font-bold">{Math.floor(ascensoPuntosOrigen / 2)}</span>
+                  <div className="flex justify-between text-sm text-primary font-medium border-t pt-1.5">
+                    <span>Puntos transferidos a nueva categoría (50%)</span>
+                    <span className="font-bold">{Math.floor(ascensoPuntosOrigen / 2)} pts</span>
                   </div>
                 </div>
                 <div>
