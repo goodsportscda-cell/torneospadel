@@ -30,7 +30,8 @@ import {
   Info,
   Hash,
   MessageSquareCode,
-  UserCheck
+  UserCheck,
+  ArrowUpCircle
 } from "lucide-react";
 import { PlayerStats } from "@/components/jugador/PlayerStats";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
@@ -55,6 +56,17 @@ interface TournamentResult {
   instancia: string;
   puntos: number;
   estadoTorneo: string;
+}
+
+interface AscensoItem {
+  id: string;
+  catOrigenNombre: string;
+  catDestinoNombre: string;
+  puntosOrigen: number;
+  puntosTransferidos: number;
+  anio: number;
+  fecha: string | null;
+  notas: string | null;
 }
 
 const INSTANCIA_BADGE_STYLE: Record<string, string> = {
@@ -87,6 +99,7 @@ export default function DetalleJugadorDialog({
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [torneosJugados, setTorneosJugados] = useState<TournamentResult[]>([]);
+  const [ascensosHistorial, setAscensosHistorial] = useState<AscensoItem[]>([]);
 
   useEffect(() => {
     if (!open || !jugador.id) return;
@@ -191,6 +204,33 @@ export default function DetalleJugadorDialog({
         });
 
         setTorneosJugados(results);
+
+        // 4. Obtener ascensos del jugador
+        const { data: ascData } = await (supabase as any)
+          .from("ascensos")
+          .select("*")
+          .eq("jugador_id", jugador.id)
+          .order("anio", { ascending: false });
+
+        const { data: catsAll } = await (supabase as any).from("categorias").select("id, nombre, genero");
+        const { data: catsJugAll } = await (supabase as any).from("categorias_jugadores").select("id, nombre, genero");
+
+        const catNameMap = new Map<string, string>();
+        (catsAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
+        (catsJugAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
+
+        const ascResult: AscensoItem[] = (ascData ?? []).map((a: any) => ({
+          id: a.id,
+          catOrigenNombre: catNameMap.get(a.categoria_origen_id) || "Categoría Origen",
+          catDestinoNombre: catNameMap.get(a.categoria_destino_id) || "Categoría Destino",
+          puntosOrigen: a.puntos_origen || 0,
+          puntosTransferidos: a.puntos_transferidos || 0,
+          anio: a.anio,
+          fecha: a.fecha || a.created_at || null,
+          notas: a.notas || null,
+        }));
+
+        setAscensosHistorial(ascResult);
       } catch (err) {
         console.error("Error al obtener historial del jugador:", err);
       } finally {
@@ -272,9 +312,12 @@ export default function DetalleJugadorDialog({
         </DialogHeader>
 
         <Tabs defaultValue="datos" className="flex-1 flex flex-col overflow-hidden mt-4">
-          <TabsList className="grid w-full grid-cols-3 flex-shrink-0 bg-muted/60 max-w-md">
+          <TabsList className="grid w-full grid-cols-4 flex-shrink-0 bg-muted/60 max-w-lg">
             <TabsTrigger value="datos" className="text-xs font-bold">Datos y Stats</TabsTrigger>
             <TabsTrigger value="torneos" className="text-xs font-bold">Torneos y Parejas</TabsTrigger>
+            <TabsTrigger value="ascensos" className="text-xs font-bold flex items-center gap-1">
+              Ascensos {ascensosHistorial.length > 0 && <Badge variant="secondary" className="px-1 py-0 text-[10px] font-extrabold h-4">{ascensosHistorial.length}</Badge>}
+            </TabsTrigger>
             <TabsTrigger value="partidos" className="text-xs font-bold">Partidos</TabsTrigger>
           </TabsList>
 
@@ -424,7 +467,65 @@ export default function DetalleJugadorDialog({
             )}
           </TabsContent>
 
-          {/* TAB 3: PARTIDOS */}
+          {/* TAB 3: ASCENSOS */}
+          <TabsContent
+            value="ascensos"
+            className="flex-1 overflow-y-auto pr-1 mt-3 focus-visible:outline-none focus-visible:ring-0"
+          >
+            {loading ? (
+              <div className="flex items-center justify-center p-8">
+                <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+              </div>
+            ) : ascensosHistorial.length === 0 ? (
+              <div className="flex-1 border border-dashed rounded-xl flex flex-col items-center justify-center p-8 text-center text-muted-foreground">
+                <ArrowUpCircle className="h-10 w-10 text-muted-foreground/45 mb-2.5" />
+                <p className="text-sm font-semibold">Sin ascensos registrados</p>
+                <p className="text-xs max-w-xs mt-1">Este jugador no registra ascensos de categoría en el sistema.</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {ascensosHistorial.map((asc) => (
+                  <Card key={asc.id} className="border shadow-sm overflow-hidden bg-card">
+                    <CardHeader className="p-3 bg-muted/30 pb-2 border-b">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="flex items-center gap-2">
+                          <ArrowUpCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                          <span className="font-bold text-sm text-foreground">
+                            {asc.catOrigenNombre} <span className="text-muted-foreground">→</span> {asc.catDestinoNombre}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="text-xs font-semibold">
+                            Año {asc.anio}
+                          </Badge>
+                          {asc.fecha && (
+                            <span className="text-xs text-muted-foreground">
+                              {fmtFecha(asc.fecha)}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    </CardHeader>
+                    <CardContent className="p-3 pt-2 text-xs space-y-2">
+                      <div className="flex items-center justify-between flex-wrap gap-2 text-muted-foreground">
+                        <span>Puntos acumulados en categoría origen: <strong className="text-foreground">{asc.puntosOrigen} pts</strong></span>
+                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold">
+                          +{asc.puntosTransferidos} pts transferidos (50%)
+                        </Badge>
+                      </div>
+                      {asc.notas && (
+                        <div className="p-2 rounded bg-muted/50 text-muted-foreground text-[11px] border border-border/50">
+                          <strong>Observaciones:</strong> {asc.notas}
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            )}
+          </TabsContent>
+
+          {/* TAB 4: PARTIDOS */}
           <TabsContent
             value="partidos"
             className="flex-1 overflow-y-auto pr-1 mt-3 focus-visible:outline-none focus-visible:ring-0"
