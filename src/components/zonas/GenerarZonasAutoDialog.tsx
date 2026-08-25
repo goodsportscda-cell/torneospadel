@@ -57,13 +57,12 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
       setFranjas(franjasData || []);
 
       // 3. Obtener inscripciones confirmadas
-      const { data: inscripciones } = await supabase
+      const { data: inscripciones } = await (supabase as any)
         .from("inscripciones")
         .select(`
           id,
           jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido),
-          jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido),
-          inscripcion_disponibilidades(franja_id)
+          jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)
         `)
         .eq("torneo_id", torneoId)
         .eq("estado", "confirmada");
@@ -74,12 +73,24 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
         return;
       }
 
+      // 3b. Obtener disponibilidades explícitamente para asegurar que ninguna franja quede omitida
+      const { data: dispData } = await (supabase as any)
+        .from("inscripcion_disponibilidades")
+        .select("inscripcion_id, franja_id")
+        .in("inscripcion_id", inscripciones.map((i: any) => i.id));
+
+      const dispMap = new Map<string, string[]>();
+      (dispData ?? []).forEach((d: any) => {
+        if (!dispMap.has(d.inscripcion_id)) dispMap.set(d.inscripcion_id, []);
+        dispMap.get(d.inscripcion_id)!.push(d.franja_id);
+      });
+
       // 4. Mapear al formato del generador
       const paraGenerador = inscripciones.map((ins: any) => ({
         id: ins.id,
         jugador1: ins.jugador1,
         jugador2: ins.jugador2,
-        franjas_ids: ins.inscripcion_disponibilidades?.map((d: any) => d.franja_id) || []
+        franjas_ids: dispMap.get(ins.id) || []
       }));
 
       // 5. Ejecutar algoritmo

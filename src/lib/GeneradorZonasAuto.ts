@@ -20,6 +20,42 @@ export interface ZonaGenerada {
   canchaSugerida?: string;
 }
 
+export function findSharedFranja(parejas: InscripcionParaZona[], franjas: FranjaData[]): FranjaData | undefined {
+  if (parejas.length === 0) return undefined;
+
+  // 1. Buscar si hay una franja presente en TODAS las parejas del grupo
+  const sharedIds = parejas[0].franjas_ids.filter(fid =>
+    parejas.every(p => p.franjas_ids.includes(fid))
+  );
+
+  if (sharedIds.length > 0) {
+    return franjas.find(f => f.id === sharedIds[0]);
+  }
+
+  // 2. Si ninguna franja coincide en el 100%, buscar la franja compartida por la MAYORÍA de parejas del grupo
+  const countMap = new Map<string, number>();
+  parejas.forEach(p => {
+    p.franjas_ids.forEach(fid => {
+      countMap.set(fid, (countMap.get(fid) || 0) + 1);
+    });
+  });
+
+  let bestFid = "";
+  let maxCount = 0;
+  for (const [fid, count] of countMap.entries()) {
+    if (count > maxCount) {
+      maxCount = count;
+      bestFid = fid;
+    }
+  }
+
+  if (bestFid && maxCount >= 2) {
+    return franjas.find(f => f.id === bestFid);
+  }
+
+  return undefined;
+}
+
 export function generarZonasAuto(
   inscripciones: InscripcionParaZona[],
   franjas: FranjaData[],
@@ -28,7 +64,7 @@ export function generarZonasAuto(
   const total = inscripciones.length;
   if (total < 3) return [];
 
-  // Calcular cantidad de zonas de 3 y de 4
+  // Calcular cantidad de zonas de 4 y de 3 (Reglamento APA: Zonas de 4 PRIMERO)
   const remainder = total % 3;
   let zonasDe4 = 0;
   let zonasDe3 = 0;
@@ -37,89 +73,82 @@ export function generarZonasAuto(
     zonasDe3 = total / 3;
   } else if (remainder === 1) {
     zonasDe4 = 1;
-    zonasDe3 = (total - 4) / 3;
+    zonasDe3 = Math.floor((total - 4) / 3);
   } else if (remainder === 2) {
     zonasDe4 = 2;
-    zonasDe3 = (total - 8) / 3;
+    zonasDe3 = Math.floor((total - 8) / 3);
   }
+
+  // Zonas de 4 PRIMERO, luego Zonas de 3
+  const targetSizes: number[] = [
+    ...Array(zonasDe4).fill(4),
+    ...Array(zonasDe3).fill(3)
+  ];
 
   const zonasGeneradas: ZonaGenerada[] = [];
   let inscripcionesPendientes = [...inscripciones];
 
-  const totalZonas = zonasDe3 + zonasDe4;
-  let zoneIdx = 0;
+  for (let zoneIdx = 0; zoneIdx < targetSizes.length; zoneIdx++) {
+    const targetSize = targetSizes[zoneIdx];
+    if (inscripcionesPendientes.length === 0) break;
 
-  // Mapa de parejas a franjas
-  const franjaParejasMap = new Map<string, InscripcionParaZona[]>();
-  for (const f of franjas) {
-    franjaParejasMap.set(f.id, []);
-  }
+    let bestGroup: InscripcionParaZona[] = [];
+    let bestFranja: FranjaData | undefined = undefined;
 
-  for (const insc of inscripcionesPendientes) {
-    for (const fid of insc.franjas_ids) {
-      if (franjaParejasMap.has(fid)) {
-        franjaParejasMap.get(fid)!.push(insc);
+    // Buscar franjas por popularidad entre las parejas pendientes restantes
+    const franjasOrdenadas = [...franjas].sort((a, b) => {
+      const countA = inscripcionesPendientes.filter(p => p.franjas_ids.includes(a.id)).length;
+      const countB = inscripcionesPendientes.filter(p => p.franjas_ids.includes(b.id)).length;
+      return countB - countA;
+    });
+
+    for (const f of franjasOrdenadas) {
+      const deEstaFranja = inscripcionesPendientes.filter(p => p.franjas_ids.includes(f.id));
+      if (deEstaFranja.length >= targetSize) {
+        bestGroup = deEstaFranja.slice(0, targetSize);
+        bestFranja = f;
+        break;
+      } else if (deEstaFranja.length > bestGroup.length) {
+        bestGroup = deEstaFranja;
+        bestFranja = f;
       }
     }
-  }
 
-  // Ordenar franjas por la que más parejas tiene
-  const franjasOrdenadas = [...franjas].sort((a, b) => {
-    return franjaParejasMap.get(b.id)!.length - franjaParejasMap.get(a.id)!.length;
-  });
+    // Si no se completó el targetSize exacto en una sola franja, completar con parejas pendientes con mayor coincidencia
+    if (bestGroup.length < targetSize) {
+      const selectedIds = new Set(bestGroup.map(p => p.id));
+      const faltantes = inscripcionesPendientes.filter(p => !selectedIds.has(p.id));
 
-  // Intentamos agrupar por franja primero
-  for (const f of franjasOrdenadas) {
-    if (zoneIdx >= totalZonas) break;
-    
-    let targetSize = zoneIdx < zonasDe3 ? 3 : 4;
-    
-    // Obtenemos parejas compatibles que sigan pendientes
-    const posibles = (franjaParejasMap.get(f.id) || []).filter(p => 
-      inscripcionesPendientes.some(pend => pend.id === p.id)
-    );
-
-    if (posibles.length >= targetSize) {
-      // Formamos zona
-      const zonaParejas = posibles.slice(0, targetSize);
-      zonasGeneradas.push({
-        nombre: `Zona ${String.fromCharCode(65 + zoneIdx)}`,
-        parejas: zonaParejas,
-        franjaAsignada: f,
-        canchaSugerida: String((zoneIdx % canchasDisponibles) + 1)
+      faltantes.sort((a, b) => {
+        const scoreA = bestGroup.reduce((sum, bg) => sum + bg.franjas_ids.filter(fid => a.franjas_ids.includes(fid)).length, 0);
+        const scoreB = bestGroup.reduce((sum, bg) => sum + bg.franjas_ids.filter(fid => b.franjas_ids.includes(fid)).length, 0);
+        return scoreB - scoreA;
       });
-      
-      // Remover de pendientes
-      const asignadosIds = zonaParejas.map(p => p.id);
-      inscripcionesPendientes = inscripcionesPendientes.filter(p => !asignadosIds.includes(p.id));
-      
-      zoneIdx++;
-    }
-  }
 
-  // Si quedaron zonas sin armar o parejas colgadas, las agrupamos forzadamente
-  while (zoneIdx < totalZonas && inscripcionesPendientes.length > 0) {
-    let targetSize = zoneIdx < zonasDe3 ? 3 : 4;
-    // Por si quedan menos que el targetSize pero hay que armar igual
-    if (inscripcionesPendientes.length < targetSize && zoneIdx === totalZonas - 1) {
-      targetSize = inscripcionesPendientes.length;
+      const needed = targetSize - bestGroup.length;
+      bestGroup = [...bestGroup, ...faltantes.slice(0, needed)];
     }
-    
-    const zonaParejas = inscripcionesPendientes.slice(0, targetSize);
+
+    // Determinar la franja compartida o representativa para este grupo de parejas
+    const franjaFinal = findSharedFranja(bestGroup, franjas) || bestFranja;
+    const nombre = `Zona ${String.fromCharCode(65 + zoneIdx)}`;
+
     zonasGeneradas.push({
-      nombre: `Zona ${String.fromCharCode(65 + zoneIdx)}`,
-      parejas: zonaParejas,
-      franjaAsignada: undefined, // Sin franja en común
-      canchaSugerida: String((zoneIdx % canchasDisponibles) + 1)
+      nombre,
+      parejas: bestGroup,
+      franjaAsignada: franjaFinal,
+      canchaSugerida: String((zoneIdx % canchasDisponibles) + 1),
     });
-    
-    inscripcionesPendientes = inscripcionesPendientes.slice(targetSize);
-    zoneIdx++;
+
+    const asignadosIds = new Set(bestGroup.map(p => p.id));
+    inscripcionesPendientes = inscripcionesPendientes.filter(p => !asignadosIds.has(p.id));
   }
 
-  // Si por alguna razón de remanentes quedaron sueltos, meterlos en la última zona
+  // Remanente en caso extremo
   if (inscripcionesPendientes.length > 0 && zonasGeneradas.length > 0) {
-    zonasGeneradas[zonasGeneradas.length - 1].parejas.push(...inscripcionesPendientes);
+    const ultimaZona = zonasGeneradas[zonasGeneradas.length - 1];
+    ultimaZona.parejas.push(...inscripcionesPendientes);
+    ultimaZona.franjaAsignada = findSharedFranja(ultimaZona.parejas, franjas) || ultimaZona.franjaAsignada;
   }
 
   return zonasGeneradas;
