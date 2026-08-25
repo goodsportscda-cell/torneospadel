@@ -490,7 +490,7 @@ export default function Ranking() {
     }
 
     if (categoriesToInsert.length > 0) {
-      const { data: inserted } = await supabase
+      const { data: inserted } = await (supabase as any)
         .from("categorias")
         .insert(categoriesToInsert)
         .select("id, nombre, genero, orden");
@@ -500,7 +500,7 @@ export default function Ranking() {
     }
 
     for (const item of categoriesToUpdate) {
-      await supabase
+      await (supabase as any)
         .from("categorias")
         .update({ orden: item.orden })
         .eq("id", item.id);
@@ -672,16 +672,20 @@ export default function Ranking() {
       const m = map.get(id)!;
       const ptsAscenso = ascensoMap.get(id) ?? 0;
       return {
+        posicion: 0,
         jugador_id: id,
-        puntos: m.puntos + ptsAscenso,
+        puntos_totales: m.puntos + ptsAscenso,
+        puntos_torneos: m.puntos,
         puntos_ascenso: ptsAscenso,
-        torneos: m.torneos,
+        torneos_jugados: m.torneos,
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
         jugador_club: j?.club ?? null,
+        desglose: [],
       };
     });
-    result.sort((a, b) => b.puntos - a.puntos);
+    result.sort((a, b) => b.puntos_totales - a.puntos_totales);
+    result.forEach((r, i) => { r.posicion = i + 1; });
     setRows(result);
   };
 
@@ -718,7 +722,7 @@ export default function Ranking() {
     setSavingCfg(true);
     try {
       for (const p of puntosCfg) {
-        const { error } = await supabase
+        const { error } = await (supabase as any)
           .from("puntos_ranking")
           .update({ puntos: p.puntos })
           .eq("instancia", p.instancia);
@@ -750,7 +754,7 @@ export default function Ranking() {
       toast.error("Ingresá un número válido");
       return;
     }
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("cupos_master")
       .upsert({ categoria_id: filtroCategoria, cupos: num }, { onConflict: "categoria_id" });
     if (error) {
@@ -762,7 +766,7 @@ export default function Ranking() {
     setCupoOpen(false);
   };
 
-  const abrirDetalle = async (jugador: RankingRow) => {
+  const abrirDetalle = async (jugador: RankingRowUnified) => {
     setDetalleJugador(jugador);
     setDetalleOpen(true);
     setLoadingDetalle(true);
@@ -841,18 +845,18 @@ export default function Ranking() {
   const buscarJugadoresAscenso = async (q: string) => {
     setAscensoJugadorBusqueda(q);
     if (q.length < 2) { setAscensoJugadores([]); return; }
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("jugadores")
       .select("id, nombre, apellido, categoria_id")
       .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%`)
       .limit(10);
     if (!data || data.length === 0) { setAscensoJugadores([]); return; }
-    const catIds = [...new Set(data.filter(j => j.categoria_id).map(j => j.categoria_id!))];
+    const catIds = [...new Set((data as any[]).filter(j => j.categoria_id).map(j => j.categoria_id!))];
     const { data: catsJ } = catIds.length > 0
-      ? await supabase.from("categorias_jugadores").select("id, nombre").in("id", catIds)
+      ? await (supabase as any).from("categorias_jugadores").select("id, nombre").in("id", catIds)
       : { data: [] };
-    const catMap = new Map((catsJ ?? []).map(c => [c.id, c.nombre]));
-    setAscensoJugadores(data.map(j => ({
+    const catMap = new Map(((catsJ as any[]) ?? []).map(c => [c.id, c.nombre]));
+    setAscensoJugadores((data as any[]).map(j => ({
       ...j,
       cat_nombre: j.categoria_id ? catMap.get(j.categoria_id) ?? undefined : undefined,
     })));
@@ -920,7 +924,7 @@ export default function Ranking() {
     const ptsTransferidos = Math.floor(ascensoPuntosOrigen / 2);
 
     // Buscar si ya existe un registro de ascenso para este jugador en las mismas categorías
-    const { data: ascExistente } = await supabase
+    const { data: ascExistente } = await (supabase as any)
       .from("ascensos")
       .select("id")
       .eq("jugador_id", ascensoJugadorId)
@@ -931,17 +935,17 @@ export default function Ranking() {
 
     let error = null;
     if (ascExistente) {
-      const res = await supabase
+      const res = await (supabase as any)
         .from("ascensos")
         .update({
           puntos_origen: ascensoPuntosOrigen,
           puntos_transferidos: ptsTransferidos,
           notas: ascensoNotas || null,
         })
-        .eq("id", ascExistente.id);
+        .eq("id", (ascExistente as any).id);
       error = res.error;
     } else {
-      const res = await supabase.from("ascensos").insert({
+      const res = await (supabase as any).from("ascensos").insert({
         jugador_id: ascensoJugadorId,
         categoria_origen_id: ascensoCatOrigen,
         categoria_destino_id: ascensoCatDestino,
@@ -962,14 +966,14 @@ export default function Ranking() {
     // Buscar equivalente en categorias_jugadores
     const catDestinoTorneo = categorias.find(c => c.id === ascensoCatDestino);
     if (catDestinoTorneo) {
-      const { data: catJug } = await supabase
+      const { data: catJug } = await (supabase as any)
         .from("categorias_jugadores")
         .select("id")
         .eq("nombre", catDestinoTorneo.nombre)
         .eq("genero", catDestinoTorneo.genero)
         .maybeSingle();
-      if (catJug?.id) {
-        await supabase.from("jugadores").update({ categoria_id: catJug.id }).eq("id", ascensoJugadorId);
+      if ((catJug as any)?.id) {
+        await (supabase as any).from("jugadores").update({ categoria_id: (catJug as any).id }).eq("id", ascensoJugadorId);
       }
     }
 
@@ -995,13 +999,13 @@ export default function Ranking() {
   };
 
   const cargarAscensos = async () => {
-    const { data } = await supabase
+    const { data } = await (supabase as any)
       .from("ascensos")
       .select("*")
       .eq("anio", filtroAnio)
       .order("fecha", { ascending: false });
-    if (!data || data.length === 0) { setAscensosList([]); return; }
-    const jugIds = Array.from(new Set(data.map((a) => a.jugador_id)));
+    if (!data || (data as any[]).length === 0) { setAscensosList([]); return; }
+    const jugIds = Array.from(new Set((data as any[]).map((a: any) => a.jugador_id)));
     // Chunk jugIds array to avoid URL length limit in Supabase (.in with many elements)
     const chunkSize = 100;
     const chunks = [];
@@ -1013,7 +1017,7 @@ export default function Ranking() {
     try {
       const results = await Promise.all(
         chunks.map(chunk => 
-          supabase
+          (supabase as any)
             .from("jugadores")
             .select("id, nombre, apellido")
             .in("id", chunk)
@@ -1032,7 +1036,7 @@ export default function Ranking() {
       console.error("Error fetching jugadores in chunks for ascensos:", err);
     }
 
-    setAscensosList(data.map((a) => {
+    setAscensosList((data as any[]).map((a: any) => {
       const j = jugs?.find((x) => x.id === a.jugador_id);
       return { ...a, jugador_nombre: j?.nombre, jugador_apellido: j?.apellido };
     }));
@@ -1300,10 +1304,10 @@ export default function Ranking() {
                         {r.jugador_club ?? "—"}
                       </TableCell>
                       <TableCell className="text-center">
-                        <Badge variant="outline">{r.torneos}</Badge>
+                        <Badge variant="outline">{r.torneos_jugados}</Badge>
                       </TableCell>
                       <TableCell className="text-right font-bold">
-                        {r.puntos}
+                        {r.puntos_totales}
                         {r.puntos_ascenso > 0 && (
                           <span className="text-xs text-primary ml-1" title="Incluye puntos por ascenso">
                             (+{r.puntos_ascenso})

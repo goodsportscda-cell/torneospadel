@@ -185,7 +185,7 @@ export default function TorneoIndividualDashboard() {
     setSavingCruces(true);
     try {
       const promises = editingCruces.map(p => 
-        supabase.from("partidos_individuales").update({
+        (supabase as any).from("partidos_individuales").update({
           jugador1_id: p.jugador1_id,
           jugador2_id: p.jugador2_id,
           jugador3_id: p.jugador3_id,
@@ -234,13 +234,13 @@ export default function TorneoIndividualDashboard() {
         { data: partRes },
         { data: tpRes },
       ] = await Promise.all([
-        supabase.from("torneos").select("*").eq("id", id).maybeSingle(),
-        supabase.from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
-        supabase.from("jugadores").select("*").order("apellido"),
-        supabase.from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
-        supabase.from("torneo_individual_pagos").select("*").eq("torneo_id", id),
-        supabase.from("partidos_individuales").select("*").eq("torneo_id", id),
-        supabase.from("torneo_individual_parejas").select("*").eq("torneo_id", id),
+        (supabase as any).from("torneos").select("*").eq("id", id).maybeSingle(),
+        (supabase as any).from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
+        (supabase as any).from("jugadores").select("*").order("apellido"),
+        (supabase as any).from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
+        (supabase as any).from("torneo_individual_pagos").select("*").eq("torneo_id", id),
+        (supabase as any).from("partidos_individuales").select("*").eq("torneo_id", id),
+        (supabase as any).from("torneo_individual_parejas").select("*").eq("torneo_id", id),
       ]);
 
       if (!tRes) {
@@ -304,7 +304,7 @@ export default function TorneoIndividualDashboard() {
       // Fetch sets for each match
       if (partRes && partRes.length > 0) {
         const pIds = partRes.map((p) => p.id);
-        const { data: setsRes } = await supabase
+        const { data: setsRes } = await (supabase as any)
           .from("sets_partido_individual")
           .select("*")
           .in("partido_individual_id", pIds)
@@ -345,7 +345,7 @@ export default function TorneoIndividualDashboard() {
   const handleSaveMatchConfig = async () => {
     if (!selectedPartidoConfig) return;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("partidos_individuales")
         .update({
           fecha_programada: matchConfigForm.fecha_programada || null,
@@ -703,7 +703,7 @@ export default function TorneoIndividualDashboard() {
   const handleFinalizarTorneo = async () => {
     if (!id) return;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("torneos")
         .update({ estado: "finalizado" })
         .eq("id", id);
@@ -719,7 +719,7 @@ export default function TorneoIndividualDashboard() {
   const handleReabrirTorneo = async () => {
     if (!id) return;
     try {
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("torneos")
         .update({ estado: "en_juego" })
         .eq("id", id);
@@ -869,7 +869,7 @@ export default function TorneoIndividualDashboard() {
       return;
     }
 
-    const { error } = await supabase.from("torneo_individual_jugadores").insert({
+    const { error } = await (supabase as any).from("torneo_individual_jugadores").insert({
       torneo_id: id,
       jugador_id: selectedJugadorId,
       estado: "confirmada",
@@ -892,7 +892,7 @@ export default function TorneoIndividualDashboard() {
       return;
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("torneo_individual_jugadores")
       .delete()
       .eq("torneo_id", id)
@@ -922,7 +922,7 @@ export default function TorneoIndividualDashboard() {
 
     try {
       // 1. Insert into torneo_individual_parejas
-      const { error: pErr } = await supabase.from("torneo_individual_parejas").insert({
+      const { error: pErr } = await (supabase as any).from("torneo_individual_parejas").insert({
         torneo_id: id,
         jugador1_id: selectedJ1Id,
         jugador2_id: selectedJ2Id,
@@ -931,14 +931,14 @@ export default function TorneoIndividualDashboard() {
       if (pErr) throw pErr;
 
       // 2. Insert both players into torneo_individual_jugadores so they are registered in the tournament
-      const { error: jErr } = await supabase.from("torneo_individual_jugadores").insert([
+      const { error: jErr } = await (supabase as any).from("torneo_individual_jugadores").insert([
         { torneo_id: id, jugador_id: selectedJ1Id, estado: "confirmada" },
         { torneo_id: id, jugador_id: selectedJ2Id, estado: "confirmada" },
       ]);
 
       if (jErr) {
         // Rollback couple
-        await supabase.from("torneo_individual_parejas")
+        await (supabase as any).from("torneo_individual_parejas")
           .delete()
           .eq("torneo_id", id)
           .eq("jugador1_id", selectedJ1Id)
@@ -1023,7 +1023,7 @@ export default function TorneoIndividualDashboard() {
       finalNotas = finalNotas ? `${finalNotas} [SISTEMA:puntos_por_set]` : "[SISTEMA:puntos_por_set]";
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("torneos")
       .update({
         canchas_count: totalCanchas,
@@ -1055,7 +1055,7 @@ export default function TorneoIndividualDashboard() {
 
     if (currentPago && currentPago.estado_pago === "pagado") {
       // Toggle to Pendiente (delete or update to 0)
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("torneo_individual_pagos")
         .delete()
         .eq("id", currentPago.id);
@@ -1072,7 +1072,7 @@ export default function TorneoIndividualDashboard() {
         estado_pago: "pagado" as const,
       };
 
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from("torneo_individual_pagos")
         .upsert(payload, { onConflict: "torneo_id,fecha,jugador_id" });
 
@@ -1192,7 +1192,7 @@ export default function TorneoIndividualDashboard() {
     const shuffled = [...listIds].sort(() => Math.random() - 0.5);
 
     try {
-      const { data: dateRow, error: fErr } = await supabase
+      const { data: dateRow, error: fErr } = await (supabase as any)
         .from("torneo_individual_fechas")
         .upsert({
           torneo_id: id,
@@ -1226,7 +1226,7 @@ export default function TorneoIndividualDashboard() {
           estado: "pendiente" as const,
         };
 
-        matchPromises.push(supabase.from("partidos_individuales").insert(matchPayload));
+        matchPromises.push((supabase as any).from("partidos_individuales").insert(matchPayload));
       }
 
       await Promise.all(matchPromises);
@@ -1246,7 +1246,7 @@ export default function TorneoIndividualDashboard() {
     }
     
     try {
-      const { error } = await supabase.rpc("generar_fixture_americano_8", { p_torneo_id: id });
+      const { error } = await (supabase as any).rpc("generar_fixture_americano_8", { p_torneo_id: id });
       
       if (error) throw error;
       
@@ -1274,7 +1274,7 @@ export default function TorneoIndividualDashboard() {
     const top8 = standings.slice(0, 8).map(s => s.jugador_id);
     
     try {
-      const { error } = await supabase.rpc("generar_fixture_final_8", { 
+      const { error } = await (supabase as any).rpc("generar_fixture_final_8", { 
         p_torneo_id: id,
         p_jugadores: top8 
       });
@@ -1316,10 +1316,10 @@ export default function TorneoIndividualDashboard() {
       }
       
       if (missingFechas.length > 0) {
-        await supabase.from("torneo_individual_fechas").insert(missingFechas);
+        await (supabase as any).from("torneo_individual_fechas").insert(missingFechas);
       }
 
-      const { error } = await supabase.rpc("generar_fixture_americano_12", { p_torneo_id: id });
+      const { error } = await (supabase as any).rpc("generar_fixture_americano_12", { p_torneo_id: id });
       
       if (error) throw error;
       
@@ -1347,7 +1347,7 @@ export default function TorneoIndividualDashboard() {
     const top12 = standings.slice(0, 12).map(s => s.jugador_id);
     
     try {
-      const { error } = await supabase.rpc("generar_fixture_final_12", { 
+      const { error } = await (supabase as any).rpc("generar_fixture_final_12", { 
         p_torneo_id: id,
         p_jugadores: top12 
       });
@@ -1386,7 +1386,7 @@ export default function TorneoIndividualDashboard() {
     }
 
     try {
-      const { data: dateRow, error: fErr } = await supabase
+      const { data: dateRow, error: fErr } = await (supabase as any)
         .from("torneo_individual_fechas")
         .upsert({
           torneo_id: id,
@@ -1418,7 +1418,7 @@ export default function TorneoIndividualDashboard() {
           const p6 = standings[5];
 
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: 7,
               cancha: "Cancha 1: Semifinal (1º vs 4º)",
@@ -1431,7 +1431,7 @@ export default function TorneoIndividualDashboard() {
           );
 
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: 7,
               cancha: "Cancha 2: Semifinal (2º vs 3º)",
@@ -1444,7 +1444,7 @@ export default function TorneoIndividualDashboard() {
           );
 
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: 7,
               cancha: "Cancha 3: Base (Posición Baja)",
@@ -1489,7 +1489,7 @@ export default function TorneoIndividualDashboard() {
 
           // Cancha 1 (Élite): Winner C1 vs Winner C2
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: fechaNum,
               cancha: "Cancha 1: Élite",
@@ -1503,7 +1503,7 @@ export default function TorneoIndividualDashboard() {
 
           // Cancha 2 (Desafío): Loser C1 vs Winner C3
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: fechaNum,
               cancha: "Cancha 2: Desafío",
@@ -1517,7 +1517,7 @@ export default function TorneoIndividualDashboard() {
 
           // Cancha 3 (Base): Loser C2 vs Loser C3
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: fechaNum,
               cancha: "Cancha 3: Base",
@@ -1605,7 +1605,7 @@ export default function TorneoIndividualDashboard() {
             jugador4_id: courtPlayerIds[2],
             estado: "pendiente" as const,
           };
-          matchPromises.push(supabase.from("partidos_individuales").insert(matchPayload));
+          matchPromises.push((supabase as any).from("partidos_individuales").insert(matchPayload));
         }
       }
 
@@ -1632,7 +1632,7 @@ export default function TorneoIndividualDashboard() {
     }
 
     try {
-      const { data: dateRow, error: fErr } = await supabase
+      const { data: dateRow, error: fErr } = await (supabase as any)
         .from("torneo_individual_fechas")
         .insert({
           torneo_id: id,
@@ -1676,7 +1676,7 @@ export default function TorneoIndividualDashboard() {
 
       // Cancha 1: Final (Winner Semifinal 1 vs Winner Semifinal 2)
       matchPromises.push(
-        supabase.from("partidos_individuales").insert({
+        (supabase as any).from("partidos_individuales").insert({
           torneo_id: id,
           fecha: finalWeek,
           cancha: "Cancha 1: Élite (Gran Final)",
@@ -1690,7 +1690,7 @@ export default function TorneoIndividualDashboard() {
 
       // Cancha 2: Tercer Puesto (Loser Semifinal 1 vs Loser Semifinal 2)
       matchPromises.push(
-        supabase.from("partidos_individuales").insert({
+        (supabase as any).from("partidos_individuales").insert({
           torneo_id: id,
           fecha: finalWeek,
           cancha: "Cancha 2: Desafío (Tercer Puesto)",
@@ -1704,7 +1704,7 @@ export default function TorneoIndividualDashboard() {
 
       // Cancha 3: Revancha Recreativa (The same two couples of Cancha 3 in Week 7)
       matchPromises.push(
-        supabase.from("partidos_individuales").insert({
+        (supabase as any).from("partidos_individuales").insert({
           torneo_id: id,
           fecha: finalWeek,
           cancha: "Cancha 3: Base (Revancha)",
@@ -1799,7 +1799,7 @@ export default function TorneoIndividualDashboard() {
     const finalWeek = torneo?.desafio_semanas ?? 8;
     const courtsCount = torneo?.canchas_count ?? 3;
     try {
-      const { data: dateRow, error: fErr } = await supabase
+      const { data: dateRow, error: fErr } = await (supabase as any)
         .from("torneo_individual_fechas")
         .upsert({
           torneo_id: id,
@@ -1816,7 +1816,7 @@ export default function TorneoIndividualDashboard() {
 
       // Match 1: La Final (Cancha 1)
       matchPromises.push(
-        supabase.from("partidos_individuales").insert({
+        (supabase as any).from("partidos_individuales").insert({
           torneo_id: id,
           fecha: finalWeek,
           cancha: "Cancha 1: Élite (Gran Final)",
@@ -1830,7 +1830,7 @@ export default function TorneoIndividualDashboard() {
 
       // Match 2: Tercer Puesto (Cancha 2)
       matchPromises.push(
-        supabase.from("partidos_individuales").insert({
+        (supabase as any).from("partidos_individuales").insert({
           torneo_id: id,
           fecha: finalWeek,
           cancha: "Cancha 2: Desafío (Tercer Puesto)",
@@ -1863,7 +1863,7 @@ export default function TorneoIndividualDashboard() {
       for (let court = 3; court <= courtsCount; court++) {
         if (remainingIds.length >= remainingIndex + 4) {
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: finalWeek,
               cancha: `Cancha ${court}: ${court === 3 ? "Base" : "General"} (Partido de Honor)`,
@@ -1981,7 +1981,7 @@ export default function TorneoIndividualDashboard() {
 
     try {
       // Update match record
-      const { error: matchErr } = await supabase
+      const { error: matchErr } = await (supabase as any)
         .from("partidos_individuales")
         .update({
           sets_pareja1: setsLocal,
@@ -2001,7 +2001,7 @@ export default function TorneoIndividualDashboard() {
 
       // Set 1
       setPromises.push(
-        supabase
+        (supabase as any)
           .from("sets_partido_individual")
           .upsert(
             { partido_individual_id: selectedPartido.id, numero_set: 1, games_pareja1: g1_local, games_pareja2: g1_visi },
@@ -2011,7 +2011,7 @@ export default function TorneoIndividualDashboard() {
 
       // Set 2
       setPromises.push(
-        supabase
+        (supabase as any)
           .from("sets_partido_individual")
           .upsert(
             { partido_individual_id: selectedPartido.id, numero_set: 2, games_pareja1: g2_local, games_pareja2: g2_visi },
@@ -2025,7 +2025,7 @@ export default function TorneoIndividualDashboard() {
       }
       if (!isNaN(g3_local) && !isNaN(g3_visi)) {
         setPromises.push(
-          supabase
+          (supabase as any)
             .from("sets_partido_individual")
             .upsert(
               { partido_individual_id: selectedPartido.id, numero_set: 3, games_pareja1: g3_local, games_pareja2: g3_visi },
@@ -2034,7 +2034,7 @@ export default function TorneoIndividualDashboard() {
         );
       } else {
         // delete set 3 if it existed but was cleared
-        await supabase
+        await (supabase as any)
           .from("sets_partido_individual")
           .delete()
           .eq("partido_individual_id", selectedPartido.id)
@@ -2062,7 +2062,7 @@ export default function TorneoIndividualDashboard() {
       return;
     }
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("torneo_individual_fechas")
       .update({ estado: "completada" })
       .eq("id", selectedFecha.id);
@@ -2081,7 +2081,7 @@ export default function TorneoIndividualDashboard() {
     
     if (!window.confirm(`¿Estás seguro de que quieres reabrir la Fecha ${selectedFechaNum}?`)) return;
 
-    const { error } = await supabase
+    const { error } = await (supabase as any)
       .from("torneo_individual_fechas")
       .update({ estado: "pendiente" })
       .eq("id", selectedFecha.id);

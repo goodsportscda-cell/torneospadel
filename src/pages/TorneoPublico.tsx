@@ -39,7 +39,7 @@ export default function TorneoPublico() {
     if (!slug) return;
     
     // Buscamos solo por ID para evitar el error de cache del slug
-    const { data: tData, error: tErr } = await supabase
+    const { data: tData, error: tErr } = await (supabase as any)
       .from("torneos")
       .select("*")
       .eq("id", slug)

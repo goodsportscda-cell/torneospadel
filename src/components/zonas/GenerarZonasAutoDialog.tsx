@@ -45,8 +45,8 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
     setLoading(true);
     try {
       // 1. Obtener canchas disponibles del torneo
-      const { data: torneo } = await supabase.from("torneos").select("canchas_disponibles").eq("id", torneoId).single();
-      const canchasDisp = torneo?.canchas_disponibles || 3;
+      const { data: torneo } = await (supabase as any).from("torneos").select("canchas_disponibles").eq("id", torneoId).single();
+      const canchasDisp = (torneo as any)?.canchas_disponibles || 3;
 
       // 2. Obtener franjas horarias
       const { data: franjasData } = await supabase
@@ -154,7 +154,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
         const nombreLimpio = zp.nombre.trim().replace(/^Zona\s+/i, "") || String.fromCharCode(65 + i);
 
         // 1. Insertar la zona
-        const { data: newZona, error: errZona } = await supabase.from("zonas").insert({
+        const { data: newZona, error: errZona } = await (supabase as any).from("zonas").insert({
           torneo_id: torneoId,
           nombre: nombreLimpio,
           tamanio: zp.parejas.length,
@@ -166,13 +166,13 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
 
         // 2. Insertar parejas (siembra 1..N)
         const parejasToInsert = zp.parejas.map((p, pIdx) => ({
-          zona_id: newZona.id,
+          zona_id: (newZona as any).id,
           inscripcion_id: p.id,
           posicion_siembra: pIdx + 1
         }));
         
         if (parejasToInsert.length > 0) {
-          const { error: errParejas } = await supabase.from("zonas_parejas").insert(parejasToInsert);
+          const { error: errParejas } = await (supabase as any).from("zonas_parejas").insert(parejasToInsert);
           if (errParejas) throw errParejas;
         }
 
@@ -191,7 +191,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
           : null;
 
         const partidosToInsert = fixture.map(f => ({
-          zona_id: newZona.id,
+          zona_id: (newZona as any).id,
           orden: f.orden,
           tipo: f.tipo,
           posicion_local: f.posicion_local,
@@ -201,7 +201,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
           fecha_hora: fechaHoraCombo
         }));
         
-        const { error: errPartidos } = await supabase.from("partidos_zona").insert(partidosToInsert);
+        const { error: errPartidos } = await (supabase as any).from("partidos_zona").insert(partidosToInsert);
         if (errPartidos) throw errPartidos;
       }
 

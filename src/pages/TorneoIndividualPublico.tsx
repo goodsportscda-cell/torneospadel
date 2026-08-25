@@ -291,7 +291,9 @@ export default function TorneoIndividualPublico() {
         sA.partidosJugados++;
         sB.partidosJugados++;
 
-        const p1Won = m.sets_pareja1 > m.sets_pareja2;
+        const setsP1 = m.sets_pareja1;
+        const setsP2 = m.sets_pareja2;
+        const p1Won = setsP1 > setsP2;
 
         const courtMatch = m.cancha.match(/\d+/);
         const courtIndex = courtMatch ? parseInt(courtMatch[0], 10) : 1;
