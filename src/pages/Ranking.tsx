@@ -602,6 +602,13 @@ export default function Ranking() {
       }
       ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
 
+      // Si este ascenso fue superado por un ascenso posterior (ej: 7ma -> 6ta y luego 6ta -> 5ta),
+      // los puntos de 7ma -> 6ta ya se tomaron en cuenta al calcular el 50% de 6ta -> 5ta.
+      const isSuperseded = Array.from(ascensosDeduplicados.values()).some(
+        (b: any) => b.jugador_id === a.jugador_id && b.categoria_origen_id === a.categoria_destino_id
+      );
+      if (isSuperseded) return;
+
       if (filtroCategoria === "todas" || a.categoria_destino_id === filtroCategoria) {
         const ptsTorneosOrigen = torneosPtsMap.get(a.jugador_id)?.get(a.categoria_origen_id) ?? 0;
         const ptsCalc = Math.floor(ptsTorneosOrigen / 2);
@@ -774,13 +781,21 @@ export default function Ranking() {
     setDetalleAscensoNotas(null);
     try {
       // 1. Obtener ascensos del jugador para identificar categorías de origen excluidas
-      const { data: playerAscensos } = await supabase
+      const { data: playerAscensos } = await (supabase as any)
         .from("ascensos")
-        .select("categoria_origen_id, notas")
+        .select("categoria_origen_id, categoria_destino_id, notas")
         .eq("jugador_id", jugador.jugador_id)
         .eq("anio", filtroAnio);
-      const ascendidosDesdeIds = new Set((playerAscensos ?? []).map(a => a.categoria_origen_id));
-      const notasList = (playerAscensos ?? []).map(a => a.notas).filter(Boolean);
+      const ascendidosDesdeIds = new Set((playerAscensos ?? []).map((a: any) => a.categoria_origen_id));
+      const activeAscensos = (playerAscensos ?? []).filter((a: any) => {
+        const isSuperseded = (playerAscensos ?? []).some(
+          (b: any) => b.categoria_origen_id === a.categoria_destino_id
+        );
+        if (isSuperseded) return false;
+        if (filtroCategoria !== "todas" && a.categoria_destino_id !== filtroCategoria) return false;
+        return true;
+      });
+      const notasList = activeAscensos.map((a: any) => a.notas).filter(Boolean);
       setDetalleAscensoNotas(notasList.length > 0 ? notasList.join(" | ") : null);
 
       let q = supabase

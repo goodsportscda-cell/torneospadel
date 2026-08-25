@@ -143,6 +143,13 @@ export function useClubRanking(
         }
         ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
 
+        // Si este ascenso fue superado por un ascenso posterior (ej: 7ma -> 6ta y luego 6ta -> 5ta),
+        // los puntos de 7ma -> 6ta ya fueron incorporados en el 50% transferido a 5ta.
+        const isSuperseded = Array.from(ascensosDeduplicados.values()).some(
+          (b: any) => b.jugador_id === a.jugador_id && b.categoria_origen_id === a.categoria_destino_id
+        );
+        if (isSuperseded) return;
+
         // Puntos reales calculados: 50% de la suma de torneos de la categoría origen (o a.puntos_transferidos si fuera mayor)
         const ptsTorneosOrigen = torneosPtsPorJugadorYCat.get(a.jugador_id)?.get(a.categoria_origen_id) ?? 0;
         const ptsCalc = Math.floor(ptsTorneosOrigen / 2);
