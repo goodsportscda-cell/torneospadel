@@ -34,7 +34,7 @@ import type { Database } from "@/integrations/supabase/types";
 import FusionarDialog from "@/components/jugadores/FusionarDialog";
 import DetalleJugadorDialog from "@/components/jugadores/DetalleJugadorDialog";
 
-type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
+type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { genero?: Genero | null; notas?: string | null };
 type Categoria = Database["public"]["Tables"]["categorias"]["Row"];
 type Genero = Database["public"]["Enums"]["genero_categoria"];
 
@@ -184,7 +184,7 @@ export default function Jugadores() {
     };
 
     if (editing) {
-      const { error } = await supabase.from("jugadores").update(payload).eq("id", editing.id);
+      const { error } = await (supabase as any).from("jugadores").update(payload).eq("id", editing.id);
       if (error) {
         if (error.message.includes("jugadores_dni_unique"))
           return toast.error("Ya existe un jugador con ese DNI");
@@ -192,10 +192,10 @@ export default function Jugadores() {
       }
       toast.success("Jugador actualizado");
     } else {
-      const { error } = await supabase.from("jugadores").insert(payload);
+      const { error } = await (supabase as any).from("jugadores").insert(payload);
       if (error) {
         if (error.message.includes("jugadores_dni_unique"))
-          return toast.error("Ya existe un jugador con ese DNI");
+          return toast.error("Ya existe un jugador with ese DNI");
         return toast.error("Error al crear: " + error.message);
       }
       toast.success("Jugador creado");
