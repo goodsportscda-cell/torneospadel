@@ -37,8 +37,8 @@ import { PlayerStats } from "@/components/jugador/PlayerStats";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
 import type { Database } from "@/integrations/supabase/types";
 
-type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
-type Categoria = Database["public"]["Tables"]["categorias_jugadores"]["Row"];
+type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { notas?: string | null };
+type Categoria = Database["public"]["Tables"]["categorias"]["Row"];
 
 interface Props {
   open: boolean;

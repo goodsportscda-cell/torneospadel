@@ -35,7 +35,7 @@ import FusionarDialog from "@/components/jugadores/FusionarDialog";
 import DetalleJugadorDialog from "@/components/jugadores/DetalleJugadorDialog";
 
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
-type Categoria = Database["public"]["Tables"]["categorias_jugadores"]["Row"];
+type Categoria = Database["public"]["Tables"]["categorias"]["Row"];
 type Genero = Database["public"]["Enums"]["genero_categoria"];
 
 interface FormState {
@@ -78,7 +78,7 @@ export default function Jugadores() {
 
   const fetchCategorias = async () => {
     setLoading(true);
-    const { data: c, error: ec } = await supabase
+    const { data: c, error: ec } = await (supabase as any)
       .from("categorias_jugadores")
       .select("*")
       .eq("activa", true)

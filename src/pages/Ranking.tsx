@@ -427,7 +427,7 @@ export default function Ranking() {
   const [cupoEdit, setCupoEdit] = useState<string>("");
 
   const [detalleOpen, setDetalleOpen] = useState(false);
-  const [detalleJugador, setDetalleJugador] = useState<RankingRow | null>(null);
+  const [detalleJugador, setDetalleJugador] = useState<RankingRowUnified | null>(null);
   const [detalleData, setDetalleData] = useState<DetalleTorneo[]>([]);
   const [loadingDetalle, setLoadingDetalle] = useState(false);
   const [detalleAscensoNotas, setDetalleAscensoNotas] = useState<string | null>(null);
@@ -817,7 +817,7 @@ export default function Ranking() {
             .from("torneos")
             .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
             .in("id", torneoIds)
-        : { data: [] };
+        : { data: [] as Array<{ id: string; nombre: string; fecha_inicio: string | null; numero_fecha: number | null; multiplicador_puntos: number | null }> };
 
       const { data: puntosCfg } = await supabase
         .from("puntos_ranking")

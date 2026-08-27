@@ -1138,7 +1138,7 @@ export default function TorneoIndividualDashboard() {
       const shuffled = [...parejas].sort(() => Math.random() - 0.5);
 
       try {
-        const { data: dateRow, error: fErr } = await supabase
+        const { data: dateRow, error: fErr } = await (supabase as any)
           .from("torneo_individual_fechas")
           .upsert({
             torneo_id: id,
@@ -1158,7 +1158,7 @@ export default function TorneoIndividualDashboard() {
           const parejaB = shuffled[offset + 1];
 
           matchPromises.push(
-            supabase.from("partidos_individuales").insert({
+            (supabase as any).from("partidos_individuales").insert({
               torneo_id: id,
               fecha: 1,
               cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
