@@ -811,6 +811,7 @@ export default function Ranking() {
       // Filtrar registros que pertenecen a una categoría de origen de la que el jugador ya ascendió
       const rjFiltrados = (rj ?? []).filter((r) => !ascendidosDesdeIds.has(r.categoria_id));
 
+      const torneoIds = Array.from(new Set(rjFiltrados.map((r) => r.torneo_id)));
       let torneos: Array<{ id: string; nombre: string; fecha_inicio: string | null; numero_fecha: number | null; multiplicador_puntos: number | null }> = [];
       if (torneoIds.length > 0) {
         const { data: tData } = await supabase
