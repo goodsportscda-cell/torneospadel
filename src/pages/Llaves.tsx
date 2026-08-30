@@ -466,29 +466,61 @@ export default function Llaves() {
     const sync = async () => {
       const updates: Promise<unknown>[] = [];
       for (const p of partidosLlave) {
-        if (p.estado !== "finalizado" || !p.ganador_id || !p.partido_siguiente_id) continue;
-        const siguiente = partidosLlave.find((x) => x.id === p.partido_siguiente_id);
-        if (!siguiente) continue;
-        const esLocal = p.posicion_siguiente === "local";
-        const valorActual = esLocal ? siguiente.pareja_local_id : siguiente.pareja_visitante_id;
+        if (p.estado !== "finalizado" || !p.ganador_id) continue;
         
-        // Verificar que el partido destino todavía espere a este ganador.
-        // Si el admin editó manualmente ref_local/ref_visitante para poner algo como "1°J"
-        // en lugar de "G:numero", debemos abortar el auto-avance para no sobrescribir su decisión.
-        const refEsperada = esLocal ? siguiente.ref_local : siguiente.ref_visitante;
-        if (refEsperada !== `G:${p.numero}`) {
-          continue;
+        // Buscar el partido siguiente DE FORMA DINÁMICA basado en las referencias lógicas G:numero
+        // Esto previene que el avance se rompa si se modificó manualmente el cuadro y se movieron 
+        // los punteros de DB (partido_siguiente_id).
+        const sigLocal = partidosLlave.find(x => x.ref_local === `G:${p.numero}`);
+        const sigVisi = partidosLlave.find(x => x.ref_visitante === `G:${p.numero}`);
+        
+        let siguiente = null;
+        let esLocal = true;
+        
+        if (sigLocal) {
+          siguiente = sigLocal;
+          esLocal = true;
+        } else if (sigVisi) {
+          siguiente = sigVisi;
+          esLocal = false;
+        } else if (p.partido_siguiente_id) {
+          // Fallback al puntero de BD si existe, pero validando la ref
+          siguiente = partidosLlave.find((x) => x.id === p.partido_siguiente_id);
+          if (siguiente) {
+            esLocal = p.posicion_siguiente === "local";
+            const refEsperada = esLocal ? siguiente.ref_local : siguiente.ref_visitante;
+            if (refEsperada !== `G:${p.numero}`) {
+              siguiente = null; // La ref no coincide, abortar este fallback
+            }
+          }
         }
 
+        if (!siguiente) continue;
+
+        const valorActual = esLocal ? siguiente.pareja_local_id : siguiente.pareja_visitante_id;
+        
         if (valorActual !== p.ganador_id) {
           const payload = esLocal
             ? { pareja_local_id: p.ganador_id }
             : { pareja_visitante_id: p.ganador_id };
+          
           updates.push(
             Promise.resolve(
               supabase.from("partidos_llave").update(payload).eq("id", siguiente.id),
             ),
           );
+          
+          // Reparar silenciosamente el puntero roto en la BD para que quede consistente
+          if (p.partido_siguiente_id !== siguiente.id) {
+            updates.push(
+              Promise.resolve(
+                supabase.from("partidos_llave").update({
+                  partido_siguiente_id: siguiente.id,
+                  posicion_siguiente: esLocal ? "local" : "visitante"
+                }).eq("id", p.id)
+              )
+            );
+          }
           
           // Notificar al usuario que el sistema avanzó a un ganador
           const equipoGanador = p.ganador_id ? parejaLabel(p.ganador_id) : "Un equipo";
