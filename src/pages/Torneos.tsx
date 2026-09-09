@@ -124,16 +124,16 @@ const generateSlug = (nombre: string) => {
 function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: () => void }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
-  const [loading, setLoading] = useState(false);
+  const [loadingFecha, setLoadingFecha] = useState<number | null>(null);
 
   const fechas = Array.from(new Set(torneos.filter(t => t.numero_fecha != null).map(t => t.numero_fecha))).sort((a, b) => b - a);
 
   const handleRecalcularFecha = async (fecha: number) => {
-    setLoading(true);
+    setLoadingFecha(fecha);
     const torneosFecha = torneos.filter(t => t.numero_fecha === fecha && t.estado === "finalizado");
     if (torneosFecha.length === 0) {
       toast.error("No hay torneos finalizados en esta fecha");
-      setLoading(false);
+      setLoadingFecha(null);
       return;
     }
     let successCount = 0;
@@ -143,11 +143,11 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
     }
     toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);
     queryClient.invalidateQueries({ queryKey: ["ranking"] });
-    setLoading(false);
+    setLoadingFecha(null);
   };
 
   const handleTogglePublicar = async (fecha: number, currentEstado: boolean) => {
-    setLoading(true);
+    setLoadingFecha(fecha);
     const nuevoEstado = !currentEstado;
     const torneosFecha = torneos.filter(t => t.numero_fecha === fecha);
     const ids = torneosFecha.map(t => t.id);
@@ -159,7 +159,7 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
       queryClient.invalidateQueries({ queryKey: ["ranking"] });
       fetchAll();
     }
-    setLoading(false);
+    setLoadingFecha(null);
   };
 
   return (
@@ -189,17 +189,17 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
                     <p className="text-xs text-muted-foreground">{torneosFecha.length} torneos</p>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" disabled={loading} onClick={() => handleRecalcularFecha(f)}>
-                      Recalcular Ranking
+                    <Button size="sm" variant="outline" disabled={loadingFecha === f} onClick={() => handleRecalcularFecha(f)}>
+                      {loadingFecha === f ? "Cargando..." : "Recalcular Ranking"}
                     </Button>
                     <Button 
                       size="sm" 
                       variant={publicados ? "default" : "outline"} 
-                      disabled={loading}
+                      disabled={loadingFecha === f}
                       onClick={() => handleTogglePublicar(f, publicados)}
                       className={publicados ? "bg-green-600 hover:bg-green-700 text-white" : ""}
                     >
-                      {publicados ? "Publicado (Visible)" : "Oculto"}
+                      {loadingFecha === f ? "Cargando..." : (publicados ? "Publicado (Visible)" : "Oculto")}
                     </Button>
                   </div>
                 </div>
