@@ -201,7 +201,7 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
                     <Button 
                       size="sm" 
                       variant={publicados ? "default" : "outline"} 
-                      disabled={loadingPublicarFecha === f || loadingRecalcularFecha === f}
+                      disabled={loadingPublicarFecha === f}
                       onClick={() => handleTogglePublicar(f, publicados)}
                       className={publicados ? "bg-green-600 hover:bg-green-700 text-white" : "text-muted-foreground"}
                     >
