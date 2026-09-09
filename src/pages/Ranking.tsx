@@ -191,12 +191,16 @@ export default function Ranking() {
         const defCupo = cat.nombre.toLowerCase().includes("suma 7") ? 8 : 16;
         const cuposCount = cuposMap.get(cat.id) ?? defCupo;
 
+        const { data: torneosPubPDF } = await supabase.from("torneos").select("id").eq("ranking_publicado", true);
+        const idsPubPDF = (torneosPubPDF ?? []).map((t: any) => t.id);
+
         const [{ data: ranking }, { data: ascDestino }, { data: ascOrigen }] = await Promise.all([
           supabase
             .from("ranking_jugadores")
             .select("jugador_id, puntos")
             .eq("anio", filtroAnio)
-            .eq("categoria_id", cat.id),
+            .eq("categoria_id", cat.id)
+            .in("torneo_id", idsPubPDF),
           supabase
             .from("ascensos")
             .select("jugador_id, puntos_transferidos")
@@ -528,6 +532,13 @@ export default function Ranking() {
   };
 
   const cargarRanking = async () => {
+    // 1. Obtener IDs de torneos publicados
+    const { data: torneosPub } = await supabase
+      .from("torneos")
+      .select("id")
+      .eq("ranking_publicado", true);
+    const idsPublicados = (torneosPub ?? []).map(t => t.id);
+
     let rankingData: any[] = [];
     let isFetchingRanking = true;
     let rankingOffset = 0;
@@ -538,6 +549,7 @@ export default function Ranking() {
         .from("ranking_jugadores")
         .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
         .eq("anio", filtroAnio)
+        .in("torneo_id", idsPublicados)
         .order("id")
         .range(rankingOffset, rankingOffset + step - 1);
 
@@ -798,11 +810,15 @@ export default function Ranking() {
       const notasList = activeAscensos.map((a: any) => a.notas).filter(Boolean);
       setDetalleAscensoNotas(notasList.length > 0 ? notasList.join(" | ") : null);
 
+      const { data: torneosPubDetalle } = await supabase.from("torneos").select("id").eq("ranking_publicado", true);
+      const idsPubDetalle = (torneosPubDetalle ?? []).map(t => t.id);
+
       let q = supabase
         .from("ranking_jugadores")
         .select("torneo_id, instancia, puntos, categoria_id")
         .eq("jugador_id", jugador.jugador_id)
-        .eq("anio", filtroAnio);
+        .eq("anio", filtroAnio)
+        .in("torneo_id", idsPubDetalle);
       if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
       if (filtroGenero !== "todos") q = q.eq("genero", filtroGenero);
       const { data: rj, error } = await q;

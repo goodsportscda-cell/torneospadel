@@ -68,6 +68,7 @@ export interface Database {
           estado: "proximamente" | "inscripciones_abiertas" | "inscripciones_cerradas" | "en_curso" | "finalizado" | "cancelado"
           notas: string | null
           numero_fecha: number | null
+          ranking_publicado: boolean | null
           multiplicador_puntos: number | null
           cupo_maximo: number | null
           canchas_count: number | null
@@ -100,6 +101,7 @@ export interface Database {
           estado?: "proximamente" | "inscripciones_abiertas" | "inscripciones_cerradas" | "en_curso" | "finalizado" | "cancelado"
           notas?: string | null
           numero_fecha?: number | null
+          ranking_publicado?: boolean | null
           multiplicador_puntos?: number | null
           cupo_maximo?: number | null
           canchas_count?: number | null
@@ -132,6 +134,7 @@ export interface Database {
           estado?: "proximamente" | "inscripciones_abiertas" | "inscripciones_cerradas" | "en_curso" | "finalizado" | "cancelado"
           notas?: string | null
           numero_fecha?: number | null
+          ranking_publicado?: boolean | null
           multiplicador_puntos?: number | null
           cupo_maximo?: number | null
           canchas_count?: number | null

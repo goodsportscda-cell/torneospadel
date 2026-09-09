@@ -137,12 +137,16 @@ export default function PlayerDashboard() {
 
       // If linked, get performance data
       if (jId) {
+        const { data: torneosPub } = await supabase.from("torneos").select("id").eq("ranking_publicado", true);
+        const idsPub = (torneosPub ?? []).map(t => t.id);
+
         // My tournament results
         const { data: rankData } = await supabase
           .from("ranking_jugadores")
           .select("torneo_id, instancia, puntos, categoria_id")
           .eq("jugador_id", jId)
-          .eq("anio", anio);
+          .eq("anio", anio)
+          .in("torneo_id", idsPub);
 
         if (rankData && rankData.length > 0) {
           const torneoIds = [...new Set(rankData.map(r => r.torneo_id))];
@@ -182,7 +186,8 @@ export default function PlayerDashboard() {
               .from("ranking_jugadores")
               .select("jugador_id, puntos, categoria_id")
               .eq("anio", anio)
-              .in("categoria_id", catIds);
+              .in("categoria_id", catIds)
+              .in("torneo_id", idsPub);
 
             const puntosPorCat = new Map<string, Map<string, number>>();
             (allRank ?? []).forEach(r => {

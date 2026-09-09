@@ -121,6 +121,97 @@ const generateSlug = (nombre: string) => {
     .replace(/^-+|-+$/g, ""); // limpiar guiones al inicio/fin
 };
 
+function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: () => void }) {
+  const [open, setOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const [loading, setLoading] = useState(false);
+
+  const fechas = Array.from(new Set(torneos.filter(t => t.numero_fecha != null).map(t => t.numero_fecha))).sort((a, b) => b - a);
+
+  const handleRecalcularFecha = async (fecha: number) => {
+    setLoading(true);
+    const torneosFecha = torneos.filter(t => t.numero_fecha === fecha && t.estado === "finalizado");
+    if (torneosFecha.length === 0) {
+      toast.error("No hay torneos finalizados en esta fecha");
+      setLoading(false);
+      return;
+    }
+    let successCount = 0;
+    for (const t of torneosFecha) {
+      const res = await calcularRankingTorneo(t.id);
+      if (res.ok) successCount++;
+    }
+    toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);
+    queryClient.invalidateQueries({ queryKey: ["ranking"] });
+    setLoading(false);
+  };
+
+  const handleTogglePublicar = async (fecha: number, currentEstado: boolean) => {
+    setLoading(true);
+    const nuevoEstado = !currentEstado;
+    const torneosFecha = torneos.filter(t => t.numero_fecha === fecha);
+    const ids = torneosFecha.map(t => t.id);
+    const { error } = await supabase.from("torneos").update({ ranking_publicado: nuevoEstado }).in("id", ids);
+    if (error) {
+      toast.error("Error al actualizar la visibilidad: " + error.message);
+    } else {
+      toast.success(`Ranking de la fecha ${fecha} ${nuevoEstado ? 'publicado' : 'ocultado'}`);
+      queryClient.invalidateQueries({ queryKey: ["ranking"] });
+      fetchAll();
+    }
+    setLoading(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={setOpen}>
+      <DialogTrigger asChild>
+        <Button variant="secondary">Gestión de Fechas</Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Gestión Masiva por Fechas</DialogTitle>
+          <DialogDescription>
+            Recalcula el ranking o publica/oculta los resultados de una fecha completa.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4 py-4 max-h-[60vh] overflow-y-auto">
+          {fechas.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center">No hay torneos con número de fecha asignado.</p>
+          ) : (
+            fechas.map(f => {
+              const torneosFecha = torneos.filter(t => t.numero_fecha === f);
+              const publicados = torneosFecha.some(t => t.ranking_publicado);
+              
+              return (
+                <div key={f} className="flex items-center justify-between p-3 border rounded-md">
+                  <div>
+                    <h3 className="font-semibold text-sm">Fecha {f}</h3>
+                    <p className="text-xs text-muted-foreground">{torneosFecha.length} torneos</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" disabled={loading} onClick={() => handleRecalcularFecha(f)}>
+                      Recalcular Ranking
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant={publicados ? "default" : "outline"} 
+                      disabled={loading}
+                      onClick={() => handleTogglePublicar(f, publicados)}
+                      className={publicados ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                    >
+                      {publicados ? "Publicado (Visible)" : "Oculto"}
+                    </Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function Torneos() {
   const { clubId, isSuperAdmin } = useAuth();
   const queryClient = useQueryClient();
@@ -539,8 +630,10 @@ export default function Torneos() {
             Crear, editar y cambiar el estado de los torneos.
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
+        <div className="flex items-center gap-2">
+          <GestionFechasDialog torneos={torneos} fetchAll={fetchAll} />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
             <Button onClick={openCreate}>
               <Plus className="h-4 w-4" />
               Nuevo torneo
@@ -901,6 +994,7 @@ export default function Torneos() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+        </div>
       </div>
 
       {loading ? (
