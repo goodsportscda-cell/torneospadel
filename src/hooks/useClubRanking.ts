@@ -37,10 +37,11 @@ export function useClubRanking(
       setLoading(true);
       setError(null);
 
-      // 1. Obtener Torneos
+      // 1. Obtener Torneos Publicados
       let torneosQuery = supabase
         .from("torneos")
-        .select("id, nombre, fecha_fin, estado");
+        .select("id, nombre, fecha_fin, estado")
+        .eq("ranking_publicado", true);
 
       if (clubId) {
         torneosQuery = torneosQuery.eq("club_id", clubId);
