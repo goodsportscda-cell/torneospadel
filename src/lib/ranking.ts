@@ -40,6 +40,15 @@ const RONDA_A_INSTANCIA_PERDIDA: Record<RondaLlave, Instancia> = {
   final: "subcampeon",
 };
 
+const RONDA_A_INSTANCIA_GANADA: Record<RondaLlave, Instancia> = {
+  previa: "dieciseisavos",
+  dieciseisavos: "octavos",
+  octavos: "cuartos",
+  cuartos: "semifinal",
+  semifinal: "subcampeon",
+  final: "campeon",
+};
+
 /**
  * Calcula y guarda los puntos de ranking para todos los jugadores
  * de un torneo finalizado. Borra puntos previos del torneo y los recalcula.
@@ -101,66 +110,70 @@ export async function calcularRankingTorneo(torneoId: string): Promise<{
     // 4a. Llaves del torneo
     const { data: llaves } = await supabase
       .from("llaves")
-      .select("id")
-      .eq("torneo_id", torneoId);
+      .select("id, created_at")
+      .eq("torneo_id", torneoId)
+      .order("created_at", { ascending: false });
+
+    let llaveId = null;
+    let partidos: any[] | null = null;
 
     if (llaves && llaves.length > 0) {
-      const llaveId = llaves[0].id;
-      const { data: partidos } = await supabase
-        .from("partidos_llave")
-        .select(
-          "id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id"
-        )
-        .eq("llave_id", llaveId);
-
-      // Para cada inscripción que estuvo en el cuadro, calcular su mejor ronda perdida
-      // o si fue campeón
-      const finales = (partidos ?? []).filter((p) => p.ronda === "final");
-      const final = finales[0];
-
-      // Campeón y subcampeón
-      if (final && final.estado === "finalizado" && final.ganador_id) {
-        inscripcionInstancia.set(final.ganador_id, "campeon");
-        const perdedor =
-          final.pareja_local_id === final.ganador_id
-            ? final.pareja_visitante_id
-            : final.pareja_local_id;
-        if (perdedor) inscripcionInstancia.set(perdedor, "subcampeon");
-      } else if (final) {
-        // Si la final no está jugada, los dos finalistas (si los hay) cuentan como subcampeón mínimo
-        if (final.pareja_local_id)
-          inscripcionInstancia.set(final.pareja_local_id, "subcampeon");
-        if (final.pareja_visitante_id)
-          inscripcionInstancia.set(final.pareja_visitante_id, "subcampeon");
+      for (const ll of llaves) {
+        const { data: p } = await supabase
+          .from("partidos_llave")
+          .select("id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id")
+          .eq("llave_id", ll.id);
+        
+        if (p && p.length > 0) {
+          llaveId = ll.id;
+          partidos = p;
+          break;
+        }
       }
+    }
 
-      // Resto de rondas: para cada partido finalizado, el perdedor "cae" en esa ronda
+    if (llaveId && partidos) {
       const partidoMap = new Map();
-      (partidos ?? []).forEach((p) => partidoMap.set(p.id, p));
+      partidos.forEach((p) => partidoMap.set(p.id, p));
 
-      (partidos ?? [])
-        .filter((p) => p.ronda !== "final" && p.estado === "finalizado" && p.ganador_id)
+      partidos
+        .filter((p) => p.estado === "finalizado" && p.ganador_id)
         .forEach((p) => {
+          // Asignar al perdedor
           const perdedor =
             p.pareja_local_id === p.ganador_id
               ? p.pareja_visitante_id
               : p.pareja_local_id;
-          if (!perdedor) return;
           
-          let instancia = RONDA_A_INSTANCIA_PERDIDA[p.ronda as RondaLlave];
+          if (perdedor) {
+            let instanciaPerdida = RONDA_A_INSTANCIA_PERDIDA[p.ronda as RondaLlave];
+            if (p.ronda === "previa") {
+              const sig = partidoMap.get(p.partido_siguiente_id);
+              if (sig) {
+                if (sig.ronda === "octavos") instanciaPerdida = "dieciseisavos";
+                else if (sig.ronda === "cuartos") instanciaPerdida = "octavos";
+                else if (sig.ronda === "semifinal") instanciaPerdida = "cuartos";
+              }
+            }
+            const actual = inscripcionInstancia.get(perdedor);
+            if (!actual || instanciaPeso(instanciaPerdida) > instanciaPeso(actual)) {
+              inscripcionInstancia.set(perdedor, instanciaPerdida);
+            }
+          }
+
+          // Asignar al ganador
+          let instanciaGanada = RONDA_A_INSTANCIA_GANADA[p.ronda as RondaLlave];
           if (p.ronda === "previa") {
             const sig = partidoMap.get(p.partido_siguiente_id);
             if (sig) {
-              if (sig.ronda === "octavos") instancia = "dieciseisavos";
-              else if (sig.ronda === "cuartos") instancia = "octavos";
-              else if (sig.ronda === "semifinal") instancia = "cuartos";
+              if (sig.ronda === "octavos") instanciaGanada = "octavos";
+              else if (sig.ronda === "cuartos") instanciaGanada = "cuartos";
+              else if (sig.ronda === "semifinal") instanciaGanada = "semifinal";
             }
           }
-          
-          // Solo asignar si no tiene una mejor ya
-          const actual = inscripcionInstancia.get(perdedor);
-          if (!actual || instanciaPeso(instancia) > instanciaPeso(actual)) {
-            inscripcionInstancia.set(perdedor, instancia);
+          const actualG = inscripcionInstancia.get(p.ganador_id);
+          if (!actualG || instanciaPeso(instanciaGanada) > instanciaPeso(actualG)) {
+             inscripcionInstancia.set(p.ganador_id, instanciaGanada);
           }
         });
     }

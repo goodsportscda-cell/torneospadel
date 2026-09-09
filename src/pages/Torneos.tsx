@@ -38,6 +38,7 @@ import {
 import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink, Settings } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
+import { useQueryClient } from "@tanstack/react-query";
 import { calcularRankingTorneo } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
 import { TorneoFranjasDialog } from "@/components/torneos/TorneoFranjasDialog";
@@ -122,6 +123,7 @@ const generateSlug = (nombre: string) => {
 
 export default function Torneos() {
   const { clubId, isSuperAdmin } = useAuth();
+  const queryClient = useQueryClient();
   const [torneos, setTorneos] = useState<any[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -301,6 +303,7 @@ export default function Torneos() {
       const res = await calcularRankingTorneo(t.id);
       if (res.ok) {
         toast.success(`Estado actualizado. Ranking calculado (${res.jugadoresConPuntos} registros).`);
+        queryClient.invalidateQueries({ queryKey: ["ranking"] });
       } else {
         toast.error("Estado actualizado, pero falló el cálculo de ranking: " + res.error);
       }
@@ -350,6 +353,7 @@ export default function Torneos() {
     const res = await calcularRankingTorneo(t.id);
     if (res.ok) {
       toast.success(`Ranking recalculado: ${res.jugadoresConPuntos} registros.`);
+      queryClient.invalidateQueries({ queryKey: ["ranking"] });
     } else {
       toast.error("Error al recalcular: " + res.error);
     }
