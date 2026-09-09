@@ -129,37 +129,42 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
   const fechas = Array.from(new Set(torneos.filter(t => t.numero_fecha != null).map(t => t.numero_fecha))).sort((a, b) => b - a);
 
   const handleRecalcularFecha = async (fecha: number) => {
-    setLoadingFecha(fecha);
-    const torneosFecha = torneos.filter(t => t.numero_fecha === fecha && t.estado === "finalizado");
-    if (torneosFecha.length === 0) {
-      toast.error("No hay torneos finalizados en esta fecha");
+    try {
+      setLoadingFecha(fecha);
+      const torneosFecha = torneos.filter(t => t.numero_fecha === fecha && t.estado === "finalizado");
+      if (torneosFecha.length === 0) {
+        toast.error("No hay torneos finalizados en esta fecha");
+        return;
+      }
+      let successCount = 0;
+      for (const t of torneosFecha) {
+        const res = await calcularRankingTorneo(t.id);
+        if (res.ok) successCount++;
+      }
+      toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);
+      queryClient.invalidateQueries({ queryKey: ["ranking"] });
+    } finally {
       setLoadingFecha(null);
-      return;
     }
-    let successCount = 0;
-    for (const t of torneosFecha) {
-      const res = await calcularRankingTorneo(t.id);
-      if (res.ok) successCount++;
-    }
-    toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);
-    queryClient.invalidateQueries({ queryKey: ["ranking"] });
-    setLoadingFecha(null);
   };
 
   const handleTogglePublicar = async (fecha: number, currentEstado: boolean) => {
-    setLoadingFecha(fecha);
-    const nuevoEstado = !currentEstado;
-    const torneosFecha = torneos.filter(t => t.numero_fecha === fecha);
-    const ids = torneosFecha.map(t => t.id);
-    const { error } = await supabase.from("torneos").update({ ranking_publicado: nuevoEstado }).in("id", ids);
-    if (error) {
-      toast.error("Error al actualizar la visibilidad: " + error.message);
-    } else {
-      toast.success(`Ranking de la fecha ${fecha} ${nuevoEstado ? 'publicado' : 'ocultado'}`);
-      queryClient.invalidateQueries({ queryKey: ["ranking"] });
-      fetchAll();
+    try {
+      setLoadingFecha(fecha);
+      const nuevoEstado = !currentEstado;
+      const torneosFecha = torneos.filter(t => t.numero_fecha === fecha);
+      const ids = torneosFecha.map(t => t.id);
+      const { error } = await supabase.from("torneos").update({ ranking_publicado: nuevoEstado }).in("id", ids);
+      if (error) {
+        toast.error("Error al actualizar la visibilidad: " + error.message);
+      } else {
+        toast.success(`Ranking de la fecha ${fecha} ${nuevoEstado ? 'publicado' : 'ocultado'}`);
+        queryClient.invalidateQueries({ queryKey: ["ranking"] });
+        fetchAll();
+      }
+    } finally {
+      setLoadingFecha(null);
     }
-    setLoadingFecha(null);
   };
 
   return (
@@ -197,9 +202,9 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
                       variant={publicados ? "default" : "outline"} 
                       disabled={loadingFecha === f}
                       onClick={() => handleTogglePublicar(f, publicados)}
-                      className={publicados ? "bg-green-600 hover:bg-green-700 text-white" : ""}
+                      className={publicados ? "bg-green-600 hover:bg-green-700 text-white" : "text-muted-foreground"}
                     >
-                      {loadingFecha === f ? "Cargando..." : (publicados ? "Publicado (Visible)" : "Oculto")}
+                      {loadingFecha === f ? "Cargando..." : (publicados ? "Publicado (Visible)" : "No publicado")}
                     </Button>
                   </div>
                 </div>
