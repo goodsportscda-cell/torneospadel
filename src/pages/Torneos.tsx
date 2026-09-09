@@ -39,7 +39,7 @@ import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe,
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
-import { calcularRankingTorneo } from "@/lib/ranking";
+import { calcularRankingTorneo, recalcularTodosLosAscensos } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
 import { TorneoFranjasDialog } from "@/components/torneos/TorneoFranjasDialog";
 
@@ -139,9 +139,17 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
       }
       let successCount = 0;
       for (const t of torneosFecha) {
-        const res = await calcularRankingTorneo(t.id);
+        // Pasamos true para saltar el recálculo de ascensos individual por cada torneo
+        const res = await calcularRankingTorneo(t.id, true);
         if (res.ok) successCount++;
       }
+      
+      // Hacer el recálculo de ascensos UNA SOLA VEZ al final para todos
+      if (torneosFecha.length > 0) {
+        const anio = new Date(torneosFecha[0].fecha_inicio).getFullYear();
+        await recalcularTodosLosAscensos(anio);
+      }
+      
       toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);
       queryClient.invalidateQueries({ queryKey: ["ranking"] });
     } finally {

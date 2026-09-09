@@ -53,7 +53,7 @@ const RONDA_A_INSTANCIA_GANADA: Record<RondaLlave, Instancia> = {
  * Calcula y guarda los puntos de ranking para todos los jugadores
  * de un torneo finalizado. Borra puntos previos del torneo y los recalcula.
  */
-export async function calcularRankingTorneo(torneoId: string): Promise<{
+export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc: boolean = false): Promise<{
   ok: boolean;
   jugadoresConPuntos: number;
   error?: string;
@@ -227,7 +227,9 @@ export async function calcularRankingTorneo(torneoId: string): Promise<{
     }
 
     // Recalcular todos los ascensos del año para mantener puntos transferidos consistentes
-    await recalcularTodosLosAscensos(anio);
+    if (!skipAscensosRecalc) {
+      await recalcularTodosLosAscensos(anio);
+    }
 
     return { ok: true, jugadoresConPuntos: filas.length };
   } catch (e) {
@@ -275,6 +277,7 @@ export async function recalcularTodosLosAscensos(anio: number): Promise<void> {
     });
 
     // 3. Procesar ascensos cronológicamente actualizando los puntos transferidos
+    const updatePromises = [];
     for (const asc of ascensos) {
       const pId = asc.jugador_id;
       const catOrig = asc.categoria_origen_id;
@@ -285,18 +288,16 @@ export async function recalcularTodosLosAscensos(anio: number): Promise<void> {
       const ptsOrigen = catMap.get(catOrig) ?? 0;
       const ptsTransferidos = Math.floor(ptsOrigen / 2);
 
-      // Actualizar en la base de datos
-      const { error: errUpd } = await supabase
-        .from("ascensos")
-        .update({
-          puntos_origen: ptsOrigen,
-          puntos_transferidos: ptsTransferidos,
-        })
-        .eq("id", asc.id);
-
-      if (errUpd) {
-        console.error(`Error al recalcular ascenso ${asc.id}:`, errUpd);
-      }
+      // Actualizar en la base de datos (lo guardamos en un array para ejecutar en paralelo)
+      updatePromises.push(
+        supabase
+          .from("ascensos")
+          .update({
+            puntos_origen: ptsOrigen,
+            puntos_transferidos: ptsTransferidos,
+          })
+          .eq("id", asc.id)
+      );
 
       // Sumar los puntos transferidos a la categoría destino para futuros ascensos encadenados
       if (!puntosPorJugador.has(pId)) {
@@ -305,6 +306,9 @@ export async function recalcularTodosLosAscensos(anio: number): Promise<void> {
       const destCatMap = puntosPorJugador.get(pId)!;
       destCatMap.set(catDest, (destCatMap.get(catDest) ?? 0) + ptsTransferidos);
     }
+
+    // Ejecutar todas las actualizaciones en paralelo para optimizar velocidad
+    await Promise.all(updatePromises);
   } catch (err) {
     console.error("Error en recalcularTodosLosAscensos:", err);
   }
