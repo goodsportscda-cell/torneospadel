@@ -211,6 +211,22 @@ export default function Jugadores() {
     refreshSearchList();
   };
 
+  const handleCategoriaChange = async (jugadorId: string, nuevaCategoriaId: string) => {
+    const isSinCategoria = nuevaCategoriaId === "sin-categoria";
+    const payload = { categoria_id: isSinCategoria ? null : nuevaCategoriaId };
+    
+    // Optimistic UI update
+    setJugadores(prev => prev.map(j => j.id === jugadorId ? { ...j, categoria_id: payload.categoria_id } : j));
+    
+    const { error } = await (supabase as any).from("jugadores").update(payload).eq("id", jugadorId);
+    if (error) {
+      toast.error("Error al actualizar la categoría: " + error.message);
+      refreshSearchList(); // Revert on error
+      return;
+    }
+    toast.success("Categoría actualizada");
+  };
+
   const categoriasFiltradas = useMemo(() => {
     if (!form.genero) return categorias;
     return categorias.filter((c) => c.genero === form.genero);
@@ -431,7 +447,22 @@ export default function Jugadores() {
                       </p>
                       {j.dni && <p className="text-xs text-muted-foreground">DNI {j.dni}</p>}
                     </div>
-                    {cat && <Badge variant="secondary" className="shrink-0">{cat}</Badge>}
+                    <Select 
+                      value={j.categoria_id || "sin-categoria"} 
+                      onValueChange={(val) => handleCategoriaChange(j.id, val)}
+                    >
+                      <SelectTrigger className="h-7 text-xs w-[110px] border-dashed shrink-0">
+                        <SelectValue placeholder="Categoría" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="sin-categoria" className="text-muted-foreground italic">Sin categoría</SelectItem>
+                        {categorias.map((c) => (
+                          <SelectItem key={c.id} value={c.id}>
+                            {c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} {c.nombre}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   {(j.telefono || j.email) && (
                     <div className="space-y-1 text-xs text-muted-foreground">

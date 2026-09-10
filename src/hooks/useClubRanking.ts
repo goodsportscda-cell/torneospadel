@@ -15,6 +15,7 @@ export type RankingRowUnified = {
   jugador_nombre: string;
   jugador_apellido: string;
   jugador_club: string | null;
+  jugador_categoria_id: string | null;
   puntos_totales: number;
   puntos_torneos: number;
   puntos_ascenso: number;
@@ -223,12 +224,12 @@ export function useClubRanking(
         chunks.push(ids.slice(i, i + chunkSize));
       }
       
-      let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
+      let jugadores: { id: string; nombre: string; apellido: string; club: string | null; categoria_id: string | null }[] = [];
       const results = await Promise.all(
         chunks.map(chunk => 
           supabase
             .from("jugadores")
-            .select("id, nombre, apellido, club")
+            .select("id, nombre, apellido, club, categoria_id")
             .in("id", chunk)
         )
       );
@@ -262,6 +263,7 @@ export function useClubRanking(
           jugador_nombre: j?.nombre ?? "?",
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
+          jugador_categoria_id: j?.categoria_id ?? null,
           puntos_totales,
           puntos_torneos,
           puntos_ascenso,

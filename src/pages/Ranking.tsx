@@ -651,13 +651,13 @@ export default function Ranking() {
       chunks.push(ids.slice(i, i + chunkSize));
     }
     
-    let jugadores: { id: string; nombre: string; apellido: string; club: string | null }[] = [];
+    let jugadores: { id: string; nombre: string; apellido: string; club: string | null; categoria_id: string | null }[] = [];
     try {
       const results = await Promise.all(
         chunks.map(chunk => 
           supabase
             .from("jugadores")
-            .select("id, nombre, apellido, club")
+            .select("id, nombre, apellido, club, categoria_id")
             .in("id", chunk)
         )
       );
@@ -688,6 +688,7 @@ export default function Ranking() {
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
         jugador_club: j?.club ?? null,
+        jugador_categoria_id: j?.categoria_id ?? null,
         desglose: [],
       };
     });
@@ -1295,6 +1296,7 @@ export default function Ranking() {
                   <TableHead className="w-12">#</TableHead>
                   <TableHead>Jugador</TableHead>
                   <TableHead className="hidden sm:table-cell">Club</TableHead>
+                  <TableHead className="hidden md:table-cell">Categoría</TableHead>
                   <TableHead className="text-center">Torneos</TableHead>
                   <TableHead className="text-right">Puntos</TableHead>
                   <TableHead className="w-10"></TableHead>
@@ -1319,6 +1321,13 @@ export default function Ranking() {
                       </TableCell>
                       <TableCell className="hidden sm:table-cell text-sm text-muted-foreground">
                         {r.jugador_club ?? "—"}
+                      </TableCell>
+                      <TableCell className="hidden md:table-cell">
+                        {r.jugador_categoria_id ? (() => {
+                          const cat = categorias.find(c => c.id === r.jugador_categoria_id);
+                          if (!cat) return <span className="text-muted-foreground">—</span>;
+                          return <Badge variant="secondary" className="shrink-0">{cat.genero === "caballeros" ? "Cab." : cat.genero === "damas" ? "Dam." : "Mix."} {cat.nombre}</Badge>;
+                        })() : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline">{r.torneos_jugados}</Badge>
