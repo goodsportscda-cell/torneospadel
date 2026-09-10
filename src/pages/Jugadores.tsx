@@ -473,6 +473,7 @@ export default function Jugadores() {
           </SelectContent>
         </Select>
       </div>
+      </div>
 
       {loading ? (
         <p className="text-sm text-muted-foreground">Cargando categorías...</p>
