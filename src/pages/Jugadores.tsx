@@ -70,6 +70,7 @@ export default function Jugadores() {
   const [search, setSearch] = useState("");
   const [filtroGenero, setFiltroGenero] = useState<Genero | "todos">("todos");
   const [filtroCategoriaMain, setFiltroCategoriaMain] = useState<string>("todas");
+  const [letraActiva, setLetraActiva] = useState<string>("A");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fusionarOpen, setFusionarOpen] = useState(false);
   const [editing, setEditing] = useState<Jugador | null>(null);
@@ -93,9 +94,9 @@ export default function Jugadores() {
     fetchCategorias();
   }, []);
 
-  const handleSearch = async (queryText: string, genero: string, categoria: string) => {
+  const handleSearch = async (queryText: string, genero: string, categoria: string, letra: string) => {
     const q = queryText.trim();
-    if (q.length < 3 && categoria === "todas") {
+    if (q.length < 3 && categoria === "todas" && !letra) {
       setJugadores([]);
       return;
     }
@@ -104,7 +105,10 @@ export default function Jugadores() {
       let dbQuery = supabase.from("jugadores").select("*");
       if (q.length >= 3) {
         dbQuery = dbQuery.or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,dni.ilike.%${q}%,club.ilike.%${q}%`);
+      } else if (letra) {
+        dbQuery = dbQuery.ilike('apellido', `${letra}%`);
       }
+
       if (categoria !== "todas") {
         dbQuery = dbQuery.eq("categoria_id", categoria);
       } else if (genero !== "todos") {
@@ -126,18 +130,18 @@ export default function Jugadores() {
 
   useEffect(() => {
     const q = search.trim();
-    if (q.length < 3 && filtroCategoriaMain === "todas") {
+    if (q.length < 3 && filtroCategoriaMain === "todas" && !letraActiva) {
       setJugadores([]);
       return;
     }
     const delayDebounceFn = setTimeout(() => {
-      handleSearch(q, filtroGenero, filtroCategoriaMain);
+      handleSearch(q, filtroGenero, filtroCategoriaMain, letraActiva);
     }, 350);
     return () => clearTimeout(delayDebounceFn);
-  }, [search, filtroGenero, filtroCategoriaMain]);
+  }, [search, filtroGenero, filtroCategoriaMain, letraActiva]);
 
   const refreshSearchList = () => {
-    handleSearch(search, filtroGenero, filtroCategoriaMain);
+    handleSearch(search, filtroGenero, filtroCategoriaMain, letraActiva);
   };
 
   const openDetail = (j: Jugador) => {
@@ -393,19 +397,49 @@ export default function Jugadores() {
         onDone={refreshSearchList}
       />
 
-      <div className="flex gap-2 flex-wrap">
-        <div className="relative flex-1 min-w-[180px]">
-          <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Buscar por nombre, DNI o ciudad..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
+      <div className="flex flex-col gap-3">
+        {/* Barra del abecedario */}
+        <div className="flex flex-wrap gap-1">
+          {"ABCDEFGHIJKLMNOPQRSTUVWXYZ".split("").map((letra) => (
+            <button
+              key={letra}
+              onClick={() => {
+                if (letraActiva === letra) {
+                  setLetraActiva("");
+                } else {
+                  setLetraActiva(letra);
+                  setSearch(""); // Limpiar búsqueda de texto al usar el abecedario
+                }
+              }}
+              className={`h-8 w-8 rounded-md text-xs font-semibold flex items-center justify-center transition-colors ${
+                letraActiva === letra
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
+              }`}
+            >
+              {letra}
+            </button>
+          ))}
         </div>
-        <Select 
-          value={filtroGenero} 
-          onValueChange={(v: Genero | "todos") => {
+
+        <div className="flex gap-2 flex-wrap">
+          <div className="relative flex-1 min-w-[180px]">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Buscar por nombre, DNI o ciudad..."
+              value={search}
+              onChange={(e) => {
+                setSearch(e.target.value);
+                if (e.target.value.length >= 3) {
+                  setLetraActiva(""); // Limpiar la letra si el usuario usa la búsqueda libre
+                }
+              }}
+              className="pl-8"
+            />
+          </div>
+          <Select 
+            value={filtroGenero} 
+            onValueChange={(v: Genero | "todos") => {
             setFiltroGenero(v);
             if (v !== "todos" && filtroCategoriaMain !== "todas") {
               const catSeleccionada = categorias.find(c => c.id === filtroCategoriaMain);
@@ -447,13 +481,13 @@ export default function Jugadores() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
           <p className="text-sm text-muted-foreground">Buscando jugadores...</p>
         </div>
-      ) : search.trim().length < 3 && filtroCategoriaMain === "todas" ? (
+      ) : search.trim().length < 3 && filtroCategoriaMain === "todas" && !letraActiva ? (
         <Card className="border border-dashed bg-muted/10">
           <CardContent className="py-12 text-center flex flex-col items-center justify-center text-muted-foreground">
             <Search className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-semibold">Consultar Jugadores</p>
             <p className="text-xs max-w-sm mt-1">
-              Ingresá al menos 3 letras en el buscador o seleccioná una categoría específica para realizar la consulta.
+              Seleccioná una letra del abecedario, una categoría, o ingresá al menos 3 letras en el buscador para realizar la consulta.
             </p>
           </CardContent>
         </Card>
