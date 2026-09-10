@@ -69,6 +69,7 @@ export default function Jugadores() {
   const [loadingJugadores, setLoadingJugadores] = useState(false);
   const [search, setSearch] = useState("");
   const [filtroGenero, setFiltroGenero] = useState<Genero | "todos">("todos");
+  const [filtroCategoriaMain, setFiltroCategoriaMain] = useState<string>("todas");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fusionarOpen, setFusionarOpen] = useState(false);
   const [editing, setEditing] = useState<Jugador | null>(null);
@@ -92,19 +93,24 @@ export default function Jugadores() {
     fetchCategorias();
   }, []);
 
-  const handleSearch = async (queryText: string, genero: string) => {
+  const handleSearch = async (queryText: string, genero: string, categoria: string) => {
     const q = queryText.trim();
-    if (q.length < 3) {
+    if (q.length < 3 && categoria === "todas") {
       setJugadores([]);
       return;
     }
     setLoadingJugadores(true);
     try {
       let dbQuery = supabase.from("jugadores").select("*");
-      dbQuery = dbQuery.or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,dni.ilike.%${q}%,club.ilike.%${q}%`);
-      if (genero !== "todos") {
+      if (q.length >= 3) {
+        dbQuery = dbQuery.or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,dni.ilike.%${q}%,club.ilike.%${q}%`);
+      }
+      if (categoria !== "todas") {
+        dbQuery = dbQuery.eq("categoria_id", categoria);
+      } else if (genero !== "todos") {
         dbQuery = dbQuery.eq("genero", genero);
       }
+      
       const { data, error } = await dbQuery.order("apellido").limit(100);
       if (error) {
         toast.error("Error al buscar jugadores: " + error.message);
@@ -120,18 +126,18 @@ export default function Jugadores() {
 
   useEffect(() => {
     const q = search.trim();
-    if (q.length < 3) {
+    if (q.length < 3 && filtroCategoriaMain === "todas") {
       setJugadores([]);
       return;
     }
     const delayDebounceFn = setTimeout(() => {
-      handleSearch(q, filtroGenero);
+      handleSearch(q, filtroGenero, filtroCategoriaMain);
     }, 350);
     return () => clearTimeout(delayDebounceFn);
-  }, [search, filtroGenero]);
+  }, [search, filtroGenero, filtroCategoriaMain]);
 
   const refreshSearchList = () => {
-    handleSearch(search, filtroGenero);
+    handleSearch(search, filtroGenero, filtroCategoriaMain);
   };
 
   const openDetail = (j: Jugador) => {
@@ -397,15 +403,39 @@ export default function Jugadores() {
             className="pl-8"
           />
         </div>
-        <Select value={filtroGenero} onValueChange={(v: Genero | "todos") => setFiltroGenero(v)}>
+        <Select 
+          value={filtroGenero} 
+          onValueChange={(v: Genero | "todos") => {
+            setFiltroGenero(v);
+            if (v !== "todos" && filtroCategoriaMain !== "todas") {
+              const catSeleccionada = categorias.find(c => c.id === filtroCategoriaMain);
+              if (catSeleccionada && catSeleccionada.genero !== v) {
+                setFiltroCategoriaMain("todas");
+              }
+            }
+          }}
+        >
           <SelectTrigger className="w-[140px]">
-            <SelectValue />
+            <SelectValue placeholder="Género" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos</SelectItem>
             <SelectItem value="caballeros">Caballeros</SelectItem>
             <SelectItem value="damas">Damas</SelectItem>
             <SelectItem value="mixto">Mixto</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select value={filtroCategoriaMain} onValueChange={setFiltroCategoriaMain}>
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Categoría" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="todas">Todas las categorías</SelectItem>
+            {categorias.filter(c => filtroGenero === "todos" || c.genero === filtroGenero).map((c) => (
+              <SelectItem key={c.id} value={c.id}>
+                {c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} {c.nombre}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
       </div>
@@ -417,13 +447,13 @@ export default function Jugadores() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
           <p className="text-sm text-muted-foreground">Buscando jugadores...</p>
         </div>
-      ) : search.trim().length < 3 ? (
+      ) : search.trim().length < 3 && filtroCategoriaMain === "todas" ? (
         <Card className="border border-dashed bg-muted/10">
           <CardContent className="py-12 text-center flex flex-col items-center justify-center text-muted-foreground">
             <Search className="h-10 w-10 text-muted-foreground/30 mb-3" />
             <p className="text-sm font-semibold">Consultar Jugadores</p>
             <p className="text-xs max-w-sm mt-1">
-              Ingresá al menos 3 letras del nombre, apellido, DNI o ciudad en el buscador para realizar la consulta.
+              Ingresá al menos 3 letras en el buscador o seleccioná una categoría específica para realizar la consulta.
             </p>
           </CardContent>
         </Card>
