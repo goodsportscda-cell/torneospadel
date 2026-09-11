@@ -2067,7 +2067,7 @@ export default function TorneoIndividualDashboard() {
 
       if (error) throw error;
 
-      toast.success(nuevoEstado ? `Semana ${selectedFechaNum} publicada en el muro.` : `Semana ${selectedFechaNum} ocultada del muro.`);
+      toast.success(nuevoEstado ? `Semana ${selectedFecha.fecha} publicada en el muro.` : `Semana ${selectedFecha.fecha} ocultada del muro.`);
       queryClient.invalidateQueries({ queryKey: ["fechas", id] });
     } catch (err: any) {
       toast.error("Error al cambiar la visibilidad: " + err.message);
@@ -2961,12 +2961,12 @@ export default function TorneoIndividualDashboard() {
                     {selectedFecha.publicado ? (
                       <>
                         <Eye className="h-4 w-4 mr-1.5" />
-                        Muro Público
+                        Semana {selectedFechaNum} Pública
                       </>
                     ) : (
                       <>
                         <EyeOff className="h-4 w-4 mr-1.5" />
-                        Muro Oculto
+                        Semana {selectedFechaNum} Oculta
                       </>
                     )}
                   </Button>
