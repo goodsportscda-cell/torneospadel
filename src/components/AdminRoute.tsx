@@ -3,7 +3,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { Loader2 } from "lucide-react";
 
 export default function AdminRoute({ children }: { children: React.ReactNode }) {
-  const { isAdmin, loading } = useAuth();
+  const { isAdmin, isOperador, loading } = useAuth();
 
   if (loading) {
     return (
@@ -13,7 +13,7 @@ export default function AdminRoute({ children }: { children: React.ReactNode }) 
     );
   }
 
-  if (!isAdmin) {
+  if (!isAdmin && !isOperador) {
     return <Navigate to="/player/dashboard" replace />;
   }
 

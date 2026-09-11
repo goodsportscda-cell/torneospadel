@@ -30,7 +30,7 @@ type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
 
 export default function Zonas() {
-  const { clubId } = useAuth();
+  const { clubId, isAdmin } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>(() => {
     return localStorage.getItem("ultimo_torneo_consultado") || "";
@@ -289,39 +289,45 @@ export default function Zonas() {
                 Actualizar
               </Button>
 
-              <Button variant="secondary" size="sm" onClick={handleAddZona}>
-                <Plus className="h-4 w-4 mr-2" />
-                Añadir Zona
-              </Button>
+              {isAdmin && (
+                <Button variant="secondary" size="sm" onClick={handleAddZona}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Añadir Zona
+                </Button>
+              )}
 
               {zonas.length === 0 ? (
-                <GenerarZonasAutoDialog 
-                  torneoId={torneoId}
-                  onZonasCreadas={() => cargarDatos()}
-                />
+                isAdmin && (
+                  <GenerarZonasAutoDialog 
+                    torneoId={torneoId}
+                    onZonasCreadas={() => cargarDatos()}
+                  />
+                )
               ) : (
-                <AlertDialog>
-                  <AlertDialogTrigger asChild>
-                    <Button variant="destructive" size="sm">
-                      <Trash2 className="h-4 w-4 mr-2" />
-                      Borrar Todo
-                    </Button>
-                  </AlertDialogTrigger>
-                  <AlertDialogContent>
-                    <AlertDialogHeader>
-                      <AlertDialogTitle>¿Borrar todas las zonas?</AlertDialogTitle>
-                      <AlertDialogDescription>
-                        Eliminará todas las zonas, partidos y resultados. No se puede deshacer.
-                      </AlertDialogDescription>
-                    </AlertDialogHeader>
-                    <AlertDialogFooter>
-                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                      <AlertDialogAction onClick={handleBorrarTodo} className="bg-destructive text-destructive-foreground">
-                        Confirmar Borrado
-                      </AlertDialogAction>
-                    </AlertDialogFooter>
-                  </AlertDialogContent>
-                </AlertDialog>
+                isAdmin && (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="sm">
+                        <Trash2 className="h-4 w-4 mr-2" />
+                        Borrar Todo
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>¿Borrar todas las zonas?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          Eliminará todas las zonas, partidos y resultados. No se puede deshacer.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleBorrarTodo} className="bg-destructive text-destructive-foreground">
+                          Confirmar Borrado
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                )
               )}
             </div>
 

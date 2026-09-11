@@ -40,6 +40,7 @@ import {
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -105,6 +106,7 @@ const serializePremiosString = (cash1: number, cash2: number, gifts: string) => 
 export default function TorneoIndividualDashboard() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { isAdmin } = useAuth();
   const queryClient = useQueryClient();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -2257,7 +2259,7 @@ export default function TorneoIndividualDashboard() {
           <TabsList className="bg-muted p-1">
             <TabsTrigger value="resumen">Resumen</TabsTrigger>
             <TabsTrigger value="inscriptos">Inscriptos ({jugadoresInscriptos.length})</TabsTrigger>
-            <TabsTrigger value="finanzas">Finanzas y Pagos</TabsTrigger>
+            {isAdmin && <TabsTrigger value="finanzas">Finanzas y Pagos</TabsTrigger>}
             <TabsTrigger value="fixture">Fixture y Resultados</TabsTrigger>
             <TabsTrigger value="ranking">Posiciones Generales</TabsTrigger>
           </TabsList>
@@ -2984,7 +2986,7 @@ export default function TorneoIndividualDashboard() {
                   </Button>
                 )}
 
-                {selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
+                {isAdmin && selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
                   <Button
                     size="sm"
                     variant="outline"
@@ -3046,7 +3048,7 @@ export default function TorneoIndividualDashboard() {
                       El fixture para esta fecha aún no ha sido generado. Genera los enfrentamientos para comenzar a jugar.
                     </p>
                   </div>
-                  {selectedFechaNum === 1 ? (
+                  {isAdmin && selectedFechaNum === 1 ? (
                     <div className="flex flex-col gap-2">
                       <Button onClick={handleGenerarFecha1}>
                         <Settings className="h-4 w-4 mr-1.5" />
@@ -3065,7 +3067,7 @@ export default function TorneoIndividualDashboard() {
                         </Button>
                       )}
                     </div>
-                  ) : selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
+                  ) : isAdmin && selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
                     torneo?.modalidad === "parejas" ? (
                       <Button onClick={handleGenerarFecha8Parejas}>
                         Generar Gran Final y Cruces Finales (Semana {torneo?.desafio_semanas ?? 8})

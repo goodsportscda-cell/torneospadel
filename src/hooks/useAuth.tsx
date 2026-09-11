@@ -7,6 +7,7 @@ interface AuthContextType {
   session: Session | null;
   isAdmin: boolean;
   isSuperAdmin: boolean;
+  isOperador: boolean;
   clubId: string | null;
   clubActivo: { id: string; nombre: string; logo_url: string | null } | null;
   loading: boolean;
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
+  const [isOperador, setIsOperador] = useState(false);
   const [clubId, setClubId] = useState<string | null>(null);
   const [clubActivo, setClubActivo] = useState<{ id: string; nombre: string; logo_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!nextSession?.user) {
         setIsAdmin(false);
         setIsSuperAdmin(false);
+        setIsOperador(false);
         setClubId(null);
         setLoading(false);
         return;
@@ -74,6 +77,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const isSA = profile?.rol === "super_admin";
         setIsSuperAdmin(isSA);
         setIsAdmin(isSA || profile?.rol === "club_admin");
+        setIsOperador(profile?.rol === "operador");
         
         let targetClub = profile?.club_id ?? null;
         if (isSA) {
@@ -93,6 +97,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } catch (error) {
         setIsAdmin(false);
         setIsSuperAdmin(false);
+        setIsOperador(false);
         setClubId(null);
         setClubActivo(null);
       } finally {
@@ -137,7 +142,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, clubId, clubActivo, loading, setImpersonatedClubId, refreshClub, signOut }}>
+    <AuthContext.Provider value={{ user, session, isAdmin, isSuperAdmin, isOperador, clubId, clubActivo, loading, setImpersonatedClubId, refreshClub, signOut }}>
       {children}
     </AuthContext.Provider>
   );

@@ -35,19 +35,19 @@ export interface Database {
       perfiles: {
         Row: {
           id: string
-          rol: "super_admin" | "club_admin" | "jugador"
+          rol: "super_admin" | "club_admin" | "operador" | "jugador"
           club_id: string | null
           created_at: string
         }
         Insert: {
           id: string
-          rol: "super_admin" | "club_admin" | "jugador"
+          rol: "super_admin" | "club_admin" | "operador" | "jugador"
           club_id?: string | null
           created_at?: string
         }
         Update: {
           id?: string
-          rol?: "super_admin" | "club_admin" | "jugador"
+          rol?: "super_admin" | "club_admin" | "operador" | "jugador"
           club_id?: string | null
           created_at?: string
         }

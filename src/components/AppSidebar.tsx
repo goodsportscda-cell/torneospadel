@@ -33,7 +33,14 @@ const items = [
 export function AppSidebar() {
   const { state } = useSidebar();
   const collapsed = state === "collapsed";
-  const { clubActivo } = useAuth();
+  const { clubActivo, isAdmin } = useAuth();
+  
+  // Filtrar items según el rol (Operador ve menos opciones)
+  const visibleItems = items.filter(item => {
+    if (isAdmin) return true;
+    // Para Operadores, solo mostramos las secciones operativas:
+    return ["Torneos", "Inscripciones", "Zonas", "Canchas en vivo", "Llaves", "Marcador en Vivo"].includes(item.title);
+  });
   
   const displayNombre = clubActivo?.nombre || activeTenant.name;
   const displayLogo = clubActivo?.logo_url || activeTenant.logo;
@@ -72,7 +79,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Gestión</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) => (
+              {visibleItems.map((item) => (
                 <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild tooltip={item.title}>
                     <NavLink

@@ -78,7 +78,7 @@ type PartidoLlaveRow = {
 const setsVacios: any[] = [];
 
 export default function Llaves() {
-  const { clubId } = useAuth();
+  const { clubId, isAdmin } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>(() => {
     return localStorage.getItem("ultimo_torneo_consultado") || "";
@@ -668,7 +668,7 @@ export default function Llaves() {
         </Select>
       </div>
 
-      {!llave && (
+      {!llave && isAdmin && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Generar cuadro</CardTitle>
@@ -798,27 +798,29 @@ export default function Llaves() {
                 <Sparkles className="h-4 w-4 mr-1" />
                 Recalcular desde zonas
               </Button>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="ghost" size="sm">
-                    <Trash2 className="h-4 w-4 mr-1" />
-                    Eliminar cuadro
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>¿Eliminar el cuadro?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      Se borrarán todos los partidos de llave y resultados cargados. Las zonas no se
-                      modifican.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                    <AlertDialogAction onClick={eliminarLlave}>Eliminar</AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
+              {isAdmin && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm">
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Eliminar cuadro
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>¿Eliminar el cuadro?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Se borrarán todos los partidos de llave y resultados cargados. Las zonas no se
+                        modifican.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                      <AlertDialogAction onClick={eliminarLlave}>Eliminar</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
             </div>
           </div>
 

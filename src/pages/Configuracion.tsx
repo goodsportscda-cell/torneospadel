@@ -4,8 +4,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Image as ImageIcon } from "lucide-react";
+import { Loader2, Upload, Image as ImageIcon, Users, Settings } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { StaffManager } from "@/components/configuracion/StaffManager";
 
 export default function Configuracion() {
   const { clubActivo, refreshClub } = useAuth();
@@ -78,89 +80,108 @@ export default function Configuracion() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h2 className="text-2xl font-bold tracking-tight">Configuración del Club</h2>
-        <p className="text-muted-foreground">Gestiona la información pública y la identidad visual de tu club.</p>
+        <p className="text-muted-foreground">Gestiona la información pública, la identidad visual y tu equipo de trabajo.</p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Logotipo Oficial</CardTitle>
-          <CardDescription>
-            Este logotipo aparecerá en la cabecera del portal público, en el panel de administración y en las llaves de torneos.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
-            <div className="flex-shrink-0">
-              <div className="relative h-32 w-32 bg-muted/30 border-2 border-dashed border-border rounded-full flex flex-col items-center justify-center overflow-hidden">
-                {clubActivo?.logo_url ? (
-                  <img 
-                    src={clubActivo.logo_url} 
-                    alt={`Logo de ${clubActivo.nombre}`} 
-                    className="h-full w-full object-contain p-2"
-                  />
-                ) : (
-                  <ImageIcon className="h-10 w-10 text-muted-foreground opacity-50" />
-                )}
-                {isUploading && (
-                  <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-primary" />
+      <Tabs defaultValue="general" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="general" className="flex items-center gap-2">
+            <Settings className="h-4 w-4" />
+            General
+          </TabsTrigger>
+          <TabsTrigger value="equipo" className="flex items-center gap-2">
+            <Users className="h-4 w-4" />
+            Equipo / Staff
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="general" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Logotipo Oficial</CardTitle>
+              <CardDescription>
+                Este logotipo aparecerá en la cabecera del portal público, en el panel de administración y en las llaves de torneos.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="flex flex-col sm:flex-row gap-6 items-center sm:items-start">
+                <div className="flex-shrink-0">
+                  <div className="relative h-32 w-32 bg-muted/30 border-2 border-dashed border-border rounded-full flex flex-col items-center justify-center overflow-hidden">
+                    {clubActivo?.logo_url ? (
+                      <img 
+                        src={clubActivo.logo_url} 
+                        alt={`Logo de ${clubActivo.nombre}`} 
+                        className="h-full w-full object-contain p-2"
+                      />
+                    ) : (
+                      <ImageIcon className="h-10 w-10 text-muted-foreground opacity-50" />
+                    )}
+                    {isUploading && (
+                      <div className="absolute inset-0 bg-background/50 backdrop-blur-sm flex items-center justify-center">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                      </div>
+                    )}
                   </div>
-                )}
+                </div>
+                
+                <div className="flex-1 space-y-3 text-center sm:text-left">
+                  <div>
+                    <h4 className="text-sm font-semibold">{clubActivo?.nombre}</h4>
+                    <p className="text-xs text-muted-foreground mt-1">Recomendamos imágenes PNG o JPG cuadradas (ej. 512x512) con fondo transparente. Tamaño máximo 2MB.</p>
+                  </div>
+                  
+                  <div className="flex items-center justify-center sm:justify-start gap-3">
+                    <Input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/png, image/jpeg, image/webp"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
+                    <Button 
+                      onClick={() => fileInputRef.current?.click()} 
+                      disabled={isUploading}
+                      className="shadow-sm font-semibold"
+                    >
+                      {isUploading ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Subiendo...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Subir Nuevo Logotipo
+                        </>
+                      )}
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
-            
-            <div className="flex-1 space-y-3 text-center sm:text-left">
-              <div>
-                <h4 className="text-sm font-semibold">{clubActivo?.nombre}</h4>
-                <p className="text-xs text-muted-foreground mt-1">Recomendamos imágenes PNG o JPG cuadradas (ej. 512x512) con fondo transparente. Tamaño máximo 2MB.</p>
+            </CardContent>
+          </Card>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle>Información General</CardTitle>
+              <CardDescription>
+                Datos básicos del club en la plataforma.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre del Club</label>
+                <Input value={clubActivo?.nombre || ''} readOnly className="bg-muted/30" />
+                <p className="text-[10px] text-muted-foreground">Para modificar el nombre, contacta a soporte.</p>
               </div>
-              
-              <div className="flex items-center justify-center sm:justify-start gap-3">
-                <Input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/png, image/jpeg, image/webp"
-                  className="hidden"
-                  onChange={handleFileChange}
-                />
-                <Button 
-                  onClick={() => fileInputRef.current?.click()} 
-                  disabled={isUploading}
-                  className="shadow-sm font-semibold"
-                >
-                  {isUploading ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Subiendo...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="mr-2 h-4 w-4" />
-                      Subir Nuevo Logotipo
-                    </>
-                  )}
-                </Button>
-              </div>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-      
-      <Card>
-        <CardHeader>
-          <CardTitle>Información General</CardTitle>
-          <CardDescription>
-            Datos básicos del club en la plataforma.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre del Club</label>
-            <Input value={clubActivo?.nombre || ''} readOnly className="bg-muted/30" />
-            <p className="text-[10px] text-muted-foreground">Para modificar el nombre, contacta a soporte.</p>
-          </div>
-        </CardContent>
-      </Card>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="equipo" className="space-y-6">
+          <StaffManager />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
