@@ -239,7 +239,11 @@ export default function TorneoIndividualPublico() {
         });
       });
 
-      const finalizedMatches = partidos.filter((m) => m.estado === "finalizado");
+      const finalizedMatches = partidos.filter((m) => {
+        if (m.estado !== "finalizado") return false;
+        const fObj = fechas.find(f => f.fecha === m.fecha);
+        return fObj?.publicado === true;
+      });
 
       // Count substitutions per couple
       finalizedMatches.forEach((m) => {
@@ -389,7 +393,11 @@ export default function TorneoIndividualPublico() {
       }
     });
 
-    const finalizedMatches = partidos.filter((p) => p.estado === "finalizado");
+    const finalizedMatches = partidos.filter((p) => {
+      if (p.estado !== "finalizado") return false;
+      const fObj = fechas.find(f => f.fecha === p.fecha);
+      return fObj?.publicado === true;
+    });
     // Ordenar por fecha para procesar cronológicamente las ausencias
     finalizedMatches.sort((a, b) => (a.fecha || 0) - (b.fecha || 0));
 
@@ -543,6 +551,13 @@ export default function TorneoIndividualPublico() {
   const partidosDeFecha = useMemo(() => {
     return partidos.filter((p) => p.fecha === selectedFechaNum).sort((a, b) => a.cancha.localeCompare(b.cancha));
   }, [partidos, selectedFechaNum]);
+
+  const isSelectedFechaPublicada = useMemo(() => {
+    const fObj = fechas.find((f) => f.fecha === selectedFechaNum);
+    // If we don't have the object yet or we haven't explicitely hidden it, let's say it's public.
+    // Wait, the default in DB is false. We should strictly check for true.
+    return fObj?.publicado === true;
+  }, [fechas, selectedFechaNum]);
 
   // Helper to resolve court badges
   const getCanchaColor = (canchaName: string) => {
@@ -851,7 +866,21 @@ export default function TorneoIndividualPublico() {
                 )}
               </div>
 
-              {partidosDeFecha.length === 0 ? (
+              {!isSelectedFechaPublicada ? (
+                <Card className="border border-amber-500/30 bg-amber-50/30">
+                  <CardContent className="py-12 flex flex-col items-center justify-center text-center space-y-3">
+                    <div className="bg-amber-100 p-3 rounded-full">
+                      <CalendarDays className="h-6 w-6 text-amber-600" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-lg">Semana en Armado</h3>
+                      <p className="text-sm text-muted-foreground max-w-md mt-1">
+                        Los cruces y resultados de la Fecha {selectedFechaNum} aún se encuentran en armado o revisión y no han sido publicados. Vuelve pronto.
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              ) : partidosDeFecha.length === 0 ? (
                 <Card>
                   <CardContent className="py-12 text-center text-sm text-muted-foreground italic">
                     El fixture para la Fecha {selectedFechaNum} aún no se ha generado o está pendiente de publicación.

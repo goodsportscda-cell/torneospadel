@@ -33,7 +33,9 @@ import {
   HelpCircle,
   Globe,
   RefreshCw,
-  Share2
+  Share2,
+  Eye,
+  EyeOff
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -2052,6 +2054,26 @@ export default function TorneoIndividualDashboard() {
   };
 
   // Close Date / Complete Date
+  const handleTogglePublicacionSemana = async () => {
+    if (!selectedFecha) return;
+    
+    const nuevoEstado = !selectedFecha.publicado;
+    
+    try {
+      const { error } = await supabase
+        .from("torneo_individual_fechas")
+        .update({ publicado: nuevoEstado })
+        .eq("id", selectedFecha.id);
+
+      if (error) throw error;
+
+      toast.success(nuevoEstado ? `Semana ${selectedFechaNum} publicada en el muro.` : `Semana ${selectedFechaNum} ocultada del muro.`);
+      queryClient.invalidateQueries({ queryKey: ["fechas", id] });
+    } catch (err: any) {
+      toast.error("Error al cambiar la visibilidad: " + err.message);
+    }
+  };
+
   const handleCerrarFecha = async () => {
     if (!selectedFecha) return;
 
@@ -2927,8 +2949,29 @@ export default function TorneoIndividualDashboard() {
                 </div>
               </div>
 
-              {/* Closure button and Re-sortear for Week 1 */}
+              {/* Closure button, Publish button, and Re-sortear for Week 1 */}
               <div className="flex gap-2">
+                {selectedFecha && (
+                  <Button
+                    size="sm"
+                    variant={selectedFecha.publicado ? "default" : "outline"}
+                    className={selectedFecha.publicado ? "bg-amber-500 hover:bg-amber-600 border-amber-600 shadow-sm" : "border-amber-600/50 text-amber-600 hover:bg-amber-50"}
+                    onClick={handleTogglePublicacionSemana}
+                  >
+                    {selectedFecha.publicado ? (
+                      <>
+                        <Eye className="h-4 w-4 mr-1.5" />
+                        Muro Público
+                      </>
+                    ) : (
+                      <>
+                        <EyeOff className="h-4 w-4 mr-1.5" />
+                        Muro Oculto
+                      </>
+                    )}
+                  </Button>
+                )}
+
                 {partidosDeFecha.length > 0 && (
                   <Button
                     size="sm"

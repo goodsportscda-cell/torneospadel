@@ -387,6 +387,7 @@ export interface Database {
           fecha: number
           costo_canchas: number
           estado: string
+          publicado: boolean | null
           created_at: string
         }
         Insert: {
@@ -395,6 +396,7 @@ export interface Database {
           fecha: number
           costo_canchas?: number
           estado?: string
+          publicado?: boolean | null
           created_at?: string
         }
         Update: {
@@ -403,6 +405,7 @@ export interface Database {
           fecha?: number
           costo_canchas?: number
           estado?: string
+          publicado?: boolean | null
           created_at?: string
         }
       }
