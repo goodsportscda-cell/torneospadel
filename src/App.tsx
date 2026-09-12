@@ -32,6 +32,7 @@ import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
 import Configuracion from "./pages/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Marcador from "./pages/Marcador.tsx";
+import DraftPublico from "./pages/DraftPublico.tsx";
 
 const queryClient = new QueryClient();
 
@@ -55,6 +56,7 @@ const App = () => (
                   <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
                   <Route path="/ranking-publico" element={<RankingPublico />} />
                   <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
+                  <Route path="/draft/:id" element={<DraftPublico />} />
                 </Routes>
               </TenantProvider>
             } />
@@ -65,6 +67,7 @@ const App = () => (
             <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
             <Route path="/mi-panel" element={<Navigate to="/player/dashboard" replace />} />
+            <Route path="/draft/:id" element={<DraftPublico />} />
 
             {/* Player dashboard */}
             <Route

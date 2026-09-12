@@ -341,6 +341,7 @@ export interface Database {
           jugador_id: string
           estado: string
           created_at: string
+          podio_final: number | null
         }
         Insert: {
           id?: string
@@ -348,6 +349,7 @@ export interface Database {
           jugador_id: string
           estado?: string
           created_at?: string
+          podio_final?: number | null
         }
         Update: {
           id?: string
@@ -355,6 +357,7 @@ export interface Database {
           jugador_id?: string
           estado?: string
           created_at?: string
+          podio_final?: number | null
         }
       }
       torneo_individual_parejas: {

@@ -57,6 +57,7 @@ interface PlayerStanding {
   gamesPerdidos: number;
   difGames: number;
   partidosJugados: number;
+  podio_final?: number | null;
 }
 
 const parsePremiosString = (premiosText: string | null) => {
@@ -382,6 +383,7 @@ export default function TorneoIndividualPublico() {
           apellido: tj.jugador.apellido,
           dni: tj.jugador.dni,
           club: tj.jugador.club,
+          podio_final: (tj as any).podio_final,
           puntos: 0,
           setsGanados: 0,
           setsPerdidos: 0,
@@ -733,7 +735,13 @@ export default function TorneoIndividualPublico() {
                           return (
                             <TableRow key={s.pareja_id}>
                               <TableCell className="text-center font-bold">
-                                {rank === 1 ? (
+                                {(s as any).podio_final === 1 ? (
+                                  <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
+                                ) : (s as any).podio_final === 2 ? (
+                                  <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5 fill-slate-400/20" /></span>
+                                ) : (s as any).podio_final === 3 ? (
+                                  <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
+                                ) : rank === 1 ? (
                                   <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
                                 ) : (
                                   `${rank}º`
@@ -790,11 +798,17 @@ export default function TorneoIndividualPublico() {
                           return (
                             <TableRow key={s.jugador_id}>
                               <TableCell className="text-center font-bold">
-                                {rank === 1 ? (
-                                  <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
-                                ) : (
-                                  `${rank}º`
-                                )}
+                                  {(s as any).podio_final === 1 ? (
+                                    <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
+                                  ) : (s as any).podio_final === 2 ? (
+                                    <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5 fill-slate-400/20" /></span>
+                                  ) : (s as any).podio_final === 3 ? (
+                                    <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
+                                  ) : rank === 1 ? (
+                                    <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                                  ) : (
+                                    `${rank}º`
+                                  )}
                               </TableCell>
                               <TableCell>
                                 <div className="font-semibold">{s.apellido}, {s.nombre}</div>

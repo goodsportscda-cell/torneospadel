@@ -552,6 +552,7 @@ export default function TorneoIndividualDashboard() {
       difGames: number;
       partidosJugados: number;
       difSets?: number;
+      podio_final?: number | null;
     }
 
     const standingsMap = new Map<string, LocalPlayerStanding>();
@@ -562,6 +563,7 @@ export default function TorneoIndividualDashboard() {
           nombre: tj.jugador.nombre,
           apellido: tj.jugador.apellido,
           dni: tj.jugador.dni,
+          podio_final: (tj as any).podio_final,
           puntos: 0,
           setsGanados: 0,
           setsPerdidos: 0,
@@ -1337,6 +1339,104 @@ export default function TorneoIndividualDashboard() {
     } catch (e: any) {
       console.error(e);
       toast.error("Error al generar fixture: " + e.message);
+    }
+  };
+
+  const handleAssignPodium = async (jugadorId: string, podio: number | null) => {
+    if (!id) return;
+    try {
+      const { error } = await (supabase as any)
+        .from("torneo_individual_jugadores")
+        .update({ podio_final: podio })
+        .eq("torneo_id", id)
+        .eq("jugador_id", jugadorId);
+        
+      if (error) throw error;
+      toast.success("Podio actualizado");
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error actualizando podio: " + e.message);
+    }
+  };
+
+  const handleGenerarSemifinales12Jugadores = async () => {
+    if (!id || !torneo) return;
+    
+    if (standings.length < 12) {
+      toast.error("No hay suficientes jugadores en el ranking para generar las Semifinales.");
+      return;
+    }
+
+    try {
+      const fechaNum = (torneo.desafio_semanas ?? 8) - 1;
+      
+      const { data: dateRow, error: fErr } = await (supabase as any)
+        .from("torneo_individual_fechas")
+        .upsert({
+          torneo_id: id,
+          fecha: fechaNum,
+          estado: "pendiente",
+          canchas: torneo.canchas_count ?? 3
+        }, { onConflict: "torneo_id, fecha" })
+        .select()
+        .single();
+        
+      if (fErr) throw fErr;
+
+      const p = standings; // already sorted by ranking
+      const matchPromises = [];
+      
+      // Cancha 1: 1º y 4º vs 2º y 3º
+      matchPromises.push(
+        (supabase as any).from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: fechaNum,
+          cancha: "Cancha 1: Semifinal por el Título",
+          jugador1_id: p[0].jugador_id,
+          jugador2_id: p[3].jugador_id,
+          jugador3_id: p[1].jugador_id,
+          jugador4_id: p[2].jugador_id,
+          estado: "pendiente"
+        })
+      );
+      
+      // Cancha 2: 5º y 6º vs 7º y 8º
+      matchPromises.push(
+        (supabase as any).from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: fechaNum,
+          cancha: "Cancha 2: Cruce Posicional",
+          jugador1_id: p[4].jugador_id,
+          jugador2_id: p[5].jugador_id,
+          jugador3_id: p[6].jugador_id,
+          jugador4_id: p[7].jugador_id,
+          estado: "pendiente"
+        })
+      );
+      
+      // Cancha 3: 9º y 10º vs 11º y 12º
+      matchPromises.push(
+        (supabase as any).from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: fechaNum,
+          cancha: "Cancha 3: Cruce Posicional",
+          jugador1_id: p[8].jugador_id,
+          jugador2_id: p[9].jugador_id,
+          jugador3_id: p[10].jugador_id,
+          jugador4_id: p[11].jugador_id,
+          estado: "pendiente"
+        })
+      );
+      
+      await Promise.all(matchPromises);
+      
+      toast.success("Semifinales generadas correctamente");
+      queryClient.invalidateQueries({ queryKey: ["fechas"] });
+      queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar Semifinales: " + e.message);
     }
   };
 
@@ -3067,6 +3167,13 @@ export default function TorneoIndividualDashboard() {
                         </Button>
                       )}
                     </div>
+                  ) : isAdmin && selectedFechaNum === ((torneo?.desafio_semanas ?? 8) - 1) && torneo?.modalidad !== "parejas" && jugadoresInscriptos.length === 12 ? (
+                    <div className="flex flex-col gap-2">
+                      <Button onClick={handleGenerarSemifinales12Jugadores} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Trophy className="h-4 w-4 mr-1.5" />
+                        Generar Semifinales y Cruces Posicionales (Semana {selectedFechaNum})
+                      </Button>
+                    </div>
                   ) : isAdmin && selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
                     torneo?.modalidad === "parejas" ? (
                       <Button onClick={handleGenerarFecha8Parejas}>
@@ -3250,12 +3357,13 @@ export default function TorneoIndividualDashboard() {
                       <TableHead className="text-center">GC</TableHead>
                       <TableHead className="text-center">DG</TableHead>
                       <TableHead className="text-right w-[120px]">Puntos Totales</TableHead>
+                      {isAdmin && <TableHead className="text-center w-[120px]">Podio</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {standings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={7} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-6 text-muted-foreground">
                           Los resultados cargados en la pestaña "Fixture" generarán las posiciones automáticamente.
                         </TableCell>
                       </TableRow>
@@ -3263,7 +3371,13 @@ export default function TorneoIndividualDashboard() {
                       (standings as any[]).map((s, idx) => (
                         <TableRow key={s.pareja_id}>
                           <TableCell className="text-center font-bold">
-                            {idx === 0 ? (
+                            {s.podio_final === 1 ? (
+                              <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5" /></span>
+                            ) : s.podio_final === 2 ? (
+                              <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5" /></span>
+                            ) : s.podio_final === 3 ? (
+                              <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5" /></span>
+                            ) : idx === 0 ? (
                               <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
                             ) : (
                               `${idx + 1}º`
@@ -3292,13 +3406,25 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
                             {s.puntos} pts
                           </TableCell>
+                          {isAdmin && (
+                            <TableCell className="text-center">
+                              {/* Medals not supported for couples yet, or adapt if necessary */}
+                              -
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     ) : (
                       standings.map((s, idx) => (
                         <TableRow key={s.jugador_id}>
                           <TableCell className="text-center font-bold">
-                            {idx === 0 ? (
+                            {(s as any).podio_final === 1 ? (
+                              <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
+                            ) : (s as any).podio_final === 2 ? (
+                              <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5 fill-slate-400/20" /></span>
+                            ) : (s as any).podio_final === 3 ? (
+                              <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
+                            ) : idx === 0 ? (
                               <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
                             ) : (
                               `${idx + 1}º`
@@ -3320,6 +3446,24 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
                             {s.puntos} pts
                           </TableCell>
+                          {isAdmin && (
+                            <TableCell className="text-center">
+                              <Select
+                                value={(s as any).podio_final?.toString() || "none"}
+                                onValueChange={(val) => handleAssignPodium(s.jugador_id, val === "none" ? null : parseInt(val))}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-[100px] mx-auto">
+                                  <SelectValue placeholder="-" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">-</SelectItem>
+                                  <SelectItem value="1">1º Oro</SelectItem>
+                                  <SelectItem value="2">2º Plata</SelectItem>
+                                  <SelectItem value="3">3º Bronce</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                          )}
                         </TableRow>
                       ))
                     )}
