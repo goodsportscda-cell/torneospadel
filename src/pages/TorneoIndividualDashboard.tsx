@@ -1149,8 +1149,8 @@ export default function TorneoIndividualDashboard() {
           .upsert({
             torneo_id: id,
             fecha: 1,
-            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * courtsCount,
             estado: "pendiente",
+            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * (torneo.canchas_count ?? 3),
           }, { onConflict: "torneo_id, fecha" })
           .select()
           .single();
@@ -1376,7 +1376,7 @@ export default function TorneoIndividualDashboard() {
           torneo_id: id,
           fecha: fechaNum,
           estado: "pendiente",
-          canchas: torneo.canchas_count ?? 3
+          costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * (torneo.canchas_count ?? 3)
         }, { onConflict: "torneo_id, fecha" })
         .select()
         .single();
