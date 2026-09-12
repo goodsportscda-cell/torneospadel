@@ -1151,6 +1151,7 @@ export default function TorneoIndividualDashboard() {
             fecha: 1,
             estado: "pendiente",
             costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * (torneo.canchas_count ?? 3),
+            publicado: false,
           }, { onConflict: "torneo_id, fecha" })
           .select()
           .single();
@@ -1376,7 +1377,8 @@ export default function TorneoIndividualDashboard() {
           torneo_id: id,
           fecha: fechaNum,
           estado: "pendiente",
-          costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * (torneo.canchas_count ?? 3)
+          costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * (torneo.canchas_count ?? 3),
+          publicado: false
         }, { onConflict: "torneo_id, fecha" })
         .select()
         .single();
@@ -1407,9 +1409,9 @@ export default function TorneoIndividualDashboard() {
           fecha: fechaNum,
           cancha: "Cancha 2: Cruce Posicional",
           jugador1_id: p[4].jugador_id,
-          jugador2_id: p[5].jugador_id,
-          jugador3_id: p[6].jugador_id,
-          jugador4_id: p[7].jugador_id,
+          jugador2_id: p[7].jugador_id,
+          jugador3_id: p[5].jugador_id,
+          jugador4_id: p[6].jugador_id,
           estado: "pendiente"
         })
       );
@@ -1421,9 +1423,9 @@ export default function TorneoIndividualDashboard() {
           fecha: fechaNum,
           cancha: "Cancha 3: Cruce Posicional",
           jugador1_id: p[8].jugador_id,
-          jugador2_id: p[9].jugador_id,
-          jugador3_id: p[10].jugador_id,
-          jugador4_id: p[11].jugador_id,
+          jugador2_id: p[11].jugador_id,
+          jugador3_id: p[9].jugador_id,
+          jugador4_id: p[10].jugador_id,
           estado: "pendiente"
         })
       );
@@ -1909,6 +1911,7 @@ export default function TorneoIndividualDashboard() {
           torneo_id: id,
           fecha: finalWeek,
           costo_canchas: (torneo?.costo_fecha_cancha ?? 22000) * courtsCount,
+            publicado: false,
           estado: "pendiente",
         }, { onConflict: "torneo_id, fecha" })
         .select()
