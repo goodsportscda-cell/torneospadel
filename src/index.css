@@ -8,53 +8,8 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    --background: 0 0% 98%;
-    --foreground: 240 10% 15%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 240 10% 15%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 240 10% 15%;
-
-    /* Premium Good Padel Red */
-    --primary: 356 85% 50%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 240 5% 90%;
-    --secondary-foreground: 240 10% 15%;
-
-    --muted: 240 5% 92%;
-    --muted-foreground: 240 5% 45%;
-
-    --accent: 356 85% 95%;
-    --accent-foreground: 356 85% 40%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --warning: 38 92% 50%;
-    --warning-foreground: 38 95% 15%;
-
-    --border: 240 6% 85%;
-    --input: 240 6% 85%;
-    --ring: 356 85% 50%;
-
-    --radius: 0.75rem;
-
-    --sidebar-background: 0 0% 98%;
-    --sidebar-foreground: 240 5.3% 26.1%;
-    --sidebar-primary: 356 85% 50%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 240 4.8% 95.9%;
-    --sidebar-accent-foreground: 240 5.9% 10%;
-    --sidebar-border: 220 13% 91%;
-    --sidebar-ring: 356 85% 50%;
-  }
-
-  .dark {
-    /* Sleek Deep Dark */
-    --background: 240 10% 4%;
+    /* Sleek Deep Dark (Charcoal/Space Gray) */
+    --background: 240 10% 6%;
     --foreground: 0 0% 95%;
 
     --card: 240 10% 8%;
@@ -63,17 +18,19 @@ All colors MUST be HSL.
     --popover: 240 10% 8%;
     --popover-foreground: 0 0% 95%;
 
-    --primary: 356 85% 55%;
+    /* Neon Violet */
+    --primary: 270 100% 60%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 240 8% 15%;
-    --secondary-foreground: 0 0% 95%;
+    /* Sport Pink / Fuchsia */
+    --secondary: 330 100% 54%;
+    --secondary-foreground: 0 0% 100%;
 
     --muted: 240 8% 12%;
     --muted-foreground: 240 5% 65%;
 
-    --accent: 356 85% 15%;
-    --accent-foreground: 356 85% 75%;
+    --accent: 330 100% 15%;
+    --accent-foreground: 330 100% 75%;
 
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
@@ -83,16 +40,63 @@ All colors MUST be HSL.
 
     --border: 240 8% 18%;
     --input: 240 8% 18%;
-    --ring: 356 85% 55%;
+    --ring: 270 100% 60%;
+
+    --radius: 0.75rem;
 
     --sidebar-background: 240 10% 6%;
     --sidebar-foreground: 240 4.8% 95.9%;
-    --sidebar-primary: 356 85% 55%;
+    --sidebar-primary: 270 100% 60%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 240 8% 15%;
     --sidebar-accent-foreground: 240 4.8% 95.9%;
     --sidebar-border: 240 8% 18%;
-    --sidebar-ring: 356 85% 55%;
+    --sidebar-ring: 270 100% 60%;
+  }
+
+  .dark {
+    /* Sleek Deep Dark (Charcoal/Space Gray) */
+    --background: 240 10% 6%;
+    --foreground: 0 0% 95%;
+
+    --card: 240 10% 8%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 240 10% 8%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Neon Violet */
+    --primary: 270 100% 60%;
+    --primary-foreground: 0 0% 100%;
+
+    /* Sport Pink / Fuchsia */
+    --secondary: 330 100% 54%;
+    --secondary-foreground: 0 0% 100%;
+
+    --muted: 240 8% 12%;
+    --muted-foreground: 240 5% 65%;
+
+    --accent: 330 100% 15%;
+    --accent-foreground: 330 100% 75%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --warning: 45 95% 55%;
+    --warning-foreground: 38 95% 15%;
+
+    --border: 240 8% 18%;
+    --input: 240 8% 18%;
+    --ring: 270 100% 60%;
+
+    --sidebar-background: 240 10% 6%;
+    --sidebar-foreground: 240 4.8% 95.9%;
+    --sidebar-primary: 270 100% 60%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 240 8% 15%;
+    --sidebar-accent-foreground: 240 4.8% 95.9%;
+    --sidebar-border: 240 8% 18%;
+    --sidebar-ring: 270 100% 60%;
   }
 }
 
@@ -109,7 +113,7 @@ All colors MUST be HSL.
   }
 
   .glass-card { 
-    @apply bg-slate-900/60 backdrop-blur-xl border border-slate-800/80 shadow-2xl; 
+    @apply bg-background/80 backdrop-blur-xl border border-primary/20 shadow-[0_0_15px_rgba(157,78,221,0.1)]; 
   }
 }
 

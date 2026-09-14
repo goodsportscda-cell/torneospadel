@@ -101,3 +101,4 @@ const Marcador: React.FC = () => {
 };
 
 export default Marcador;
+

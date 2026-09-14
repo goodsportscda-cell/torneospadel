@@ -355,12 +355,12 @@ export default function InscripcionPublica() {
           <CardContent className="py-10 px-6 text-center space-y-6">
             
             {esListaEspera ? (
-              <div className="mx-auto w-16 h-16 rounded-full bg-amber-500/10 flex items-center justify-center animate-pulse">
-                <Clock className="h-10 w-10 text-amber-500" />
+              <div className="mx-auto w-16 h-16 rounded-full bg-secondary/10 flex items-center justify-center animate-pulse">
+                <Clock className="h-10 w-10 text-secondary" />
               </div>
             ) : (
-              <div className="mx-auto w-16 h-16 rounded-full bg-emerald-500/10 flex items-center justify-center">
-                <CheckCircle2 className="h-10 w-10 text-emerald-500" />
+              <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="h-10 w-10 text-primary" />
               </div>
             )}
 
@@ -379,14 +379,14 @@ export default function InscripcionPublica() {
             {/* Cuadro de Estado Destacado */}
             <div className={`rounded-xl border p-4 text-left space-y-3 ${
               esListaEspera 
-                ? "bg-amber-500/5 border-amber-500/20 text-amber-900 dark:text-amber-200"
-                : "bg-emerald-500/5 border-emerald-500/20 text-emerald-900 dark:text-emerald-200"
+                ? "bg-secondary/5 border-secondary/20 text-secondary dark:text-secondary"
+                : "bg-primary/5 border-primary/20 text-primary dark:text-primary"
             }`}>
               <div className="flex items-center gap-2">
                 {esListaEspera ? (
-                  <Clock className="h-5 w-5 text-amber-500 shrink-0" />
+                  <Clock className="h-5 w-5 text-secondary shrink-0" />
                 ) : (
-                  <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+                  <CheckCircle2 className="h-5 w-5 text-primary shrink-0" />
                 )}
                 <p className="text-sm font-bold uppercase tracking-wider">
                   {esListaEspera ? "Estado: Suplentes / Lista de Espera" : "ESTADO: INSCRIPCIÓN CONFIRMADA"}
@@ -744,3 +744,4 @@ function ResumenItem({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
+

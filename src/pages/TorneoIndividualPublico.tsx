@@ -563,8 +563,8 @@ export default function TorneoIndividualPublico() {
 
   // Helper to resolve court badges
   const getCanchaColor = (canchaName: string) => {
-    if (canchaName.includes("Cancha 1")) return "border-emerald-500/20 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20";
-    if (canchaName.includes("Cancha 2")) return "border-amber-500/20 text-amber-600 bg-amber-50 dark:bg-amber-950/20";
+    if (canchaName.includes("Cancha 1")) return "border-primary/20 text-primary bg-primary/10 dark:bg-primary/20";
+    if (canchaName.includes("Cancha 2")) return "border-secondary/20 text-secondary bg-secondary/10 dark:bg-secondary/20";
     return "border-blue-500/20 text-blue-600 bg-blue-50 dark:bg-blue-950/20";
   };
   return (
@@ -594,13 +594,13 @@ export default function TorneoIndividualPublico() {
             <CardContent className="p-6">
               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
                 <div className="flex items-center gap-4">
-                  <div className="p-3 bg-amber-500/15 rounded-full border border-amber-500/30 text-amber-500 animate-pulse shrink-0">
+                  <div className="p-3 bg-secondary/15 rounded-full border border-secondary/30 text-secondary animate-pulse shrink-0">
                     <Trophy className="h-8 w-8" />
                   </div>
                   <div>
                     <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
                       ¡Tenemos Campeón!
-                      <span className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 font-mono px-2 py-0.5 rounded-full border border-amber-500/30">
+                      <span className="text-xs bg-secondary/20 text-secondary dark:text-secondary font-mono px-2 py-0.5 rounded-full border border-secondary/30">
                         Finalizado
                       </span>
                     </h2>
@@ -612,9 +612,9 @@ export default function TorneoIndividualPublico() {
 
                 <div className="flex flex-wrap gap-4 w-full md:w-auto">
                   {/* Campeón */}
-                  <div className="flex-1 min-w-[200px] border border-amber-500/20 bg-amber-500/5 p-4 rounded-xl relative overflow-hidden">
-                    <div className="absolute top-1 right-1 text-amber-500/10 font-black text-4xl">1°</div>
-                    <p className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-black tracking-wider">Campeón</p>
+                  <div className="flex-1 min-w-[200px] border border-secondary/20 bg-secondary/5 p-4 rounded-xl relative overflow-hidden">
+                    <div className="absolute top-1 right-1 text-secondary/10 font-black text-4xl">1°</div>
+                    <p className="text-[10px] text-secondary dark:text-secondary uppercase font-black tracking-wider">Campeón</p>
                     {torneo?.modalidad === "parejas" ? (
                       <>
                         <p className="text-base font-bold mt-1 text-foreground">
@@ -724,10 +724,10 @@ export default function TorneoIndividualPublico() {
 
                           if (rank === 1 || rank === 2) {
                             courtGroup = "Élite (C1)";
-                            badgeStyle = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+                            badgeStyle = "bg-primary text-primary dark:bg-primary/30 dark:text-primary";
                           } else if (rank === 3 || rank === 4) {
                             courtGroup = "Desafío (C2)";
-                            badgeStyle = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+                            badgeStyle = "bg-secondary text-secondary dark:bg-secondary/30 dark:text-secondary";
                           } else {
                             courtGroup = "Base (C3)";
                           }
@@ -736,13 +736,13 @@ export default function TorneoIndividualPublico() {
                             <TableRow key={s.pareja_id}>
                               <TableCell className="text-center font-bold">
                                 {(s as any).podio_final === 1 ? (
-                                  <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
+                                  <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
                                 ) : (s as any).podio_final === 2 ? (
                                   <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5 fill-slate-400/20" /></span>
                                 ) : (s as any).podio_final === 3 ? (
-                                  <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
+                                  <span className="flex justify-center text-secondary" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
                                 ) : rank === 1 ? (
-                                  <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                                  <span className="flex justify-center text-secondary"><Trophy className="h-4 w-4" /></span>
                                 ) : (
                                   `${rank}º`
                                 )}
@@ -766,7 +766,7 @@ export default function TorneoIndividualPublico() {
                               <TableCell className="text-center font-mono">{s.gamesGanados}</TableCell>
                               <TableCell className="text-center font-mono">{s.gamesPerdidos}</TableCell>
                               <TableCell className="text-center font-mono font-medium">
-                                <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                                <span className={s.difGames > 0 ? "text-primary" : s.difGames < 0 ? "text-destructive" : ""}>
                                   {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
                                 </span>
                               </TableCell>
@@ -785,10 +785,10 @@ export default function TorneoIndividualPublico() {
 
                           if (rank <= 4) {
                             courtGroup = "Élite (C1)";
-                            badgeStyle = "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-300";
+                            badgeStyle = "bg-primary text-primary dark:bg-primary/30 dark:text-primary";
                           } else if (rank <= 8 && countCanchas >= 2) {
                             courtGroup = "Desafío (C2)";
-                            badgeStyle = "bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-300";
+                            badgeStyle = "bg-secondary text-secondary dark:bg-secondary/30 dark:text-secondary";
                           } else if (rank <= 12 && countCanchas >= 3) {
                             courtGroup = "Base (C3)";
                           } else if (rank <= 16 && countCanchas >= 4) {
@@ -799,13 +799,13 @@ export default function TorneoIndividualPublico() {
                             <TableRow key={s.jugador_id}>
                               <TableCell className="text-center font-bold">
                                   {(s as any).podio_final === 1 ? (
-                                    <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
+                                    <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
                                   ) : (s as any).podio_final === 2 ? (
                                     <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5 fill-slate-400/20" /></span>
                                   ) : (s as any).podio_final === 3 ? (
-                                    <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
+                                    <span className="flex justify-center text-secondary" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
                                   ) : rank === 1 ? (
-                                    <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                                    <span className="flex justify-center text-secondary"><Trophy className="h-4 w-4" /></span>
                                   ) : (
                                     `${rank}º`
                                   )}
@@ -824,7 +824,7 @@ export default function TorneoIndividualPublico() {
                               <TableCell className="text-center font-mono">{s.gamesGanados}</TableCell>
                               <TableCell className="text-center font-mono">{s.gamesPerdidos}</TableCell>
                               <TableCell className="text-center font-mono font-medium">
-                                <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                                <span className={s.difGames > 0 ? "text-primary" : s.difGames < 0 ? "text-destructive" : ""}>
                                   {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
                                 </span>
                               </TableCell>
@@ -857,7 +857,7 @@ export default function TorneoIndividualPublico() {
                       size="sm"
                       className={`h-7 w-10 text-[10px] p-0 font-bold ${
                         isCompleted && selectedFechaNum !== fNum
-                          ? "border-emerald-500/20 text-emerald-600 bg-emerald-50/50 hover:bg-emerald-500/10"
+                          ? "border-primary/20 text-primary bg-primary/10/50 hover:bg-primary/10"
                           : ""
                       }`}
                       onClick={() => setSelectedFechaNum(fNum)}
@@ -881,10 +881,10 @@ export default function TorneoIndividualPublico() {
               </div>
 
               {!isSelectedFechaPublicada ? (
-                <Card className="border border-amber-500/30 bg-amber-50/30">
+                <Card className="border border-secondary/30 bg-secondary/10/30">
                   <CardContent className="py-12 flex flex-col items-center justify-center text-center space-y-3">
-                    <div className="bg-amber-100 p-3 rounded-full">
-                      <CalendarDays className="h-6 w-6 text-amber-600" />
+                    <div className="bg-secondary p-3 rounded-full">
+                      <CalendarDays className="h-6 w-6 text-secondary" />
                     </div>
                     <div>
                       <h3 className="font-bold text-lg">Semana en Armado</h3>
@@ -911,7 +911,7 @@ export default function TorneoIndividualPublico() {
                           <div className={`px-3 py-1.5 text-[10px] font-bold uppercase border-b flex items-center justify-between ${getCanchaColor(p.cancha)}`}>
                             <span>{p.cancha}</span>
                             {hasWinner && (
-                              <Badge className="bg-emerald-600 text-white text-[8px] font-extrabold uppercase px-1 py-0 h-4 shadow-none">
+                              <Badge className="bg-primary text-white text-[8px] font-extrabold uppercase px-1 py-0 h-4 shadow-none">
                                 Jugado
                               </Badge>
                             )}
@@ -1000,7 +1000,7 @@ export default function TorneoIndividualPublico() {
                     <>
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <Trophy className="h-4 w-4 text-amber-500" /> 1. Dinámica y Competencia (Parejas)
+                          <Trophy className="h-4 w-4 text-secondary" /> 1. Dinámica y Competencia (Parejas)
                         </h3>
                         <p>
                           El torneo tiene una duración de **8 semanas** y se juega con **6 parejas fijas** (12 jugadoras en total) distribuidas en 3 canchas (C1: Élite, C2: Desafío, C3: Base).
@@ -1049,8 +1049,8 @@ export default function TorneoIndividualPublico() {
                         <p>
                           Se permiten hasta **2 suplencias acumuladas** por pareja durante las 8 semanas.
                         </p>
-                        <ul className="list-disc pl-4 space-y-1 border-l-2 border-amber-500 pl-2">
-                          <li className="text-amber-600 dark:text-amber-400 font-medium">Si una pareja falta o utiliza más de 2 suplencias acumuladas, se le contará como partido perdido por W.O. / Forfeit (6-0, 6-0) y sumarán únicamente 1 punto de fecha jugada.</li>
+                        <ul className="list-disc pl-4 space-y-1 border-l-2 border-secondary pl-2">
+                          <li className="text-secondary dark:text-secondary font-medium">Si una pareja falta o utiliza más de 2 suplencias acumuladas, se le contará como partido perdido por W.O. / Forfeit (6-0, 6-0) y sumarán únicamente 1 punto de fecha jugada.</li>
                         </ul>
                       </div>
                     </>
@@ -1058,7 +1058,7 @@ export default function TorneoIndividualPublico() {
                     <>
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <Trophy className="h-4 w-4 text-amber-500" /> 1. Dinámica y Competencia
+                          <Trophy className="h-4 w-4 text-secondary" /> 1. Dinámica y Competencia
                         </h3>
                         <p>
                           El torneo tiene una duración de **{torneo?.desafio_semanas ?? 8} semanas**. Se juega de forma individual (inscripción individual), pero en pista se arman parejas dobles en base a la posición del ranking.
@@ -1076,7 +1076,7 @@ export default function TorneoIndividualPublico() {
 
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <TrendingUp className="h-4 w-4 text-emerald-500" /> 2. Ascensos y Descensos
+                          <TrendingUp className="h-4 w-4 text-primary" /> 2. Ascensos y Descensos
                         </h3>
                         <p>
                           Al terminar cada fecha, el ranking general se actualiza. Para la siguiente semana:
@@ -1138,7 +1138,7 @@ export default function TorneoIndividualPublico() {
                     <Card className="border border-border/40 shadow-sm bg-gradient-to-br from-indigo-50/20 to-transparent dark:from-indigo-950/5 flex flex-col justify-between">
                       <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
-                          <DollarSign className="h-4 w-4 text-emerald-600" />
+                          <DollarSign className="h-4 w-4 text-primary" />
                           Importe en Efectivo a Entregar
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -1152,11 +1152,11 @@ export default function TorneoIndividualPublico() {
                               ${pozoResumen.finalEstimado.toLocaleString("es-AR")}
                             </div>
                             {isCovered ? (
-                              <Badge className="bg-emerald-600 text-white hover:bg-emerald-600 text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
+                              <Badge className="bg-primary text-white hover:bg-primary text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
                                 Cubierto
                               </Badge>
                             ) : (
-                              <Badge variant="secondary" className="bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-400 text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
+                              <Badge variant="secondary" className="bg-secondary text-secondary dark:bg-secondary/40 dark:text-secondary text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
                                 En Acumulación
                               </Badge>
                             )}
@@ -1174,7 +1174,7 @@ export default function TorneoIndividualPublico() {
                     <Card className="border border-border/40 shadow-sm">
                       <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
-                          <Trophy className="h-4 w-4 text-amber-500" />
+                          <Trophy className="h-4 w-4 text-secondary" />
                           Distribución de Premios
                         </CardTitle>
                         <CardDescription className="text-xs">
@@ -1189,7 +1189,7 @@ export default function TorneoIndividualPublico() {
                               {parsedPremios.cash1 > 0 ? "Premio fijo en efectivo." : "Se lleva el 70% del importe a entregar."}
                             </p>
                           </div>
-                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                          <span className="font-mono font-bold text-primary dark:text-primary text-sm">
                             ${showCash1.toLocaleString("es-AR")}
                           </span>
                         </div>
@@ -1201,7 +1201,7 @@ export default function TorneoIndividualPublico() {
                               {parsedPremios.cash2 > 0 ? "Premio fijo en efectivo." : "Se lleva el 30% del importe a entregar."}
                             </p>
                           </div>
-                          <span className="font-mono font-bold text-emerald-600 dark:text-emerald-400 text-sm">
+                          <span className="font-mono font-bold text-primary dark:text-primary text-sm">
                             ${showCash2.toLocaleString("es-AR")}
                           </span>
                         </div>
@@ -1264,3 +1264,4 @@ export default function TorneoIndividualPublico() {
     </div>
   );
 }
+

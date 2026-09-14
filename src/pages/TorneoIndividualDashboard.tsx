@@ -2276,13 +2276,13 @@ export default function TorneoIndividualDashboard() {
         </div>
         <div className="flex gap-2">
           {canFinalizeTournament && (
-            <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-medium shadow-sm transition-colors" onClick={handleFinalizarTorneo}>
+            <Button size="sm" className="bg-primary hover:bg-primary text-white font-medium shadow-sm transition-colors" onClick={handleFinalizarTorneo}>
               <CheckCircle2 className="h-4 w-4 mr-1.5" />
               Finalizar Torneo
             </Button>
           )}
           {torneo?.estado === "finalizado" && (
-            <Button size="sm" variant="outline" className="border-amber-500/30 text-amber-600 bg-amber-500/5 hover:bg-amber-500/10 hover:text-amber-700 dark:hover:bg-amber-950/20 font-medium shadow-sm" onClick={handleReabrirTorneo}>
+            <Button size="sm" variant="outline" className="border-secondary/30 text-secondary bg-secondary/5 hover:bg-secondary/10 hover:text-secondary dark:hover:bg-secondary/20 font-medium shadow-sm" onClick={handleReabrirTorneo}>
               <Settings className="h-4 w-4 mr-1.5" />
               Reabrir Torneo
             </Button>
@@ -2304,13 +2304,13 @@ export default function TorneoIndividualDashboard() {
           <CardContent className="p-6">
             <div className="flex flex-col md:flex-row items-center justify-between gap-6">
               <div className="flex items-center gap-4">
-                <div className="p-3 bg-amber-500/15 rounded-full border border-amber-500/30 text-amber-500 animate-pulse shrink-0">
+                <div className="p-3 bg-secondary/15 rounded-full border border-secondary/30 text-secondary animate-pulse shrink-0">
                   <Trophy className="h-8 w-8" />
                 </div>
                 <div>
                   <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
                     ¡Tenemos Campeón!
-                    <span className="text-xs bg-amber-500/20 text-amber-600 dark:text-amber-400 font-mono px-2 py-0.5 rounded-full border border-amber-500/30">
+                    <span className="text-xs bg-secondary/20 text-secondary dark:text-secondary font-mono px-2 py-0.5 rounded-full border border-secondary/30">
                       Finalizado
                     </span>
                   </h2>
@@ -2322,9 +2322,9 @@ export default function TorneoIndividualDashboard() {
 
               <div className="flex flex-wrap gap-4 w-full md:w-auto">
                 {/* Campeón */}
-                <div className="flex-1 min-w-[200px] border border-amber-500/20 bg-amber-500/5 p-4 rounded-xl relative overflow-hidden">
-                  <div className="absolute top-1 right-1 text-amber-500/10 font-black text-4xl">1°</div>
-                  <p className="text-[10px] text-amber-600 dark:text-amber-400 uppercase font-black tracking-wider">Campeón</p>
+                <div className="flex-1 min-w-[200px] border border-secondary/20 bg-secondary/5 p-4 rounded-xl relative overflow-hidden">
+                  <div className="absolute top-1 right-1 text-secondary/10 font-black text-4xl">1°</div>
+                  <p className="text-[10px] text-secondary dark:text-secondary uppercase font-black tracking-wider">Campeón</p>
                   <p className="text-base font-bold mt-1 text-foreground">
                     {championsInfo.campeon ? `${championsInfo.campeon.apellido}, ${championsInfo.campeon.nombre}` : "—"}
                   </p>
@@ -2684,7 +2684,7 @@ export default function TorneoIndividualDashboard() {
                 <CardHeader>
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>Cuadrícula de Pagos de Inscripción</span>
-                    <Badge variant="outline" className="border-emerald-500/20 text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20">
+                    <Badge variant="outline" className="border-primary/20 text-primary bg-primary/10 dark:bg-primary/20">
                       Costo por Fecha: ${torneo?.costo_fecha_jugador ?? 10000}
                     </Badge>
                   </CardTitle>
@@ -2733,8 +2733,8 @@ export default function TorneoIndividualDashboard() {
                                       type="button"
                                       className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all border ${
                                         isPaid
-                                          ? "bg-emerald-500 border-emerald-600 text-white shadow-sm"
-                                          : "bg-muted border-border hover:bg-emerald-500/20 hover:border-emerald-400"
+                                          ? "bg-primary border-primary text-white shadow-sm"
+                                          : "bg-muted border-border hover:bg-primary/20 hover:border-primary"
                                       }`}
                                       onClick={() => handleSetPago(tj.jugador_id, fNum, pData)}
                                       title={isPaid ? "Marcado como PAGADO. Clic para quitar" : "Pendiente de pago. Clic para marcar pagado"}
@@ -2761,7 +2761,7 @@ export default function TorneoIndividualDashboard() {
                 <Card>
                   <CardHeader>
                     <CardTitle className="text-base flex items-center gap-2">
-                      <DollarSign className="h-4 w-4 text-emerald-600" />
+                      <DollarSign className="h-4 w-4 text-primary" />
                       Caja y Ganancias del Torneo
                     </CardTitle>
                     <CardDescription>
@@ -2778,7 +2778,7 @@ export default function TorneoIndividualDashboard() {
                       </div>
                       <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
                         <div
-                          className="bg-emerald-500 h-full transition-all"
+                          className="bg-primary h-full transition-all"
                           style={{
                             width: `${(finanzasResumen.cobrado / (((jugadoresInscriptos.length * (torneo?.costo_fecha_jugador ?? 10000) * (torneo?.desafio_semanas ?? 8))) || 1)) * 100}%`,
                           }}
@@ -2824,7 +2824,7 @@ export default function TorneoIndividualDashboard() {
 
                     <div className="flex justify-between border-t pt-2 text-sm font-bold">
                       <span>Ganancia Real:</span>
-                      <span className="text-emerald-600 dark:text-emerald-400">${finanzasResumen.gananciaNeta.toLocaleString()}</span>
+                      <span className="text-primary dark:text-primary">${finanzasResumen.gananciaNeta.toLocaleString()}</span>
                     </div>
 
                     <div className="border p-3 rounded-md space-y-2.5 bg-indigo-50/30 dark:bg-indigo-950/10 text-xs">
@@ -3042,7 +3042,7 @@ export default function TorneoIndividualDashboard() {
                         size="sm"
                         className={`h-8 w-12 text-xs font-semibold ${
                           isCompleted && selectedFechaNum !== fNum
-                            ? "border-emerald-500/30 text-emerald-600 bg-emerald-500/5 hover:bg-emerald-500/10"
+                            ? "border-primary/30 text-primary bg-primary/5 hover:bg-primary/10"
                             : ""
                         }`}
                         onClick={() => setSelectedFechaNum(fNum)}
@@ -3060,7 +3060,7 @@ export default function TorneoIndividualDashboard() {
                   <Button
                     size="sm"
                     variant={selectedFecha.publicado ? "default" : "outline"}
-                    className={selectedFecha.publicado ? "bg-amber-500 hover:bg-amber-600 border-amber-600 shadow-sm" : "border-amber-600/50 text-amber-600 hover:bg-amber-50"}
+                    className={selectedFecha.publicado ? "bg-secondary hover:bg-secondary border-secondary shadow-sm" : "border-secondary/50 text-secondary hover:bg-secondary/10"}
                     onClick={handleTogglePublicacionSemana}
                   >
                     {selectedFecha.publicado ? (
@@ -3117,7 +3117,7 @@ export default function TorneoIndividualDashboard() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                    className="border-primary text-primary hover:bg-primary/10 dark:hover:bg-primary/20"
                     onClick={handleCerrarFecha}
                     disabled={!partidosDeFecha.every((p) => p.estado === "finalizado")}
                   >
@@ -3130,7 +3130,7 @@ export default function TorneoIndividualDashboard() {
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-amber-600 text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+                    className="border-secondary text-secondary hover:bg-secondary/10 dark:hover:bg-secondary/20"
                     onClick={handleReabrirFecha}
                   >
                     <RefreshCw className="h-4 w-4 mr-1.5" />
@@ -3188,13 +3188,13 @@ export default function TorneoIndividualDashboard() {
                           Armar Gran Final Manualmente (Semana {torneo?.desafio_semanas ?? 8})
                         </Button>
                         {jugadoresInscriptos.length === 8 && (
-                          <Button onClick={handleGenerarFecha8Individual} className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm border border-amber-600">
+                          <Button onClick={handleGenerarFecha8Individual} className="bg-secondary hover:bg-secondary text-white shadow-sm border border-secondary">
                             <Trophy className="h-4 w-4 mr-1.5" />
                             Generar Fecha 8 (Final Automática)
                           </Button>
                         )}
                         {jugadoresInscriptos.length === 12 && (
-                          <Button onClick={handleGenerarFecha12Individual} className="bg-amber-500 hover:bg-amber-600 text-white shadow-sm border border-amber-600">
+                          <Button onClick={handleGenerarFecha12Individual} className="bg-secondary hover:bg-secondary text-white shadow-sm border border-secondary">
                             <Trophy className="h-4 w-4 mr-1.5" />
                             Generar Fecha 12 (Final)
                           </Button>
@@ -3230,7 +3230,7 @@ export default function TorneoIndividualDashboard() {
                         </div>
                         <div className="flex items-center gap-1">
                           {hasWinner && (
-                            <Badge variant="outline" className="border-emerald-600 text-emerald-600 py-0 text-[10px] h-4">
+                            <Badge variant="outline" className="border-primary text-primary py-0 text-[10px] h-4">
                               Finalizado
                             </Badge>
                           )}
@@ -3375,13 +3375,13 @@ export default function TorneoIndividualDashboard() {
                         <TableRow key={s.pareja_id}>
                           <TableCell className="text-center font-bold">
                             {s.podio_final === 1 ? (
-                              <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5" /></span>
+                              <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5" /></span>
                             ) : s.podio_final === 2 ? (
                               <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5" /></span>
                             ) : s.podio_final === 3 ? (
-                              <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5" /></span>
+                              <span className="flex justify-center text-secondary" title="Bronce"><Trophy className="h-5 w-5" /></span>
                             ) : idx === 0 ? (
-                              <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                              <span className="flex justify-center text-secondary"><Trophy className="h-4 w-4" /></span>
                             ) : (
                               `${idx + 1}º`
                             )}
@@ -3402,7 +3402,7 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="text-center font-mono text-xs">{s.gamesGanados}</TableCell>
                             <TableCell className="text-center font-mono text-xs">{s.gamesPerdidos}</TableCell>
                             <TableCell className="text-center font-mono text-xs">
-                              <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                              <span className={s.difGames > 0 ? "text-primary" : s.difGames < 0 ? "text-destructive" : ""}>
                                 {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
                               </span>
                             </TableCell>
@@ -3422,13 +3422,13 @@ export default function TorneoIndividualDashboard() {
                         <TableRow key={s.jugador_id}>
                           <TableCell className="text-center font-bold">
                             {(s as any).podio_final === 1 ? (
-                              <span className="flex justify-center text-amber-500" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
+                              <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
                             ) : (s as any).podio_final === 2 ? (
                               <span className="flex justify-center text-slate-400" title="Plata"><Trophy className="h-5 w-5 fill-slate-400/20" /></span>
                             ) : (s as any).podio_final === 3 ? (
-                              <span className="flex justify-center text-amber-700" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
+                              <span className="flex justify-center text-secondary" title="Bronce"><Trophy className="h-5 w-5 fill-amber-700/20" /></span>
                             ) : idx === 0 ? (
-                              <span className="flex justify-center text-amber-500"><Trophy className="h-4 w-4" /></span>
+                              <span className="flex justify-center text-secondary"><Trophy className="h-4 w-4" /></span>
                             ) : (
                               `${idx + 1}º`
                             )}
@@ -3442,7 +3442,7 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="text-center font-mono text-xs">{s.gamesGanados}</TableCell>
                             <TableCell className="text-center font-mono text-xs">{s.gamesPerdidos}</TableCell>
                             <TableCell className="text-center font-mono text-xs">
-                              <span className={s.difGames > 0 ? "text-emerald-600" : s.difGames < 0 ? "text-destructive" : ""}>
+                              <span className={s.difGames > 0 ? "text-primary" : s.difGames < 0 ? "text-destructive" : ""}>
                                 {s.difGames > 0 ? `+${s.difGames}` : s.difGames}
                               </span>
                             </TableCell>
@@ -3541,7 +3541,7 @@ export default function TorneoIndividualDashboard() {
           </DialogHeader>
 
           {(settingsForm.sistema_puntuacion === "puntos_por_set" || torneo?.notas?.includes("[SISTEMA:puntos_por_set]")) && (
-            <div className="bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 p-2.5 rounded-lg text-xs font-medium">
+            <div className="bg-primary/10 dark:bg-primary/30 border border-primary/30 text-primary dark:text-primary p-2.5 rounded-lg text-xs font-medium">
               ✨ <strong>Modalidad 1 Punto por Set Ganado:</strong> Cada set ganado suma 1 punto. En caso de 1-1 en sets no se exige Supertiebreak.
             </div>
           )}
@@ -3671,7 +3671,7 @@ export default function TorneoIndividualDashboard() {
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Trophy className="h-5 w-5 text-amber-500" />
+              <Trophy className="h-5 w-5 text-secondary" />
               Draft de Compañeros - Semana {torneo?.desafio_semanas ?? 8}
             </DialogTitle>
             <DialogDescription>
@@ -3925,3 +3925,4 @@ export default function TorneoIndividualDashboard() {
     </div>
   );
 }
+

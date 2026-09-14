@@ -80,7 +80,7 @@ export const DraftPublico = () => {
   if (loading) {
     return (
       <div className="min-h-screen bg-[#0F172A] text-white flex flex-col items-center justify-center">
-        <RefreshCcw className="h-10 w-10 animate-spin text-amber-500 mb-4" />
+        <RefreshCcw className="h-10 w-10 animate-spin text-secondary mb-4" />
         <h2 className="text-2xl font-bold animate-pulse">Cargando Draft en Vivo...</h2>
       </div>
     );
@@ -100,16 +100,16 @@ export const DraftPublico = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#0F172A] text-white overflow-hidden relative selection:bg-amber-500/30">
+    <div className="min-h-screen bg-[#0F172A] text-white overflow-hidden relative selection:bg-secondary/30">
       {/* Background glow effects */}
       <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] rounded-full bg-indigo-600/20 blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-amber-600/20 blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] rounded-full bg-secondary/20 blur-[120px] pointer-events-none" />
 
       <div className="container mx-auto px-4 py-8 relative z-10 flex flex-col min-h-screen">
         {/* Header */}
         <header className="flex flex-col items-center justify-center mb-12 mt-4 space-y-4">
-          <div className="bg-amber-500/10 p-4 rounded-full border border-amber-500/20 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
-            <Trophy className="h-16 w-16 text-amber-500" />
+          <div className="bg-secondary/10 p-4 rounded-full border border-secondary/20 shadow-[0_0_30px_rgba(245,158,11,0.2)]">
+            <Trophy className="h-16 w-16 text-secondary" />
           </div>
           <h1 className="text-5xl md:text-7xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-200 via-amber-400 to-amber-600 uppercase tracking-tighter text-center">
             Draft Gran Final
@@ -138,8 +138,8 @@ export const DraftPublico = () => {
                   let titleColor = "text-slate-300";
                   
                   if (isGranFinal) {
-                    cardGradient = "from-amber-950/40 to-slate-900 border-amber-500/30 shadow-[0_0_40px_rgba(245,158,11,0.1)]";
-                    titleColor = "text-amber-400";
+                    cardGradient = "from-amber-950/40 to-slate-900 border-secondary/30 shadow-[0_0_40px_rgba(245,158,11,0.1)]";
+                    titleColor = "text-secondary";
                   } else if (isDesafio) {
                     cardGradient = "from-slate-800 to-slate-900 border-slate-600";
                     titleColor = "text-slate-200";
@@ -203,3 +203,4 @@ export const DraftPublico = () => {
 };
 
 export default DraftPublico;
+

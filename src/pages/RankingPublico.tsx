@@ -173,7 +173,7 @@ export default function RankingPublico() {
   const medalla = (pos: number) => {
     if (pos === 0) return <Medal className="h-5 w-5 text-yellow-500" />;
     if (pos === 1) return <Medal className="h-5 w-5 text-slate-400" />;
-    if (pos === 2) return <Medal className="h-5 w-5 text-amber-700" />;
+    if (pos === 2) return <Medal className="h-5 w-5 text-secondary" />;
     return <span className="text-xs font-bold text-muted-foreground">{pos + 1}</span>;
   };
 
@@ -364,3 +364,4 @@ export default function RankingPublico() {
     </div>
   );
 }
+

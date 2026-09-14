@@ -575,7 +575,7 @@ export default function Inscripciones() {
           {filtroTorneo !== "todos" && pendientesCount > 0 && (
             <Button
               variant="outline"
-              className="text-amber-600 border-amber-200 hover:bg-amber-50 dark:hover:bg-amber-950/20"
+              className="text-secondary border-secondary hover:bg-secondary/10 dark:hover:bg-secondary/20"
               onClick={handleConfirmarTodas}
             >
               <CheckCircle2 className="h-4 w-4 mr-1" />
@@ -877,7 +877,7 @@ export default function Inscripciones() {
                   ) : null}
 
                   {i.notas && (
-                    <div className="mt-1 bg-amber-50 dark:bg-amber-950/20 p-2 rounded text-xs text-amber-800 dark:text-amber-300 italic border border-amber-200 dark:border-amber-900/50">
+                    <div className="mt-1 bg-secondary/10 dark:bg-secondary/20 p-2 rounded text-xs text-secondary dark:text-secondary italic border border-secondary dark:border-secondary/50">
                       "{i.notas}"
                     </div>
                   )}
@@ -1244,3 +1244,4 @@ export default function Inscripciones() {
     </>
   );
 }
+
