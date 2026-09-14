@@ -32,7 +32,7 @@ interface CompartirFixtureIndividualDialogProps {
   partidos: any[];
 }
 
-type ThemePreset = "dark-emerald" | "royal-gold";
+type ThemePreset = "cyber-neon" | "dark-sport";
 
 export function CompartirFixtureIndividualDialog({
   isOpen,
@@ -41,34 +41,34 @@ export function CompartirFixtureIndividualDialog({
   fechaNum,
   partidos,
 }: CompartirFixtureIndividualDialogProps) {
-  const [theme, setTheme] = useState<ThemePreset>("dark-emerald");
+  const [theme, setTheme] = useState<ThemePreset>("cyber-neon");
   const [exporting, setExporting] = useState(false);
   const captureRef = useRef<HTMLDivElement>(null);
 
   const themeStyles = {
-    "dark-emerald": {
-      background: "linear-gradient(135deg, #022c22 0%, #060b11 50%, #021a14 100%)",
-      titleColor: "#34d399",
+    "cyber-neon": {
+      background: "linear-gradient(135deg, #0a0a0f 0%, #1a1025 50%, #0a0a0f 100%)",
+      titleColor: "#9d4edd",
       cardStyle: {
-        backgroundColor: "rgba(9, 21, 18, 0.9)",
-        borderColor: "rgba(6, 95, 70, 0.4)",
+        backgroundColor: "rgba(15, 10, 20, 0.7)",
+        borderColor: "rgba(157, 78, 221, 0.3)",
       },
-      vsColor: "rgba(16, 185, 129, 0.8)",
-      textColorPrimary: "#f4f4f5",
-      textColorMuted: "rgba(52, 211, 153, 0.6)",
-      watermarkColor: "rgba(16, 185, 129, 0.4)",
+      vsColor: "rgba(255, 10, 84, 0.9)",
+      textColorPrimary: "#ffffff",
+      textColorMuted: "rgba(157, 78, 221, 0.7)",
+      watermarkColor: "rgba(157, 78, 221, 0.15)",
     },
-    "royal-gold": {
-      background: "linear-gradient(135deg, #1c1917 0%, #0c0a09 60%, #1c1917 100%)",
-      titleColor: "#fbbf24",
+    "dark-sport": {
+      background: "linear-gradient(135deg, #050505 0%, #120508 50%, #050505 100%)",
+      titleColor: "#ff0a54",
       cardStyle: {
-        backgroundColor: "rgba(23, 21, 19, 0.9)",
-        borderColor: "#2e2a24",
+        backgroundColor: "rgba(20, 5, 10, 0.7)",
+        borderColor: "rgba(255, 10, 84, 0.3)",
       },
-      vsColor: "rgba(245, 158, 11, 0.8)",
-      textColorPrimary: "#fdf8f6",
-      textColorMuted: "rgba(251, 191, 36, 0.6)",
-      watermarkColor: "rgba(245, 158, 11, 0.3)",
+      vsColor: "rgba(157, 78, 221, 0.9)",
+      textColorPrimary: "#ffffff",
+      textColorMuted: "rgba(255, 10, 84, 0.7)",
+      watermarkColor: "rgba(255, 10, 84, 0.15)",
     },
   };
 
@@ -157,8 +157,8 @@ export function CompartirFixtureIndividualDialog({
                 <SelectValue placeholder="Tema" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="dark-emerald">Dark Emerald</SelectItem>
-                <SelectItem value="royal-gold">Royal Gold</SelectItem>
+                <SelectItem value="cyber-neon">Cyber Neon</SelectItem>
+                <SelectItem value="dark-sport">Dark Sport</SelectItem>
               </SelectContent>
             </Select>
 
