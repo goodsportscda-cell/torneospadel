@@ -23,6 +23,7 @@ import { CronogramaPartidos } from "@/components/zonas/CronogramaPartidos";
 import { calcularDistribucionZonas, nombreZona } from "@/lib/zonas";
 import type { Database } from "@/integrations/supabase/types";
 import { GenerarZonasAutoDialog } from "@/components/zonas/GenerarZonasAutoDialog";
+import { CompartirTodasZonasDialog } from "@/components/zonas/CompartirTodasZonasDialog";
 import { useAuth } from "@/hooks/useAuth";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
@@ -41,6 +42,7 @@ export default function Zonas() {
   const [zonaParejasGlobal, setZonaParejasGlobal] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isShareAllOpen, setIsShareAllOpen] = useState(false);
 
   const cargarDatos = useCallback(async () => {
     if (!torneoId) return;
@@ -329,8 +331,20 @@ export default function Zonas() {
                   </AlertDialog>
                 )
               )}
+              {zonas.length > 0 && isAdmin && (
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setIsShareAllOpen(true)}
+                  className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
+                >
+                  <Share2 className="h-4 w-4 mr-2" />
+                  Compartir Todo
+                </Button>
+              )}
             </div>
 
+            {/* Panel de disponibles y lista de zonas */}
             <div className="grid grid-cols-1 lg:grid-cols-[280px_1fr] gap-4">
               <PanelDisponibles parejas={parejasDisponibles} parejaDisponibilidad={parejaDisponibilidad} />
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -360,6 +374,17 @@ export default function Zonas() {
             />
           </TabsContent>
         </Tabs>
+      )}
+
+      {/* Dialog for sharing all zones */}
+      {torneoId && (
+        <CompartirTodasZonasDialog
+          isOpen={isShareAllOpen}
+          onOpenChange={setIsShareAllOpen}
+          torneoId={torneoId}
+          torneoNombre={torneoNombre}
+          zonas={zonas}
+        />
       )}
     </div>
   );
