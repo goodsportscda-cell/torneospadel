@@ -100,37 +100,21 @@ export function CompartirTodasZonasDialog({
           const parejasDeZona = (zonasParejas || []).filter(zp => zp.zona_id === z.id);
 
           const partidosDisplay: PartidoDisplay[] = partidosDeZona.map(p => {
-            let local: ParejaInfo | null = null;
-            let visitante: ParejaInfo | null = null;
-
-            if (p.pareja_local_id) {
-              const zp = parejasDeZona.find(zp => zp.id === p.pareja_local_id);
-              if (zp) {
-                local = {
-                  inscripcion_id: zp.inscripcion_id,
-                  posicion_siembra: zp.posicion_siembra,
-                  label: getParejaLabel(zp.inscripcion_id)
-                };
-              }
-            }
-            if (p.pareja_visitante_id) {
-              const zp = parejasDeZona.find(zp => zp.id === p.pareja_visitante_id);
-              if (zp) {
-                visitante = {
-                  inscripcion_id: zp.inscripcion_id,
-                  posicion_siembra: zp.posicion_siembra,
-                  label: getParejaLabel(zp.inscripcion_id)
-                };
-              }
-            }
-
             return {
               id: p.id,
               orden: p.orden,
               fechaHora: p.fecha_hora,
               cancha: p.cancha_asignada,
-              parejaLocal: local,
-              parejaVisitante: visitante
+              parejaLocal: p.pareja_local_id ? {
+                inscripcion_id: p.pareja_local_id,
+                posicion_siembra: p.posicion_local ?? 0,
+                label: getParejaLabel(p.pareja_local_id)
+              } : null,
+              parejaVisitante: p.pareja_visitante_id ? {
+                inscripcion_id: p.pareja_visitante_id,
+                posicion_siembra: p.posicion_visitante ?? 0,
+                label: getParejaLabel(p.pareja_visitante_id)
+              } : null
             };
           });
 
@@ -330,7 +314,7 @@ export function CompartirTodasZonasDialog({
                       </div>
                     </div>
 
-                    <div className={`flex-1 grid gap-6 ${ratio === "story" ? "grid-cols-1 content-start" : "grid-cols-2 lg:grid-cols-3 content-start"} overflow-hidden`}>
+                    <div className={`flex-1 grid gap-x-8 gap-y-6 ${ratio === "story" ? "grid-cols-2 content-start" : "grid-cols-2 lg:grid-cols-3 content-start"} overflow-hidden`}>
                       {zonaGroups.map((zg) => (
                         <div key={zg.zona.id} className="flex flex-col gap-3">
                           <h2 
