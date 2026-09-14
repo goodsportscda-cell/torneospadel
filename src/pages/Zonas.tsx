@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Wand2, Plus, Trash2, RefreshCw } from "lucide-react";
+import { Wand2, Plus, Trash2, RefreshCw, Share2 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AlertDialog,
