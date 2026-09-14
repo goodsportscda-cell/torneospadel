@@ -53,7 +53,7 @@ interface CompartirLlaveDialogProps {
 }
 
 type AspectRatio = "square" | "story";
-type ThemePreset = "dark-emerald" | "royal-gold" | "cyber-cyan";
+type ThemePreset = "cyber-neon" | "dark-sport" | "cyber-cyan";
 
 export function CompartirLlaveDialog({
   isOpen,
@@ -65,7 +65,7 @@ export function CompartirLlaveDialog({
   inscripciones,
 }: CompartirLlaveDialogProps) {
   const [ratio, setRatio] = useState<AspectRatio>("square");
-  const [theme, setTheme] = useState<ThemePreset>("dark-emerald");
+  const [theme, setTheme] = useState<ThemePreset>("cyber-neon");
   const [showSchedule, setShowSchedule] = useState(true);
   const [showScores, setShowScores] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -144,11 +144,11 @@ export function CompartirLlaveDialog({
 
   // Definir temas (estilos inline rígidos para garantizar renderizado idéntico con html2canvas)
   const themeStyles = {
-    "dark-emerald": {
-      background: "linear-gradient(135deg, #022c22 0%, #060b11 50%, #021a14 100%)",
-      titleColor: "#34d399", // emerald-400
-      accentBgColor: "rgba(2, 44, 34, 0.5)",
-      accentBorderColor: "rgba(16, 185, 129, 0.2)",
+    "cyber-neon": {
+      background: "linear-gradient(135deg, #240046 0%, #0f1016 50%, #10002b 100%)",
+      titleColor: "#e0aaff", // emerald-400
+      accentBgColor: "rgba(157, 78, 221, 0.4)",
+      accentBorderColor: "rgba(255, 10, 84, 0.3)",
       accentTextColor: "#a7f3d0", // emerald-300
       cardStyle: {
         backgroundColor: "rgba(9, 21, 18, 0.9)",
@@ -156,7 +156,7 @@ export function CompartirLlaveDialog({
       },
       highlightCardStyle: {
         backgroundColor: "rgba(2, 44, 34, 0.4)",
-        borderColor: "#34d399",
+        borderColor: "#e0aaff",
       },
       scoreWinStyle: {
         backgroundColor: "#10b981",
@@ -167,23 +167,23 @@ export function CompartirLlaveDialog({
         color: "rgba(52, 211, 153, 0.7)",
       },
       textColorPrimary: "#f4f4f5",
-      textColorMuted: "rgba(52, 211, 153, 0.6)",
-      lineColor: "#10b98133",
+      textColorMuted: "rgba(224, 170, 255, 0.6)",
+      lineColor: "#7b2cbf33",
       championCardStyle: {
-        background: "linear-gradient(135deg, rgba(2, 44, 34, 0.8) 0%, rgba(13, 148, 136, 0.4) 50%, rgba(2, 44, 34, 0.8) 100%)",
-        borderColor: "#34d399",
+        background: "linear-gradient(135deg, rgba(36, 0, 70, 0.8) 0%, rgba(157, 78, 221, 0.4) 50%, rgba(36, 0, 70, 0.8) 100%)",
+        borderColor: "#e0aaff",
       },
-      watermarkColor: "rgba(16, 185, 129, 0.4)",
+      watermarkColor: "rgba(224, 170, 255, 0.4)",
     },
-    "royal-gold": {
-      background: "linear-gradient(135deg, #1c1917 0%, #0c0a09 60%, #1c1917 100%)",
-      titleColor: "#fbbf24", // amber-400
-      accentBgColor: "rgba(120, 53, 4, 0.4)",
-      accentBorderColor: "rgba(245, 158, 11, 0.2)",
-      accentTextColor: "#fde68a", // amber-300
+    "dark-sport": {
+      background: "linear-gradient(135deg, #0a0a0f 0%, #16161a 60%, #0a0a0f 100%)",
+      titleColor: "#ff0a54", // amber-400
+      accentBgColor: "rgba(255, 10, 84, 0.2)",
+      accentBorderColor: "rgba(255, 10, 84, 0.4)",
+      accentTextColor: "#ff8fa3", // amber-300
       cardStyle: {
-        backgroundColor: "rgba(23, 21, 19, 0.9)",
-        borderColor: "#2e2a24",
+        backgroundColor: "rgba(22, 22, 26, 0.95)",
+        borderColor: "#3a0ca3",
       },
       highlightCardStyle: {
         backgroundColor: "rgba(120, 53, 4, 0.2)",
@@ -642,7 +642,7 @@ export function CompartirLlaveDialog({
                     }}
                     className="rounded-2xl p-6 text-center border-2 shadow-2xl relative overflow-hidden w-full"
                   >
-                    <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full blur-xl pointer-events-none"></div>
+                    <div className="absolute top-0 right-0 w-24 h-24 bg-secondary/5 rounded-full blur-xl pointer-events-none"></div>
                     <Trophy className="h-14 w-14 text-amber-400 mx-auto mb-4 animate-pulse" />
                     <p className="text-xs font-black text-amber-400 uppercase tracking-widest mb-2">¡Ganador!</p>
                     <h3 className="text-base font-black text-white leading-snug drop-shadow-md">
@@ -738,8 +738,8 @@ export function CompartirLlaveDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="dark-emerald">Esmeralda (Anita Quiroga Brand)</SelectItem>
-                    <SelectItem value="royal-gold">Oro Imperial (Premium Black)</SelectItem>
+                    <SelectItem value="cyber-neon">Cyber Neon (Violeta & Fucsia)</SelectItem>
+                    <SelectItem value="dark-sport">Dark Sport (Rosa Deportivo & Negro Espacial)</SelectItem>
                     <SelectItem value="cyber-cyan">Cyber Cyan (Futurista)</SelectItem>
                   </SelectContent>
                 </Select>

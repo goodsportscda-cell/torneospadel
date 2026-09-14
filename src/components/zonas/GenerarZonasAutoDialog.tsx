@@ -228,7 +228,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button size="sm" disabled={disabled} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+        <Button size="sm" disabled={disabled} className="bg-primary hover:bg-primary text-white">
           <Wand2 className="h-4 w-4 mr-2" />
           Armar Zonas Automáticamente
         </Button>
@@ -244,7 +244,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
         <div className="flex-1 overflow-y-auto py-4 pr-2 space-y-4">
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-              <Loader2 className="h-8 w-8 animate-spin mb-4 text-emerald-600" />
+              <Loader2 className="h-8 w-8 animate-spin mb-4 text-primary" />
               <p>Procesando algoritmos y calculando cruces por horario...</p>
             </div>
           ) : zonasPropuestas.length === 0 ? (
@@ -258,9 +258,9 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
                   {/* Encabezado editable de la Zona */}
                   <div className="flex items-center justify-between border-b pb-2 gap-2">
                     <div className="flex items-center gap-1.5 flex-1">
-                      <span className="font-bold text-sm text-emerald-600 shrink-0">Zona</span>
+                      <span className="font-bold text-sm text-primary shrink-0">Zona</span>
                       <Input
-                        className="h-8 w-16 font-extrabold text-base text-emerald-600 bg-background"
+                        className="h-8 w-16 font-extrabold text-base text-primary bg-background"
                         value={zp.nombre}
                         onChange={(e) => handleUpdateNombre(i, e.target.value)}
                         placeholder="A"
@@ -318,7 +318,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
                   <div className="mt-auto space-y-2.5 pt-3 border-t bg-muted/20 p-2.5 rounded-lg border">
                     <div className="flex items-center justify-between text-xs font-semibold text-foreground">
                       <span className="flex items-center gap-1">
-                        <CalendarDays className="h-3.5 w-3.5 text-emerald-600" /> Programación
+                        <CalendarDays className="h-3.5 w-3.5 text-primary" /> Programación
                       </span>
                       {zp.franjaAsignada && (
                         <span className="text-[10px] text-muted-foreground truncate max-w-[120px]" title={zp.franjaAsignada.label_franja}>
@@ -368,7 +368,7 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
           <Button variant="outline" onClick={() => setOpen(false)} disabled={saving}>
             Cancelar
           </Button>
-          <Button onClick={handleConfirmar} disabled={loading || saving || zonasPropuestas.length === 0} className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold">
+          <Button onClick={handleConfirmar} disabled={loading || saving || zonasPropuestas.length === 0} className="bg-primary hover:bg-primary text-white font-bold">
             {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
             Confirmar y Guardar Zonas
           </Button>

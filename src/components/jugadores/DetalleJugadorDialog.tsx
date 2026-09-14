@@ -70,7 +70,7 @@ interface AscensoItem {
 }
 
 const INSTANCIA_BADGE_STYLE: Record<string, string> = {
-  campeon: "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 font-black",
+  campeon: "bg-secondary/10 text-secondary dark:text-amber-400 border-secondary/20 font-black",
   subcampeon: "bg-slate-400/10 text-slate-600 dark:text-slate-300 border-slate-400/20 font-bold",
   semifinal: "bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20",
   cuartos: "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20",
@@ -359,7 +359,7 @@ export default function DetalleJugadorDialog({
                           className="text-primary hover:underline"
                           title="Enviar WhatsApp"
                         >
-                          <Badge variant="outline" className="text-[9px] text-emerald-600 dark:text-emerald-400 border-emerald-500/20 bg-emerald-500/5 hover:bg-emerald-500/10 cursor-pointer">
+                          <Badge variant="outline" className="text-[9px] text-primary dark:text-primary border-primary/20 bg-primary/5 hover:bg-primary/10 cursor-pointer">
                             WhatsApp
                           </Badge>
                         </a>
@@ -489,7 +489,7 @@ export default function DetalleJugadorDialog({
                     <CardHeader className="p-3 bg-muted/30 pb-2 border-b">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="flex items-center gap-2">
-                          <ArrowUpCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                          <ArrowUpCircle className="h-4 w-4 text-primary shrink-0" />
                           <span className="font-bold text-sm text-foreground">
                             {asc.catOrigenNombre} <span className="text-muted-foreground">→</span> {asc.catDestinoNombre}
                           </span>
@@ -509,7 +509,7 @@ export default function DetalleJugadorDialog({
                     <CardContent className="p-3 pt-2 text-xs space-y-2">
                       <div className="flex items-center justify-between flex-wrap gap-2 text-muted-foreground">
                         <span>Puntos acumulados en categoría origen: <strong className="text-foreground">{asc.puntosOrigen} pts</strong></span>
-                        <Badge className="bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 font-bold">
+                        <Badge className="bg-primary/10 text-primary dark:text-primary border-primary/20 font-bold">
                           +{asc.puntosTransferidos} pts transferidos (50%)
                         </Badge>
                       </div>

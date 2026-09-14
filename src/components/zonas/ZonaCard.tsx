@@ -632,18 +632,18 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                 const faltaGanadores = !tiposExistentes.includes("ganadores");
                 const faltaPerdedores = !tiposExistentes.includes("perdedores");
                 return (
-                  <div className="rounded-md border border-amber-300 bg-amber-50 p-3 space-y-2">
-                    <p className="text-xs font-semibold text-amber-800">
+                  <div className="rounded-md border border-secondary bg-secondary/10 p-3 space-y-2">
+                    <p className="text-xs font-semibold text-secondary">
                       ⚠️ Zona de 4: faltan {4 - partidos.length} partido{4 - partidos.length > 1 ? "s" : ""}.
                     </p>
                     <div className="flex gap-2 flex-wrap">
                       {faltaGanadores && (
-                        <Button size="sm" variant="outline" className="text-xs h-7 border-amber-400 text-amber-800 hover:bg-amber-100" onClick={() => handleAgregarPartidoFaltante("ganadores")}>
+                        <Button size="sm" variant="outline" className="text-xs h-7 border-secondary text-secondary hover:bg-secondary" onClick={() => handleAgregarPartidoFaltante("ganadores")}>
                           + Agregar partido Ganadores
                         </Button>
                       )}
                       {faltaPerdedores && (
-                        <Button size="sm" variant="outline" className="text-xs h-7 border-amber-400 text-amber-800 hover:bg-amber-100" onClick={() => handleAgregarPartidoFaltante("perdedores")}>
+                        <Button size="sm" variant="outline" className="text-xs h-7 border-secondary text-secondary hover:bg-secondary" onClick={() => handleAgregarPartidoFaltante("perdedores")}>
                           + Agregar partido Perdedores
                         </Button>
                       )}
@@ -739,7 +739,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
           <div className="flex items-center gap-3 bg-white/5 border border-white/10 rounded-2xl p-3 pr-5">
             <PadelIdLogo size={40} />
             <div className="text-left">
-              <p className="text-sm font-black leading-none text-white tracking-tight">Padel <span className="text-emerald-400">ID</span></p>
+              <p className="text-sm font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
               <p style={{ fontSize: '8px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1">Anita Quiroga</p>
             </div>
           </div>

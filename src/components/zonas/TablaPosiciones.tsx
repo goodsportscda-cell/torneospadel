@@ -78,7 +78,7 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
     <div className="space-y-1">
       {tieneOverride && !readOnly && (
         <div className="flex items-center justify-between px-1">
-          <span className="text-[10px] text-amber-600 font-semibold uppercase">
+          <span className="text-[10px] text-secondary font-semibold uppercase">
             ✎ Orden ajustado manualmente
           </span>
           <Button

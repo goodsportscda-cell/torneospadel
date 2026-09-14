@@ -294,7 +294,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
       )}
 
       {cleanQuery.length > 0 && cleanQuery.length < 7 && (
-        <p className="text-xs text-amber-600 dark:text-amber-400">
+        <p className="text-xs text-secondary dark:text-amber-400">
           El DNI debe tener al menos 7 dígitos para realizar la búsqueda.
         </p>
       )}

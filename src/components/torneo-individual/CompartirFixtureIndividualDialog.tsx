@@ -144,7 +144,7 @@ export function CompartirFixtureIndividualDialog({
         <DialogHeader className="p-4 md:p-6 border-b shrink-0 flex flex-row items-start justify-between">
           <div>
             <DialogTitle className="flex items-center gap-2 text-xl">
-              <Share2 className="h-5 w-5 text-emerald-500" />
+              <Share2 className="h-5 w-5 text-primary" />
               Compartir Fixture Fecha {fechaNum}
             </DialogTitle>
             <DialogDescription>
