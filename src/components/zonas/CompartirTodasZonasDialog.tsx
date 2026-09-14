@@ -373,7 +373,7 @@ export function CompartirTodasZonasDialog({
 
                     <div className="mt-8 pt-6 border-t border-white/10 flex justify-between items-center text-sm font-bold opacity-70">
                       <span>padelid.com</span>
-                      <span>Generado automáticamente</span>
+                      <span>© Padel ID • Todos los derechos reservados</span>
                     </div>
                   </div>
                 </div>
