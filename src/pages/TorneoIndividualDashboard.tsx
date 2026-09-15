@@ -1506,7 +1506,7 @@ export default function TorneoIndividualDashboard() {
 
 
   // Matchmaking engine: Weeks 2-6 (Ascensos/Descensos + Ranking order) and Week 7 (Semifinales)
-  const handleGenerarFechaRegular = async (fechaNum: number, algoritmo: 'ranking' | 'americano' = 'ranking') => {
+  const handleGenerarFechaRegular = async (fechaNum: number) => {
     if (!id || !torneo) return;
     const courtsCount = torneo.canchas_count ?? 3;
 
@@ -1666,7 +1666,7 @@ export default function TorneoIndividualDashboard() {
             })
           );
         }
-      } else if (algoritmo === 'americano') {
+      } else if (settingsForm.sistema_puntuacion === "puntos_por_set" && courtsCount === 2) {
         // Intelligent Americano Logic (Date by Date)
         const pastMatches = partidos
           .filter((p) => p.fecha < fechaNum && p.estado === "finalizado")
@@ -3281,18 +3281,10 @@ export default function TorneoIndividualDashboard() {
                       </div>
                     )
                   ) : (
-                    <div className="flex flex-col gap-2">
-                      {torneo?.tipo === "americano_individual" && jugadoresInscriptos.length === 8 && (
-                        <Button onClick={() => handleGenerarFechaRegular(selectedFechaNum, 'americano')} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                          <Settings className="h-4 w-4 mr-1.5" />
-                          Generar Cruces Inteligentes (Americano Sin Repetir)
-                        </Button>
-                      )}
-                      <Button variant="outline" onClick={() => handleGenerarFechaRegular(selectedFechaNum, 'ranking')}>
-                        <Settings className="h-4 w-4 mr-1.5" />
-                        Generar Cruces por Ranking (Ascensos/Descensos)
-                      </Button>
-                    </div>
+                    <Button onClick={() => handleGenerarFechaRegular(selectedFechaNum)}>
+                      <Settings className="h-4 w-4 mr-1.5" />
+                      Generar Cruces (Fecha {selectedFechaNum})
+                    </Button>
                   )}
                 </CardContent>
               </Card>
