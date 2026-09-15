@@ -16,6 +16,10 @@ BEGIN
     RAISE EXCEPTION 'El torneo no tiene exactamente 8 jugadores inscriptos.';
   END IF;
 
+  -- Eliminar partidos pendientes previos para evitar duplicidad al regenerar el fixture
+  DELETE FROM partidos_individuales 
+  WHERE torneo_id = p_torneo_id AND estado = 'pendiente';
+
   -- Asegurarnos de que las 7 fechas existan en torneo_individual_fechas
   FOR i IN 1..7 LOOP
     INSERT INTO torneo_individual_fechas (torneo_id, fecha, costo_canchas, estado)
