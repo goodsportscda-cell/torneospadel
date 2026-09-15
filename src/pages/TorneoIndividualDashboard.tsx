@@ -35,7 +35,8 @@ import {
   RefreshCw,
   Share2,
   Eye,
-  EyeOff
+  EyeOff,
+  Shuffle
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -364,6 +365,35 @@ export default function TorneoIndividualDashboard() {
       fetchTournamentData();
     } catch (e: any) {
       toast.error("Error al programar partido: " + e.message);
+    }
+  };
+
+  // Shuffle players within a pending match (Useful to avoid repeats in Ascensos/Descensos)
+  const handleShuffleMatchPlayers = async (partido: PartidoInd) => {
+    if (partido.estado !== "pendiente") return;
+    try {
+      const players = [partido.jugador1_id, partido.jugador2_id, partido.jugador3_id, partido.jugador4_id];
+      // Randomly shuffle the 4 players
+      for (let i = players.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [players[i], players[j]] = [players[j], players[i]];
+      }
+      
+      const { error } = await (supabase as any)
+        .from("partidos_individuales")
+        .update({
+          jugador1_id: players[0],
+          jugador2_id: players[1],
+          jugador3_id: players[2],
+          jugador4_id: players[3]
+        })
+        .eq("id", partido.id);
+
+      if (error) throw error;
+      toast.success("Parejas mezcladas exitosamente");
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al mezclar parejas: " + e.message);
     }
   };
 
@@ -3251,6 +3281,17 @@ export default function TorneoIndividualDashboard() {
                           >
                             <CalendarDays className="h-3 w-3" />
                           </Button>
+                          {p.estado === "pendiente" && isAdmin && (
+                            <Button 
+                              variant="ghost" 
+                              size="icon" 
+                              className="h-6 w-6 text-muted-foreground hover:text-primary"
+                              onClick={() => handleShuffleMatchPlayers(p)}
+                              title="Mezclar Parejas Aleatoriamente"
+                            >
+                              <Shuffle className="h-3 w-3" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                       <CardContent className="p-4 space-y-4">
