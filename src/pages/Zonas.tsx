@@ -172,6 +172,28 @@ export default function Zonas() {
     }
   };
 
+  const handleAsignarHorarios = async () => {
+    if (!torneoId) return;
+    const toastId = toast.loading("Asignando horarios inteligentemente...");
+    setLoading(true);
+    try {
+      const { data, error } = await supabase.rpc("asignar_horarios_inteligente", { p_torneo_id: torneoId });
+      if (error) throw error;
+      
+      const res = data as any;
+      if (res?.success) {
+        toast.success(`Horarios asignados: ${res.asignados} partidos. (No asignados: ${res.no_asignados})`, { id: toastId });
+      } else {
+        toast.error("Error: " + (res?.error || "Desconocido"), { id: toastId });
+      }
+      cargarDatos();
+    } catch (e: any) {
+      toast.error("Error al asignar horarios: " + e.message, { id: toastId });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Antiguo handleGenerarZonas eliminado a favor de GenerarZonasAutoDialog
 
   useEffect(() => {
@@ -332,15 +354,26 @@ export default function Zonas() {
                 )
               )}
               {zonas.length > 0 && isAdmin && (
-                <Button 
-                  variant="outline" 
-                  size="sm" 
-                  onClick={() => setIsShareAllOpen(true)}
-                  className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
-                >
-                  <Share2 className="h-4 w-4 mr-2" />
-                  Compartir Todo
-                </Button>
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={handleAsignarHorarios}
+                    className="bg-accent text-accent-foreground"
+                  >
+                    <Wand2 className="h-4 w-4 mr-2" />
+                    Asignar Horarios
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setIsShareAllOpen(true)}
+                    className="bg-primary/10 hover:bg-primary/20 text-primary border-primary/20"
+                  >
+                    <Share2 className="h-4 w-4 mr-2" />
+                    Compartir Todo
+                  </Button>
+                </>
               )}
             </div>
 
