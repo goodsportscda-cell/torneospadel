@@ -1731,14 +1731,30 @@ export default function TorneoIndividualDashboard() {
             });
           }
 
+          let j1, j2, j3, j4;
+          const cycle = fechaNum % 3;
+          if (cycle === 1) {
+            // Rotación A: 1 y 4 vs 2 y 3
+            j1 = courtPlayerIds[0]; j2 = courtPlayerIds[3];
+            j3 = courtPlayerIds[1]; j4 = courtPlayerIds[2];
+          } else if (cycle === 2) {
+            // Rotación B: 1 y 3 vs 2 y 4
+            j1 = courtPlayerIds[0]; j2 = courtPlayerIds[2];
+            j3 = courtPlayerIds[1]; j4 = courtPlayerIds[3];
+          } else {
+            // Rotación C: 1 y 2 vs 3 y 4
+            j1 = courtPlayerIds[0]; j2 = courtPlayerIds[1];
+            j3 = courtPlayerIds[2]; j4 = courtPlayerIds[3];
+          }
+
           const matchPayload = {
             torneo_id: id,
             fecha: fechaNum,
             cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
-            jugador1_id: courtPlayerIds[0],
-            jugador2_id: courtPlayerIds[3],
-            jugador3_id: courtPlayerIds[1],
-            jugador4_id: courtPlayerIds[2],
+            jugador1_id: j1,
+            jugador2_id: j2,
+            jugador3_id: j3,
+            jugador4_id: j4,
             estado: "pendiente" as const,
           };
           matchPromises.push((supabase as any).from("partidos_individuales").insert(matchPayload));
