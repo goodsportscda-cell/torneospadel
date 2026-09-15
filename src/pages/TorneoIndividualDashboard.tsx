@@ -1680,8 +1680,13 @@ export default function TorneoIndividualDashboard() {
         const playersIds = jugadoresInscriptos.map((j) => j.jugador_id);
         
         try {
-          const proposed = generateIntelligentAmericanoMatches(playersIds, pastMatches);
-          for (const p of proposed) {
+          const { matches, score } = generateIntelligentAmericanoMatches(playersIds, pastMatches);
+          
+          if (score >= 1000) {
+            toast.error("Advertencia: Debido a las parejas formadas en las fechas anteriores, ha sido matemáticamente imposible generar una fecha sin repetir al menos una pareja. Se generó la combinación con la menor cantidad de repeticiones posibles.", { duration: 10000 });
+          }
+
+          for (const p of matches) {
             matchPromises.push(
               (supabase as any).from("partidos_individuales").insert({
                 torneo_id: id,

@@ -20,7 +20,7 @@ export interface ProposedMatch {
 export function generateIntelligentAmericanoMatches(
   players: string[],
   history: MatchHistory[]
-): ProposedMatch[] {
+): { matches: ProposedMatch[], score: number } {
   if (players.length !== 8) {
     throw new Error("El generador inteligente solo soporta 8 jugadores");
   }
@@ -122,7 +122,7 @@ export function generateIntelligentAmericanoMatches(
   }
 
   // Convert to proposed matches
-  return [
+  const matches = [
     {
       cancha: "Cancha 1: Élite",
       ...bestConfig[0]
@@ -132,4 +132,6 @@ export function generateIntelligentAmericanoMatches(
       ...bestConfig[1]
     }
   ];
+
+  return { matches, score: bestScore };
 }
