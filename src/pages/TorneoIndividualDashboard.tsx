@@ -42,6 +42,7 @@ import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
 import { useAuth } from "@/hooks/useAuth";
+import { generateIntelligentAmericanoMatches, MatchHistory } from "@/logic/americanoInteligente";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -1664,6 +1665,38 @@ export default function TorneoIndividualDashboard() {
               estado: "pendiente" as const,
             })
           );
+        }
+      } else if (torneo.tipo === "americano_individual" && courtsCount === 2) {
+        // Intelligent Americano Logic (Date by Date)
+        const pastMatches = partidos
+          .filter((p) => p.fecha < fechaNum && p.estado === "finalizado")
+          .map((p) => ({
+            jugador1_id: p.jugador1_id,
+            jugador2_id: p.jugador2_id,
+            jugador3_id: p.jugador3_id,
+            jugador4_id: p.jugador4_id,
+          }));
+        
+        const playersIds = jugadoresInscriptos.map((j) => j.jugador_id);
+        
+        try {
+          const proposed = generateIntelligentAmericanoMatches(playersIds, pastMatches);
+          for (const p of proposed) {
+            matchPromises.push(
+              (supabase as any).from("partidos_individuales").insert({
+                torneo_id: id,
+                fecha: fechaNum,
+                cancha: p.cancha,
+                jugador1_id: p.jugador1_id,
+                jugador2_id: p.jugador2_id,
+                jugador3_id: p.jugador3_id,
+                jugador4_id: p.jugador4_id,
+                estado: "pendiente" as const,
+              })
+            );
+          }
+        } catch (err: any) {
+          throw new Error("No se pudo calcular una fecha válida sin repetir parejas: " + err.message);
         }
       } else {
         // Individual logic - Ascensos y Descensos directos
