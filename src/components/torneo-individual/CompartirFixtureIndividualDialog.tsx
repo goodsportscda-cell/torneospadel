@@ -253,11 +253,11 @@ export function CompartirFixtureIndividualDialog({
                           }}
                         >
                           {/* Pareja 1 */}
-                          <div className="flex items-center gap-2 flex-1 justify-end">
-                            <span className="text-[10px] font-bold text-right leading-tight max-w-[120px] uppercase">
+                          <div className="flex items-center gap-2 flex-1 justify-end min-w-0">
+                            <span className="text-[9px] font-bold text-right leading-tight flex-1 min-w-0 break-words uppercase">
                               {p1Name}
                             </span>
-                            <div className="flex -space-x-2">
+                            <div className="flex -space-x-2 shrink-0">
                               <div className="w-6 h-6 rounded-full border border-black flex items-center justify-center text-[8px] font-bold" style={{ backgroundColor: currentTheme.titleColor, color: "black" }}>
                                 {getPlayerInitials(p.jugador1?.apellido)}
                               </div>
@@ -269,20 +269,20 @@ export function CompartirFixtureIndividualDialog({
 
                           {/* Info Central (VS y Fecha) */}
                           <div 
-                            className="mx-3 rounded-full flex flex-col items-center justify-center px-4 py-1.5 w-[100px] text-center"
+                            className="mx-2 shrink-0 rounded-full flex flex-col items-center justify-center px-3 py-1.5 w-[80px] text-center"
                             style={{ backgroundColor: currentTheme.vsColor }}
                           >
-                            <span className="text-[10px] font-bold text-black uppercase mb-0.5" style={{ textShadow: "0px 1px 2px rgba(255,255,255,0.3)" }}>
+                            <span className="text-[9px] font-bold text-black uppercase mb-0.5" style={{ textShadow: "0px 1px 2px rgba(255,255,255,0.3)" }}>
                               {dateText}
                             </span>
-                            <span className="text-sm font-black text-white" style={{ textShadow: "0px 1px 4px rgba(0,0,0,0.5)" }}>
+                            <span className="text-xs font-black text-white" style={{ textShadow: "0px 1px 4px rgba(0,0,0,0.5)" }}>
                               VS
                             </span>
                           </div>
 
                           {/* Pareja 2 */}
-                          <div className="flex items-center gap-2 flex-1 justify-start">
-                            <div className="flex -space-x-2">
+                          <div className="flex items-center gap-2 flex-1 justify-start min-w-0">
+                            <div className="flex -space-x-2 shrink-0">
                               <div className="w-6 h-6 rounded-full border border-black flex items-center justify-center text-[8px] font-bold" style={{ backgroundColor: currentTheme.titleColor, color: "black" }}>
                                 {getPlayerInitials(p.jugador3?.apellido)}
                               </div>
@@ -290,7 +290,7 @@ export function CompartirFixtureIndividualDialog({
                                 {getPlayerInitials(p.jugador4?.apellido)}
                               </div>
                             </div>
-                            <span className="text-[10px] font-bold text-left leading-tight max-w-[120px] uppercase">
+                            <span className="text-[9px] font-bold text-left leading-tight flex-1 min-w-0 break-words uppercase">
                               {p2Name}
                             </span>
                           </div>
