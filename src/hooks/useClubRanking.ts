@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { isAscenso } from "@/lib/ranking";
 
 export type DesglosePunto = {
   tipo: "torneo" | "ascenso";
@@ -149,13 +150,18 @@ export function useClubRanking(
 
         const cur = map.get(r.jugador_id) ?? { desglose: [] };
         
-        if (r.instancia === "ascenso") {
-          cur.desglose.push({
-            tipo: "ascenso",
-            nombre: "Puntos por Ascenso",
-            puntos: r.puntos,
-            nota: "Transferencia de categoría anterior (50%)",
-          });
+        if (isAscenso(r.instancia)) {
+          const existingAsc = cur.desglose.find(d => d.tipo === "ascenso");
+          if (existingAsc) {
+            existingAsc.puntos = Math.max(existingAsc.puntos, r.puntos);
+          } else {
+            cur.desglose.push({
+              tipo: "ascenso",
+              nombre: "Puntos por Ascenso",
+              puntos: r.puntos,
+              nota: "Transferencia de categoría anterior (50%)",
+            });
+          }
         } else {
           const tInfo = torneosMap.get(r.torneo_id);
           if (tInfo) {

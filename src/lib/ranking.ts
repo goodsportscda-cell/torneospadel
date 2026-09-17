@@ -328,3 +328,8 @@ function instanciaPeso(i: Instancia): number {
   ];
   return orden.indexOf(i);
 }
+
+export function isAscenso(instancia: string | null | undefined): boolean {
+  if (!instancia) return false;
+  return instancia.trim().toLowerCase() === "ascenso";
+}

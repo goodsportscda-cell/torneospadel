@@ -30,7 +30,7 @@ import {
 } from "@/components/ui/dialog";
 import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2, Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { INSTANCIA_LABEL, type Instancia, recalcularTodosLosAscensos } from "@/lib/ranking";
+import { INSTANCIA_LABEL, type Instancia, recalcularTodosLosAscensos, isAscenso } from "@/lib/ranking";
 import { activeTenant } from "@/lib/tenant";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { DesglosePuntosModal } from "@/components/ranking/DesglosePuntosModal";
@@ -590,9 +590,9 @@ export default function Ranking() {
       }
       
       const cur = map.get(r.jugador_id) ?? { puntos: 0, torneos: 0, ptsAscenso: 0 };
-      
-      if (r.instancia === 'ascenso') {
-        cur.ptsAscenso += r.puntos;
+
+      if (isAscenso(r.instancia)) {
+        cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos);
       } else {
         cur.puntos += r.puntos;
         cur.torneos += 1;
@@ -770,7 +770,10 @@ export default function Ranking() {
       if (error) throw error;
 
       // Filtrar registros que pertenecen a una categoría de origen de la que el jugador ya ascendió
-      const rjFiltrados = (rj ?? []).filter((r) => !ascendidosDesdeIds.has(r.categoria_id));
+      // Y excluir los registros de 'ascenso' para que no se muestren como torneos sin nombre
+      const rjFiltrados = (rj ?? []).filter((r) => {
+        return !ascendidosDesdeIds.has(r.categoria_id) && !isAscenso(r.instancia);
+      });
 
       const torneoIds = Array.from(new Set(rjFiltrados.map((r) => r.torneo_id)));
       let torneos: Array<{ id: string; nombre: string; fecha_inicio: string | null; numero_fecha: number | null; multiplicador_puntos: number | null }> = [];
