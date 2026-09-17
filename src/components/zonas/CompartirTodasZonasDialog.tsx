@@ -104,7 +104,7 @@ export function CompartirTodasZonasDialog({
               id: p.id,
               orden: p.orden,
               fechaHora: p.fecha_hora,
-              cancha: p.cancha_asignada,
+              cancha: p.cancha,
               parejaLocal: p.pareja_local_id ? {
                 inscripcion_id: p.pareja_local_id,
                 posicion_siembra: p.posicion_local ?? 0,
@@ -340,7 +340,10 @@ export function CompartirTodasZonasDialog({
                                     {getMatchDateText(p)}
                                   </span>
                                   {p.cancha && (
-                                    <span className="text-xs font-bold bg-white/10 px-2 py-0.5 rounded text-white">
+                                    <span 
+                                      className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap"
+                                      style={{ backgroundColor: currentTheme.vsColor, color: "white" }}
+                                    >
                                       {p.cancha}
                                     </span>
                                   )}
