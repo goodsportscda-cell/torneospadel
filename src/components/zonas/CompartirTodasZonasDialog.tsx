@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Download, Share2, Sparkles, Loader2 } from "lucide-react";
+import { Download, Share2, Sparkles, Loader2, ChevronLeft, ChevronRight } from "lucide-react";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
@@ -66,7 +66,12 @@ export function CompartirTodasZonasDialog({
   const [exporting, setExporting] = useState(false);
   const [loadingData, setLoadingData] = useState(false);
   const [zonaGroups, setZonaGroups] = useState<ZonaGroup[]>([]);
+  const [currentPage, setCurrentPage] = useState(0);
   const captureRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    setCurrentPage(0);
+  }, [ratio, zonas]);
 
   useEffect(() => {
     if (!isOpen || !torneoId) return;
@@ -175,29 +180,46 @@ export function CompartirTodasZonasDialog({
     }
   };
 
+  const zonesPerPage = ratio === "story" ? 8 : 6;
+  const totalPages = Math.max(1, Math.ceil(zonaGroups.length / zonesPerPage));
+  const currentZones = zonaGroups.slice(currentPage * zonesPerPage, (currentPage + 1) * zonesPerPage);
+
   const handleExport = async () => {
     if (!captureRef.current) return;
     try {
       setExporting(true);
-      // Timeout to let fonts load
-      await new Promise(r => setTimeout(r, 200));
+      const originalPage = currentPage;
 
-      const dataUrl = await toPng(captureRef.current, {
-        quality: 1,
-        pixelRatio: 2,
-        cacheBust: true,
-        style: {
-          transform: "scale(1)",
-          transformOrigin: "top left",
-        },
-      });
+      for (let p = 0; p < totalPages; p++) {
+        if (totalPages > 1) {
+          setCurrentPage(p);
+          await new Promise(r => setTimeout(r, 400)); // wait for render and fonts
+        } else {
+          await new Promise(r => setTimeout(r, 200)); // just wait fonts
+        }
 
-      const link = document.createElement("a");
-      link.download = `fixture-completo-${torneoNombre.replace(/\s+/g, "-").toLowerCase()}.png`;
-      link.href = dataUrl;
-      link.click();
+        const dataUrl = await toPng(captureRef.current, {
+          quality: 1,
+          pixelRatio: 2,
+          cacheBust: true,
+          style: {
+            transform: "scale(1)",
+            transformOrigin: "top left",
+          },
+        });
+
+        const link = document.createElement("a");
+        const suffix = totalPages > 1 ? `-pag${p + 1}` : "";
+        link.download = `fixture-completo-${torneoNombre.replace(/\s+/g, "-").toLowerCase()}${suffix}.png`;
+        link.href = dataUrl;
+        link.click();
+
+        if (totalPages > 1) await new Promise(r => setTimeout(r, 300));
+      }
+
+      if (totalPages > 1) setCurrentPage(originalPage);
       
-      toast.success("Imagen generada correctamente");
+      toast.success(totalPages > 1 ? "Imágenes generadas correctamente" : "Imagen generada correctamente");
     } catch (error) {
       console.error(error);
       toast.error("Error al generar la imagen");
@@ -256,17 +278,45 @@ export function CompartirTodasZonasDialog({
               ) : (
                 <Download className="h-4 w-4" />
               )}
-              {exporting ? "Generando..." : "Descargar"}
+              {exporting ? "Generando..." : (totalPages > 1 ? "Descargar Todas" : "Descargar")}
             </Button>
           </div>
         </DialogHeader>
 
         <div className="p-4 md:p-6 overflow-y-auto flex-1 grid md:grid-cols-12 gap-6 bg-muted/10">
           <div className="md:col-span-12 flex flex-col items-center justify-center bg-muted/30 rounded-xl border border-dashed p-4 md:min-h-[500px]">
-            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest mb-3 flex items-center gap-1.5">
-              <Sparkles className="h-3 w-3 text-primary animate-pulse" />
-              Vista Previa en Vivo ({ratio === "story" ? "Story 9:16" : "Post 1:1"})
-            </span>
+            <div className="flex items-center justify-between w-full max-w-[500px] mb-3">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
+                <Sparkles className="h-3 w-3 text-primary animate-pulse" />
+                Vista Previa ({ratio === "story" ? "Story 9:16" : "Post 1:1"})
+              </span>
+
+              {totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-6 w-6" 
+                    onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+                    disabled={currentPage === 0 || exporting}
+                  >
+                    <ChevronLeft className="h-3 w-3" />
+                  </Button>
+                  <span className="text-xs font-bold text-muted-foreground">
+                    Pág {currentPage + 1} de {totalPages}
+                  </span>
+                  <Button 
+                    variant="outline" 
+                    size="icon" 
+                    className="h-6 w-6"
+                    onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={currentPage === totalPages - 1 || exporting}
+                  >
+                    <ChevronRight className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
 
             {loadingData ? (
               <div className="flex flex-col items-center text-muted-foreground">
@@ -315,7 +365,7 @@ export function CompartirTodasZonasDialog({
                     </div>
 
                     <div className={`flex-1 grid gap-x-8 gap-y-6 ${ratio === "story" ? "grid-cols-2 content-start" : "grid-cols-2 lg:grid-cols-3 content-start"} overflow-hidden`}>
-                      {zonaGroups.map((zg) => (
+                      {currentZones.map((zg) => (
                         <div key={zg.zona.id} className="flex flex-col gap-3">
                           <h2 
                             className="text-2xl font-black italic border-b-2 pb-1"
