@@ -284,7 +284,7 @@ export function CompartirTodasZonasDialog({
         </DialogHeader>
 
         <div className="p-4 md:p-6 overflow-y-auto flex-1 grid md:grid-cols-12 gap-6 bg-muted/10">
-          <div className="md:col-span-12 flex flex-col items-center justify-center bg-muted/30 rounded-xl border border-dashed p-4 md:min-h-[500px]">
+          <div className="md:col-span-12 flex flex-col items-center justify-start bg-muted/30 rounded-xl border border-dashed p-4 md:min-h-[500px]">
             <div className="flex items-center justify-between w-full max-w-[500px] mb-3">
               <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest flex items-center gap-1.5">
                 <Sparkles className="h-3 w-3 text-primary animate-pulse" />
