@@ -191,17 +191,12 @@ export default function Ranking() {
         const defCupo = cat.nombre.toLowerCase().includes("suma 7") ? 8 : 16;
         const cuposCount = cuposMap.get(cat.id) ?? defCupo;
 
-        const [{ data: ranking }, { data: ascDestino }, { data: ascOrigen }] = await Promise.all([
+        const [{ data: ranking }, { data: ascOrigen }] = await Promise.all([
           supabase
             .from("ranking_jugadores")
-            .select("jugador_id, puntos")
+            .select("jugador_id, puntos, instancia")
             .eq("anio", filtroAnio)
             .eq("categoria_id", cat.id),
-          supabase
-            .from("ascensos")
-            .select("jugador_id, puntos_transferidos")
-            .eq("anio", filtroAnio)
-            .eq("categoria_destino_id", cat.id),
           supabase
             .from("ascensos")
             .select("jugador_id")
@@ -211,19 +206,12 @@ export default function Ranking() {
 
         const ascendidosDesde = new Set((ascOrigen ?? []).map((a) => a.jugador_id));
         const ascensoMap = new Map<string, number>();
-        (ascDestino ?? []).forEach((a) => {
-          ascensoMap.set(a.jugador_id, (ascensoMap.get(a.jugador_id) ?? 0) + a.puntos_transferidos);
-        });
 
         const puntosMap = new Map<string, number>();
         (ranking ?? []).forEach((r) => {
           if (ascendidosDesde.has(r.jugador_id)) return;
           puntosMap.set(r.jugador_id, (puntosMap.get(r.jugador_id) ?? 0) + r.puntos);
         });
-
-        for (const [jId, pts] of ascensoMap.entries()) {
-          puntosMap.set(jId, (puntosMap.get(jId) ?? 0) + pts);
-        }
 
         const sortedEntries = Array.from(puntosMap.entries())
           .sort((a, b) => b[1] - a[1])
@@ -536,7 +524,7 @@ export default function Ranking() {
     while (isFetchingRanking) {
       let query = supabase
         .from("ranking_jugadores")
-        .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio")
+        .select("jugador_id, puntos, torneo_id, categoria_id, genero, anio, instancia")
         .eq("anio", filtroAnio)
         .order("id")
         .range(rankingOffset, rankingOffset + step - 1);
@@ -568,22 +556,13 @@ export default function Ranking() {
     // Asignar los datos completos para seguir con el resto de la función
     const data = rankingData;
 
-    // Cargar todos los ascensos del año para deduplicar y calcular coherencia
+    // Cargar todos los ascensos del año para deduplicar y calcular exclusión
     const { data: ascensosAllData } = await supabase
       .from("ascensos")
-      .select("id, jugador_id, puntos_origen, puntos_transferidos, categoria_origen_id, categoria_destino_id, created_at, fecha")
+      .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha")
       .eq("anio", filtroAnio);
 
-    // Sumar puntos de torneos por (jugador_id, categoria_id)
-    const torneosPtsMap = new Map<string, Map<string, number>>();
-    (data ?? []).forEach((r) => {
-      if (!r.categoria_id) return;
-      if (!torneosPtsMap.has(r.jugador_id)) torneosPtsMap.set(r.jugador_id, new Map());
-      const cMap = torneosPtsMap.get(r.jugador_id)!;
-      cMap.set(r.categoria_id, (cMap.get(r.categoria_id) ?? 0) + r.puntos);
-    });
-
-    // Deduplicar ascensos por (jugador_id, categoria_origen_id, categoria_destino_id)
+    // Deduplicar ascensos
     const ascensosDeduplicados = new Map<string, any>();
     (ascensosAllData ?? []).forEach((a) => {
       const key = `${a.jugador_id}_${a.categoria_origen_id}_${a.categoria_destino_id}`;
@@ -594,50 +573,32 @@ export default function Ranking() {
     });
 
     const ascendidosDesde = new Map<string, Set<string>>();
-    const ascensoMap = new Map<string, number>();
-
     ascensosDeduplicados.forEach((a) => {
       if (!ascendidosDesde.has(a.categoria_origen_id)) {
         ascendidosDesde.set(a.categoria_origen_id, new Set());
       }
       ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
-
-      // Si este ascenso fue superado por un ascenso posterior (ej: 7ma -> 6ta y luego 6ta -> 5ta),
-      // los puntos de 7ma -> 6ta ya se tomaron en cuenta al calcular el 50% de 6ta -> 5ta.
-      const isSuperseded = Array.from(ascensosDeduplicados.values()).some(
-        (b: any) => b.jugador_id === a.jugador_id && b.categoria_origen_id === a.categoria_destino_id
-      );
-      if (isSuperseded) return;
-
-      if (filtroCategoria === "todas" || a.categoria_destino_id === filtroCategoria) {
-        const ptsTorneosOrigen = torneosPtsMap.get(a.jugador_id)?.get(a.categoria_origen_id) ?? 0;
-        const ptsCalc = Math.floor(ptsTorneosOrigen / 2);
-        const ptsFinales = Math.max(a.puntos_transferidos || 0, ptsCalc);
-
-        ascensoMap.set(a.jugador_id, (ascensoMap.get(a.jugador_id) ?? 0) + ptsFinales);
-      }
     });
 
     // Agrupar por jugador, excluyendo puntos de categorías desde las que ascendieron
-    const map = new Map<string, { puntos: number; torneos: number }>();
+    const map = new Map<string, { puntos: number; torneos: number; ptsAscenso: number }>();
     (data ?? []).forEach((r) => {
       // Si el jugador ascendió desde esta categoría, excluir sus puntos de ella
       const catAscendidos = ascendidosDesde.get(r.categoria_id);
       if (catAscendidos && catAscendidos.has(r.jugador_id)) {
         return; // skip — ya ascendió de esta categoría
       }
-      const cur = map.get(r.jugador_id) ?? { puntos: 0, torneos: 0 };
-      cur.puntos += r.puntos;
-      cur.torneos += 1;
+      
+      const cur = map.get(r.jugador_id) ?? { puntos: 0, torneos: 0, ptsAscenso: 0 };
+      
+      if (r.instancia === 'ascenso') {
+        cur.ptsAscenso += r.puntos;
+      } else {
+        cur.puntos += r.puntos;
+        cur.torneos += 1;
+      }
       map.set(r.jugador_id, cur);
     });
-
-    // Incluir jugadores que solo tienen puntos de ascenso
-    for (const jId of ascensoMap.keys()) {
-      if (!map.has(jId)) {
-        map.set(jId, { puntos: 0, torneos: 0 });
-      }
-    }
 
     const ids = Array.from(map.keys());
     if (ids.length === 0) {
@@ -677,13 +638,12 @@ export default function Ranking() {
     const result: RankingRowUnified[] = ids.map((id) => {
       const j = jugadores?.find((x) => x.id === id);
       const m = map.get(id)!;
-      const ptsAscenso = ascensoMap.get(id) ?? 0;
       return {
         posicion: 0,
         jugador_id: id,
-        puntos_totales: m.puntos + ptsAscenso,
+        puntos_totales: m.puntos + m.ptsAscenso,
         puntos_torneos: m.puntos,
-        puntos_ascenso: ptsAscenso,
+        puntos_ascenso: m.ptsAscenso,
         torneos_jugados: m.torneos,
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
