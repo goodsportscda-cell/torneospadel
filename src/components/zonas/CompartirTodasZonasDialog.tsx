@@ -180,7 +180,7 @@ export function CompartirTodasZonasDialog({
     }
   };
 
-  const zonesPerPage = ratio === "story" ? 8 : 6;
+  const zonesPerPage = 6;
   const totalPages = Math.max(1, Math.ceil(zonaGroups.length / zonesPerPage));
   const currentZones = zonaGroups.slice(currentPage * zonesPerPage, (currentPage + 1) * zonesPerPage);
 
