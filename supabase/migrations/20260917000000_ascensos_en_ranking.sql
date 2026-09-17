@@ -130,21 +130,32 @@ BEGIN
 END;
 $$;
 
--- 5. Trigger AFTER INSERT para que se dispare el volcado a ranking_jugadores de inmediato (si es necesario)
+-- 5. Trigger AFTER INSERT/UPDATE/DELETE para que se dispare el volcado a ranking_jugadores
 CREATE OR REPLACE FUNCTION public.trg_ascensos_after_insert()
 RETURNS TRIGGER
 LANGUAGE plpgsql
 SECURITY DEFINER
 AS $$
 BEGIN
-    PERFORM public.recalcular_ascenso_jugador(NEW.jugador_id);
-    RETURN NEW;
+    -- Evitar recursividad si se actualizan los puntos por el propio recalculo
+    IF pg_trigger_depth() > 1 THEN
+        RETURN NULL;
+    END IF;
+
+    IF TG_OP = 'DELETE' THEN
+        PERFORM public.recalcular_ascenso_jugador(OLD.jugador_id);
+        RETURN OLD;
+    ELSE
+        PERFORM public.recalcular_ascenso_jugador(NEW.jugador_id);
+        RETURN NEW;
+    END IF;
 END;
 $$;
 
 DROP TRIGGER IF EXISTS ascensos_after_insert_trigger ON public.ascensos;
 CREATE TRIGGER ascensos_after_insert_trigger
-AFTER INSERT OR UPDATE OR DELETE ON public.ascensos
+AFTER INSERT OR DELETE OR UPDATE OF jugador_id, categoria_origen_id, categoria_destino_id, anio, fecha
+ON public.ascensos
 FOR EACH ROW
 EXECUTE FUNCTION public.trg_ascensos_after_insert();
 
