@@ -29,6 +29,7 @@ type SetRow = {
 
 type Props = {
   partidoId: string;
+  zonaId?: string;
   orden: number;
   tipo?: "directo" | "ganadores" | "perdedores" | null;
   parejaLocal: Pareja | null;
@@ -53,6 +54,7 @@ type Props = {
 
 export function PartidoCard({
   partidoId,
+  zonaId,
   orden,
   tipo,
   parejaLocal,
@@ -191,9 +193,12 @@ export function PartidoCard({
       const updates: any = {
         pareja_local_id: nuevoLocalId, 
         pareja_visitante_id: nuevoVisiId,
-        ref_local: editRefLocal.trim() || null,
-        ref_visitante: editRefVisitante.trim() || null
       };
+
+      if (tabla === "partidos_llave") {
+        updates.ref_local = editRefLocal.trim() || null;
+        updates.ref_visitante = editRefVisitante.trim() || null;
+      }
 
       // Si el ganador_id actual no coincide con ninguno de los nuevos equipos, lo limpiamos para evitar inconsistencias
       if (ganadorId && ganadorId !== nuevoLocalId && ganadorId !== nuevoVisiId) {
@@ -317,6 +322,15 @@ export function PartidoCard({
         }
       }
 
+      // Si es partido 1 o 2 de una zona, sincronizar los cruces de Ganadores y Perdedores inmediatamente
+      if (tabla === "partidos_zona" && zonaId && (orden === 1 || orden === 2)) {
+        try {
+          await supabase.rpc("recalcular_cruces_zona_4", { p_zona_id: zonaId });
+        } catch (recalcErr) {
+          console.warn("Recálculo client-side opcional:", recalcErr);
+        }
+      }
+
       toast.success("Resultado guardado");
       onUpdated();
       queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
@@ -399,29 +413,31 @@ export function PartidoCard({
               </button>
             </div>
             
-            <div className="space-y-2 pb-2 border-b border-blue-100">
-              <p className="text-[10px] font-bold text-blue-600 uppercase">Referencias (Manual APA)</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <label className="text-[10px] text-blue-700">Local (ej: 1°A)</label>
-                  <Input 
-                    value={editRefLocal} 
-                    onChange={(e) => setEditRefLocal(e.target.value)} 
-                    className="h-7 text-xs bg-white border-blue-200"
-                    placeholder="1°A"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] text-blue-700">Visitante (ej: G:34)</label>
-                  <Input 
-                    value={editRefVisitante} 
-                    onChange={(e) => setEditRefVisitante(e.target.value)} 
-                    className="h-7 text-xs bg-white border-blue-200"
-                    placeholder="2°B"
-                  />
+            {tabla === "partidos_llave" && (
+              <div className="space-y-2 pb-2 border-b border-blue-100">
+                <p className="text-[10px] font-bold text-blue-600 uppercase">Referencias (Manual APA)</p>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-blue-700">Local (ej: 1°A)</label>
+                    <Input 
+                      value={editRefLocal} 
+                      onChange={(e) => setEditRefLocal(e.target.value)} 
+                      className="h-7 text-xs bg-white border-blue-200"
+                      placeholder="1°A"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[10px] text-blue-700">Visitante (ej: G:34)</label>
+                    <Input 
+                      value={editRefVisitante} 
+                      onChange={(e) => setEditRefVisitante(e.target.value)} 
+                      className="h-7 text-xs bg-white border-blue-200"
+                      placeholder="2°B"
+                    />
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
 
             <div className="space-y-1">
               <label className="text-[10px] text-blue-700 uppercase font-bold">Pareja Local (Fija)</label>

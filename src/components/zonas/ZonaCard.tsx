@@ -250,6 +250,19 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
     }
   };
 
+  // Recalcula manualmente los cruces de Ganadores y Perdedores según los resultados de M1 y M2
+  const handleRecalcularCruces = async () => {
+    const toastId = toast.loading("Recalculando cruces de la zona...");
+    try {
+      const { error } = await supabase.rpc("recalcular_cruces_zona_4", { p_zona_id: zona.id });
+      if (error) throw error;
+      toast.success("Cruces de Ganadores y Perdedores actualizados", { id: toastId });
+      cargar();
+    } catch (e: any) {
+      toast.error("Error al recalcular cruces: " + e.message, { id: toastId });
+    }
+  };
+
   // Sincronizar parejas en los partidos según posiciones asignadas
   useEffect(() => {
     if (!partidosCargados || partidos.length === 0 || readOnly) return;
@@ -270,23 +283,30 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
             matchChanged = true;
           }
         } else if (zona.tamanio === 4 && (p.tipo === "ganadores" || p.tipo === "perdedores")) {
-          // Solo auto-completar si el partido está VACÍO (sin equipos asignados)
-          // Si ya tiene equipos (asignados manual o automáticamente), no pisar
-          if (p.pareja_local_id || p.pareja_visitante_id) continue;
-
+          // Si el partido está sin definir y M1/M2 ya finalizaron, autocompletar
           const m1 = partidos.find(x => x.orden === 1);
           const m2 = partidos.find(x => x.orden === 2);
-          if (m1?.estado === "finalizado" && m2?.estado === "finalizado" && m1.ganador_id && m2.ganador_id) {
-            if (p.tipo === "ganadores") {
-              newLocalId = m1.ganador_id;
-              newVisiId = m2.ganador_id;
-            } else {
-              newLocalId = m1.ganador_id === m1.pareja_local_id ? m1.pareja_visitante_id : m1.pareja_local_id;
-              newVisiId = m2.ganador_id === m2.pareja_local_id ? m2.pareja_visitante_id : m2.pareja_local_id;
-            }
-            if (newLocalId !== p.pareja_local_id || newVisiId !== p.pareja_visitante_id) {
-              matchChanged = true;
-            }
+
+          const m1Ganador = m1?.estado === "finalizado" ? m1.ganador_id : null;
+          const m1Perdedor = m1?.estado === "finalizado" && m1.ganador_id
+            ? (m1.ganador_id === m1.pareja_local_id ? m1.pareja_visitante_id : m1.pareja_local_id)
+            : null;
+
+          const m2Ganador = m2?.estado === "finalizado" ? m2.ganador_id : null;
+          const m2Perdedor = m2?.estado === "finalizado" && m2.ganador_id
+            ? (m2.ganador_id === m2.pareja_local_id ? m2.pareja_visitante_id : m2.pareja_local_id)
+            : null;
+
+          if (p.tipo === "ganadores") {
+            if (!p.pareja_local_id && m1Ganador) newLocalId = m1Ganador;
+            if (!p.pareja_visitante_id && m2Ganador) newVisiId = m2Ganador;
+          } else if (p.tipo === "perdedores") {
+            if (!p.pareja_local_id && m1Perdedor) newLocalId = m1Perdedor;
+            if (!p.pareja_visitante_id && m2Perdedor) newVisiId = m2Perdedor;
+          }
+
+          if (newLocalId !== p.pareja_local_id || newVisiId !== p.pareja_visitante_id) {
+            matchChanged = true;
           }
         }
 
@@ -613,17 +633,31 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-xs font-bold uppercase text-muted-foreground">Fixture</p>
-                {partidos.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-xs border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 px-2 py-0"
-                    onClick={() => setShareFixtureOpen(true)}
-                  >
-                    <Share2 className="h-3 w-3 mr-1.5" />
-                    Compartir Fixture
-                  </Button>
-                )}
+                <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                  {!readOnly && zona.tamanio === 4 && partidos.length >= 4 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-amber-500/50 text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/20 px-2 py-0"
+                      onClick={handleRecalcularCruces}
+                      title="Sincronizar cruces de Ganadores y Perdedores según los partidos 1 y 2"
+                    >
+                      <RefreshCw className="h-3 w-3 mr-1" />
+                      Recalcular cruces
+                    </Button>
+                  )}
+                  {partidos.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-xs border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 px-2 py-0"
+                      onClick={() => setShareFixtureOpen(true)}
+                    >
+                      <Share2 className="h-3 w-3 mr-1.5" />
+                      Compartir Fixture
+                    </Button>
+                  )}
+                </div>
               </div>
               
               {/* Aviso si faltan partidos en zona de 4 */}
@@ -656,6 +690,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                 <PartidoCard
                   key={p.id}
                   partidoId={p.id}
+                  zonaId={zona.id}
                   orden={p.orden}
                   tipo={p.tipo}
                   parejaLocal={p.pareja_local_id ? { 
