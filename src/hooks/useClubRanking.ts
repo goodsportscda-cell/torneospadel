@@ -39,34 +39,38 @@ export function useClubRanking(
       setLoading(true);
       setError(null);
 
-      // 1. Obtener Torneos Publicados
+      // 1. Obtener Torneos para mapear nombres y fechas
       let torneosQuery = supabase
         .from("torneos")
-        .select("id, nombre, fecha_fin, estado")
-        .eq("ranking_publicado", true);
+        .select("id, nombre, fecha_inicio, fecha_fin, estado, ranking_publicado, club_id");
 
       if (clubId) {
-        torneosQuery = torneosQuery.eq("club_id", clubId);
+        torneosQuery = torneosQuery.or(`club_id.eq.${clubId},club_id.is.null`);
       }
 
-      const { data: torneosData, error: torneosError } = await torneosQuery;
+      const { data: torneosData } = await torneosQuery;
       
-      if (torneosError) throw new Error("Error obteniendo torneos");
-      
-      // Si el club no tiene torneos (y estamos filtrando por club), terminamos temprano
-      if (clubId && (!torneosData || torneosData.length === 0)) {
-        setRankingRows([]);
-        return;
-      }
+      const torneosMap = new Map<string, { 
+        nombre: string; 
+        fecha_fin: string | null; 
+        fecha_inicio: string | null;
+        estado: string; 
+        ranking_publicado: boolean | null;
+        club_id: string | null;
+      }>();
 
-      const torneosMap = new Map<string, { nombre: string; fecha_fin: string | null; estado: string }>();
       (torneosData || []).forEach(t => {
-        torneosMap.set(t.id, { nombre: t.nombre, fecha_fin: t.fecha_fin, estado: t.estado });
+        torneosMap.set(t.id, { 
+          nombre: t.nombre, 
+          fecha_fin: t.fecha_fin, 
+          fecha_inicio: t.fecha_inicio,
+          estado: t.estado,
+          ranking_publicado: t.ranking_publicado,
+          club_id: t.club_id
+        });
       });
 
-      const torneosIds = Array.from(torneosMap.keys());
-
-      // 2. Obtener Ranking Jugadores (Puntos de Torneos y Ascensos)
+      // 2. Obtener Ranking Jugadores (Puntos de Torneos y Ascensos con paginación)
       let rankingData: any[] = [];
       let isFetchingRanking = true;
       let rankingOffset = 0;
@@ -80,16 +84,6 @@ export function useClubRanking(
           .order("id")
           .range(rankingOffset, rankingOffset + step - 1);
 
-        if (torneosIds.length > 0) {
-          // No filtramos estrictamente por torneosIds para permitir 'ascenso' (torneo_id nulo o ausente)
-          // Usamos un OR: torneo_id IN (torneosIds) OR instancia = 'ascenso'
-          const torneosInStr = `(${torneosIds.map(id => `"${id}"`).join(",")})`;
-          rankingQuery = rankingQuery.or(`torneo_id.in.${torneosInStr},instancia.eq.ascenso`);
-        } else {
-          // Si no hay torneos, solo traemos los ascensos
-          rankingQuery = rankingQuery.eq("instancia", "ascenso");
-        }
-
         if (filtroCategoria !== "todas") {
           rankingQuery = rankingQuery.eq("categoria_id", filtroCategoria);
         }
@@ -98,7 +92,7 @@ export function useClubRanking(
         }
 
         const { data: chunk, error: rankingError } = await rankingQuery;
-        if (rankingError) throw new Error("Error obteniendo puntos de torneos");
+        if (rankingError) throw rankingError;
 
         if (chunk && chunk.length > 0) {
           rankingData = rankingData.concat(chunk);
@@ -111,16 +105,14 @@ export function useClubRanking(
         }
       }
 
-      // 3. Obtener Ascensos (solo para exclusión visual de categorías anteriores)
-      let ascensosQuery = supabase
+      // 3. Obtener Ascensos del año para deduplicar y excluir puntos de categorías anteriores
+      const { data: ascensosData, error: ascensosError } = await supabase
         .from("ascensos")
-        .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha")
+        .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos")
         .eq("anio", filtroAnio);
         
-      const { data: ascensosData, error: ascensosError } = await ascensosQuery;
-      if (ascensosError) throw new Error("Error obteniendo ascensos");
+      if (ascensosError) throw ascensosError;
 
-      // Deduplicar ascensos para poder saber qué puntos ignorar de categorías viejas
       const ascensosDeduplicados = new Map<string, any>();
       (ascensosData || []).forEach((a) => {
         const key = `${a.jugador_id}_${a.categoria_origen_id}_${a.categoria_destino_id}`;
@@ -139,7 +131,12 @@ export function useClubRanking(
       });
 
       // 4. Construcción de Desgloses y Puntos
-      const map = new Map<string, { desglose: DesglosePunto[] }>();
+      const map = new Map<string, { 
+        desglose: DesglosePunto[];
+        ptsTorneos: number;
+        ptsAscenso: number;
+        torneosCount: number;
+      }>();
 
       (rankingData || []).forEach((r) => {
         // EXCLUSIÓN: Si el jugador ascendió DESDE esta categoría, no sumamos sus torneos en ella
@@ -148,9 +145,15 @@ export function useClubRanking(
           return;
         }
 
-        const cur = map.get(r.jugador_id) ?? { desglose: [] };
+        const cur = map.get(r.jugador_id) ?? { 
+          desglose: [],
+          ptsTorneos: 0,
+          ptsAscenso: 0,
+          torneosCount: 0
+        };
         
         if (isAscenso(r.instancia)) {
+          cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos);
           const existingAsc = cur.desglose.find(d => d.tipo === "ascenso");
           if (existingAsc) {
             existingAsc.puntos = Math.max(existingAsc.puntos, r.puntos);
@@ -163,15 +166,21 @@ export function useClubRanking(
             });
           }
         } else {
-          const tInfo = torneosMap.get(r.torneo_id);
-          if (tInfo) {
-            cur.desglose.push({
-              tipo: "torneo",
-              nombre: tInfo.nombre,
-              puntos: r.puntos,
-              fecha: tInfo.fecha_fin || undefined
-            });
+          const tInfo = r.torneo_id ? torneosMap.get(r.torneo_id) : undefined;
+          
+          // Si el torneo tiene fecha oculta explícitamente con ranking_publicado === false (y no finalizado)
+          if (tInfo && tInfo.ranking_publicado === false && tInfo.estado !== "finalizado") {
+            return;
           }
+
+          cur.ptsTorneos += r.puntos;
+          cur.torneosCount += 1;
+          cur.desglose.push({
+            tipo: "torneo",
+            nombre: tInfo?.nombre || "Torneo Oficial",
+            puntos: r.puntos,
+            fecha: tInfo?.fecha_fin || tInfo?.fecha_inicio || undefined
+          });
         }
         
         map.set(r.jugador_id, cur);
@@ -183,7 +192,7 @@ export function useClubRanking(
         return;
       }
 
-      // 6. Cargar nombres de jugadores
+      // 5. Cargar nombres de jugadores en chunks
       const chunkSize = 100;
       const chunks = [];
       for (let i = 0; i < ids.length; i += chunkSize) {
@@ -204,48 +213,43 @@ export function useClubRanking(
         if (res.data) jugadores = [...jugadores, ...res.data];
       }
 
-      // 7. Mapear y Ordenar
-      const finalResult: RankingRowUnified[] = (ids || []).map((id) => {
+      // 6. Mapear y Ordenar
+      const finalResult: RankingRowUnified[] = ids.map((id) => {
         const j = (jugadores || []).find((x) => x.id === id);
         const m = map.get(id)!;
         
         const desgloseSeguro = m.desglose || [];
 
-        // Sort desglose by date descending (rough approximation if fecha is present)
+        // Sort desglose by date descending
         desgloseSeguro.sort((a, b) => {
           if (!a.fecha) return 1;
           if (!b.fecha) return -1;
           return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
         });
 
-        const puntos_totales = desgloseSeguro.reduce((sum, item) => sum + item.puntos, 0);
-        const torneos_jugados = desgloseSeguro.filter(item => item.tipo === 'torneo').length;
-        const puntos_ascenso = desgloseSeguro.filter(d => d.tipo === "ascenso").reduce((acc, curr) => acc + curr.puntos, 0);
-        const puntos_torneos = desgloseSeguro.filter(d => d.tipo === "torneo").reduce((acc, curr) => acc + curr.puntos, 0);
+        const puntos_totales = m.ptsTorneos + m.ptsAscenso;
 
         return {
-          posicion: 0, // se calcula después de ordenar
+          posicion: 0,
           jugador_id: id,
           jugador_nombre: j?.nombre ?? "?",
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
           jugador_categoria_id: j?.categoria_id ?? null,
           puntos_totales,
-          puntos_torneos,
-          puntos_ascenso,
-          torneos_jugados,
+          puntos_torneos: m.ptsTorneos,
+          puntos_ascenso: m.ptsAscenso,
+          torneos_jugados: m.torneosCount,
           desglose: desgloseSeguro,
         };
       });
 
       finalResult.sort((a, b) => b.puntos_totales - a.puntos_totales);
       
-      // Asignar posiciones
+      // Asignar posiciones respetando empates
       let currentPos = 1;
       finalResult.forEach((r, idx) => {
-        if (idx > 0 && finalResult[idx - 1].puntos_totales < r.puntos_totales) {
-          currentPos = idx + 1;
-        } else if (idx > 0 && finalResult[idx - 1].puntos_totales > r.puntos_totales) {
+        if (idx > 0 && finalResult[idx - 1].puntos_totales > r.puntos_totales) {
           currentPos = idx + 1;
         }
         r.posicion = currentPos;

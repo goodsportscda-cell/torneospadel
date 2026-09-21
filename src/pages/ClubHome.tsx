@@ -99,12 +99,16 @@ export default function ClubHome() {
   const cargarTorneos = async () => {
     if (!club) return;
     setLoadingTorneos(true);
-    const { data } = await supabase
+    let q = supabase
       .from("torneos")
-      .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, numero_fecha")
-      .eq("club_id", club.id)
+      .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, numero_fecha, multiplicador_puntos")
       .order("fecha_inicio", { ascending: false });
+
+    if (club.id) {
+      q = q.or(`club_id.eq.${club.id},club_id.is.null`);
+    }
     
+    const { data } = await q;
     setTorneos(data || []);
     setLoadingTorneos(false);
   };
@@ -114,16 +118,19 @@ export default function ClubHome() {
     const { data: cats } = await supabase
       .from("categorias")
       .select("id, nombre, genero")
-      .eq("club_id", club.id)
+      .or(`club_id.eq.${club.id},club_id.is.null`)
       .order("orden");
     
     if (cats) setCategorias(cats);
 
     // Obtener años disponibles de torneos jugados en el club
-    const { data: torneosAnios } = await supabase
+    let tQuery = supabase
       .from("torneos")
-      .select("fecha_inicio")
-      .eq("club_id", club.id);
+      .select("fecha_inicio");
+    if (club.id) {
+      tQuery = tQuery.or(`club_id.eq.${club.id},club_id.is.null`);
+    }
+    const { data: torneosAnios } = await tQuery;
     
     const anioSet = new Set<number>();
     anioSet.add(new Date().getFullYear());
@@ -158,14 +165,23 @@ export default function ClubHome() {
         .from("ranking_jugadores")
         .select("torneo_id, instancia, puntos, categoria_id")
         .eq("jugador_id", jugador.jugador_id)
-        .in("torneo_id", torneos.map(t => t.id))
         .eq("anio", filtroAnio);
       if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
       if (filtroGenero !== "todos") q = q.eq("genero", filtroGenero);
       const { data: rj, error } = await q;
       if (error) throw error;
 
-      const rjFiltrados = (rj ?? []).filter((r) => !ascendidosDesdeIds.has(r.categoria_id));
+      const rjFiltrados = (rj ?? []).filter((r) => !ascendidosDesdeIds.has(r.categoria_id) && !isAscenso(r.instancia));
+
+      const torneoIds = Array.from(new Set(rjFiltrados.map((r) => r.torneo_id).filter(Boolean)));
+      let torneosInfo: any[] = [];
+      if (torneoIds.length > 0) {
+        const { data: tData } = await supabase
+          .from("torneos")
+          .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
+          .in("id", torneoIds);
+        if (tData) torneosInfo = tData;
+      }
 
       const { data: puntosCfg } = await supabase
         .from("puntos_ranking")
@@ -174,11 +190,11 @@ export default function ClubHome() {
       (puntosCfg ?? []).forEach((p) => puntosBaseMap.set(p.instancia, p.puntos));
 
       const detalle: DetalleTorneo[] = rjFiltrados.map((r) => {
-        const t = torneos.find((x) => x.id === r.torneo_id);
+        const t = torneosInfo.find((x) => x.id === r.torneo_id) || torneos.find((x) => x.id === r.torneo_id);
         const mult = Number(t?.multiplicador_puntos ?? 1) || 1;
         return {
           torneo_id: r.torneo_id,
-          torneo_nombre: t?.nombre ?? "Torneo",
+          torneo_nombre: t?.nombre ?? "Torneo Oficial",
           fecha: t?.fecha_inicio ?? "",
           numero_fecha: t?.numero_fecha ?? null,
           instancia: r.instancia,
@@ -444,6 +460,7 @@ export default function ClubHome() {
                       <TableRow>
                         <TableHead className="w-12 text-center">#</TableHead>
                         <TableHead>Jugador</TableHead>
+                        <TableHead className="text-center w-20">Torneos</TableHead>
                         <TableHead className="text-right">Puntos</TableHead>
                         <TableHead className="w-10"></TableHead>
                       </TableRow>

@@ -378,6 +378,7 @@ export default function Torneos() {
       modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
       datos_bancarios: form.datos_bancarios || null,
       club_id: clubId, // Se asigna automáticamente al club del admin
+      ...(form.estado === "finalizado" ? { ranking_publicado: true } : {}),
     };
 
     if (editing) {
@@ -401,7 +402,11 @@ export default function Torneos() {
   };
 
   const handleQuickEstado = async (t: any, estado: EstadoTorneo) => {
-    const { error } = await supabase.from("torneos").update({ estado }).eq("id", t.id);
+    const updatePayload: any = { estado };
+    if (estado === "finalizado") {
+      updatePayload.ranking_publicado = true;
+    }
+    const { error } = await supabase.from("torneos").update(updatePayload).eq("id", t.id);
     if (error) return toast.error("Error: " + error.message);
     // Si pasa a finalizado, calcular ranking automáticamente
     if (estado === "finalizado") {
@@ -457,8 +462,10 @@ export default function Torneos() {
 
     const res = await calcularRankingTorneo(t.id);
     if (res.ok) {
+      await supabase.from("torneos").update({ ranking_publicado: true }).eq("id", t.id);
       toast.success(`Ranking recalculado: ${res.jugadoresConPuntos} registros.`);
       queryClient.invalidateQueries({ queryKey: ["ranking"] });
+      fetchAll();
     } else {
       toast.error("Error al recalcular: " + res.error);
     }
