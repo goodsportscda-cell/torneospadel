@@ -15,6 +15,7 @@ import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
+import { isAscenso } from "@/lib/ranking";
 
 type Torneo = {
   id: string;
@@ -149,8 +150,23 @@ export default function ClubHome() {
     setDetalleJugador(jugador);
     setDetalleOpen(true);
     setLoadingDetalle(true);
-    setDetalleData([]);
     setDetalleAscensoNotas(null);
+
+    // Precargar inmediatamente el detalle con los datos ya calculados en useClubRanking
+    const initialDetalle: DetalleTorneo[] = (jugador.desglose || [])
+      .filter((d) => d.tipo === "torneo")
+      .map((d) => ({
+        torneo_id: "",
+        torneo_nombre: d.nombre,
+        fecha: d.fecha || "",
+        numero_fecha: null,
+        instancia: "",
+        puntos: d.puntos,
+        multiplicador: 1,
+        puntos_base: d.puntos,
+      }));
+    setDetalleData(initialDetalle);
+
     try {
       const { data: playerAscensos } = await supabase
         .from("ascensos")
@@ -189,24 +205,26 @@ export default function ClubHome() {
       const puntosBaseMap = new Map<string, number>();
       (puntosCfg ?? []).forEach((p) => puntosBaseMap.set(p.instancia, p.puntos));
 
-      const detalle: DetalleTorneo[] = rjFiltrados.map((r) => {
-        const t = torneosInfo.find((x) => x.id === r.torneo_id) || torneos.find((x) => x.id === r.torneo_id);
-        const mult = Number(t?.multiplicador_puntos ?? 1) || 1;
-        return {
-          torneo_id: r.torneo_id,
-          torneo_nombre: t?.nombre ?? "Torneo Oficial",
-          fecha: t?.fecha_inicio ?? "",
-          numero_fecha: t?.numero_fecha ?? null,
-          instancia: r.instancia,
-          puntos: r.puntos,
-          multiplicador: mult,
-          puntos_base: puntosBaseMap.get(r.instancia) ?? 0,
-        };
-      });
-      detalle.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
-      setDetalleData(detalle);
+      if (rjFiltrados.length > 0) {
+        const detalle: DetalleTorneo[] = rjFiltrados.map((r) => {
+          const t = torneosInfo.find((x) => x.id === r.torneo_id) || torneos.find((x) => x.id === r.torneo_id);
+          const mult = Number(t?.multiplicador_puntos ?? 1) || 1;
+          return {
+            torneo_id: r.torneo_id,
+            torneo_nombre: t?.nombre ?? "Torneo Oficial",
+            fecha: t?.fecha_inicio ?? "",
+            numero_fecha: t?.numero_fecha ?? null,
+            instancia: r.instancia,
+            puntos: r.puntos,
+            multiplicador: mult,
+            puntos_base: puntosBaseMap.get(r.instancia) ?? r.puntos,
+          };
+        });
+        detalle.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
+        setDetalleData(detalle);
+      }
     } catch (e) {
-      console.error(e);
+      console.error("Error al cargar detalle de puntos:", e);
     } finally {
       setLoadingDetalle(false);
     }
@@ -576,15 +594,18 @@ export default function ClubHome() {
                           Fecha {d.numero_fecha}
                         </Badge>
                       )}
-                      <span>· {INSTANCIA_LABEL[d.instancia] || d.instancia}</span>
+                      {d.instancia && (
+                        <span>· {INSTANCIA_LABEL[d.instancia] || d.instancia}</span>
+                      )}
                     </div>
                   </div>
                   <div className="text-right shrink-0">
-                    <div className="font-bold text-base">{d.puntos}</div>
-                    <div className="text-[10px] text-muted-foreground">
-                      {d.puntos_base}
-                      {d.multiplicador !== 1 && ` × ${d.multiplicador}`}
-                    </div>
+                    <div className="font-bold text-base">{d.puntos} pts</div>
+                    {d.multiplicador && d.multiplicador !== 1 && (
+                      <div className="text-[10px] text-muted-foreground">
+                        {d.puntos_base} × {d.multiplicador}
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
