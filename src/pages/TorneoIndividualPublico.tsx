@@ -719,17 +719,18 @@ export default function TorneoIndividualPublico() {
                       ) : torneo?.modalidad === "parejas" ? (
                         standings.map((s, idx) => {
                           const rank = idx + 1;
-                          let courtGroup = "Base";
-                          let badgeStyle = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+                          let courtGroup = "Base (C3)";
+                          let badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
 
                           if (rank === 1 || rank === 2) {
                             courtGroup = "Élite (C1)";
-                            badgeStyle = "bg-primary text-primary dark:bg-primary/30 dark:text-primary";
+                            badgeStyle = "bg-purple-950/40 border-purple-500/30 text-purple-300";
                           } else if (rank === 3 || rank === 4) {
                             courtGroup = "Desafío (C2)";
-                            badgeStyle = "bg-secondary text-secondary dark:bg-secondary/30 dark:text-secondary";
+                            badgeStyle = "bg-pink-950/40 border-pink-500/30 text-pink-300";
                           } else {
                             courtGroup = "Base (C3)";
+                            badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
                           }
 
                           return (
@@ -748,9 +749,9 @@ export default function TorneoIndividualPublico() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                <div className="font-semibold">{s.jugador1?.apellido}, {s.jugador1?.nombre}</div>
-                                <div className="font-semibold text-muted-foreground">{s.jugador2?.apellido}, {s.jugador2?.nombre}</div>
-                                <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded mt-1 font-bold ${badgeStyle}`}>
+                                <div className="font-semibold text-xs sm:text-sm">{s.jugador1?.apellido}, {s.jugador1?.nombre}</div>
+                                <div className="font-semibold text-xs sm:text-sm text-muted-foreground">{s.jugador2?.apellido}, {s.jugador2?.nombre}</div>
+                                <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
                                   {courtGroup}
                                 </span>
                               </TableCell>
@@ -780,19 +781,24 @@ export default function TorneoIndividualPublico() {
                         standings.map((s, idx) => {
                           const rank = idx + 1;
                           const countCanchas = torneo?.canchas_count ?? 3;
-                          let courtGroup = "Base";
-                          let badgeStyle = "bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-300";
+                          let courtGroup = "Base (C3)";
+                          let badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
 
                           if (rank <= 4) {
                             courtGroup = "Élite (C1)";
-                            badgeStyle = "bg-primary text-primary dark:bg-primary/30 dark:text-primary";
+                            badgeStyle = "bg-purple-950/40 border-purple-500/30 text-purple-300";
                           } else if (rank <= 8 && countCanchas >= 2) {
                             courtGroup = "Desafío (C2)";
-                            badgeStyle = "bg-secondary text-secondary dark:bg-secondary/30 dark:text-secondary";
+                            badgeStyle = "bg-pink-950/40 border-pink-500/30 text-pink-300";
                           } else if (rank <= 12 && countCanchas >= 3) {
                             courtGroup = "Base (C3)";
+                            badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
                           } else if (rank <= 16 && countCanchas >= 4) {
                             courtGroup = "Promoción (C4)";
+                            badgeStyle = "bg-emerald-950/40 border-emerald-500/30 text-emerald-300";
+                          } else {
+                            courtGroup = "Base (C3)";
+                            badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
                           }
 
                           return (
@@ -811,8 +817,8 @@ export default function TorneoIndividualPublico() {
                                   )}
                               </TableCell>
                               <TableCell>
-                                <div className="font-semibold">{s.apellido}, {s.nombre}</div>
-                                <span className={`inline-block text-[9px] px-1.5 py-0.5 rounded mt-0.5 font-bold ${badgeStyle}`}>
+                                <div className="font-semibold text-xs sm:text-sm">{s.apellido}, {s.nombre}</div>
+                                <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
                                   {courtGroup}
                                 </span>
                               </TableCell>
@@ -883,8 +889,8 @@ export default function TorneoIndividualPublico() {
               {!isSelectedFechaPublicada ? (
                 <Card className="border border-secondary/30 bg-secondary/10/30">
                   <CardContent className="py-12 flex flex-col items-center justify-center text-center space-y-3">
-                    <div className="bg-secondary p-3 rounded-full">
-                      <CalendarDays className="h-6 w-6 text-secondary" />
+                    <div className="bg-pink-950/40 p-3 rounded-full border border-pink-500/30">
+                      <CalendarDays className="h-6 w-6 text-pink-400" />
                     </div>
                     <div>
                       <h3 className="font-bold text-lg">Semana en Armado</h3>
@@ -1156,7 +1162,7 @@ export default function TorneoIndividualPublico() {
                                 Cubierto
                               </Badge>
                             ) : (
-                              <Badge variant="secondary" className="bg-secondary text-secondary dark:bg-secondary/40 dark:text-secondary text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none border-none">
+                              <Badge variant="secondary" className="bg-pink-950/40 border border-pink-500/30 text-pink-300 text-[10px] font-bold uppercase px-2.5 py-0.5 shadow-none">
                                 En Acumulación
                               </Badge>
                             )}
