@@ -386,7 +386,9 @@ export function PartidoCard({
               <Badge variant={estadoBadgeVariant(estado)} className="text-xs flex items-center gap-1">
                 {estadoLabel(estado)}
                 {estado === "finalizado" && esForzadoDB && (
-                  <Lock className="h-3 w-3 text-amber-500" title="Ganador forzado manualmente" />
+                  <span title="Ganador forzado manualmente" className="inline-flex items-center">
+                    <Lock className="h-3 w-3 text-amber-500" />
+                  </span>
                 )}
               </Badge>
             )}

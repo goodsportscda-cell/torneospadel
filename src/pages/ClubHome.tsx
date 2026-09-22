@@ -501,7 +501,9 @@ export default function ClubHome() {
                             <div className="flex items-center justify-end gap-1.5">
                               {r.puntos_totales}
                               {torneosEnCurso.length > 0 && (
-                                <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-50" title="Puntos en actualización" />
+                                <span title="Puntos en actualización" className="inline-flex items-center">
+                                  <Clock className="h-3.5 w-3.5 text-muted-foreground opacity-50" />
+                                </span>
                               )}
                             </div>
                           </TableCell>
