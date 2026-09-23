@@ -210,15 +210,34 @@ export default function TorneoIndividualPublico() {
     }
   }, [fechas]);
 
+  const esPuntosPorSet = useMemo(() => Boolean(
+    (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
+    torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+    torneo?.canchas_count === 2
+  ), [torneo]);
+
+  const currentFechaObj = useMemo(() => {
+    return fechas.find((f) => f.fecha === selectedFechaNum);
+  }, [fechas, selectedFechaNum]);
+
+  const displaySubtitulo = useMemo(() => {
+    if (currentFechaObj?.leyenda?.trim()) {
+      return currentFechaObj.leyenda.trim();
+    }
+    if ((torneo as any)?.subtitulo_fase?.trim()) {
+      return (torneo as any).subtitulo_fase.trim();
+    }
+    const tagMatch = torneo?.notas?.match(/\[SUBTITULO:(.*?)\]/);
+    if (tagMatch?.[1]?.trim()) {
+      return tagMatch[1].trim();
+    }
+    return "Fase Regular";
+  }, [currentFechaObj, torneo]);
+
   // Standing Ranking calculation
   const computedStandings = useMemo((): any[] => {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
-    const esPuntosPorSet = Boolean(
-      (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-      torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-      torneo?.canchas_count === 2
-    );
 
     if (torneo.modalidad === "parejas") {
       const standingsMap = new Map<string, any>();
@@ -688,10 +707,12 @@ export default function TorneoIndividualPublico() {
                 <CardHeader className="pb-3">
                   <CardTitle className="text-base flex items-center justify-between">
                     <span>Ranking Acumulado</span>
-                    <Badge variant="secondary" className="text-[10px] h-5">Fase Regular</Badge>
+                    <Badge variant="secondary" className="text-[10px] h-5">{displaySubtitulo}</Badge>
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Las posiciones determinan la distribución de canchas para la siguiente semana (Ascensos/Descensos).
+                    {esPuntosPorSet
+                      ? "Tabla general de posiciones por sets y games acumulados sin ascensos ni descensos por cancha fija."
+                      : "Las posiciones determinan la distribución de canchas para la siguiente semana (Ascensos/Descensos)."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="p-0 sm:p-6 overflow-x-auto">
@@ -751,9 +772,11 @@ export default function TorneoIndividualPublico() {
                               <TableCell>
                                 <div className="font-semibold text-xs sm:text-sm">{s.jugador1?.apellido}, {s.jugador1?.nombre}</div>
                                 <div className="font-semibold text-xs sm:text-sm text-muted-foreground">{s.jugador2?.apellido}, {s.jugador2?.nombre}</div>
-                                <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
-                                  {courtGroup}
-                                </span>
+                                {!esPuntosPorSet && (
+                                  <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
+                                    {courtGroup}
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell>
                                 <span className={s.suplenciasUsadas > 2 ? "text-destructive font-bold text-xs" : "text-muted-foreground text-xs"}>
@@ -818,9 +841,11 @@ export default function TorneoIndividualPublico() {
                               </TableCell>
                               <TableCell>
                                 <div className="font-semibold text-xs sm:text-sm">{s.apellido}, {s.nombre}</div>
-                                <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
-                                  {courtGroup}
-                                </span>
+                                {!esPuntosPorSet && (
+                                  <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
+                                    {courtGroup}
+                                  </span>
+                                )}
                               </TableCell>
                               <TableCell className="text-muted-foreground">{s.club || "—"}</TableCell>
                               <TableCell className="text-center">{s.partidosJugados}</TableCell>
@@ -873,6 +898,12 @@ export default function TorneoIndividualPublico() {
                   );
                 })}
 
+                {currentFechaObj?.leyenda && (
+                  <Badge variant="outline" className="text-[11px] font-semibold text-muted-foreground border-border/60">
+                    {currentFechaObj.leyenda}
+                  </Badge>
+                )}
+
                 {partidosDeFecha.length > 0 && (
                   <Button
                     size="sm"
@@ -915,7 +946,7 @@ export default function TorneoIndividualPublico() {
                       <Card key={p.id} className="border border-border/40 shadow-sm overflow-hidden flex flex-col justify-between">
                         <div>
                           <div className={`px-3 py-1.5 text-[10px] font-bold uppercase border-b flex items-center justify-between ${getCanchaColor(p.cancha)}`}>
-                            <span>{p.cancha}</span>
+                            <span>{esPuntosPorSet ? p.cancha.replace(/:\s*(Élite|Desafío|Base|Promoción)/i, "") : p.cancha}</span>
                             {hasWinner && (
                               <Badge className="bg-primary text-white text-[8px] font-extrabold uppercase px-1 py-0 h-4 shadow-none">
                                 Jugado
@@ -994,14 +1025,43 @@ export default function TorneoIndividualPublico() {
                     Reglamento Oficial - Liga Crown Pádel
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    {torneo?.modalidad === "parejas"
+                    {esPuntosPorSet
+                      ? "Formato por sumatoria acumulada de puntos por sets ganados."
+                      : torneo?.modalidad === "parejas"
                       ? "Formato por parejas fijas de 8 semanas con ascensos y descensos directos por cancha."
                       : "Formato americano individual con ascensos y descensos automáticos por canchas."}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4 text-xs leading-relaxed text-muted-foreground">
-                  {torneo?.notas ? (
-                    <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas}</div>
+                  {torneo?.notas?.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim() ? (
+                    <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim()}</div>
+                  ) : esPuntosPorSet ? (
+                    <>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Trophy className="h-4 w-4 text-secondary" /> 1. Sistema de Puntos por Set
+                        </h3>
+                        <p>
+                          En esta modalidad, la clasificación general se define por **sets ganados**. Cada set ganado suma **1 punto** para la tabla de posiciones (una victoria 2-0 otorga 2 puntos; un empate 1-1 otorga 1 punto a cada jugador/pareja).
+                        </p>
+                        <p>
+                          No se aplican ascensos ni descensos a canchas fijas: las posiciones reflejan el rendimiento acumulado en sets y games a lo largo del certamen.
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Award className="h-4 w-4 text-indigo-500" /> 2. Criterios de Desempate
+                        </h3>
+                        <p>
+                          En caso de igualdad en la puntuación general, los criterios de ordenamiento son:
+                        </p>
+                        <ol className="list-decimal pl-4 space-y-1">
+                          <li>Mayor diferencia de sets (Sets Ganados - Sets Perdidos).</li>
+                          <li>Mayor diferencia de games (Games a Favor - Games en Contra).</li>
+                          <li>Mayor cantidad de games ganados.</li>
+                        </ol>
+                      </div>
+                    </>
                   ) : torneo?.modalidad === "parejas" ? (
                     <>
                       <div className="space-y-2">

@@ -36,7 +36,8 @@ import {
   Share2,
   Eye,
   EyeOff,
-  Shuffle
+  Shuffle,
+  Tag
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -225,7 +226,12 @@ export default function TorneoIndividualDashboard() {
     efectivo_2: "0",
     notas: "",
     sistema_puntuacion: "por_cancha",
+    subtitulo_fase: "",
   });
+
+  const [editingLeyendaOpen, setEditingLeyendaOpen] = useState(false);
+  const [currentLeyendaInput, setCurrentLeyendaInput] = useState("");
+  const [savingLeyenda, setSavingLeyenda] = useState(false);
 
   const fetchTournamentData = useCallback(async () => {
     if (!id) return;
@@ -278,6 +284,9 @@ export default function TorneoIndividualDashboard() {
         tRes?.canchas_count === 2
       );
 
+      const extractedSubtitulo = (tRes as any)?.subtitulo_fase || 
+        (tRes?.notas?.match(/\[SUBTITULO:(.*?)\]/)?.[1]) || "";
+
       setSettingsForm({
         canchas_count: totalCanchas.toString(),
         costo_fecha_jugador: costoPorJugador.toString(),
@@ -290,8 +299,9 @@ export default function TorneoIndividualDashboard() {
         premios: parsed.gifts,
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
-        notas: tRes.notas?.replace(/\[SISTEMA:.*?\]/g, "").trim() || "",
+        notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim() || "",
         sistema_puntuacion: isPuntosPorSet ? "puntos_por_set" : "por_cancha",
+        subtitulo_fase: extractedSubtitulo,
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -1055,9 +1065,12 @@ export default function TorneoIndividualDashboard() {
 
     const premiosTexto = serializePremiosString(cash1, cash2, settingsForm.premios.trim());
 
-    let finalNotas = settingsForm.notas.replace(/\[SISTEMA:.*?\]/g, "").trim();
+    let finalNotas = settingsForm.notas.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim();
     if (settingsForm.sistema_puntuacion === "puntos_por_set") {
       finalNotas = finalNotas ? `${finalNotas} [SISTEMA:puntos_por_set]` : "[SISTEMA:puntos_por_set]";
+    }
+    if (settingsForm.subtitulo_fase.trim()) {
+      finalNotas = finalNotas ? `${finalNotas} [SUBTITULO:${settingsForm.subtitulo_fase.trim()}]` : `[SUBTITULO:${settingsForm.subtitulo_fase.trim()}]`;
     }
 
     const { error } = await (supabase as any)
@@ -1072,6 +1085,7 @@ export default function TorneoIndividualDashboard() {
         gastos_trofeos: gastosTrofeos,
         gastos_regalos: gastosRegalos,
         premios: premiosTexto || null,
+        subtitulo_fase: settingsForm.subtitulo_fase.trim() || null,
         notas: finalNotas || null,
       })
       .eq("id", id);
@@ -1083,6 +1097,55 @@ export default function TorneoIndividualDashboard() {
       fetchTournamentData();
     }
     setUpdatingSettings(false);
+  };
+
+  const handleSaveFechaLeyenda = async () => {
+    if (!id) return;
+    setSavingLeyenda(true);
+    try {
+      const val = currentLeyendaInput.trim();
+      const targetCosto = selectedFecha?.costo_canchas ?? ((torneo?.costo_fecha_cancha ?? 22000) * (torneo?.canchas_count ?? 3));
+      const targetEstado = selectedFecha?.estado ?? "pendiente";
+      const targetPublicado = selectedFecha?.publicado ?? false;
+
+      const { error } = await (supabase as any)
+        .from("torneo_individual_fechas")
+        .upsert({
+          torneo_id: id,
+          fecha: selectedFechaNum,
+          costo_canchas: targetCosto,
+          estado: targetEstado,
+          publicado: targetPublicado,
+          leyenda: val || null,
+        }, { onConflict: "torneo_id, fecha" });
+
+      if (error) throw error;
+      toast.success(`Leyenda de la Fecha ${selectedFechaNum} guardada`);
+      setEditingLeyendaOpen(false);
+
+      // Update local state directly for instant feedback
+      setFechas((prev) => {
+        const exists = prev.some((f) => f.fecha === selectedFechaNum);
+        if (exists) {
+          return prev.map((f) => f.fecha === selectedFechaNum ? { ...f, leyenda: val || null } : f);
+        } else {
+          return [...prev, {
+            id: "",
+            torneo_id: id,
+            fecha: selectedFechaNum,
+            costo_canchas: targetCosto,
+            estado: targetEstado,
+            publicado: targetPublicado,
+            leyenda: val || null,
+            created_at: new Date().toISOString(),
+          }];
+        }
+      });
+    } catch (err: any) {
+      toast.error("Error al guardar leyenda: " + err.message);
+    } finally {
+      setSavingLeyenda(false);
+    }
   };
 
   // Actions: Toggle / Set Payment for a cell
@@ -3085,6 +3148,17 @@ export default function TorneoIndividualDashboard() {
                     </div>
 
                     <div className="space-y-1">
+                      <Label className="text-[10px] uppercase font-bold text-muted-foreground">Subtítulo de Fase / Leyenda General</Label>
+                      <Input
+                        type="text"
+                        value={settingsForm.subtitulo_fase}
+                        onChange={(e) => setSettingsForm({ ...settingsForm, subtitulo_fase: e.target.value })}
+                        placeholder="Ej: Fase Regular, Clasificación, etc. (Vacío: Fase Regular)"
+                        className="h-8 text-xs font-semibold"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
                       <Label className="text-[10px] uppercase font-bold text-muted-foreground">Reglamento (Notas adicionales)</Label>
                       <Textarea
                         value={settingsForm.notas}
@@ -3158,6 +3232,21 @@ export default function TorneoIndividualDashboard() {
                         Semana {selectedFechaNum} Oculta
                       </>
                     )}
+                  </Button>
+                )}
+
+                {isAdmin && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-violet-500/50 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950/20"
+                    onClick={() => {
+                      setCurrentLeyendaInput(selectedFecha?.leyenda || "");
+                      setEditingLeyendaOpen(true);
+                    }}
+                  >
+                    <Tag className="h-4 w-4 mr-1.5" />
+                    {selectedFecha?.leyenda ? `Leyenda: "${selectedFecha.leyenda}"` : `Leyenda Fecha ${selectedFechaNum}`}
                   </Button>
                 )}
 
@@ -3624,6 +3713,40 @@ export default function TorneoIndividualDashboard() {
         fechaNum={selectedFechaNum}
         partidos={partidosDeFecha}
       />
+
+      {/* Dialog: Editar Leyenda de la Fecha */}
+      <Dialog open={editingLeyendaOpen} onOpenChange={setEditingLeyendaOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Tag className="h-5 w-5 text-violet-500" />
+              Leyenda de la Fecha {selectedFechaNum}
+            </DialogTitle>
+            <DialogDescription>
+              Texto o subtítulo que se mostrará en el muro público para esta fecha (ej: "Fase Regular", "Fecha Clasificatoria", "Semifinales"). Si se deja vacío, se mostrará el subtítulo general o "Fase Regular".
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-2 space-y-2">
+            <Label htmlFor="leyenda-input" className="text-xs font-semibold">Leyenda / Subtítulo</Label>
+            <Input
+              id="leyenda-input"
+              value={currentLeyendaInput}
+              onChange={(e) => setCurrentLeyendaInput(e.target.value)}
+              placeholder="Ej: Fase Regular, Cuartos de Final..."
+              className="text-sm font-medium"
+              maxLength={60}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setEditingLeyendaOpen(false)}>
+              Cancelar
+            </Button>
+            <Button size="sm" onClick={handleSaveFechaLeyenda} disabled={savingLeyenda} className="bg-violet-600 hover:bg-violet-700 text-white font-semibold">
+              {savingLeyenda ? "Guardando..." : "Guardar Leyenda"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Dialog: Score Input */}
       <Dialog open={scoreDialogOpen} onOpenChange={setScoreDialogOpen}>

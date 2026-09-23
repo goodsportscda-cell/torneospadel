@@ -676,6 +676,7 @@ export type Database = {
           estado: string
           fecha: number
           id: string
+          leyenda: string | null
           publicado: boolean | null
           torneo_id: string
         }
@@ -685,6 +686,7 @@ export type Database = {
           estado?: string
           fecha: number
           id?: string
+          leyenda?: string | null
           publicado?: boolean | null
           torneo_id: string
         }
@@ -694,6 +696,7 @@ export type Database = {
           estado?: string
           fecha?: number
           id?: string
+          leyenda?: string | null
           publicado?: boolean | null
           torneo_id?: string
         }
@@ -809,6 +812,7 @@ export type Database = {
           ranking_publicado: boolean | null
           sede: string | null
           slug: string | null
+          subtitulo_fase: string | null
           tipo: Database["public"]["Enums"]["tipo_torneo"]
           updated_at: string
         }
@@ -843,6 +847,7 @@ export type Database = {
           ranking_publicado?: boolean | null
           sede?: string | null
           slug?: string | null
+          subtitulo_fase?: string | null
           tipo?: Database["public"]["Enums"]["tipo_torneo"]
           updated_at?: string
         }
@@ -877,6 +882,7 @@ export type Database = {
           ranking_publicado?: boolean | null
           sede?: string | null
           slug?: string | null
+          subtitulo_fase?: string | null
           tipo?: Database["public"]["Enums"]["tipo_torneo"]
           updated_at?: string
         }
