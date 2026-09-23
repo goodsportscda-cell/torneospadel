@@ -185,6 +185,7 @@ export type Database = {
           jugador2_id: string
           monto_pagado: number | null
           notas: string | null
+          payment_status: string | null
           torneo_id: string
           updated_at: string
         }
@@ -198,6 +199,7 @@ export type Database = {
           jugador2_id: string
           monto_pagado?: number | null
           notas?: string | null
+          payment_status?: string | null
           torneo_id: string
           updated_at?: string
         }
@@ -211,6 +213,7 @@ export type Database = {
           jugador2_id?: string
           monto_pagado?: number | null
           notas?: string | null
+          payment_status?: string | null
           torneo_id?: string
           updated_at?: string
         }
@@ -708,6 +711,7 @@ export type Database = {
           estado: string
           id: string
           jugador_id: string
+          payment_status: "pending" | "paid" | "courtesy" | null
           torneo_id: string
         }
         Insert: {
@@ -715,6 +719,7 @@ export type Database = {
           estado?: string
           id?: string
           jugador_id: string
+          payment_status?: "pending" | "paid" | "courtesy" | null
           torneo_id: string
         }
         Update: {
@@ -722,6 +727,7 @@ export type Database = {
           estado?: string
           id?: string
           jugador_id?: string
+          payment_status?: "pending" | "paid" | "courtesy" | null
           torneo_id?: string
         }
         Relationships: []
@@ -762,6 +768,7 @@ export type Database = {
           id: string
           jugador1_id: string
           jugador2_id: string
+          payment_status: "pending" | "paid" | "courtesy" | null
           torneo_id: string
         }
         Insert: {
@@ -769,6 +776,7 @@ export type Database = {
           id?: string
           jugador1_id: string
           jugador2_id: string
+          payment_status?: "pending" | "paid" | "courtesy" | null
           torneo_id: string
         }
         Update: {
@@ -776,6 +784,7 @@ export type Database = {
           id?: string
           jugador1_id?: string
           jugador2_id?: string
+          payment_status?: "pending" | "paid" | "courtesy" | null
           torneo_id?: string
         }
         Relationships: []

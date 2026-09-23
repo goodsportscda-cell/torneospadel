@@ -58,6 +58,40 @@ type PartidoInd = Database["public"]["Tables"]["partidos_individuales"]["Row"] &
 type SetPartidoInd = Database["public"]["Tables"]["sets_partido_individual"]["Row"];
 type TorneoFecha = Database["public"]["Tables"]["torneo_individual_fechas"]["Row"];
 type TorneoPago = Database["public"]["Tables"]["torneo_individual_pagos"]["Row"];
+type PaymentStatus = "pending" | "paid" | "courtesy";
+
+const getPlayerPaymentStatus = (tj: any): PaymentStatus => {
+  if (tj?.payment_status === "courtesy" || tj?.payment_status === "paid" || tj?.payment_status === "pending") {
+    return tj.payment_status;
+  }
+  if (typeof tj?.estado === "string" && tj.estado.startsWith("pago:")) {
+    const val = tj.estado.split(":")[1];
+    if (val === "courtesy" || val === "paid" || val === "pending") return val as PaymentStatus;
+  }
+  return "pending";
+};
+
+const renderPaymentBadge = (status: PaymentStatus) => {
+  if (status === "courtesy") {
+    return (
+      <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-extrabold bg-purple-600 text-white shadow-[0_0_12px_rgba(168,85,247,0.7)] border border-purple-300 tracking-wide uppercase">
+        Cortesía
+      </span>
+    );
+  }
+  if (status === "paid") {
+    return (
+      <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-semibold bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30">
+        Pagado
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex items-center text-[10px] px-2 py-0.5 rounded-full font-semibold bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30">
+      Pendiente
+    </span>
+  );
+};
 
 interface PlayerStanding {
   jugador_id: string;
@@ -794,8 +828,17 @@ export default function TorneoIndividualDashboard() {
     const gastosTrofeos = Number(torneo.gastos_trofeos) || 0;
     const gastosRegalos = Number(torneo.gastos_regalos) || 0;
 
-    // Total expected for X weeks
-    const esperado = totalJugadores * costoPorJugador * semanas;
+    // Jugadores en modalidad Cortesía ($0): excluidos de la deuda / recaudación esperada
+    const courtesyPlayers = jugadoresInscriptos.filter(
+      (tj) => getPlayerPaymentStatus(tj) === "courtesy"
+    );
+    const payingPlayers = jugadoresInscriptos.filter(
+      (tj) => getPlayerPaymentStatus(tj) !== "courtesy"
+    );
+
+    const cortesiaCount = courtesyPlayers.length;
+    const esperadoInscripcion = payingPlayers.length * costoPorJugador * semanas;
+    const esperado = esperadoInscripcion + ingresosSponsors;
 
     // Total actually collected
     const cobrado = pagos.reduce((acc, curr) => acc + Number(curr.monto_pagado), 0);
@@ -812,7 +855,10 @@ export default function TorneoIndividualDashboard() {
     const gananciaOrg = gananciaNeta - pozoPremios;
 
     return {
-      esperado: esperado + ingresosSponsors,
+      esperado,
+      esperadoInscripcion,
+      cortesiaCount,
+      payingCount: payingPlayers.length,
       cobrado,
       entradasTotal,
       costoCanchas,
@@ -1153,6 +1199,12 @@ export default function TorneoIndividualDashboard() {
     if (!id) return;
     const fee = torneo?.costo_fecha_jugador ?? 10000;
 
+    const targetTj = jugadoresInscriptos.find(j => j.jugador_id === jugId);
+    if (targetTj && getPlayerPaymentStatus(targetTj) === "courtesy") {
+      toast.info("Este jugador está registrado en modalidad Cortesía ($0 de inscripción).");
+      return;
+    }
+
     if (currentPago && currentPago.estado_pago === "pagado") {
       // Toggle to Pendiente (delete or update to 0)
       const { error } = await (supabase as any)
@@ -1178,6 +1230,42 @@ export default function TorneoIndividualDashboard() {
 
       if (error) toast.error(error.message);
       else fetchTournamentData();
+    }
+  };
+
+  const handleUpdatePaymentStatus = async (tjId: string, newStatus: PaymentStatus) => {
+    try {
+      // Attempt update with payment_status column and fallback to estado
+      let { error } = await (supabase as any)
+        .from("torneo_individual_jugadores")
+        .update({ 
+          payment_status: newStatus,
+          estado: `pago:${newStatus}`
+        })
+        .eq("id", tjId);
+
+      if (error) {
+        const { error: fbErr } = await (supabase as any)
+          .from("torneo_individual_jugadores")
+          .update({ estado: `pago:${newStatus}` })
+          .eq("id", tjId);
+        if (fbErr) throw fbErr;
+      }
+
+      toast.success(
+        `Estado de pago: ${newStatus === "courtesy" ? "Cortesía (Organizador - $0)" : newStatus === "paid" ? "Pagado" : "Pendiente"}`
+      );
+
+      // Invalidate react-query cache
+      queryClient.invalidateQueries({ queryKey: ["torneo", id] });
+      queryClient.invalidateQueries({ queryKey: ["torneos"] });
+
+      // Immediate reactive update of local state
+      setJugadoresInscriptos((prev) =>
+        prev.map((tj) => (tj.id === tjId ? { ...tj, payment_status: newStatus, estado: `pago:${newStatus}` } : tj))
+      );
+    } catch (err: any) {
+      toast.error("Error al actualizar estado de pago: " + err.message);
     }
   };
 
@@ -2698,49 +2786,99 @@ export default function TorneoIndividualDashboard() {
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-[100px]">Pareja N°</TableHead>
+                          <TableHead className="w-[80px]">Pareja N°</TableHead>
                           <TableHead>Jugadora 1</TableHead>
                           <TableHead>Jugadora 2</TableHead>
                           <TableHead>Clubes</TableHead>
-                          <TableHead className="w-[100px] text-right">Acciones</TableHead>
+                          <TableHead className="w-[140px]">Estado de Pago</TableHead>
+                          <TableHead className="w-[80px] text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {parejas.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-6 text-sm text-muted-foreground">
+                            <TableCell colSpan={6} className="text-center py-6 text-sm text-muted-foreground">
                               No hay parejas inscriptas todavía.
                             </TableCell>
                           </TableRow>
                         ) : (
-                          parejas.map((p, idx) => (
-                            <TableRow key={p.id}>
-                              <TableCell className="font-semibold">Pareja {idx + 1}</TableCell>
-                              <TableCell className="font-medium">
-                                {p.jugador1 ? `${p.jugador1.apellido}, ${p.jugador1.nombre}` : "—"}
-                                <span className="text-xs text-muted-foreground block">{p.jugador1?.telefono || "Sin tel."}</span>
-                              </TableCell>
-                              <TableCell className="font-medium">
-                                {p.jugador2 ? `${p.jugador2.apellido}, ${p.jugador2.nombre}` : "—"}
-                                <span className="text-xs text-muted-foreground block">{p.jugador2?.telefono || "Sin tel."}</span>
-                              </TableCell>
-                              <TableCell>
-                                <span className="text-xs">
-                                  {p.jugador1?.club || "—"} / {p.jugador2?.club || "—"}
-                                </span>
-                              </TableCell>
-                              <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleQuitarPareja(p.id, p.jugador1_id, p.jugador2_id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </TableCell>
-                            </TableRow>
-                          ))
+                          parejas.map((p, idx) => {
+                            const tj1 = jugadoresInscriptos.find(j => j.jugador_id === p.jugador1_id);
+                            const tj2 = jugadoresInscriptos.find(j => j.jugador_id === p.jugador2_id);
+
+                            return (
+                              <TableRow key={p.id}>
+                                <TableCell className="font-semibold">Pareja {idx + 1}</TableCell>
+                                <TableCell className="font-medium">
+                                  {p.jugador1 ? `${p.jugador1.apellido}, ${p.jugador1.nombre}` : "—"}
+                                  <span className="text-xs text-muted-foreground block">{p.jugador1?.telefono || "Sin tel."}</span>
+                                </TableCell>
+                                <TableCell className="font-medium">
+                                  {p.jugador2 ? `${p.jugador2.apellido}, ${p.jugador2.nombre}` : "—"}
+                                  <span className="text-xs text-muted-foreground block">{p.jugador2?.telefono || "Sin tel."}</span>
+                                </TableCell>
+                                <TableCell>
+                                  <span className="text-xs">
+                                    {p.jugador1?.club || "—"} / {p.jugador2?.club || "—"}
+                                  </span>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="space-y-1">
+                                    {tj1 && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[9px] font-bold text-muted-foreground w-4">J1:</span>
+                                        <Select
+                                          value={getPlayerPaymentStatus(tj1)}
+                                          onValueChange={(val: PaymentStatus) => handleUpdatePaymentStatus(tj1.id, val)}
+                                        >
+                                          <SelectTrigger className="h-6 w-[115px] text-[10px] font-semibold p-1 bg-background">
+                                            <SelectValue>
+                                              {renderPaymentBadge(getPlayerPaymentStatus(tj1))}
+                                            </SelectValue>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="pending">⏳ Pendiente</SelectItem>
+                                            <SelectItem value="paid">✅ Pagado</SelectItem>
+                                            <SelectItem value="courtesy">🎁 Cortesía ($0)</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
+                                    {tj2 && (
+                                      <div className="flex items-center gap-1">
+                                        <span className="text-[9px] font-bold text-muted-foreground w-4">J2:</span>
+                                        <Select
+                                          value={getPlayerPaymentStatus(tj2)}
+                                          onValueChange={(val: PaymentStatus) => handleUpdatePaymentStatus(tj2.id, val)}
+                                        >
+                                          <SelectTrigger className="h-6 w-[115px] text-[10px] font-semibold p-1 bg-background">
+                                            <SelectValue>
+                                              {renderPaymentBadge(getPlayerPaymentStatus(tj2))}
+                                            </SelectValue>
+                                          </SelectTrigger>
+                                          <SelectContent>
+                                            <SelectItem value="pending">⏳ Pendiente</SelectItem>
+                                            <SelectItem value="paid">✅ Pagado</SelectItem>
+                                            <SelectItem value="courtesy">🎁 Cortesía ($0)</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+                                    )}
+                                  </div>
+                                </TableCell>
+                                <TableCell className="text-right">
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleQuitarPareja(p.id, p.jugador1_id, p.jugador2_id)}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            );
+                          })
                         )}
                       </TableBody>
                     </Table>
@@ -2783,13 +2921,14 @@ export default function TorneoIndividualDashboard() {
                           <TableHead>DNI</TableHead>
                           <TableHead>Teléfono</TableHead>
                           <TableHead>Club/Ciudad</TableHead>
+                          <TableHead className="w-[140px]">Estado de Pago</TableHead>
                           <TableHead className="w-[100px] text-right">Acciones</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {jugadoresInscriptos.length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={5} className="text-center py-6 text-sm text-muted-foreground">
+                            <TableCell colSpan={6} className="text-center py-6 text-sm text-muted-foreground">
                               No hay jugadores inscriptos todavía.
                             </TableCell>
                           </TableRow>
@@ -2802,6 +2941,35 @@ export default function TorneoIndividualDashboard() {
                               <TableCell>{tj.jugador?.dni || "—"}</TableCell>
                               <TableCell>{tj.jugador?.telefono || "—"}</TableCell>
                               <TableCell>{tj.jugador?.club || "—"}</TableCell>
+                              <TableCell>
+                                <Select
+                                  value={getPlayerPaymentStatus(tj)}
+                                  onValueChange={(val: PaymentStatus) => handleUpdatePaymentStatus(tj.id, val)}
+                                >
+                                  <SelectTrigger className="h-7 w-[125px] text-xs font-semibold p-1 bg-background">
+                                    <SelectValue>
+                                      {renderPaymentBadge(getPlayerPaymentStatus(tj))}
+                                    </SelectValue>
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="pending">
+                                      <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
+                                        ⏳ Pendiente
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="paid">
+                                      <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                        ✅ Pagado
+                                      </span>
+                                    </SelectItem>
+                                    <SelectItem value="courtesy">
+                                      <span className="flex items-center gap-1.5 text-xs text-purple-600 dark:text-purple-400 font-bold">
+                                        🎁 Cortesía ($0)
+                                      </span>
+                                    </SelectItem>
+                                  </SelectContent>
+                                </Select>
+                              </TableCell>
                               <TableCell className="text-right">
                                 <Button
                                   variant="ghost"
@@ -2861,13 +3029,19 @@ export default function TorneoIndividualDashboard() {
                         </TableRow>
                       ) : (
                         jugadoresInscriptos.map((tj) => {
+                          const isCourtesy = getPlayerPaymentStatus(tj) === "courtesy";
                           const jugPagos = pagos.filter((p) => p.jugador_id === tj.jugador_id);
-                          const totalPagado = jugPagos.reduce((acc, curr) => acc + Number(curr.monto_pagado), 0);
+                          const totalPagado = isCourtesy ? 0 : jugPagos.reduce((acc, curr) => acc + Number(curr.monto_pagado), 0);
 
                           return (
                             <TableRow key={tj.id}>
-                              <TableCell className="font-medium text-xs max-w-[150px] truncate">
-                                {tj.jugador?.apellido}, {tj.jugador?.nombre}
+                              <TableCell className="font-medium text-xs max-w-[170px]">
+                                <div className="truncate">{tj.jugador?.apellido}, {tj.jugador?.nombre}</div>
+                                {isCourtesy && (
+                                  <span className="inline-block mt-0.5 text-[9px] font-extrabold uppercase px-1.5 py-0.5 rounded-full bg-purple-600 text-white shadow-[0_0_8px_rgba(168,85,247,0.6)]">
+                                    Cortesía
+                                  </span>
+                                )}
                               </TableCell>
                               {Array.from({ length: torneo?.desafio_semanas ?? 8 }).map((_, idx) => {
                                 const fNum = idx + 1;
@@ -2876,23 +3050,35 @@ export default function TorneoIndividualDashboard() {
 
                                 return (
                                   <TableCell key={idx} className="text-center p-1">
-                                    <button
-                                      type="button"
-                                      className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all border ${
-                                        isPaid
-                                          ? "bg-primary border-primary text-white shadow-sm"
-                                          : "bg-muted border-border hover:bg-primary/20 hover:border-primary"
-                                      }`}
-                                      onClick={() => handleSetPago(tj.jugador_id, fNum, pData)}
-                                      title={isPaid ? "Marcado como PAGADO. Clic para quitar" : "Pendiente de pago. Clic para marcar pagado"}
-                                    >
-                                      {isPaid ? <UserCheck className="h-3.5 w-3.5" /> : `${fNum}`}
-                                    </button>
+                                    {isCourtesy ? (
+                                      <span className="text-[10px] text-purple-500 font-bold" title="Cortesía: no abona inscripción">
+                                        $0
+                                      </span>
+                                    ) : (
+                                      <button
+                                        type="button"
+                                        className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all border ${
+                                          isPaid
+                                            ? "bg-primary border-primary text-white shadow-sm"
+                                            : "bg-muted border-border hover:bg-primary/20 hover:border-primary"
+                                        }`}
+                                        onClick={() => handleSetPago(tj.jugador_id, fNum, pData)}
+                                        title={isPaid ? "Marcado como PAGADO. Clic para quitar" : "Pendiente de pago. Clic para marcar pagado"}
+                                      >
+                                        {isPaid ? <UserCheck className="h-3.5 w-3.5" /> : `${fNum}`}
+                                      </button>
+                                    )}
                                   </TableCell>
                                 );
                               })}
                               <TableCell className="text-right font-semibold text-xs">
-                                ${totalPagado.toLocaleString()}
+                                {isCourtesy ? (
+                                  <span className="inline-flex items-center text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-purple-600 text-white shadow-xs">
+                                    $0 (Cortesía)
+                                  </span>
+                                ) : (
+                                  `$${totalPagado.toLocaleString()}`
+                                )}
                               </TableCell>
                             </TableRow>
                           );
@@ -2920,14 +3106,20 @@ export default function TorneoIndividualDashboard() {
                       <div className="flex justify-between text-xs text-muted-foreground">
                         <span>Caja Recaudada / Esperada en Inscripción</span>
                         <span className="font-semibold text-foreground">
-                          ${finanzasResumen.cobrado.toLocaleString()} / ${(jugadoresInscriptos.length * (torneo?.costo_fecha_jugador ?? 10000) * (torneo?.desafio_semanas ?? 8)).toLocaleString()}
+                          ${finanzasResumen.cobrado.toLocaleString()} / ${finanzasResumen.esperadoInscripcion.toLocaleString()}
                         </span>
                       </div>
+                      {finanzasResumen.cortesiaCount > 0 && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-purple-600 dark:text-purple-400 font-medium">
+                          <span className="inline-block h-2 w-2 rounded-full bg-purple-500 shadow-[0_0_6px_rgba(168,85,247,0.8)]" />
+                          Excluye {finanzasResumen.cortesiaCount} {finanzasResumen.cortesiaCount === 1 ? "jugador de cortesía" : "jugadores de cortesía"} ($0 a cobrar).
+                        </div>
+                      )}
                       <div className="w-full bg-muted h-2 rounded-full overflow-hidden">
                         <div
                           className="bg-primary h-full transition-all"
                           style={{
-                            width: `${(finanzasResumen.cobrado / (((jugadoresInscriptos.length * (torneo?.costo_fecha_jugador ?? 10000) * (torneo?.desafio_semanas ?? 8))) || 1)) * 100}%`,
+                            width: `${Math.min(100, (finanzasResumen.cobrado / (finanzasResumen.esperadoInscripcion || 1)) * 100)}%`,
                           }}
                         />
                       </div>
