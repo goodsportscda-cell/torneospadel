@@ -333,14 +333,23 @@ export default function TorneoIndividualDashboard() {
         premios: parsed.gifts,
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
-        notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim() || "",
+        notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+):.*?\]/g, "").trim() || "",
         sistema_puntuacion: isPuntosPorSet ? "puntos_por_set" : "por_cancha",
         subtitulo_fase: extractedSubtitulo,
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
       setTodosJugadores(jRes ?? []);
-      setFechas(fRes ?? []);
+
+      // Map fechas with fallback to notas
+      const mappedFechas = (fRes ?? []).map((f: any) => {
+        const leyMatch = tRes?.notas?.match(new RegExp(`\\[LEYENDA_FECHA_${f.fecha}:(.*?)\\]`));
+        return {
+          ...f,
+          leyenda: f.leyenda || (leyMatch ? leyMatch[1] : null),
+        };
+      });
+      setFechas(mappedFechas);
       setPagos(pRes ?? []);
 
       // Map couples players
@@ -1111,30 +1120,48 @@ export default function TorneoIndividualDashboard() {
 
     const premiosTexto = serializePremiosString(cash1, cash2, settingsForm.premios.trim());
 
-    let finalNotas = settingsForm.notas.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim();
+    // Preserve any existing fecha legends stored in notas
+    const existingFechaLeyendas = (torneo?.notas || "").match(/\[LEYENDA_FECHA_\d+:.*?\]/g) || [];
+    let finalNotas = settingsForm.notas.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+):.*?\]/g, "").trim();
     if (settingsForm.sistema_puntuacion === "puntos_por_set") {
       finalNotas = finalNotas ? `${finalNotas} [SISTEMA:puntos_por_set]` : "[SISTEMA:puntos_por_set]";
     }
     if (settingsForm.subtitulo_fase.trim()) {
       finalNotas = finalNotas ? `${finalNotas} [SUBTITULO:${settingsForm.subtitulo_fase.trim()}]` : `[SUBTITULO:${settingsForm.subtitulo_fase.trim()}]`;
     }
+    if (existingFechaLeyendas.length > 0) {
+      finalNotas = finalNotas ? `${finalNotas} ${existingFechaLeyendas.join(" ")}` : existingFechaLeyendas.join(" ");
+    }
 
-    const { error } = await (supabase as any)
+    const basePayload: any = {
+      canchas_count: totalCanchas,
+      costo_fecha_jugador: costoPorJugador,
+      costo_fecha_cancha: costoPorCancha,
+      porcentaje_premios: finalPct,
+      desafio_semanas: semanas,
+      ingresos_sponsors: ingresosSponsors,
+      gastos_trofeos: gastosTrofeos,
+      gastos_regalos: gastosRegalos,
+      premios: premiosTexto || null,
+      notas: finalNotas || null,
+    };
+
+    let { error } = await (supabase as any)
       .from("torneos")
       .update({
-        canchas_count: totalCanchas,
-        costo_fecha_jugador: costoPorJugador,
-        costo_fecha_cancha: costoPorCancha,
-        porcentaje_premios: finalPct,
-        desafio_semanas: semanas,
-        ingresos_sponsors: ingresosSponsors,
-        gastos_trofeos: gastosTrofeos,
-        gastos_regalos: gastosRegalos,
-        premios: premiosTexto || null,
+        ...basePayload,
         subtitulo_fase: settingsForm.subtitulo_fase.trim() || null,
-        notas: finalNotas || null,
       })
       .eq("id", id);
+
+    // Fallback if 'subtitulo_fase' column is not yet recognized in PostgREST schema cache
+    if (error && (error.message?.includes("subtitulo_fase") || error.code === "PGRST204" || error.code === "PGRST205" || error.code === "42703")) {
+      const retry = await (supabase as any)
+        .from("torneos")
+        .update(basePayload)
+        .eq("id", id);
+      error = retry.error;
+    }
 
     if (error) {
       toast.error("Error al guardar configuración: " + error.message);
@@ -1154,18 +1181,46 @@ export default function TorneoIndividualDashboard() {
       const targetEstado = selectedFecha?.estado ?? "pendiente";
       const targetPublicado = selectedFecha?.publicado ?? false;
 
-      const { error } = await (supabase as any)
-        .from("torneo_individual_fechas")
-        .upsert({
-          torneo_id: id,
-          fecha: selectedFechaNum,
-          costo_canchas: targetCosto,
-          estado: targetEstado,
-          publicado: targetPublicado,
-          leyenda: val || null,
-        }, { onConflict: "torneo_id, fecha" });
+      const baseFechaPayload: any = {
+        torneo_id: id,
+        fecha: selectedFechaNum,
+        costo_canchas: targetCosto,
+        estado: targetEstado,
+        publicado: targetPublicado,
+      };
 
-      if (error) throw error;
+      let saveError: any = null;
+      try {
+        const { error } = await (supabase as any)
+          .from("torneo_individual_fechas")
+          .upsert({
+            ...baseFechaPayload,
+            leyenda: val || null,
+          }, { onConflict: "torneo_id, fecha" });
+        if (error) saveError = error;
+      } catch (e: any) {
+        saveError = e;
+      }
+
+      // If 'leyenda' column doesn't exist in schema cache, fallback to saving in torneos.notas
+      if (saveError && (saveError.message?.includes("leyenda") || saveError.code === "PGRST204" || saveError.code === "PGRST205" || saveError.code === "42703")) {
+        const { error: fbErr } = await (supabase as any)
+          .from("torneo_individual_fechas")
+          .upsert(baseFechaPayload, { onConflict: "torneo_id, fecha" });
+        if (fbErr) throw fbErr;
+
+        let updatedNotas = (torneo?.notas || "").replace(new RegExp(`\\[LEYENDA_FECHA_${selectedFechaNum}:.*?\\]`, "g"), "").trim();
+        if (val) {
+          updatedNotas = updatedNotas ? `${updatedNotas} [LEYENDA_FECHA_${selectedFechaNum}:${val}]` : `[LEYENDA_FECHA_${selectedFechaNum}:${val}]`;
+        }
+        await (supabase as any).from("torneos").update({ notas: updatedNotas || null }).eq("id", id);
+        if (torneo) {
+          setTorneo({ ...torneo, notas: updatedNotas || null });
+        }
+      } else if (saveError) {
+        throw saveError;
+      }
+
       toast.success(`Leyenda de la Fecha ${selectedFechaNum} guardada`);
       setEditingLeyendaOpen(false);
 

@@ -145,7 +145,16 @@ export default function TorneoIndividualPublico() {
 
       setTorneo(tRes);
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
-      setFechas(fRes ?? []);
+
+      // Map fechas with fallback to notas
+      const mappedFechas = (fRes ?? []).map((f: any) => {
+        const leyMatch = tRes?.notas?.match(new RegExp(`\\[LEYENDA_FECHA_${f.fecha}:(.*?)\\]`));
+        return {
+          ...f,
+          leyenda: f.leyenda || (leyMatch ? leyMatch[1] : null),
+        };
+      });
+      setFechas(mappedFechas);
       setPagos(pRes ?? []);
 
       // Map couples players
@@ -224,6 +233,10 @@ export default function TorneoIndividualPublico() {
     if (currentFechaObj?.leyenda?.trim()) {
       return currentFechaObj.leyenda.trim();
     }
+    const fechaTagMatch = torneo?.notas?.match(new RegExp(`\\[LEYENDA_FECHA_${selectedFechaNum}:(.*?)\\]`));
+    if (fechaTagMatch?.[1]?.trim()) {
+      return fechaTagMatch[1].trim();
+    }
     if ((torneo as any)?.subtitulo_fase?.trim()) {
       return (torneo as any).subtitulo_fase.trim();
     }
@@ -232,7 +245,7 @@ export default function TorneoIndividualPublico() {
       return tagMatch[1].trim();
     }
     return "Fase Regular";
-  }, [currentFechaObj, torneo]);
+  }, [currentFechaObj, selectedFechaNum, torneo]);
 
   // Standing Ranking calculation
   const computedStandings = useMemo((): any[] => {
