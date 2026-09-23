@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
 import { CompartirRankingDialog } from "@/components/torneo-individual/CompartirRankingDialog";
+import { MiParticipacionCard } from "@/components/torneo-individual/MiParticipacionCard";
+import { useAuth } from "@/hooks/useAuth";
 import {
   Trophy,
   Calendar,
@@ -117,6 +119,10 @@ export default function TorneoIndividualPublico() {
   const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
   const [shareRankingOpen, setShareRankingOpen] = useState(false);
 
+  // Auth user state
+  const { user } = useAuth();
+  const [currentUserJugador, setCurrentUserJugador] = useState<Jugador | null>(null);
+
   // Active selections
   const [activeTab, setActiveTab] = useState("ranking");
   const [selectedFechaNum, setSelectedFechaNum] = useState<number>(1);
@@ -206,6 +212,69 @@ export default function TorneoIndividualPublico() {
   useEffect(() => {
     fetchTournamentData();
   }, [fetchTournamentData]);
+
+  // Resolucion asincrona del jugador logueado (sin bloquear la carga del torneo)
+  useEffect(() => {
+    if (!user) {
+      setCurrentUserJugador(null);
+      return;
+    }
+
+    let isMounted = true;
+    const resolvePlayer = async () => {
+      try {
+        // 1. Consultar tabla profiles por user_id
+        const { data: profile } = await (supabase as any)
+          .from("profiles")
+          .select("jugador_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        let jId = profile?.jugador_id;
+
+        // 2. Si no esta vinculado en profiles, buscar por DNI o Email en jugadores
+        if (!jId) {
+          const userDni = user.user_metadata?.dni ? String(user.user_metadata.dni).trim() : null;
+          if (userDni) {
+            const { data: jugDni } = await (supabase as any)
+              .from("jugadores")
+              .select("id")
+              .eq("dni", userDni)
+              .maybeSingle();
+            if (jugDni) jId = jugDni.id;
+          }
+        }
+
+        if (!jId && user.email) {
+          const { data: jugEmail } = await (supabase as any)
+            .from("jugadores")
+            .select("id")
+            .ilike("email", user.email)
+            .maybeSingle();
+          if (jugEmail) jId = jugEmail.id;
+        }
+
+        // 3. Obtener los datos completos del jugador
+        if (jId && isMounted) {
+          const { data: jugData } = await (supabase as any)
+            .from("jugadores")
+            .select("*")
+            .eq("id", jId)
+            .maybeSingle();
+          if (jugData && isMounted) {
+            setCurrentUserJugador(jugData);
+          }
+        }
+      } catch (err) {
+        console.warn("No se pudo resolver el perfil de jugador del usuario:", err);
+      }
+    };
+
+    resolvePlayer();
+    return () => {
+      isMounted = false;
+    };
+  }, [user]);
 
   // Set default view date based on latest completed date
   useEffect(() => {
@@ -652,6 +721,66 @@ export default function TorneoIndividualPublico() {
     return fObj?.publicado === true;
   }, [fechas, selectedFechaNum]);
 
+  // Informacion de participacion del jugador logueado (solo si participa)
+  const userParticipantInfo = useMemo(() => {
+    if (!currentUserJugador || !torneo) return null;
+
+    const jId = currentUserJugador.id;
+
+    // Verificar si esta inscripto en este torneo
+    const tj = jugadoresInscriptos.find((j) => j.jugador_id === jId);
+    const pareja = parejas.find((p) => p.jugador1_id === jId || p.jugador2_id === jId);
+
+    if (!tj && !pareja) return null;
+
+    // Resolver posicion y datos en standings
+    let userStanding: any = null;
+    let userRank = 0;
+
+    if (torneo.modalidad === "parejas" && pareja) {
+      userRank = computedStandings.findIndex((s: any) => s.pareja_id === pareja.id) + 1;
+      userStanding = computedStandings.find((s: any) => s.pareja_id === pareja.id) || null;
+    } else {
+      userRank = computedStandings.findIndex((s: any) => s.jugador_id === jId) + 1;
+      userStanding = computedStandings.find((s: any) => s.jugador_id === jId) || null;
+    }
+
+    // Resolver partido:
+    // 1. Prioridad: partido en selectedFechaNum
+    let userMatch = partidos.find(
+      (p) =>
+        p.fecha === selectedFechaNum &&
+        (p.jugador1_id === jId || p.jugador2_id === jId || p.jugador3_id === jId || p.jugador4_id === jId)
+    );
+
+    // 2. Si no tiene partido en la fecha seleccionada, buscar proximo partido pendiente
+    if (!userMatch) {
+      userMatch = partidos.find(
+        (p) =>
+          p.estado === "pendiente" &&
+          (p.jugador1_id === jId || p.jugador2_id === jId || p.jugador3_id === jId || p.jugador4_id === jId)
+      );
+    }
+
+    // 3. Fallback: ultimo partido disputado
+    if (!userMatch) {
+      const userMatches = partidos.filter(
+        (p) => p.jugador1_id === jId || p.jugador2_id === jId || p.jugador3_id === jId || p.jugador4_id === jId
+      );
+      if (userMatches.length > 0) {
+        userMatch = userMatches[userMatches.length - 1];
+      }
+    }
+
+    return {
+      jugador: currentUserJugador,
+      standing: userStanding,
+      rank: userRank,
+      partido: userMatch || null,
+      fechaNum: userMatch?.fecha || selectedFechaNum,
+    };
+  }, [currentUserJugador, torneo, jugadoresInscriptos, parejas, computedStandings, partidos, selectedFechaNum]);
+
   // Helper to resolve court badges
   const getCanchaColor = (canchaName: string) => {
     if (canchaName.includes("Cancha 1")) return "border-primary/20 text-primary bg-primary/10 dark:bg-primary/20";
@@ -765,7 +894,27 @@ export default function TorneoIndividualPublico() {
             <p className="text-sm text-muted-foreground">Cargando posiciones y fixture...</p>
           </div>
         ) : (
-          <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+          <>
+            {torneo && userParticipantInfo && (
+              <MiParticipacionCard
+                torneo={torneo}
+                jugador={userParticipantInfo.jugador}
+                standing={userParticipantInfo.standing}
+                rank={userParticipantInfo.rank}
+                partidoActual={userParticipantInfo.partido}
+                fechaActualNum={userParticipantInfo.fechaNum}
+                esPuntosPorSet={esPuntosPorSet}
+                onGoToRanking={() => setActiveTab("ranking")}
+                onGoToFixture={() => {
+                  if (userParticipantInfo.partido?.fecha) {
+                    setSelectedFechaNum(userParticipantInfo.partido.fecha);
+                  }
+                  setActiveTab("fixture");
+                }}
+              />
+            )}
+
+            <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
             <TabsList className={`grid ${ocultarReglamento ? "grid-cols-3 max-w-md" : "grid-cols-4 max-w-lg"} w-full bg-muted text-xs`}>
               <TabsTrigger value="ranking">Tabla</TabsTrigger>
               <TabsTrigger value="fixture">Encuentros</TabsTrigger>
@@ -839,8 +988,15 @@ export default function TorneoIndividualPublico() {
                             badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
                           }
 
+                          const isJ1User = Boolean(currentUserJugador && (s.jugador1_id === currentUserJugador.id || s.jugador1?.id === currentUserJugador.id));
+                          const isJ2User = Boolean(currentUserJugador && (s.jugador2_id === currentUserJugador.id || s.jugador2?.id === currentUserJugador.id));
+                          const isUserCouple = isJ1User || isJ2User;
+
                           return (
-                            <TableRow key={s.pareja_id}>
+                            <TableRow 
+                              key={s.pareja_id}
+                              className={isUserCouple ? "bg-purple-500/10 dark:bg-[#9d4edd]/15 border-y-2 border-purple-500/50" : ""}
+                            >
                               <TableCell className="text-center font-bold">
                                 {(s as any).podio_final === 1 ? (
                                   <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
@@ -855,8 +1011,22 @@ export default function TorneoIndividualPublico() {
                                 )}
                               </TableCell>
                               <TableCell>
-                                <div className="font-semibold text-xs sm:text-sm">{s.jugador1?.apellido}, {s.jugador1?.nombre}</div>
-                                <div className="font-semibold text-xs sm:text-sm text-muted-foreground">{s.jugador2?.apellido}, {s.jugador2?.nombre}</div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-xs sm:text-sm">{s.jugador1?.apellido}, {s.jugador1?.nombre}</span>
+                                  {isJ1User && (
+                                    <Badge className="bg-[#9d4edd] hover:bg-[#8338ec] text-white text-[9px] px-1.5 py-0 uppercase font-black tracking-wider">
+                                      Tú
+                                    </Badge>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                                  <span className="font-semibold text-xs sm:text-sm text-muted-foreground">{s.jugador2?.apellido}, {s.jugador2?.nombre}</span>
+                                  {isJ2User && (
+                                    <Badge className="bg-[#9d4edd] hover:bg-[#8338ec] text-white text-[9px] px-1.5 py-0 uppercase font-black tracking-wider">
+                                      Tú
+                                    </Badge>
+                                  )}
+                                </div>
                                 {!esPuntosPorSet && (
                                   <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
                                     {courtGroup}
@@ -914,8 +1084,13 @@ export default function TorneoIndividualPublico() {
                             badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
                           }
 
+                          const isUser = Boolean(currentUserJugador && s.jugador_id === currentUserJugador.id);
+
                           return (
-                            <TableRow key={s.jugador_id}>
+                            <TableRow 
+                              key={s.jugador_id}
+                              className={isUser ? "bg-purple-500/10 dark:bg-[#9d4edd]/15 border-y-2 border-purple-500/50" : ""}
+                            >
                               <TableCell className="text-center font-bold">
                                   {(s as any).podio_final === 1 ? (
                                     <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
@@ -930,7 +1105,14 @@ export default function TorneoIndividualPublico() {
                                   )}
                               </TableCell>
                               <TableCell>
-                                <div className="font-semibold text-xs sm:text-sm">{s.apellido}, {s.nombre}</div>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <span className="font-semibold text-xs sm:text-sm">{s.apellido}, {s.nombre}</span>
+                                  {isUser && (
+                                    <Badge className="bg-[#9d4edd] hover:bg-[#8338ec] text-white text-[9px] px-1.5 py-0 uppercase font-black tracking-wider">
+                                      Tú
+                                    </Badge>
+                                  )}
+                                </div>
                                 {!esPuntosPorSet && (
                                   <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
                                     {courtGroup}
@@ -1036,17 +1218,39 @@ export default function TorneoIndividualPublico() {
                 <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                   {partidosDeFecha.map((p) => {
                     const hasWinner = p.estado === "finalizado";
+                    const isUserInMatch = Boolean(
+                      currentUserJugador && (
+                        p.jugador1_id === currentUserJugador.id ||
+                        p.jugador2_id === currentUserJugador.id ||
+                        p.jugador3_id === currentUserJugador.id ||
+                        p.jugador4_id === currentUserJugador.id
+                      )
+                    );
 
                     return (
-                      <Card key={p.id} className="border border-border/40 shadow-sm overflow-hidden flex flex-col justify-between">
+                      <Card 
+                        key={p.id} 
+                        className={`border shadow-sm overflow-hidden flex flex-col justify-between transition-all ${
+                          isUserInMatch 
+                            ? "border-purple-500/80 ring-2 ring-purple-500/40 shadow-[0_0_15px_rgba(157,78,221,0.25)] bg-purple-500/5 dark:bg-[#9d4edd]/5" 
+                            : "border-border/40"
+                        }`}
+                      >
                         <div>
                           <div className={`px-3 py-1.5 text-[10px] font-bold uppercase border-b flex items-center justify-between ${getCanchaColor(p.cancha)}`}>
                             <span>{esPuntosPorSet ? p.cancha.replace(/:\s*(Élite|Desafío|Base|Promoción)/i, "") : p.cancha}</span>
-                            {hasWinner && (
-                              <Badge className="bg-primary text-white text-[8px] font-extrabold uppercase px-1 py-0 h-4 shadow-none">
-                                Jugado
-                              </Badge>
-                            )}
+                            <div className="flex items-center gap-1.5">
+                              {isUserInMatch && (
+                                <Badge className="bg-[#9d4edd] hover:bg-[#8338ec] text-white text-[8px] font-extrabold uppercase px-1.5 py-0 h-4 border-none shadow-none">
+                                  Tu Partido
+                                </Badge>
+                              )}
+                              {hasWinner && (
+                                <Badge className="bg-primary text-white text-[8px] font-extrabold uppercase px-1 py-0 h-4 shadow-none">
+                                  Jugado
+                                </Badge>
+                              )}
+                            </div>
                           </div>
                           <CardContent className="p-4 space-y-3.5">
                             {/* Team 1 */}
@@ -1566,8 +1770,9 @@ export default function TorneoIndividualPublico() {
               })()}
             </TabsContent>
           </Tabs>
-        )}
-      </div>
+        </>
+      )}
+    </div>
 
       <PublicFooter />
 
