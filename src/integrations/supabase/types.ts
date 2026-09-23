@@ -672,6 +672,41 @@ export type Database = {
         }
         Relationships: []
       }
+      torneo_gastos: {
+        Row: {
+          created_at: string
+          fecha_gasto: string
+          concepto: string
+          id: string
+          monto: number
+          torneo_id: string
+        }
+        Insert: {
+          created_at?: string
+          fecha_gasto?: string
+          concepto: string
+          id?: string
+          monto?: number
+          torneo_id: string
+        }
+        Update: {
+          created_at?: string
+          fecha_gasto?: string
+          concepto?: string
+          id?: string
+          monto?: number
+          torneo_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "torneo_gastos_torneo_id_fkey"
+            columns: ["torneo_id"]
+            isOneToOne: false
+            referencedRelation: "torneos"
+            referencedColumns: ["id"]
+          }
+        ]
+      }
       torneo_individual_fechas: {
         Row: {
           costo_canchas: number

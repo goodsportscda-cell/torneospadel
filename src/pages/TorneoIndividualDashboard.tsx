@@ -40,6 +40,8 @@ import {
   Tag
 } from "lucide-react";
 import { toast } from "sonner";
+import { format } from "date-fns";
+import { es } from "date-fns/locale";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
 import { CompartirRankingDialog } from "@/components/torneo-individual/CompartirRankingDialog";
@@ -59,6 +61,7 @@ type PartidoInd = Database["public"]["Tables"]["partidos_individuales"]["Row"] &
 type SetPartidoInd = Database["public"]["Tables"]["sets_partido_individual"]["Row"];
 type TorneoFecha = Database["public"]["Tables"]["torneo_individual_fechas"]["Row"];
 type TorneoPago = Database["public"]["Tables"]["torneo_individual_pagos"]["Row"];
+type TorneoGasto = Database["public"]["Tables"]["torneo_gastos"]["Row"];
 type PaymentStatus = "pending" | "paid" | "courtesy";
 
 const getPlayerPaymentStatus = (tj: any): PaymentStatus => {
@@ -157,6 +160,11 @@ export default function TorneoIndividualDashboard() {
   const [partidos, setPartidos] = useState<PartidoInd[]>([]);
   const [standings, setStandings] = useState<any[]>([]);
   const [parejas, setParejas] = useState<any[]>([]);
+  const [gastos, setGastos] = useState<TorneoGasto[]>([]);
+  const [nuevoGastoConcepto, setNuevoGastoConcepto] = useState("");
+  const [nuevoGastoMonto, setNuevoGastoMonto] = useState("");
+  const [guardandoGasto, setGuardandoGasto] = useState(false);
+  const [eliminandoGastoId, setEliminandoGastoId] = useState<string | null>(null);
 
   // Active selections
   const [activeTab, setActiveTab] = useState("resumen");
@@ -355,6 +363,18 @@ export default function TorneoIndividualDashboard() {
       });
       setFechas(mappedFechas);
       setPagos(pRes ?? []);
+
+      // Fetch gastos diferidos y retiros con fallback seguro
+      try {
+        const { data: gRes } = await (supabase as any)
+          .from("torneo_gastos")
+          .select("*")
+          .eq("torneo_id", id)
+          .order("fecha_gasto", { ascending: false });
+        setGastos(gRes ?? []);
+      } catch {
+        setGastos([]);
+      }
 
       // Map couples players
       const mappedParejas = (tpRes ?? []).map((p: any) => ({
@@ -891,6 +911,11 @@ export default function TorneoIndividualDashboard() {
     const pozoPremios = (gananciaNeta * porcentajePremios) / 100;
     const gananciaOrg = gananciaNeta - pozoPremios;
 
+    // Gastos y Retiros del Torneo
+    const totalGastosRetiros = gastos.reduce((acc, curr) => acc + Number(curr.monto || 0), 0);
+    const totalRecaudadoReal = cobrado; // Excluye cortesía
+    const gananciaNetaDisponible = totalRecaudadoReal - totalGastosRetiros;
+
     return {
       esperado,
       esperadoInscripcion,
@@ -906,8 +931,11 @@ export default function TorneoIndividualDashboard() {
       pozoPremios,
       gananciaOrg,
       ingresosSponsors,
+      totalGastosRetiros,
+      totalRecaudadoReal,
+      gananciaNetaDisponible,
     };
-  }, [torneo, jugadoresInscriptos, pagos, fechas]);
+  }, [torneo, jugadoresInscriptos, pagos, fechas, gastos]);
 
   // Live calculation for settings input preview
   const liveGanProj = useMemo(() => {
@@ -1355,6 +1383,76 @@ export default function TorneoIndividualDashboard() {
       );
     } catch (err: any) {
       toast.error("Error al actualizar estado de pago: " + err.message);
+    }
+  };
+
+  // Actions: Registrar y Eliminar Gastos / Retiros
+  const handleAgregarGasto = async () => {
+    if (!id) return;
+    const concepto = nuevoGastoConcepto.trim();
+    const monto = Number(nuevoGastoMonto);
+
+    if (!concepto) {
+      toast.error("Ingresa un concepto descriptivo para el gasto/retiro");
+      return;
+    }
+    if (isNaN(monto) || monto <= 0) {
+      toast.error("Ingresa un monto válido mayor a 0");
+      return;
+    }
+
+    setGuardandoGasto(true);
+    try {
+      const { error } = await (supabase as any).from("torneo_gastos").insert({
+        torneo_id: id,
+        concepto,
+        monto,
+      });
+
+      if (error) {
+        if (error.code === "PGRST205" || error.message?.includes("torneo_gastos")) {
+          toast.error("La tabla torneo_gastos aún se está sincronizando en Supabase.");
+        } else {
+          toast.error("Error al registrar gasto: " + error.message);
+        }
+        return;
+      }
+
+      toast.success("Gasto/retiro registrado correctamente");
+      setNuevoGastoConcepto("");
+      setNuevoGastoMonto("");
+      queryClient.invalidateQueries({ queryKey: ["torneo_gastos", id] });
+      queryClient.invalidateQueries({ queryKey: ["torneos"] });
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error inesperado: " + e.message);
+    } finally {
+      setGuardandoGasto(false);
+    }
+  };
+
+  const handleEliminarGasto = async (gastoId: string) => {
+    if (!id || !gastoId) return;
+    setEliminandoGastoId(gastoId);
+    try {
+      const { error } = await (supabase as any)
+        .from("torneo_gastos")
+        .delete()
+        .eq("id", gastoId);
+
+      if (error) {
+        toast.error("Error al eliminar gasto: " + error.message);
+        return;
+      }
+
+      toast.success("Gasto eliminado");
+      queryClient.invalidateQueries({ queryKey: ["torneo_gastos", id] });
+      queryClient.invalidateQueries({ queryKey: ["torneos"] });
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al eliminar: " + e.message);
+    } finally {
+      setEliminandoGastoId(null);
     }
   };
 
@@ -3157,20 +3255,87 @@ export default function TorneoIndividualDashboard() {
 
           {/* TAB 3: FINANZAS */}
           <TabsContent value="finanzas" className="space-y-4">
+            {/* Tarjeta Destacada: Balance Neto del Organizador */}
+            <Card className="relative overflow-hidden border-[#9d4edd]/50 bg-gradient-to-br from-[#9d4edd]/15 via-neutral-900/80 to-purple-950/30 shadow-[0_0_25px_rgba(157,78,221,0.2)]">
+              <div className="absolute top-0 right-0 w-36 h-36 bg-[#9d4edd]/15 rounded-full blur-2xl pointer-events-none" />
+              <CardHeader className="pb-2">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-2.5 rounded-xl bg-[#9d4edd]/20 border border-[#9d4edd]/40 text-[#9d4edd] shadow-inner">
+                      <DollarSign className="h-5 w-5" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-base sm:text-lg text-foreground font-black tracking-tight flex items-center gap-2">
+                        <span>Balance Neto del Organizador</span>
+                      </CardTitle>
+                      <CardDescription className="text-xs">
+                        Ganancia neta disponible y control de caja en tiempo real.
+                      </CardDescription>
+                    </div>
+                  </div>
+                  <Badge className="bg-[#9d4edd] hover:bg-[#8338ec] text-white border-none shadow-[0_0_12px_rgba(157,78,221,0.6)] font-black uppercase text-[10px] tracking-wider px-2.5 py-0.5">
+                    En Vivo
+                  </Badge>
+                </div>
+              </CardHeader>
+              <CardContent className="space-y-4 pt-1">
+                <div className="flex items-baseline justify-between flex-wrap gap-2 border-b border-[#9d4edd]/20 pb-3">
+                  <div>
+                    <span className="text-[10px] uppercase font-black tracking-wider text-[#9d4edd]">
+                      Ganancia Neta Disponible
+                    </span>
+                    <div className="text-3xl sm:text-4xl font-black tracking-tight text-white flex items-center gap-2">
+                      <span className={finanzasResumen.gananciaNetaDisponible >= 0 ? "text-[#9d4edd]" : "text-destructive"}>
+                        ${finanzasResumen.gananciaNetaDisponible.toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[11px] text-muted-foreground block">Estado de Caja</span>
+                    <span className={`text-xs font-bold ${finanzasResumen.gananciaNetaDisponible >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                      {finanzasResumen.gananciaNetaDisponible >= 0 ? "Superávit Disponible" : "Saldo Negativo"}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-neutral-900/70 border border-border/50">
+                    <span className="text-muted-foreground text-[11px] block">Total Recaudado Real</span>
+                    <span className="font-bold text-emerald-400 text-base">
+                      +${finanzasResumen.totalRecaudadoReal.toLocaleString("es-AR")}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      Cobrado de jugadores (excluye cortesías)
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-900/70 border border-border/50">
+                    <span className="text-muted-foreground text-[11px] block">Total Gastos / Retiros</span>
+                    <span className="font-bold text-rose-400 text-base">
+                      -${finanzasResumen.totalGastosRetiros.toLocaleString("es-AR")}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      {gastos.length} {gastos.length === 1 ? "registro cargado" : "registros cargados"}
+                    </span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
             <div className="grid gap-4 md:grid-cols-3">
-              {/* Payments Grid */}
-              <Card className="md:col-span-2">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center justify-between">
-                    <span>Cuadrícula de Pagos de Inscripción</span>
-                    <Badge variant="outline" className="border-primary/20 text-primary bg-primary/10 dark:bg-primary/20">
-                      Costo por Fecha: ${torneo?.costo_fecha_jugador ?? 10000}
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription>
-                    Haz clic en cada celda para marcar que el jugador ha pagado la inscripción de esa fecha (semanal).
-                  </CardDescription>
-                </CardHeader>
+              <div className="md:col-span-2 space-y-4">
+                {/* Cuadrícula de Pagos de Inscripción */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base flex items-center justify-between">
+                      <span>Cuadrícula de Pagos de Inscripción</span>
+                      <Badge variant="outline" className="border-primary/20 text-primary bg-primary/10 dark:bg-primary/20">
+                        Costo por Fecha: ${torneo?.costo_fecha_jugador ?? 10000}
+                      </Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Haz clic en cada celda para marcar que el jugador ha pagado la inscripción de esa fecha (semanal).
+                    </CardDescription>
+                  </CardHeader>
                 <CardContent className="overflow-x-auto">
                   <Table className="min-w-[600px]">
                     <TableHeader>
@@ -3252,6 +3417,116 @@ export default function TorneoIndividualDashboard() {
                   </Table>
                 </CardContent>
               </Card>
+
+              {/* Subsección: Gastos y Retiros del Torneo */}
+              <Card className="border border-border/50">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-[#9d4edd]" />
+                      <CardTitle className="text-base font-bold">
+                        Gastos y Retiros del Torneo
+                      </CardTitle>
+                    </div>
+                    <Badge variant="outline" className="border-[#9d4edd]/30 text-[#9d4edd] bg-[#9d4edd]/10 text-[10px] font-semibold">
+                      Diferidos & Retiros
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs">
+                    Registra compras diferidas (trofeos, regalos, pelotas) o retiros parciales de la caja del certamen.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {/* Formulario Rápido */}
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border/60 space-y-3">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                      <div className="sm:col-span-2 space-y-1">
+                        <Label htmlFor="gasto-concepto" className="text-[10px] uppercase font-bold text-muted-foreground">
+                          Concepto del Gasto / Retiro
+                        </Label>
+                        <Input
+                          id="gasto-concepto"
+                          placeholder="Ej: Trofeos fecha final, Regalos, Retiro seña..."
+                          value={nuevoGastoConcepto}
+                          onChange={(e) => setNuevoGastoConcepto(e.target.value)}
+                          className="h-8 text-xs font-medium"
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <Label htmlFor="gasto-monto" className="text-[10px] uppercase font-bold text-muted-foreground">
+                          Monto ($)
+                        </Label>
+                        <Input
+                          id="gasto-monto"
+                          type="number"
+                          min="0"
+                          placeholder="0"
+                          value={nuevoGastoMonto}
+                          onChange={(e) => setNuevoGastoMonto(e.target.value)}
+                          className="h-8 text-xs font-semibold"
+                        />
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      onClick={handleAgregarGasto}
+                      disabled={guardandoGasto || !nuevoGastoConcepto.trim() || !nuevoGastoMonto}
+                      className="w-full h-8 text-xs font-bold gap-1.5 bg-[#9d4edd] hover:bg-[#8338ec] text-white transition-all shadow-[0_0_12px_rgba(157,78,221,0.4)]"
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      {guardandoGasto ? "Registrando..." : "Agregar Gasto / Retiro"}
+                    </Button>
+                  </div>
+
+                  {/* Lista compacta de Gastos */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground px-1 pb-1 border-b border-border/40">
+                      <span>Historial de Gastos Registrados</span>
+                      <span className="font-bold text-foreground">Total: ${finanzasResumen.totalGastosRetiros.toLocaleString("es-AR")}</span>
+                    </div>
+
+                    {gastos.length === 0 ? (
+                      <div className="text-center py-6 text-xs text-muted-foreground italic bg-muted/20 rounded-lg border border-dashed border-border/40">
+                        Aún no se han registrado gastos ni retiros para este torneo.
+                      </div>
+                    ) : (
+                      <div className="max-h-60 overflow-y-auto space-y-1.5 pr-1">
+                        {gastos.map((g) => (
+                          <div
+                            key={g.id}
+                            className="flex items-center justify-between p-2.5 rounded-lg bg-card border border-border/50 text-xs hover:border-[#9d4edd]/30 transition-all"
+                          >
+                            <div className="min-w-0 flex-1 pr-2">
+                              <div className="font-semibold text-foreground truncate">
+                                {g.concepto}
+                              </div>
+                              <span className="text-[10px] text-muted-foreground">
+                                {format(new Date(g.fecha_gasto), "dd/MM/yyyy HH:mm", { locale: es })}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <span className="font-bold text-rose-400 font-mono text-xs">
+                                -${Number(g.monto).toLocaleString("es-AR")}
+                              </span>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => handleEliminarGasto(g.id)}
+                                disabled={eliminandoGastoId === g.id}
+                                className="h-7 w-7 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                                title="Eliminar gasto"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
 
               {/* Financial Dashboard & Settings */}
               <div className="space-y-4">
