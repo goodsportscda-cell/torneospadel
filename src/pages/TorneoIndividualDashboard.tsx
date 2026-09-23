@@ -586,8 +586,19 @@ export default function TorneoIndividualDashboard() {
         const canchaNumMatch = p.cancha.match(/\d+/);
         const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
 
-        const ptsWin = countCanchas - courtIndex + 2;
-        const ptsLose = 1;
+        let ptsWin = countCanchas - courtIndex + 2;
+        let ptsLose = 1;
+
+        // Reglamento Oficial (Semanas 9 y 10 de Definición por Tabla Viva)
+        if (!esPuntosPorSet) {
+          if (p.fecha === 9) {
+            ptsWin = 4;
+            ptsLose = 1;
+          } else if (p.fecha === 10) {
+            ptsWin = 6;
+            ptsLose = 2;
+          }
+        }
 
         // Couple A
         standA.partidosJugados++;
@@ -670,8 +681,21 @@ export default function TorneoIndividualDashboard() {
       const canchaNumMatch = p.cancha.match(/\d+/);
       const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
 
-      const ptsWinner = countCanchas - courtIndex + 2;
-      const ptsLoser = 1;
+      let ptsWinner = countCanchas - courtIndex + 2;
+      let ptsLoser = 1;
+
+      // Reglamento Oficial Crown Pádel (Semanas 9 y 10 de Definición por Tabla Viva)
+      if (!esPuntosPorSet) {
+        if (p.fecha === 9) {
+          // Semana 9: Pareja Ganadora: +4 pts individuales | Pareja Perdedora: +1 pt individual (en todas las canchas)
+          ptsWinner = 4;
+          ptsLoser = 1;
+        } else if (p.fecha === 10) {
+          // Semana 10: Súper Puntaje Final: Pareja Ganadora: +6 pts individuales | Pareja Perdedora: +2 pts individuales (en todas las canchas)
+          ptsWinner = 6;
+          ptsLoser = 2;
+        }
+      }
 
       let gamesP1 = 0;
       let gamesP2 = 0;
@@ -1910,98 +1934,173 @@ export default function TorneoIndividualDashboard() {
           throw new Error("No se pudo calcular una fecha válida sin repetir parejas: " + err.message);
         }
       } else {
-        // Individual logic - Ascensos y Descensos directos
+        // Individual logic - Ascensos, Descensos y Playoffs según Reglamento Oficial Crown Pádel
         const prevMatches = partidos.filter((p) => p.fecha === fechaNum - 1);
         
-        // Helper para obtener ganadores/perdedores de una cancha (1-indexed)
-        const getCourtResult = (cNum: number) => {
-          const m = prevMatches.find((p) => p.cancha.includes(`Cancha ${cNum}`));
-          if (!m) return null;
-          const p1Won = m.sets_pareja1 > m.sets_pareja2;
-          if (p1Won) {
-            return {
-              winner: [m.jugador1_id, m.jugador2_id],
-              loser: [m.jugador3_id, m.jugador4_id],
-            };
-          } else {
-            return {
-              winner: [m.jugador3_id, m.jugador4_id],
-              loser: [m.jugador1_id, m.jugador2_id],
-            };
-          }
-        };
-
-        // Standings map for sorting within court
+        // Standings ordenados por ranking general
         const standingsMap = new Map(standings.map((s) => [s.jugador_id, s]));
+        const sortedAllPlayers = [...standings].sort((a, b) => {
+          if (b.puntos !== a.puntos) return b.puntos - a.puntos;
+          if (b.difSets !== a.difSets) return (b.difSets || 0) - (a.difSets || 0);
+          return b.difGames - a.difGames;
+        });
 
-        for (let c = 1; c <= courtsCount; c++) {
-          let courtPlayerIds: string[] = [];
-
-          if (c === 1) {
-            // Cancha 1: Ganadores C1 + Ganadores C2
-            const res1 = getCourtResult(1);
-            const res2 = getCourtResult(2);
-            if (res1) courtPlayerIds.push(...res1.winner);
-            if (res2) courtPlayerIds.push(...res2.winner);
-          } else if (c === courtsCount) {
-            // Cancha Última: Perdedores C_prev + Perdedores C_current
-            const resPrev = getCourtResult(c - 1);
-            const resCurr = getCourtResult(c);
-            if (resPrev) courtPlayerIds.push(...resPrev.loser);
-            if (resCurr) courtPlayerIds.push(...resCurr.loser);
-          } else {
-            // Canchas Intermedias: Perdedores C_prev + Ganadores C_next
-            const resPrev = getCourtResult(c - 1);
-            const resNext = getCourtResult(c + 1);
-            if (resPrev) courtPlayerIds.push(...resPrev.loser);
-            if (resNext) courtPlayerIds.push(...resNext.winner);
-          }
-
-          // Fallback: If for some reason we don't have exactly 4 players (e.g. missing prev match), 
-          // we fallback to general standings for this specific court
-          if (courtPlayerIds.length !== 4) {
-            const sortedIds = standings.map((s) => s.jugador_id);
+        if (fechaNum === 9 && (torneo.desafio_semanas ?? 8) >= 9) {
+          // ==========================================
+          // SEMANA 9: CRUCES CLASIFICATORIOS Y ASIGNACIÓN DE BONUS
+          // Al término de la Fecha 8 se consolida la tabla general acumulada (1º al 12º)
+          // ==========================================
+          for (let c = 1; c <= courtsCount; c++) {
             const offset = (c - 1) * 4;
-            courtPlayerIds = sortedIds.slice(offset, offset + 4);
-          } else {
-            // Sort the 4 players by their overall standings
-            courtPlayerIds.sort((a, b) => {
-              const standA = standingsMap.get(a);
-              const standB = standingsMap.get(b);
-              if (!standA || !standB) return 0;
-              if (standB.puntos !== standA.puntos) return standB.puntos - standA.puntos;
-              if (standB.difSets !== standA.difSets) return (standB.difSets || 0) - (standA.difSets || 0);
-              return standB.difGames - standA.difGames;
-            });
-          }
+            const courtPlayers = sortedAllPlayers.slice(offset, offset + 4).map((s) => s.jugador_id);
+            if (courtPlayers.length < 4) {
+              throw new Error(`No hay suficientes jugadores en el ranking para armar la Cancha ${c} en la Fecha 9.`);
+            }
 
-          let j1, j2, j3, j4;
-          const cycle = fechaNum % 3;
-          if (cycle === 1) {
-            // Rotación A: 1 y 4 vs 2 y 3
-            j1 = courtPlayerIds[0]; j2 = courtPlayerIds[3];
-            j3 = courtPlayerIds[1]; j4 = courtPlayerIds[2];
-          } else if (cycle === 2) {
-            // Rotación B: 1 y 3 vs 2 y 4
-            j1 = courtPlayerIds[0]; j2 = courtPlayerIds[2];
-            j3 = courtPlayerIds[1]; j4 = courtPlayerIds[3];
-          } else {
-            // Rotación C: 1 y 2 vs 3 y 4
-            j1 = courtPlayerIds[0]; j2 = courtPlayerIds[1];
-            j3 = courtPlayerIds[2]; j4 = courtPlayerIds[3];
-          }
+            // Equidad de cruces: (Mejor + Peor) vs (Dos Intermedios): [1º + 4º] vs [2º + 3º]
+            const j1 = courtPlayers[0];
+            const j2 = courtPlayers[3];
+            const j3 = courtPlayers[1];
+            const j4 = courtPlayers[2];
 
-          const matchPayload = {
-            torneo_id: id,
-            fecha: fechaNum,
-            cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
-            jugador1_id: j1,
-            jugador2_id: j2,
-            jugador3_id: j3,
-            jugador4_id: j4,
-            estado: "pendiente" as const,
+            const canchaNombre = c === 1
+              ? "Cancha 1: Zona Alta (Puestos 1º a 4º)"
+              : c === 2
+              ? "Cancha 2: Zona Media (Puestos 5º a 8º)"
+              : "Cancha 3: Zona Baja (Puestos 9º a 12º)";
+
+            matchPromises.push(
+              (supabase as any).from("partidos_individuales").insert({
+                torneo_id: id,
+                fecha: 9,
+                cancha: canchaNombre,
+                jugador1_id: j1,
+                jugador2_id: j2,
+                jugador3_id: j3,
+                jugador4_id: j4,
+                estado: "pendiente" as const,
+              })
+            );
+          }
+        } else if (fechaNum === 10 && (torneo.desafio_semanas ?? 8) >= 10) {
+          // ==========================================
+          // SEMANA 10: GRAN DEFINICIÓN POR TABLA VIVA
+          // Las canchas se reconfiguran con la tabla actualizada tras la Semana 9
+          // ==========================================
+          for (let c = 1; c <= courtsCount; c++) {
+            const offset = (c - 1) * 4;
+            const courtPlayers = sortedAllPlayers.slice(offset, offset + 4).map((s) => s.jugador_id);
+            if (courtPlayers.length < 4) {
+              throw new Error(`No hay suficientes jugadores en el ranking para armar la Cancha ${c} en la Fecha 10.`);
+            }
+
+            // Equidad de cruces: [1º + 4º] vs [2º + 3º] del ranking vivo
+            const j1 = courtPlayers[0];
+            const j2 = courtPlayers[3];
+            const j3 = courtPlayers[1];
+            const j4 = courtPlayers[2];
+
+            const canchaNombre = c === 1
+              ? "Cancha 1: Título (Campeona Oficial)"
+              : c === 2
+              ? "Cancha 2: Copa Plata (Puestos 5º a 8º)"
+              : "Cancha 3: Copa Bronce (Puestos 9º a 12º)";
+
+            matchPromises.push(
+              (supabase as any).from("partidos_individuales").insert({
+                torneo_id: id,
+                fecha: 10,
+                cancha: canchaNombre,
+                jugador1_id: j1,
+                jugador2_id: j2,
+                jugador3_id: j3,
+                jugador4_id: j4,
+                estado: "pendiente" as const,
+              })
+            );
+          }
+        } else {
+          // ==========================================
+          // SEMANAS 2 A 8 (Fase Regular: Ascensos y Descensos)
+          // ==========================================
+          // Helper para obtener ganadores/perdedores de una cancha (1-indexed)
+          const getCourtResult = (cNum: number) => {
+            const m = prevMatches.find((p) => p.cancha.includes(`Cancha ${cNum}`));
+            if (!m) return null;
+            const p1Won = m.sets_pareja1 > m.sets_pareja2;
+            if (p1Won) {
+              return {
+                winner: [m.jugador1_id, m.jugador2_id],
+                loser: [m.jugador3_id, m.jugador4_id],
+              };
+            } else {
+              return {
+                winner: [m.jugador3_id, m.jugador4_id],
+                loser: [m.jugador1_id, m.jugador2_id],
+              };
+            }
           };
-          matchPromises.push((supabase as any).from("partidos_individuales").insert(matchPayload));
+
+          for (let c = 1; c <= courtsCount; c++) {
+            let courtPlayerIds: string[] = [];
+
+            if (c === 1) {
+              // Cancha 1: Ganadores C1 + Ganadores C2
+              const res1 = getCourtResult(1);
+              const res2 = getCourtResult(2);
+              if (res1) courtPlayerIds.push(...res1.winner);
+              if (res2) courtPlayerIds.push(...res2.winner);
+            } else if (c === courtsCount) {
+              // Cancha Última: Perdedores C_prev + Perdedores C_current
+              const resPrev = getCourtResult(c - 1);
+              const resCurr = getCourtResult(c);
+              if (resPrev) courtPlayerIds.push(...resPrev.loser);
+              if (resCurr) courtPlayerIds.push(...resCurr.loser);
+            } else {
+              // Canchas Intermedias: Perdedores C_prev + Ganadores C_next
+              const resPrev = getCourtResult(c - 1);
+              const resNext = getCourtResult(c + 1);
+              if (resPrev) courtPlayerIds.push(...resPrev.loser);
+              if (resNext) courtPlayerIds.push(...resNext.winner);
+            }
+
+            // Fallback: If for some reason we don't have exactly 4 players (e.g. missing prev match), 
+            // we fallback to general standings for this specific court
+            if (courtPlayerIds.length !== 4) {
+              const sortedIds = sortedAllPlayers.map((s) => s.jugador_id);
+              const offset = (c - 1) * 4;
+              courtPlayerIds = sortedIds.slice(offset, offset + 4);
+            } else {
+              // Sort the 4 players by their overall standings
+              courtPlayerIds.sort((a, b) => {
+                const standA = standingsMap.get(a);
+                const standB = standingsMap.get(b);
+                if (!standA || !standB) return 0;
+                if (standB.puntos !== standA.puntos) return standB.puntos - standA.puntos;
+                if (standB.difSets !== standA.difSets) return (standB.difSets || 0) - (standA.difSets || 0);
+                return standB.difGames - standA.difGames;
+              });
+            }
+
+            // Según Reglamento Oficial Sección 2:
+            // Equidad de Cruces Semanales: (Mejor + Peor) vs (Dos Intermedios): [1º + 4º] vs [2º + 3º]
+            const j1 = courtPlayerIds[0];
+            const j2 = courtPlayerIds[3];
+            const j3 = courtPlayerIds[1];
+            const j4 = courtPlayerIds[2];
+
+            const matchPayload = {
+              torneo_id: id,
+              fecha: fechaNum,
+              cancha: `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`,
+              jugador1_id: j1,
+              jugador2_id: j2,
+              jugador3_id: j3,
+              jugador4_id: j4,
+              estado: "pendiente" as const,
+            };
+            matchPromises.push((supabase as any).from("partidos_individuales").insert(matchPayload));
+          }
         }
       }
 

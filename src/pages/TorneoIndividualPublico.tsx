@@ -335,8 +335,19 @@ export default function TorneoIndividualPublico() {
         const courtMatch = m.cancha.match(/\d+/);
         const courtIndex = courtMatch ? parseInt(courtMatch[0], 10) : 1;
 
-        const ptsWinner = countCanchas - courtIndex + 2;
-        const ptsLoser = 1;
+        let ptsWinner = countCanchas - courtIndex + 2;
+        let ptsLoser = 1;
+
+        // Reglamento Oficial (Semanas 9 y 10 de Definición por Tabla Viva)
+        if (!esPuntosPorSet) {
+          if (m.fecha === 9) {
+            ptsWinner = 4;
+            ptsLoser = 1;
+          } else if (m.fecha === 10) {
+            ptsWinner = 6;
+            ptsLoser = 2;
+          }
+        }
 
         // Apply rules for forfeits if sub limit > 2
         const p1Forfeit = sA.suplenciasUsadas > 2;
@@ -442,8 +453,21 @@ export default function TorneoIndividualPublico() {
       const canchaNumMatch = p.cancha.match(/\d+/);
       const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
 
-      const ptsWinner = countCanchas - courtIndex + 2;
-      const ptsLoser = 1;
+      let ptsWinner = countCanchas - courtIndex + 2;
+      let ptsLoser = 1;
+
+      // Reglamento Oficial Crown Pádel (Semanas 9 y 10 de Definición por Tabla Viva)
+      if (!esPuntosPorSet) {
+        if (p.fecha === 9) {
+          // Semana 9: Pareja Ganadora: +4 pts individuales | Pareja Perdedora: +1 pt individual (en todas las canchas)
+          ptsWinner = 4;
+          ptsLoser = 1;
+        } else if (p.fecha === 10) {
+          // Semana 10: Súper Puntaje Final: Pareja Ganadora: +6 pts individuales | Pareja Perdedora: +2 pts individuales (en todas las canchas)
+          ptsWinner = 6;
+          ptsLoser = 2;
+        }
+      }
 
       let gamesP1 = 0;
       let gamesP2 = 0;
@@ -1135,67 +1159,173 @@ export default function TorneoIndividualPublico() {
                     </>
                   ) : (
                     <>
+                      {/* 1. DINÁMICA GENERAL Y ESTRUCTURA */}
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <Trophy className="h-4 w-4 text-secondary" /> 1. Dinámica y Competencia
+                          <Trophy className="h-4 w-4 text-secondary" /> 1. Dinámica General y Estructura
                         </h3>
                         <p>
-                          El torneo tiene una duración de **{torneo?.desafio_semanas ?? 8} semanas**. Se juega de forma individual (inscripción individual), pero en pista se arman parejas dobles en base a la posición del ranking.
+                          Liga individual por acumulación de puntos semanales. El certamen consta de **10 semanas consecutivas** divididas en tres etapas estratégicas donde cada participante suma puntos de manera personal a una tabla unificada:
                         </p>
-                        <p>
-                          **Semana 1 (Sorteo Inicial)**: Se define por sorteo en vivo la cancha en la que juega cada participante (4 jugadores por cancha) y las parejas del partido (J1+J4 vs J2+J3).
-                        </p>
-                        <p>
-                          **Semanas 2 a {(torneo?.desafio_semanas ?? 8) - 2} (Fase Regular)**: Los jugadores se ordenan por su ranking general acumulado. Los 4 mejores van a la Cancha 1 (Élite), los siguientes 4 a la Cancha 2 (Desafío) y así sucesivamente. Los cruces internos de cada cancha se automatizan cruzando el mejor del grupo con el peor del grupo para equilibrar el partido: `1º + 4º vs 2º + 3º`.
-                        </p>
-                        <p>
-                          **Semana {(torneo?.desafio_semanas ?? 8) - 1} y {torneo?.desafio_semanas ?? 8} (Play-offs)**: Las últimas dos semanas definen las posiciones finales. En la Semana {(torneo?.desafio_semanas ?? 8) - 1} se juegan Semifinales en pista. En la Semana {torneo?.desafio_semanas ?? 8} se disputan las finales, donde cada finalista elige a un compañero de los jugadores ya eliminados (puestos 3 al 12) para disputar el campeonato.
-                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5 pt-1">
+                          <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50">
+                            <span className="font-bold text-foreground text-xs block mb-1">Semana 1: Inicial</span>
+                            <span className="text-[11px] leading-relaxed block text-muted-foreground">Sorteo inicial de los 12 participantes para determinar canchas base y parejas de apertura.</span>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-muted/40 border border-border/50">
+                            <span className="font-bold text-foreground text-xs block mb-1">Semanas 2 a 8: Regular</span>
+                            <span className="text-[11px] leading-relaxed block text-muted-foreground">7 fechas puntuables con ascensos y descensos automáticos según ranking semanal acumulado.</span>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-purple-950/20 border border-purple-500/30">
+                            <span className="font-bold text-purple-400 text-xs block mb-1">Semanas 9 y 10: Definición</span>
+                            <span className="text-[11px] leading-relaxed block text-muted-foreground">Playoffs a tabla viva con bonus de puntos y coronación final de la liga.</span>
+                          </div>
+                        </div>
                       </div>
 
+                      {/* 2. PARTICIPANTES Y ASIGNACIÓN DE CANCHAS */}
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <TrendingUp className="h-4 w-4 text-primary" /> 2. Ascensos y Descensos
+                          <Users className="h-4 w-4 text-primary" /> 2. Participantes y Asignación de Canchas
                         </h3>
                         <p>
-                          Al terminar cada fecha, el ranking general se actualiza. Para la siguiente semana:
+                          Participan **12 jugadores distribuidos en 3 canchas** (4 jugadores por cancha):
                         </p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          <li>Los **2 jugadores con más puntos** de la Cancha 2 ascienden a la Cancha 1.</li>
-                          <li>Los **2 jugadores con menos puntos** de la Cancha 1 descienden a la Cancha 2.</li>
-                          <li>La misma lógica se aplica entre la Cancha 2, Cancha 3 y el resto de las pistas habilitadas.</li>
+                        <ul className="list-disc pl-4 space-y-1 text-xs">
+                          <li>**Cancha 1 (Élite)**: Puestos 1.º al 4.º</li>
+                          <li>**Cancha 2 (Desafío)**: Puestos 5.º al 8.º</li>
+                          <li>**Cancha 3 (Base)**: Puestos 9.º al 12.º</li>
+                        </ul>
+                        <div className="p-2.5 rounded-lg bg-muted/40 border border-border/60 text-xs">
+                          <span className="font-semibold text-foreground block mb-0.5">Equidad de Cruces Semanales:</span>
+                          Para garantizar partidos parejos, dentro de cada cancha la pareja se conforma cruzando extremos de la tabla:  
+                          <strong className="text-foreground"> (Mejor + Peor) vs (Dos Intermedios)</strong> → Ej. C1: <code className="text-secondary font-mono">[1º + 4º] vs [2º + 3º]</code> | C2: <code className="text-secondary font-mono">[5º + 8º] vs [6º + 7º]</code>.
+                        </div>
+                      </div>
+
+                      {/* 3. FORMATO DE LOS PARTIDOS */}
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <CalendarDays className="h-4 w-4 text-indigo-500" /> 3. Formato de los Partidos
+                        </h3>
+                        <ul className="list-disc pl-4 space-y-1 text-xs">
+                          <li>**Duración y Sets**: Turno estricto de 1 hora. Se juega al mejor de 2 sets con games tradicionales.</li>
+                          <li>**Empate 6-6**: Tiebreak a 7 puntos sin diferencia obligatoria.</li>
+                          <li>**Empate 1-1 en sets**: Supertiebreak a 7 puntos "a morir" (el primero que llega a 7 puntos gana el partido).</li>
+                          <li>**Límite de Tiempo**: Si la hora de turno concluye antes de finalizar el partido pactado, se otorgará como ganadora a la dupla que mantenga la ventaja en el marcador general al momento del cese.</li>
                         </ul>
                       </div>
 
+                      {/* 4. SISTEMA DE PUNTOS Y MOVILIDAD (FASE REGULAR) */}
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <Award className="h-4 w-4 text-indigo-500" /> 3. Puntos de Fecha
+                          <TrendingUp className="h-4 w-4 text-emerald-500" /> 4. Sistema de Puntos y Movilidad Semanal (Fechas 1 a 8)
                         </h3>
-                        <p>
-                          Los puntos acumulados en el ranking por cada partido jugado dependen del resultado y de la jerarquía de la cancha disputada:
-                        </p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          <li>**Cancha 1 (Élite)**: Los ganadores suman **4 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
-                          <li>**Cancha 2 (Desafío)**: Los ganadores suman **3 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
-                          <li>**Cancha 3 (Base)**: Los ganadores suman **2 puntos** cada uno; los perdedores suman **1 punto** cada uno.</li>
-                        </ul>
-                        <p className="text-[10px] italic">
-                          Nota: En caso de empate en puntos en la tabla general, se desempata por: 1) Sets ganados, 2) Mayor diferencia de games a favor, 3) Sorteo.
-                        </p>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left text-xs border border-border/50 rounded-lg">
+                            <thead className="bg-muted/60 text-muted-foreground text-[10px] uppercase font-bold">
+                              <tr>
+                                <th className="p-2">Cancha</th>
+                                <th className="p-2">Nivel / Rango</th>
+                                <th className="p-2">Victoria</th>
+                                <th className="p-2">Derrota</th>
+                                <th className="p-2">Movimiento Semanal</th>
+                              </tr>
+                            </thead>
+                            <tbody className="divide-y divide-border/40">
+                              <tr>
+                                <td className="p-2 font-bold text-purple-400">Cancha 1</td>
+                                <td className="p-2">Puestos 1º a 4º (Élite)</td>
+                                <td className="p-2 font-bold text-emerald-400">+4 pts</td>
+                                <td className="p-2 text-muted-foreground">+1 pt</td>
+                                <td className="p-2 text-[11px]">Los 2 peores bajan a Cancha 2</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2 font-bold text-indigo-400">Cancha 2</td>
+                                <td className="p-2">Puestos 5º a 8º (Desafío)</td>
+                                <td className="p-2 font-bold text-emerald-400">+3 pts</td>
+                                <td className="p-2 text-muted-foreground">+1 pt</td>
+                                <td className="p-2 text-[11px]">Los 2 mejores suben a C1 · Los 2 peores bajan a C3</td>
+                              </tr>
+                              <tr>
+                                <td className="p-2 font-bold text-muted-foreground">Cancha 3</td>
+                                <td className="p-2">Puestos 9º a 12º (Base)</td>
+                                <td className="p-2 font-bold text-emerald-400">+2 pts</td>
+                                <td className="p-2 text-muted-foreground">+1 pt</td>
+                                <td className="p-2 text-[11px]">Los 2 mejores suben a Cancha 2</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                        <div className="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-xs text-amber-300/90 leading-relaxed">
+                          <strong>Política de Ausencias y Reemplazos:</strong> Cada participante puede ausentarse hasta 2 fechas en todo el certamen conservando puntaje promedio asignado a su cancha o mediante suplente habilitado (abonando la fecha). A partir de la 3.ª ausencia, sumará 0 puntos en dicha jornada y quedará sujeto a reemplazo definitivo.
+                        </div>
                       </div>
 
+                      {/* 5. DEFINICIÓN Y PLAYOFFS (SEMANAS 9 Y 10) */}
                       <div className="space-y-2">
                         <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
-                          <Users className="h-4 w-4 text-muted-foreground" /> 4. Ausencias y Suplentes
+                          <Award className="h-4 w-4 text-purple-400" /> 5. Definición y Playoffs (Semanas 9 y 10) · Etapa Final a Tabla Viva
                         </h3>
                         <p>
-                          Si un jugador no puede asistir, debe avisar con anticipación para que la organización asigne un suplente de nivel equivalente.
+                          El certamen mantiene la sumatoria acumulada individual hasta la última pelota de la Fecha 10. Las dos fechas de definición se juegan en simultáneo bajo el esquema de **Bonus de Playoff a 2 Sets** (con super tie-break en caso de 1-1):
                         </p>
-                        <ul className="list-disc pl-4 space-y-1">
-                          <li>El **jugador titular ausente no sumará puntos** esa fecha (0 puntos en la tabla), pero conserva su puntaje acumulado de fechas anteriores.</li>
-                          <li>El **suplente juega para completar la cancha**, pero no recibe ningún punto en el ranking general.</li>
-                          <li>Los otros 3 jugadores de la cancha juegan de forma normal y reciben los puntos correspondientes (ganador/perdedor) de acuerdo al resultado del partido.</li>
+                        
+                        <div className="space-y-3 pl-2.5 border-l-2 border-purple-500/40 mt-2">
+                          <div>
+                            <span className="font-bold text-xs text-purple-400 block">🟡 Semana 9: Cruces Clasificatorios y Asignación de Bonus</span>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Al término de la Fecha 8 se consolida la tabla general acumulada (1º al 12º) y se arman las llaves:
+                            </p>
+                            <ul className="list-disc pl-4 text-[11px] space-y-0.5 mt-1 text-muted-foreground">
+                              <li><strong>C1 (Zona Alta, 1º al 4º)</strong>: Nº 1 y Nº 4 vs Nº 2 y Nº 3</li>
+                              <li><strong>C2 (Zona Media, 5º al 8º)</strong>: Nº 5 y Nº 8 vs Nº 6 y Nº 7</li>
+                              <li><strong>C3 (Zona Baja, 9º al 12º)</strong>: Nº 9 y Nº 12 vs Nº 10 y Nº 11</li>
+                            </ul>
+                            <div className="mt-1.5 font-semibold text-xs text-foreground bg-purple-950/30 border border-purple-500/30 p-2 rounded">
+                              Puntaje Semana 9: Pareja Ganadora: <span className="text-emerald-400 font-bold">+4 pts</span> individuales | Pareja Perdedora: <span className="text-muted-foreground font-bold">+1 pt</span> individual (en todas las canchas).
+                            </div>
+                          </div>
+
+                          <div className="pt-1">
+                            <span className="font-bold text-xs text-secondary block">🥇 Semana 10: Gran Definición por Tabla Viva</span>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Las canchas se reconfiguran con la tabla actualizada tras la Semana 9, permitiendo ascensos de lote de último momento:
+                            </p>
+                            <ul className="list-disc pl-4 text-[11px] space-y-0.5 mt-1 text-muted-foreground">
+                              <li><strong>🏆 Cancha 1: Título</strong> (Nuevos Puestos 1º al 4º acumulados): Nº 1 y Nº 4 vs Nº 2 y Nº 3 → <em className="text-secondary font-medium">Define la Campeona Oficial</em></li>
+                              <li><strong>🥈 Cancha 2: Copa Plata</strong> (Nuevos Puestos 5º al 8º acumulados): Nº 5 y Nº 8 vs Nº 6 y Nº 7 → <em className="text-muted-foreground">Disputa puestos 5º a 8º</em></li>
+                              <li><strong>🥉 Cancha 3: Copa Bronce</strong> (Nuevos Puestos 9º al 12º acumulados): Nº 9 y Nº 12 vs Nº 10 y Nº 11 → <em className="text-muted-foreground">Disputa puestos 9º a 12º</em></li>
+                            </ul>
+                            <div className="mt-1.5 font-semibold text-xs text-foreground bg-amber-500/10 border border-amber-500/30 p-2 rounded">
+                              Súper Puntaje Fecha Final: Pareja Ganadora: <span className="text-emerald-400 font-bold">+6 pts</span> individuales | Pareja Perdedora: <span className="text-muted-foreground font-bold">+2 pts</span> individuales (en todas las canchas).
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 6. CORONACIÓN Y CRITERIOS DE DESEMPATE */}
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <CheckCircle2 className="h-4 w-4 text-emerald-500" /> 6. Coronación y Criterios de Desempate
+                        </h3>
+                        <p>
+                          Finalizados los partidos de la Semana 10 y cargados los puntajes definitivos:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-0.5 text-xs">
+                          <li><strong>Campeona</strong>: 1.º Puesto de la tabla general acumulada.</li>
+                          <li><strong>Subcampeona</strong>: 2.º Puesto de la tabla general acumulada.</li>
+                          <li><strong>3.º al 12.º Puesto</strong>: Orden estricto por sumatoria acumulada total.</li>
                         </ul>
+                        <div className="p-2 rounded bg-muted/40 border border-border/40 text-[11px] text-muted-foreground">
+                          <strong>Criterios de Desempate (en caso de igualdad de puntos en cualquier posición):</strong>
+                          <ol className="list-decimal pl-4 space-y-0.5 mt-1">
+                            <li>Mayor diferencia de sets en todo el torneo.</li>
+                            <li>Mayor diferencia de games en todo el torneo.</li>
+                            <li>Enfrentamiento directo en fechas de definición (Semanas 9 y 10).</li>
+                            <li>Sorteo en caso de persistir la paridad.</li>
+                          </ol>
+                        </div>
                       </div>
                     </>
                   )}
