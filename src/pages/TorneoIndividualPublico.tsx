@@ -117,6 +117,7 @@ export default function TorneoIndividualPublico() {
   // Active selections
   const [activeTab, setActiveTab] = useState("ranking");
   const [selectedFechaNum, setSelectedFechaNum] = useState<number>(1);
+  const [reglamentoView, setReglamentoView] = useState<"resumen" | "pdf">("resumen");
 
   const fetchTournamentData = useCallback(async () => {
     if (!id) return;
@@ -1055,23 +1056,70 @@ export default function TorneoIndividualPublico() {
 
             {/* TAB 3: REGLAMENTO */}
             <TabsContent value="reglamento" className="space-y-4">
-              <Card className="border border-border/40 shadow-sm">
-                <CardHeader>
-                  <CardTitle className="text-base flex items-center gap-2">
-                    <FileText className="h-4 w-4 text-indigo-600" />
-                    Reglamento Oficial - Liga Crown Pádel
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    {esPuntosPorSet
-                      ? "Formato por sumatoria acumulada de puntos por sets ganados."
-                      : torneo?.modalidad === "parejas"
-                      ? "Formato por parejas fijas de 8 semanas con ascensos y descensos directos por cancha."
-                      : "Formato americano individual con ascensos y descensos automáticos por canchas."}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-4 text-xs leading-relaxed text-muted-foreground">
-                  {torneo?.notas?.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim() ? (
-                    <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim()}</div>
+              <div className="flex items-center justify-between flex-wrap gap-2 pb-1">
+                <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-neutral-900/80 border border-border/50 rounded-lg">
+                  <button
+                    type="button"
+                    onClick={() => setReglamentoView("resumen")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      reglamentoView === "resumen"
+                        ? "bg-purple-600 text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    📖 Guía de Reglas
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setReglamentoView("pdf")}
+                    className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all ${
+                      reglamentoView === "pdf"
+                        ? "bg-purple-600 text-white shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    📄 Ver Documento Oficial (PDF)
+                  </button>
+                </div>
+                <div className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                  <span className="inline-block w-2 h-2 rounded-full bg-purple-500 animate-pulse" />
+                  <span>Marca de agua oficial</span>
+                  <span className="font-bold text-purple-400">PADEL ID</span>
+                </div>
+              </div>
+
+              {reglamentoView === "pdf" ? (
+                <div className="rounded-xl overflow-hidden border border-border/60 shadow-lg bg-neutral-900/80 p-1">
+                  <iframe
+                    src="/reglamento-semanales-padel-id.pdf#toolbar=0&navpanes=0"
+                    className="w-full h-[750px] md:h-[950px] rounded-lg border-0 bg-white"
+                    title="Reglamento Oficial Crown Pádel - Padel ID"
+                  />
+                </div>
+              ) : (
+                <Card className="relative overflow-hidden border border-border/40 shadow-sm">
+                  {/* Marca de agua translúcida Padel ID */}
+                  <div className="pointer-events-none select-none absolute inset-0 flex items-center justify-center -rotate-45 z-0 overflow-hidden">
+                    <span className="text-7xl sm:text-9xl md:text-[140px] font-black tracking-widest text-purple-600/10 dark:text-purple-400/15 uppercase">
+                      PADEL ID
+                    </span>
+                  </div>
+                  <CardHeader className="relative z-10">
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <FileText className="h-4 w-4 text-indigo-600" />
+                      Reglamento Oficial - Liga Crown Pádel
+                    </CardTitle>
+                    <CardDescription className="text-xs">
+                      {esPuntosPorSet
+                        ? "Formato por sumatoria acumulada de puntos por sets ganados."
+                        : torneo?.modalidad === "parejas"
+                        ? "Formato por parejas fijas de 8 semanas con ascensos y descensos directos por cancha."
+                        : "Formato americano individual con ascensos y descensos automáticos por canchas."}
+                    </CardDescription>
+                  </CardHeader>
+                  <CardContent className="relative z-10 space-y-4 text-xs leading-relaxed text-muted-foreground">
+                    {torneo?.notas?.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim() ? (
+                      <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim()}</div>
                   ) : esPuntosPorSet ? (
                     <>
                       <div className="space-y-2">
@@ -1331,6 +1379,7 @@ export default function TorneoIndividualPublico() {
                   )}
                 </CardContent>
               </Card>
+              )}
             </TabsContent>
 
             {/* TAB 4: PRIZE POOL DISPLAY */}
