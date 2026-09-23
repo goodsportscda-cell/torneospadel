@@ -33,6 +33,7 @@ import Configuracion from "./pages/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import Marcador from "./pages/Marcador.tsx";
 import DraftPublico from "./pages/DraftPublico.tsx";
+import { InstallPwaPrompt } from "./components/InstallPwaPrompt";
 
 const queryClient = new QueryClient();
 
@@ -119,6 +120,7 @@ const App = () => (
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
+          <InstallPwaPrompt />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
