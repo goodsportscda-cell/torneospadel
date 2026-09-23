@@ -32,7 +32,11 @@ import {
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import PublicFooter from "@/components/PublicFooter";
-import { applyManualPositions, extractPosicionManualFromNotas } from "@/logic/torneoStandings";
+import {
+  applyManualPositions,
+  extractPosicionManualFromNotas,
+  extractPodioFinalFromNotas,
+} from "@/logic/torneoStandings";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -403,6 +407,7 @@ export default function TorneoIndividualPublico() {
           jugador1: p.jugador1,
           jugador2: p.jugador2,
           posicion_manual: manualPos,
+          podio_final: (p as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, p.id),
           puntos: initialPts,
           puntos_iniciales: initialPts,
           setsGanados: 0,
@@ -581,7 +586,7 @@ export default function TorneoIndividualPublico() {
           apellido: tj.jugador.apellido,
           dni: tj.jugador.dni,
           club: tj.jugador.club,
-          podio_final: (tj as any).podio_final,
+          podio_final: (tj as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, tj.jugador_id),
           posicion_manual: manualPos,
           puntos: initialPts,
           puntos_iniciales: initialPts,

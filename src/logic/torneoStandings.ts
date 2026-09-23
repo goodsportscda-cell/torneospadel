@@ -44,6 +44,33 @@ export function updatePosicionManualInNotas(notas: string | null | undefined, id
 }
 
 /**
+ * Extrae el podio asignado (1: Oro, 2: Plata, 3: Bronce) fijado en notas como capa resiliente.
+ */
+export function extractPodioFinalFromNotas(notas: string | null | undefined, id: string): number | null {
+  if (!notas || !id) return null;
+  const match = notas.match(new RegExp(`\\[PODIO_FINAL_${id}:([123])\\]`));
+  if (match && match[1]) {
+    const val = parseInt(match[1], 10);
+    return isNaN(val) ? null : val;
+  }
+  return null;
+}
+
+/**
+ * Añade o remueve la etiqueta [PODIO_FINAL_id:podio] en el texto de notas del torneo.
+ */
+export function updatePodioFinalInNotas(notas: string | null | undefined, id: string, podio: number | null): string {
+  let currentNotas = (notas || "").trim();
+  const regex = new RegExp(`\\[PODIO_FINAL_${id}:[123]\\]\\s*`, "g");
+  currentNotas = currentNotas.replace(regex, "").trim();
+
+  if (podio !== null && (podio === 1 || podio === 2 || podio === 3)) {
+    currentNotas = `${currentNotas} [PODIO_FINAL_${id}:${podio}]`.trim();
+  }
+  return currentNotas;
+}
+
+/**
  * Aplica el ordenamiento de posiciones combinando las posiciones manuales forzadas
  * con el orden matemático habitual de los participantes sin posición fija.
  * 

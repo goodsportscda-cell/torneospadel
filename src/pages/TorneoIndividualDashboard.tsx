@@ -51,7 +51,13 @@ import { CompartirRankingDialog } from "@/components/torneo-individual/Compartir
 import { ReemplazoJugadorDialog, JugadorSalienteInfo } from "@/components/torneo-individual/ReemplazoJugadorDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { generateIntelligentAmericanoMatches, MatchHistory } from "@/logic/americanoInteligente";
-import { applyManualPositions, extractPosicionManualFromNotas, updatePosicionManualInNotas } from "@/logic/torneoStandings";
+import {
+  applyManualPositions,
+  extractPosicionManualFromNotas,
+  updatePosicionManualInNotas,
+  extractPodioFinalFromNotas,
+  updatePodioFinalInNotas,
+} from "@/logic/torneoStandings";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -503,6 +509,7 @@ export default function TorneoIndividualDashboard() {
         puntos: number;
         puntos_iniciales?: number;
         posicion_manual?: number | null;
+        podio_final?: number | null;
         rank_calculado?: number;
         setsGanados: number;
         setsPerdidos: number;
@@ -538,6 +545,7 @@ export default function TorneoIndividualDashboard() {
             jugador1: p.jugador1,
             jugador2: p.jugador2,
             posicion_manual: manualPos,
+            podio_final: (p as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, p.id),
             puntos: initialPts,
             puntos_iniciales: initialPts,
             setsGanados: 0,
@@ -721,7 +729,7 @@ export default function TorneoIndividualDashboard() {
           nombre: tj.jugador.nombre,
           apellido: tj.jugador.apellido,
           dni: tj.jugador.dni,
-          podio_final: (tj as any).podio_final,
+          podio_final: (tj as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, tj.jugador_id),
           posicion_manual: manualPos,
           puntos: initialPts,
           puntos_iniciales: initialPts,
@@ -1792,17 +1800,41 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
-  const handleAssignPodium = async (jugadorId: string, podio: number | null) => {
-    if (!id) return;
+  const handleAssignPodium = async (jugadorId: string, podio: number | null, isPareja: boolean = false) => {
+    if (!id || !torneo) return;
     try {
-      const { error } = await (supabase as any)
-        .from("torneo_individual_jugadores")
-        .update({ podio_final: podio })
-        .eq("torneo_id", id)
-        .eq("jugador_id", jugadorId);
-        
-      if (error) throw error;
-      toast.success("Podio actualizado");
+      // 1. Intento directo en tabla (con try/catch para no romper si la columna aún no está en cache)
+      try {
+        const table = isPareja ? "torneo_individual_parejas" : "torneo_individual_jugadores";
+        const idKey = isPareja ? "id" : "jugador_id";
+        await (supabase as any)
+          .from(table)
+          .update({ podio_final: podio })
+          .eq("torneo_id", id)
+          .eq(idKey, jugadorId);
+      } catch (colErr) {
+        console.warn("Direct column update for podio_final skipped/fallback to notas:", colErr);
+      }
+
+      // 2. Doble capa resiliente de persistencia en torneos.notas
+      const updatedNotas = updatePodioFinalInNotas(torneo.notas, jugadorId, podio);
+      const { error: tErr } = await (supabase as any)
+        .from("torneos")
+        .update({ notas: updatedNotas })
+        .eq("id", id);
+
+      if (tErr) throw tErr;
+
+      // 3. Sincronización inmediata con queryClient
+      await queryClient.invalidateQueries({ queryKey: ["torneo", id] });
+      await queryClient.invalidateQueries({ queryKey: ["torneos"] });
+      await queryClient.invalidateQueries({ queryKey: ["torneo_individual_jugadores", id] });
+
+      toast.success(
+        podio
+          ? `Podio asignado: ${podio === 1 ? "1º Oro 🥇" : podio === 2 ? "2º Plata 🥈" : "3º Bronce 🥉"}`
+          : "Podio removido"
+      );
       fetchTournamentData();
     } catch (e: any) {
       toast.error("Error actualizando podio: " + e.message);
@@ -4513,8 +4545,20 @@ export default function TorneoIndividualDashboard() {
                           )}
                           {isAdmin && (
                             <TableCell className="text-center">
-                              {/* Medals not supported for couples yet, or adapt if necessary */}
-                              -
+                              <Select
+                                value={(s as any).podio_final?.toString() || "none"}
+                                onValueChange={(val) => handleAssignPodium(s.pareja_id, val === "none" ? null : parseInt(val), true)}
+                              >
+                                <SelectTrigger className="h-8 text-xs w-[100px] mx-auto">
+                                  <SelectValue placeholder="-" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="none">-</SelectItem>
+                                  <SelectItem value="1">1º Oro 🥇</SelectItem>
+                                  <SelectItem value="2">2º Plata 🥈</SelectItem>
+                                  <SelectItem value="3">3º Bronce 🥉</SelectItem>
+                                </SelectContent>
+                              </Select>
                             </TableCell>
                           )}
                         </TableRow>
