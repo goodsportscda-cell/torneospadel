@@ -102,7 +102,7 @@ export default function ClubHome() {
     setLoadingTorneos(true);
     let q = supabase
       .from("torneos")
-      .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, numero_fecha, multiplicador_puntos")
+      .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, numero_fecha, multiplicador_puntos, tipo")
       .order("fecha_inicio", { ascending: false });
 
     if (club.id) {
@@ -343,9 +343,13 @@ export default function ClubHome() {
               </Card>
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
-                {torneosEnCurso.map((t) => (
-                  <Link key={t.id} to={`/c/${club.slug}/torneo/${t.id}`}>
-                    <Card className="hover:border-primary/50 transition-colors h-full flex flex-col group cursor-pointer">
+                {torneosEnCurso.map((t) => {
+                  const tournamentUrl = (t as any).tipo === "americano_individual"
+                    ? `/c/${club.slug}/torneo-individual/${t.id}`
+                    : `/c/${club.slug}/torneo/${t.id}`;
+                  return (
+                    <Link key={t.id} to={tournamentUrl}>
+                      <Card className="hover:border-primary/50 transition-colors h-full flex flex-col group cursor-pointer">
                       <CardHeader className="pb-3 flex-row items-start justify-between space-y-0 gap-2">
                         <div className="space-y-1 pr-4">
                           <CardTitle className="text-base line-clamp-2 leading-tight group-hover:text-primary transition-colors">
@@ -377,7 +381,8 @@ export default function ClubHome() {
                       </CardContent>
                     </Card>
                   </Link>
-                ))}
+                );
+              })}
               </div>
             )}
           </TabsContent>

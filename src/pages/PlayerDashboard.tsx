@@ -84,33 +84,61 @@ export default function PlayerDashboard() {
       setLoading(true);
 
       // Get profile to check if linked to jugador
-      const { data: profile } = await supabase
+      const { data: profile } = await (supabase as any)
         .from("profiles")
         .select("jugador_id")
         .eq("user_id", user.id)
         .maybeSingle();
 
-      let jId = profile?.jugador_id ?? null;
+      let jId = profile?.jugador_id || (user.user_metadata?.jugador_id as string | undefined) || null;
 
-      // Auto-link if DNI is in metadata and not linked yet
-      if (!jId && user.user_metadata?.dni) {
-        const userDni = String(user.user_metadata.dni).trim();
-        if (userDni) {
-          const { data: jug } = await supabase
+      // Auto-link if not linked yet: check email or DNI
+      if (!jId) {
+        // 1. By email
+        if (user.email) {
+          const { data: jugEmail } = await (supabase as any)
             .from("jugadores")
             .select("id")
-            .eq("dni", userDni)
+            .ilike("email", user.email.trim())
             .maybeSingle();
-          if (jug) {
-            const { error: linkErr } = await supabase
-              .from("profiles")
-              .update({ jugador_id: jug.id })
-              .eq("user_id", user.id);
-            if (!linkErr) {
-              jId = jug.id;
-              toast.success("¡Tu ficha de jugador fue vinculada automáticamente con tu DNI!");
+          if (jugEmail) jId = jugEmail.id;
+        }
+
+        // 2. By DNI in user metadata
+        if (!jId && user.user_metadata?.dni) {
+          const rawDni = String(user.user_metadata.dni).trim();
+          const cleanDni = rawDni.replace(/[\s.-]/g, "");
+          if (cleanDni) {
+            const { data: jugCandidates } = await (supabase as any)
+              .from("jugadores")
+              .select("id, dni")
+              .or(`dni.eq.${cleanDni},dni.ilike.%${cleanDni}%`)
+              .limit(5);
+            if (jugCandidates && jugCandidates.length > 0) {
+              jId = jugCandidates[0].id;
             }
           }
+        }
+
+        // If found, persist it immediately via upsert and auth metadata
+        if (jId) {
+          await (supabase as any)
+            .from("profiles")
+            .upsert(
+              {
+                user_id: user.id,
+                jugador_id: jId,
+                email: user.email,
+                display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Jugador",
+              },
+              { onConflict: "user_id" }
+            );
+
+          await supabase.auth.updateUser({
+            data: { jugador_id: jId },
+          });
+
+          toast.success("¡Tu ficha de jugador fue vinculada automáticamente!");
         }
       }
 
@@ -226,11 +254,13 @@ export default function PlayerDashboard() {
     setSearching(true);
     let query = supabase.from("jugadores").select("id, nombre, apellido, dni");
     if (searchDni.trim()) {
-      query = query.eq("dni", searchDni.trim());
+      const cleanDni = searchDni.trim().replace(/[\s.-]/g, "");
+      query = query.or(`dni.eq.${cleanDni},dni.ilike.%${cleanDni}%,dni.ilike.%${searchDni.trim()}%`);
     } else {
-      query = query.ilike("apellido", `%${searchNombre.trim()}%`);
+      const term = searchNombre.trim();
+      query = query.or(`apellido.ilike.%${term}%,nombre.ilike.%${term}%`);
     }
-    const { data } = await query.limit(5);
+    const { data } = await query.limit(10);
     setSearchResults(data ?? []);
     setSearching(false);
   };
@@ -238,20 +268,51 @@ export default function PlayerDashboard() {
   const handleLink = async (jid: string) => {
     if (!user) return;
     setLinking(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ jugador_id: jid })
-      .eq("user_id", user.id);
-    if (error) {
-      toast.error("Error al vincular perfil");
-    } else {
-      toast.success("¡Perfil vinculado!");
-      setJugadorId(jid);
+    try {
+      // 1. Upsert profile so it works even if profile row doesn't exist yet
+      const { error: profileErr } = await (supabase as any)
+        .from("profiles")
+        .upsert(
+          {
+            user_id: user.id,
+            jugador_id: jid,
+            email: user.email,
+            display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Jugador",
+          },
+          { onConflict: "user_id" }
+        );
+
+      if (profileErr) {
+        console.error("Error upserting profile:", profileErr);
+      }
+
+      // 2. Persist in Auth User Metadata as persistent session fallback
       const j = searchResults.find(r => r.id === jid);
+      await supabase.auth.updateUser({
+        data: {
+          jugador_id: jid,
+          dni: j?.dni || user.user_metadata?.dni,
+        },
+      });
+
+      // 3. Associate user email to player if null
+      if (user.email) {
+        await supabase
+          .from("jugadores")
+          .update({ email: user.email })
+          .eq("id", jid)
+          .is("email", null);
+      }
+
+      toast.success("¡Perfil vinculado exitosamente!");
+      setJugadorId(jid);
       if (j) setJugadorNombre(`${j.nombre} ${j.apellido}`);
       setSearchResults([]);
+    } catch (err: any) {
+      toast.error("Error al vincular perfil: " + (err?.message || "Intente nuevamente"));
+    } finally {
+      setLinking(false);
     }
-    setLinking(false);
   };
 
   const handleSignOut = async () => {
@@ -563,7 +624,7 @@ export default function PlayerDashboard() {
                                 className="h-7 text-[10px] gap-1 px-2"
                                 asChild
                               >
-                                <Link to={`/torneo/${t.id}`}>
+                                <Link to={t.tipo === "americano_individual" ? `/torneo-individual/${t.id}` : `/torneo/${t.id}`}>
                                   Ver muro <ExternalLink className="h-3 w-3" />
                                 </Link>
                               </Button>

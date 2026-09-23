@@ -230,18 +230,19 @@ export default function TorneoIndividualPublico() {
           .eq("user_id", user.id)
           .maybeSingle();
 
-        let jId = profile?.jugador_id;
+        let jId = profile?.jugador_id || (user.user_metadata?.jugador_id as string | undefined);
 
         // 2. Si no esta vinculado en profiles, buscar por DNI o Email en jugadores
         if (!jId) {
           const userDni = user.user_metadata?.dni ? String(user.user_metadata.dni).trim() : null;
           if (userDni) {
-            const { data: jugDni } = await (supabase as any)
+            const cleanDni = userDni.replace(/[\s.-]/g, "");
+            const { data: jugCandidates } = await (supabase as any)
               .from("jugadores")
-              .select("id")
-              .eq("dni", userDni)
-              .maybeSingle();
-            if (jugDni) jId = jugDni.id;
+              .select("id, dni")
+              .or(`dni.eq.${cleanDni},dni.ilike.%${cleanDni}%`)
+              .limit(5);
+            if (jugCandidates && jugCandidates.length > 0) jId = jugCandidates[0].id;
           }
         }
 
@@ -249,7 +250,7 @@ export default function TorneoIndividualPublico() {
           const { data: jugEmail } = await (supabase as any)
             .from("jugadores")
             .select("id")
-            .ilike("email", user.email)
+            .ilike("email", user.email.trim())
             .maybeSingle();
           if (jugEmail) jId = jugEmail.id;
         }
@@ -263,6 +264,24 @@ export default function TorneoIndividualPublico() {
             .maybeSingle();
           if (jugData && isMounted) {
             setCurrentUserJugador(jugData);
+
+            // Asegurar persistencia en profiles y auth user_metadata si no estaba vinculado en DB
+            if (!profile?.jugador_id) {
+              await (supabase as any)
+                .from("profiles")
+                .upsert(
+                  {
+                    user_id: user.id,
+                    jugador_id: jId,
+                    email: user.email,
+                    display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Jugador",
+                  },
+                  { onConflict: "user_id" }
+                );
+              await supabase.auth.updateUser({
+                data: { jugador_id: jId },
+              });
+            }
           }
         }
       } catch (err) {

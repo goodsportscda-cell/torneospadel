@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,6 +23,7 @@ type PartidoLlaveRow = any; // Database["public"]["Tables"]["partidos_llave"]["R
 
 export default function TorneoPublico() {
   const { slug } = useParams<{ slug: string }>();
+  const navigate = useNavigate();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
   const [categoriaNombre, setCategoriaNombre] = useState<string>("");
   const [loading, setLoading] = useState(true);
@@ -48,6 +49,12 @@ export default function TorneoPublico() {
       setLoading(false);
       return;
     }
+
+    if (tData.tipo === "americano_individual") {
+      navigate(`/torneo-individual/${tData.id}`, { replace: true });
+      return;
+    }
+
     setTorneo(tData);
 
     // 2. Fetch everything else in parallel
