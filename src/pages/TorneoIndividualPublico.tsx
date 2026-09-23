@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
+import { CompartirRankingDialog } from "@/components/torneo-individual/CompartirRankingDialog";
 import {
   Trophy,
   Calendar,
@@ -113,6 +114,7 @@ export default function TorneoIndividualPublico() {
   const [standings, setStandings] = useState<any[]>([]);
   const [parejas, setParejas] = useState<any[]>([]);
   const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
+  const [shareRankingOpen, setShareRankingOpen] = useState(false);
 
   // Active selections
   const [activeTab, setActiveTab] = useState("ranking");
@@ -247,6 +249,19 @@ export default function TorneoIndividualPublico() {
     }
     return "Fase Regular";
   }, [currentFechaObj, selectedFechaNum, torneo]);
+
+  const ocultarReglamento = useMemo(() => {
+    return Boolean(
+      torneo?.notas?.includes("[OCULTAR_REGLAMENTO]") ||
+      id === "119ee16a-5794-46bb-b817-712160f89882"
+    );
+  }, [torneo, id]);
+
+  useEffect(() => {
+    if (ocultarReglamento && activeTab === "reglamento") {
+      setActiveTab("ranking");
+    }
+  }, [ocultarReglamento, activeTab]);
 
   // Standing Ranking calculation
   const computedStandings = useMemo((): any[] => {
@@ -732,10 +747,10 @@ export default function TorneoIndividualPublico() {
           </div>
         ) : (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className="grid grid-cols-4 w-full max-w-lg bg-muted text-xs">
+            <TabsList className={`grid ${ocultarReglamento ? "grid-cols-3 max-w-md" : "grid-cols-4 max-w-lg"} w-full bg-muted text-xs`}>
               <TabsTrigger value="ranking">Tabla</TabsTrigger>
               <TabsTrigger value="fixture">Encuentros</TabsTrigger>
-              <TabsTrigger value="reglamento">Reglamento</TabsTrigger>
+              {!ocultarReglamento && <TabsTrigger value="reglamento">Reglamento</TabsTrigger>}
               <TabsTrigger value="premios">Premios</TabsTrigger>
             </TabsList>
 
@@ -743,15 +758,28 @@ export default function TorneoIndividualPublico() {
             <TabsContent value="ranking" className="space-y-4">
               <Card className="border border-border/40 shadow-sm">
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base flex items-center justify-between">
-                    <span>Ranking Acumulado</span>
-                    <Badge variant="secondary" className="text-[10px] h-5">{displaySubtitulo}</Badge>
-                  </CardTitle>
-                  <CardDescription className="text-xs">
-                    {esPuntosPorSet
-                      ? "Tabla general de posiciones por sets y games acumulados sin ascensos ni descensos por cancha fija."
-                      : "Las posiciones determinan la distribución de canchas para la siguiente semana (Ascensos/Descensos)."}
-                  </CardDescription>
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <CardTitle className="text-base flex items-center gap-2">
+                        <span>Ranking Acumulado</span>
+                        <Badge variant="secondary" className="text-[10px] h-5">{displaySubtitulo}</Badge>
+                      </CardTitle>
+                      <CardDescription className="text-xs mt-1">
+                        {esPuntosPorSet
+                          ? "Tabla general de posiciones por sets y games acumulados sin ascensos ni descensos por cancha fija."
+                          : "Las posiciones determinan la distribución de canchas para la siguiente semana (Ascensos/Descensos)."}
+                      </CardDescription>
+                    </div>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShareRankingOpen(true)}
+                      className="h-8 gap-1.5 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-xs shrink-0"
+                    >
+                      <Share2 className="h-3.5 w-3.5" />
+                      Placa para Redes
+                    </Button>
+                  </div>
                 </CardHeader>
                 <CardContent className="p-0 sm:p-6 overflow-x-auto">
                   <Table className="text-xs min-w-[500px]">
@@ -1055,6 +1083,7 @@ export default function TorneoIndividualPublico() {
             </TabsContent>
 
             {/* TAB 3: REGLAMENTO */}
+            {!ocultarReglamento && (
             <TabsContent value="reglamento" className="space-y-4">
               <div className="flex items-center justify-between flex-wrap gap-2 pb-1">
                 <div className="flex items-center gap-1.5 p-1 bg-muted/60 dark:bg-neutral-900/80 border border-border/50 rounded-lg">
@@ -1381,6 +1410,7 @@ export default function TorneoIndividualPublico() {
               </Card>
               )}
             </TabsContent>
+            )}
 
             {/* TAB 4: PRIZE POOL DISPLAY */}
             <TabsContent value="premios" className="space-y-4">
@@ -1518,6 +1548,15 @@ export default function TorneoIndividualPublico() {
         torneo={torneo}
         fechaNum={selectedFechaNum}
         partidos={partidosDeFecha}
+      />
+
+      <CompartirRankingDialog
+        isOpen={shareRankingOpen}
+        onOpenChange={setShareRankingOpen}
+        torneo={torneo}
+        standings={standings}
+        subtitulo={displaySubtitulo}
+        esPuntosPorSet={esPuntosPorSet}
       />
     </div>
   );

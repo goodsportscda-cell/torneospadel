@@ -42,6 +42,7 @@ import {
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
+import { CompartirRankingDialog } from "@/components/torneo-individual/CompartirRankingDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { generateIntelligentAmericanoMatches, MatchHistory } from "@/logic/americanoInteligente";
 
@@ -209,6 +210,7 @@ export default function TorneoIndividualDashboard() {
   });
 
   const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
+  const [shareRankingOpen, setShareRankingOpen] = useState(false);
 
   // Edit matches manual state
   const [editCrucesOpen, setEditCrucesOpen] = useState(false);
@@ -261,6 +263,7 @@ export default function TorneoIndividualDashboard() {
     notas: "",
     sistema_puntuacion: "por_cancha",
     subtitulo_fase: "",
+    ocultar_reglamento: false,
   });
 
   const [editingLeyendaOpen, setEditingLeyendaOpen] = useState(false);
@@ -333,9 +336,10 @@ export default function TorneoIndividualDashboard() {
         premios: parsed.gifts,
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
-        notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+):.*?\]/g, "").trim() || "",
+        notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO):.*?\]/g, "").replace(/\[OCULTAR_REGLAMENTO\]/g, "").trim() || "",
         sistema_puntuacion: isPuntosPorSet ? "puntos_por_set" : "por_cancha",
         subtitulo_fase: extractedSubtitulo,
+        ocultar_reglamento: Boolean(tRes.notas?.includes("[OCULTAR_REGLAMENTO]")),
       });
 
       setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
@@ -1146,12 +1150,18 @@ export default function TorneoIndividualDashboard() {
 
     // Preserve any existing fecha legends stored in notas
     const existingFechaLeyendas = (torneo?.notas || "").match(/\[LEYENDA_FECHA_\d+:.*?\]/g) || [];
-    let finalNotas = settingsForm.notas.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+):.*?\]/g, "").trim();
+    let finalNotas = settingsForm.notas
+      .replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO):.*?\]/g, "")
+      .replace(/\[OCULTAR_REGLAMENTO\]/g, "")
+      .trim();
     if (settingsForm.sistema_puntuacion === "puntos_por_set") {
       finalNotas = finalNotas ? `${finalNotas} [SISTEMA:puntos_por_set]` : "[SISTEMA:puntos_por_set]";
     }
     if (settingsForm.subtitulo_fase.trim()) {
       finalNotas = finalNotas ? `${finalNotas} [SUBTITULO:${settingsForm.subtitulo_fase.trim()}]` : `[SUBTITULO:${settingsForm.subtitulo_fase.trim()}]`;
+    }
+    if (settingsForm.ocultar_reglamento) {
+      finalNotas = finalNotas ? `${finalNotas} [OCULTAR_REGLAMENTO]` : "[OCULTAR_REGLAMENTO]";
     }
     if (existingFechaLeyendas.length > 0) {
       finalNotas = finalNotas ? `${finalNotas} ${existingFechaLeyendas.join(" ")}` : existingFechaLeyendas.join(" ");
@@ -3514,6 +3524,19 @@ export default function TorneoIndividualDashboard() {
                       />
                     </div>
 
+                    <div className="flex items-center space-x-2 pt-2 border-t border-border/40">
+                      <Checkbox
+                        id="ocultar-reglamento-switch"
+                        checked={settingsForm.ocultar_reglamento}
+                        onCheckedChange={(checked) =>
+                          setSettingsForm({ ...settingsForm, ocultar_reglamento: Boolean(checked) })
+                        }
+                      />
+                      <Label htmlFor="ocultar-reglamento-switch" className="text-xs font-semibold cursor-pointer">
+                        Ocultar pestaña de Reglamento en el portal público
+                      </Label>
+                    </div>
+
                     <Button
                       size="sm"
                       className="w-full mt-2 font-bold"
@@ -3869,13 +3892,26 @@ export default function TorneoIndividualDashboard() {
           <TabsContent value="ranking" className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle className="text-base flex items-center justify-between">
-                  <span>Tabla de Posiciones Generales</span>
-                  <Badge variant="secondary">Cálculo en Tiempo Real</Badge>
-                </CardTitle>
-                <CardDescription>
-                  Ordenado por Puntos, Sets Ganados y Diferencia de Games.
-                </CardDescription>
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <div>
+                    <CardTitle className="text-base flex items-center gap-2">
+                      <span>Tabla de Posiciones Generales</span>
+                      <Badge variant="secondary">Cálculo en Tiempo Real</Badge>
+                    </CardTitle>
+                    <CardDescription>
+                      Ordenado por Puntos, Sets Ganados y Diferencia de Games.
+                    </CardDescription>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => setShareRankingOpen(true)}
+                    className="gap-1.5 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-xs"
+                  >
+                    <Share2 className="h-4 w-4" />
+                    Placa para Redes
+                  </Button>
+                </div>
               </CardHeader>
               <CardContent className="overflow-x-auto">
                 <Table>
@@ -4486,6 +4522,15 @@ export default function TorneoIndividualDashboard() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CompartirRankingDialog
+        isOpen={shareRankingOpen}
+        onOpenChange={setShareRankingOpen}
+        torneo={torneo}
+        standings={standings}
+        subtitulo={(torneo as any)?.subtitulo_fase || undefined}
+        esPuntosPorSet={settingsForm.sistema_puntuacion === "puntos_por_set"}
+      />
     </div>
   );
 }
