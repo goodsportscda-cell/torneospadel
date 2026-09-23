@@ -914,7 +914,9 @@ export default function TorneoIndividualDashboard() {
     // Gastos y Retiros del Torneo
     const totalGastosRetiros = gastos.reduce((acc, curr) => acc + Number(curr.monto || 0), 0);
     const totalRecaudadoReal = cobrado; // Excluye cortesía
-    const gananciaNetaDisponible = totalRecaudadoReal - totalGastosRetiros;
+    // Opción 2: Descuenta automáticamente el costo acumulado de turnos de canchas + gastos diferidos y retiros
+    const totalSalidasReales = costoCanchas + totalGastosRetiros;
+    const gananciaNetaDisponible = totalRecaudadoReal - totalSalidasReales;
 
     return {
       esperado,
@@ -933,6 +935,7 @@ export default function TorneoIndividualDashboard() {
       ingresosSponsors,
       totalGastosRetiros,
       totalRecaudadoReal,
+      totalSalidasReales,
       gananciaNetaDisponible,
     };
   }, [torneo, jugadoresInscriptos, pagos, fechas, gastos]);
@@ -3298,7 +3301,7 @@ export default function TorneoIndividualDashboard() {
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                   <div className="p-3 rounded-xl bg-neutral-900/70 border border-border/50">
                     <span className="text-muted-foreground text-[11px] block">Total Recaudado Real</span>
                     <span className="font-bold text-emerald-400 text-base">
@@ -3309,7 +3312,16 @@ export default function TorneoIndividualDashboard() {
                     </span>
                   </div>
                   <div className="p-3 rounded-xl bg-neutral-900/70 border border-border/50">
-                    <span className="text-muted-foreground text-[11px] block">Total Gastos / Retiros</span>
+                    <span className="text-muted-foreground text-[11px] block">Costo Canchas Automático</span>
+                    <span className="font-bold text-amber-400 text-base">
+                      -${finanzasResumen.costoCanchas.toLocaleString("es-AR")}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground block mt-0.5">
+                      {fechas.length} {fechas.length === 1 ? "fecha computada" : "fechas computadas"} ({torneo?.canchas_count ?? 3} canchas)
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-neutral-900/70 border border-border/50">
+                    <span className="text-muted-foreground text-[11px] block">Gastos Extras / Retiros</span>
                     <span className="font-bold text-rose-400 text-base">
                       -${finanzasResumen.totalGastosRetiros.toLocaleString("es-AR")}
                     </span>
@@ -3433,7 +3445,7 @@ export default function TorneoIndividualDashboard() {
                     </Badge>
                   </div>
                   <CardDescription className="text-xs">
-                    Registra compras diferidas (trofeos, regalos, pelotas) o retiros parciales de la caja del certamen.
+                    El costo de canchas ya se descuenta de forma automática por cada fecha. Usa esta sección para anotar compras extras (trofeos, pelotas, regalos) o retiros personales que hagas de la caja.
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
