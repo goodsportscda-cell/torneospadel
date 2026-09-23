@@ -747,6 +747,7 @@ export type Database = {
           id: string
           jugador_id: string
           payment_status: "pending" | "paid" | "courtesy" | null
+          posicion_manual: number | null
           puntos_iniciales: number
           reemplaza_a_jugador_id: string | null
           torneo_id: string
@@ -757,6 +758,7 @@ export type Database = {
           id?: string
           jugador_id: string
           payment_status?: "pending" | "paid" | "courtesy" | null
+          posicion_manual?: number | null
           puntos_iniciales?: number
           reemplaza_a_jugador_id?: string | null
           torneo_id: string
@@ -767,6 +769,7 @@ export type Database = {
           id?: string
           jugador_id?: string
           payment_status?: "pending" | "paid" | "courtesy" | null
+          posicion_manual?: number | null
           puntos_iniciales?: number
           reemplaza_a_jugador_id?: string | null
           torneo_id?: string
@@ -810,6 +813,7 @@ export type Database = {
           jugador1_id: string
           jugador2_id: string
           payment_status: "pending" | "paid" | "courtesy" | null
+          posicion_manual: number | null
           puntos_iniciales: number
           torneo_id: string
         }
@@ -819,6 +823,7 @@ export type Database = {
           jugador1_id: string
           jugador2_id: string
           payment_status?: "pending" | "paid" | "courtesy" | null
+          posicion_manual?: number | null
           puntos_iniciales?: number
           torneo_id: string
         }
@@ -828,6 +833,7 @@ export type Database = {
           jugador1_id?: string
           jugador2_id?: string
           payment_status?: "pending" | "paid" | "courtesy" | null
+          posicion_manual?: number | null
           puntos_iniciales?: number
           torneo_id?: string
         }

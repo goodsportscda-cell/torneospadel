@@ -38,7 +38,9 @@ import {
   EyeOff,
   Shuffle,
   Tag,
-  UserCog
+  UserCog,
+  RotateCcw,
+  X
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -49,6 +51,7 @@ import { CompartirRankingDialog } from "@/components/torneo-individual/Compartir
 import { ReemplazoJugadorDialog, JugadorSalienteInfo } from "@/components/torneo-individual/ReemplazoJugadorDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { generateIntelligentAmericanoMatches, MatchHistory } from "@/logic/americanoInteligente";
+import { applyManualPositions, extractPosicionManualFromNotas, updatePosicionManualInNotas } from "@/logic/torneoStandings";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -499,6 +502,8 @@ export default function TorneoIndividualDashboard() {
         jugador2: Jugador;
         puntos: number;
         puntos_iniciales?: number;
+        posicion_manual?: number | null;
+        rank_calculado?: number;
         setsGanados: number;
         setsPerdidos: number;
         gamesGanados: number;
@@ -522,12 +527,17 @@ export default function TorneoIndividualDashboard() {
             }
           }
 
+          const manualPos = typeof (p as any).posicion_manual === "number" && (p as any).posicion_manual > 0
+            ? (p as any).posicion_manual
+            : extractPosicionManualFromNotas(torneo?.notas, p.id);
+
           standingsMap.set(p.id, {
             pareja_id: p.id,
             jugador1_id: p.jugador1_id,
             jugador2_id: p.jugador2_id,
             jugador1: p.jugador1,
             jugador2: p.jugador2,
+            posicion_manual: manualPos,
             puntos: initialPts,
             puntos_iniciales: initialPts,
             setsGanados: 0,
@@ -661,14 +671,14 @@ export default function TorneoIndividualDashboard() {
         difGames: s.gamesGanados - s.gamesPerdidos,
       }));
 
-      list.sort((a, b) => {
+      const defaultSorter = (a: any, b: any) => {
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
         if (b.difSets !== a.difSets) return b.difSets - a.difSets;
         if (b.difGames !== a.difGames) return b.difGames - a.difGames;
         return `${a.jugador1.apellido} ${a.jugador1.nombre}`.localeCompare(`${b.jugador1.apellido} ${b.jugador1.nombre}`);
-      });
+      };
 
-      return list;
+      return applyManualPositions(list, defaultSorter);
     }
 
     // Individual logic (same as original, but using local types for compatibility)
@@ -679,6 +689,8 @@ export default function TorneoIndividualDashboard() {
       dni: string | null;
       puntos: number;
       puntos_iniciales?: number;
+      posicion_manual?: number | null;
+      rank_calculado?: number;
       setsGanados: number;
       setsPerdidos: number;
       gamesGanados: number;
@@ -700,12 +712,17 @@ export default function TorneoIndividualDashboard() {
           }
         }
 
+        const manualPos = typeof (tj as any).posicion_manual === "number" && (tj as any).posicion_manual > 0
+          ? (tj as any).posicion_manual
+          : extractPosicionManualFromNotas(torneo?.notas, tj.jugador_id);
+
         standingsMap.set(tj.jugador_id, {
           jugador_id: tj.jugador_id,
           nombre: tj.jugador.nombre,
           apellido: tj.jugador.apellido,
           dni: tj.jugador.dni,
           podio_final: (tj as any).podio_final,
+          posicion_manual: manualPos,
           puntos: initialPts,
           puntos_iniciales: initialPts,
           setsGanados: 0,
@@ -812,14 +829,14 @@ export default function TorneoIndividualDashboard() {
       difGames: s.gamesGanados - s.gamesPerdidos,
     }));
 
-    list.sort((a, b) => {
+    const defaultSorter = (a: any, b: any) => {
       if (b.puntos !== a.puntos) return b.puntos - a.puntos;
       if ((b.difSets ?? 0) !== (a.difSets ?? 0)) return (b.difSets ?? 0) - (a.difSets ?? 0);
       if (b.difGames !== a.difGames) return b.difGames - a.difGames;
       return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
-    });
+    };
 
-    return list as any[];
+    return applyManualPositions(list, defaultSorter) as any[];
   }, [torneo, jugadoresInscriptos, partidos, parejas]);
 
   useEffect(() => {
@@ -1789,6 +1806,75 @@ export default function TorneoIndividualDashboard() {
       fetchTournamentData();
     } catch (e: any) {
       toast.error("Error actualizando podio: " + e.message);
+    }
+  };
+
+  const handleSetPosicionManual = async (targetId: string, nuevaPos: number | null, isPareja: boolean = false) => {
+    if (!id || !torneo) return;
+
+    try {
+      // 1. Actualización directa en la tabla (con try/catch por si la columna aún no está en cache)
+      try {
+        const table = isPareja ? "torneo_individual_parejas" : "torneo_individual_jugadores";
+        const idKey = isPareja ? "id" : "jugador_id";
+        await (supabase as any)
+          .from(table)
+          .update({ posicion_manual: nuevaPos })
+          .eq("torneo_id", id)
+          .eq(idKey, targetId);
+      } catch (colErr) {
+        console.warn("Direct column update for posicion_manual skipped/fallback:", colErr);
+      }
+
+      // 2. Doble capa resiliente de persistencia en torneos.notas
+      const updatedNotas = updatePosicionManualInNotas(torneo.notas, targetId, nuevaPos);
+      const { error: tErr } = await (supabase as any)
+        .from("torneos")
+        .update({ notas: updatedNotas })
+        .eq("id", id);
+
+      if (tErr) throw tErr;
+
+      // 3. Sincronización inmediata con queryClient para impactar vistas públicas y hooks
+      await queryClient.invalidateQueries({ queryKey: ["torneo", id] });
+      await queryClient.invalidateQueries({ queryKey: ["torneos"] });
+      await queryClient.invalidateQueries({ queryKey: ["torneo_individual_jugadores", id] });
+
+      toast.success(
+        nuevaPos !== null
+          ? `Posición fijada en puesto ${nuevaPos}º`
+          : "Posición restablecida al cálculo automático"
+      );
+
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al actualizar posición manual: " + e.message);
+    }
+  };
+
+  const handleResetAllPosicionesManuales = async () => {
+    if (!id || !torneo) return;
+    if (!confirm("¿Deseas restablecer todas las posiciones forzadas y volver al cálculo automático para todas las participantes?")) return;
+
+    try {
+      let cleanNotas = (torneo.notas || "").replace(/\[POSICION_MANUAL_[^:]+:\d+\]\s*/g, "").trim();
+      await (supabase as any).from("torneos").update({ notas: cleanNotas }).eq("id", id);
+
+      try {
+        await (supabase as any).from("torneo_individual_jugadores").update({ posicion_manual: null }).eq("torneo_id", id);
+        if (torneo.modalidad === "parejas") {
+          await (supabase as any).from("torneo_individual_parejas").update({ posicion_manual: null }).eq("torneo_id", id);
+        }
+      } catch {}
+
+      await queryClient.invalidateQueries({ queryKey: ["torneo", id] });
+      await queryClient.invalidateQueries({ queryKey: ["torneos"] });
+      await queryClient.invalidateQueries({ queryKey: ["torneo_individual_jugadores", id] });
+
+      toast.success("Todas las posiciones fueron restablecidas al cálculo automático");
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al restablecer posiciones: " + e.message);
     }
   };
 
@@ -4285,20 +4371,38 @@ export default function TorneoIndividualDashboard() {
                     <CardTitle className="text-base flex items-center gap-2">
                       <span>Tabla de Posiciones Generales</span>
                       <Badge variant="secondary">Cálculo en Tiempo Real</Badge>
+                      {standings.some((s: any) => s.posicion_manual) && (
+                        <Badge className="bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/30 text-[10px]">
+                          Posiciones Forzadas Activas
+                        </Badge>
+                      )}
                     </CardTitle>
                     <CardDescription>
-                      Ordenado por Puntos, Sets Ganados y Diferencia de Games.
+                      Ordenado prioritariamente por posiciones forzadas manuales, y luego por Puntos, Sets Ganados y Diferencia de Games.
                     </CardDescription>
                   </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => setShareRankingOpen(true)}
-                    className="gap-1.5 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-xs"
-                  >
-                    <Share2 className="h-4 w-4" />
-                    Placa para Redes
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    {isAdmin && standings.some((s: any) => s.posicion_manual) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={handleResetAllPosicionesManuales}
+                        className="gap-1.5 border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-semibold text-xs"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        Restablecer a Automático
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => setShareRankingOpen(true)}
+                      className="gap-1.5 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-xs"
+                    >
+                      <Share2 className="h-4 w-4" />
+                      Placa para Redes
+                    </Button>
+                  </div>
                 </div>
               </CardHeader>
               <CardContent className="overflow-x-auto">
@@ -4314,19 +4418,20 @@ export default function TorneoIndividualDashboard() {
                       <TableHead className="text-center">GC</TableHead>
                       <TableHead className="text-center">DG</TableHead>
                       <TableHead className="text-right w-[120px]">Puntos Totales</TableHead>
+                      {isAdmin && <TableHead className="text-center w-[140px]">Pos. Manual / Forzada</TableHead>}
                       {isAdmin && <TableHead className="text-center w-[120px]">Podio</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {standings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isAdmin ? 10 : 9} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={isAdmin ? 11 : 9} className="text-center py-6 text-muted-foreground">
                           Los resultados cargados en la pestaña "Fixture" generarán las posiciones automáticamente.
                         </TableCell>
                       </TableRow>
                     ) : torneo?.modalidad === "parejas" ? (
                       (standings as any[]).map((s, idx) => (
-                        <TableRow key={s.pareja_id}>
+                        <TableRow key={s.pareja_id} className={s.posicion_manual ? "bg-amber-500/5 dark:bg-amber-500/10" : ""}>
                           <TableCell className="text-center font-bold">
                             {s.podio_final === 1 ? (
                               <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5" /></span>
@@ -4338,6 +4443,11 @@ export default function TorneoIndividualDashboard() {
                               <span className="flex justify-center text-secondary"><Trophy className="h-4 w-4" /></span>
                             ) : (
                               `${idx + 1}º`
+                            )}
+                            {s.posicion_manual && (
+                              <span className="block text-[9px] font-semibold text-amber-600 dark:text-amber-400 tracking-tighter" title={`Posición fijada manualmente en puesto ${s.posicion_manual}º`}>
+                                🔒 Forzada
+                              </span>
                             )}
                           </TableCell>
                           <TableCell className="font-semibold">
@@ -4370,6 +4480,39 @@ export default function TorneoIndividualDashboard() {
                           </TableCell>
                           {isAdmin && (
                             <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Select
+                                  value={s.posicion_manual?.toString() || "auto"}
+                                  onValueChange={(val) => handleSetPosicionManual(s.pareja_id, val === "auto" ? null : parseInt(val), true)}
+                                >
+                                  <SelectTrigger className={`h-8 text-xs font-semibold w-[125px] ${s.posicion_manual ? "border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold" : ""}`}>
+                                    <SelectValue placeholder="Auto" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="auto">⚡ Automática</SelectItem>
+                                    {Array.from({ length: Math.max(standings.length, 8) }, (_, i) => i + 1).map((pos) => (
+                                      <SelectItem key={pos} value={pos.toString()}>
+                                        {pos}º Puesto {pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {s.posicion_manual && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    title="Restablecer a posición automática"
+                                    onClick={() => handleSetPosicionManual(s.pareja_id, null, true)}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
+                          {isAdmin && (
+                            <TableCell className="text-center">
                               {/* Medals not supported for couples yet, or adapt if necessary */}
                               -
                             </TableCell>
@@ -4378,7 +4521,7 @@ export default function TorneoIndividualDashboard() {
                       ))
                     ) : (
                       standings.map((s, idx) => (
-                        <TableRow key={s.jugador_id}>
+                        <TableRow key={s.jugador_id} className={s.posicion_manual ? "bg-amber-500/5 dark:bg-amber-500/10" : ""}>
                           <TableCell className="text-center font-bold">
                             {(s as any).podio_final === 1 ? (
                               <span className="flex justify-center text-secondary" title="Oro"><Trophy className="h-5 w-5 fill-amber-500/20" /></span>
@@ -4390,6 +4533,11 @@ export default function TorneoIndividualDashboard() {
                               <span className="flex justify-center text-secondary"><Trophy className="h-4 w-4" /></span>
                             ) : (
                               `${idx + 1}º`
+                            )}
+                            {s.posicion_manual && (
+                              <span className="block text-[9px] font-semibold text-amber-600 dark:text-amber-400 tracking-tighter" title={`Posición fijada manualmente en puesto ${s.posicion_manual}º`}>
+                                🔒 Forzada
+                              </span>
                             )}
                           </TableCell>
                           <TableCell className="font-semibold">{s.apellido}, {s.nombre}</TableCell>
@@ -4413,6 +4561,39 @@ export default function TorneoIndividualDashboard() {
                               </span>
                             )}
                           </TableCell>
+                          {isAdmin && (
+                            <TableCell className="text-center">
+                              <div className="flex items-center justify-center gap-1">
+                                <Select
+                                  value={s.posicion_manual?.toString() || "auto"}
+                                  onValueChange={(val) => handleSetPosicionManual(s.jugador_id, val === "auto" ? null : parseInt(val), false)}
+                                >
+                                  <SelectTrigger className={`h-8 text-xs font-semibold w-[125px] ${s.posicion_manual ? "border-amber-500 text-amber-600 dark:text-amber-400 bg-amber-500/10 font-bold" : ""}`}>
+                                    <SelectValue placeholder="Auto" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    <SelectItem value="auto">⚡ Automática</SelectItem>
+                                    {Array.from({ length: Math.max(standings.length, 12) }, (_, i) => i + 1).map((pos) => (
+                                      <SelectItem key={pos} value={pos.toString()}>
+                                        {pos}º Puesto {pos === 1 ? "🥇" : pos === 2 ? "🥈" : pos === 3 ? "🥉" : ""}
+                                      </SelectItem>
+                                    ))}
+                                  </SelectContent>
+                                </Select>
+                                {s.posicion_manual && (
+                                  <Button
+                                    size="icon"
+                                    variant="ghost"
+                                    className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                                    title="Restablecer a posición automática"
+                                    onClick={() => handleSetPosicionManual(s.jugador_id, null, false)}
+                                  >
+                                    <X className="h-3.5 w-3.5" />
+                                  </Button>
+                                )}
+                              </div>
+                            </TableCell>
+                          )}
                           {isAdmin && (
                             <TableCell className="text-center">
                               <Select

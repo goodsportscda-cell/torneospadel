@@ -32,6 +32,7 @@ import {
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import PublicFooter from "@/components/PublicFooter";
+import { applyManualPositions, extractPosicionManualFromNotas } from "@/logic/torneoStandings";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -61,6 +62,7 @@ interface PlayerStanding {
   gamesPerdidos: number;
   difGames: number;
   partidosJugados: number;
+  posicion_manual?: number | null;
   podio_final?: number | null;
 }
 
@@ -212,6 +214,28 @@ export default function TorneoIndividualPublico() {
   useEffect(() => {
     fetchTournamentData();
   }, [fetchTournamentData]);
+
+  // Sincronización en tiempo real para el muro público
+  useEffect(() => {
+    if (!id) return;
+    const channel = supabase
+      .channel(`torneo-publico-sync-${id}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "torneos", filter: `id=eq.${id}` },
+        () => fetchTournamentData()
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "torneo_individual_jugadores", filter: `torneo_id=eq.${id}` },
+        () => fetchTournamentData()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [id, fetchTournamentData]);
 
   // Resolucion asincrona del jugador logueado (sin bloquear la carga del torneo)
   useEffect(() => {
@@ -368,12 +392,17 @@ export default function TorneoIndividualPublico() {
           }
         }
 
+        const manualPos = typeof (p as any).posicion_manual === "number" && (p as any).posicion_manual > 0
+          ? (p as any).posicion_manual
+          : extractPosicionManualFromNotas(torneo?.notas, p.id);
+
         standingsMap.set(p.id, {
           pareja_id: p.id,
           jugador1_id: p.jugador1_id,
           jugador2_id: p.jugador2_id,
           jugador1: p.jugador1,
           jugador2: p.jugador2,
+          posicion_manual: manualPos,
           puntos: initialPts,
           puntos_iniciales: initialPts,
           setsGanados: 0,
@@ -521,14 +550,14 @@ export default function TorneoIndividualPublico() {
         difGames: s.gamesGanados - s.gamesPerdidos,
       }));
 
-      list.sort((a, b) => {
+      const defaultSorter = (a: any, b: any) => {
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
         if (b.difSets !== a.difSets) return b.difSets - a.difSets;
         if (b.difGames !== a.difGames) return b.difGames - a.difGames;
         return 0;
-      });
+      };
 
-      return list;
+      return applyManualPositions(list, defaultSorter);
     }
 
     const standingsMap = new Map<string, PlayerStanding>();
@@ -542,6 +571,10 @@ export default function TorneoIndividualPublico() {
           }
         }
 
+        const manualPos = typeof (tj as any).posicion_manual === "number" && (tj as any).posicion_manual > 0
+          ? (tj as any).posicion_manual
+          : extractPosicionManualFromNotas(torneo?.notas, tj.jugador_id);
+
         standingsMap.set(tj.jugador_id, {
           jugador_id: tj.jugador_id,
           nombre: tj.jugador.nombre,
@@ -549,6 +582,7 @@ export default function TorneoIndividualPublico() {
           dni: tj.jugador.dni,
           club: tj.jugador.club,
           podio_final: (tj as any).podio_final,
+          posicion_manual: manualPos,
           puntos: initialPts,
           puntos_iniciales: initialPts,
           setsGanados: 0,
@@ -659,14 +693,14 @@ export default function TorneoIndividualPublico() {
       difGames: s.gamesGanados - s.gamesPerdidos,
     }));
 
-    list.sort((a, b) => {
+    const defaultSorter = (a: any, b: any) => {
       if (b.puntos !== a.puntos) return b.puntos - a.puntos;
       if (b.difSets !== a.difSets) return b.difSets - a.difSets;
       if (b.difGames !== a.difGames) return b.difGames - a.difGames;
       return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
-    });
+    };
 
-    return list;
+    return applyManualPositions(list, defaultSorter);
   }, [torneo, jugadoresInscriptos, parejas, partidos]);
 
   useEffect(() => {
