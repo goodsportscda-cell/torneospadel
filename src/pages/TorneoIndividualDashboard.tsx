@@ -37,7 +37,8 @@ import {
   Eye,
   EyeOff,
   Shuffle,
-  Tag
+  Tag,
+  UserCog
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -45,6 +46,7 @@ import { es } from "date-fns/locale";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual/CompartirFixtureIndividualDialog";
 import { CompartirRankingDialog } from "@/components/torneo-individual/CompartirRankingDialog";
+import { ReemplazoJugadorDialog, JugadorSalienteInfo } from "@/components/torneo-individual/ReemplazoJugadorDialog";
 import { useAuth } from "@/hooks/useAuth";
 import { generateIntelligentAmericanoMatches, MatchHistory } from "@/logic/americanoInteligente";
 
@@ -219,6 +221,8 @@ export default function TorneoIndividualDashboard() {
 
   const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
   const [shareRankingOpen, setShareRankingOpen] = useState(false);
+  const [reemplazoDialogOpen, setReemplazoDialogOpen] = useState(false);
+  const [jugadorParaReemplazo, setJugadorParaReemplazo] = useState<JugadorSalienteInfo | null>(null);
 
   // Edit matches manual state
   const [editCrucesOpen, setEditCrucesOpen] = useState(false);
@@ -494,6 +498,7 @@ export default function TorneoIndividualDashboard() {
         jugador1: Jugador;
         jugador2: Jugador;
         puntos: number;
+        puntos_iniciales?: number;
         setsGanados: number;
         setsPerdidos: number;
         gamesGanados: number;
@@ -509,13 +514,22 @@ export default function TorneoIndividualDashboard() {
       // Initialize couples
       parejas.forEach((p) => {
         if (p.jugador1 && p.jugador2) {
+          let initialPts = Number((p as any).puntos_iniciales) || 0;
+          if (!initialPts && torneo?.notas) {
+            const matchTag = torneo.notas.match(new RegExp(`\\[PUNTOS_INICIALES_${p.id}:(\\d+(?:\\.\\d+)?)\\]`));
+            if (matchTag && matchTag[1]) {
+              initialPts = Number(matchTag[1]);
+            }
+          }
+
           standingsMap.set(p.id, {
             pareja_id: p.id,
             jugador1_id: p.jugador1_id,
             jugador2_id: p.jugador2_id,
             jugador1: p.jugador1,
             jugador2: p.jugador2,
-            puntos: 0,
+            puntos: initialPts,
+            puntos_iniciales: initialPts,
             setsGanados: 0,
             setsPerdidos: 0,
             gamesGanados: 0,
@@ -664,6 +678,7 @@ export default function TorneoIndividualDashboard() {
       apellido: string;
       dni: string | null;
       puntos: number;
+      puntos_iniciales?: number;
       setsGanados: number;
       setsPerdidos: number;
       gamesGanados: number;
@@ -677,13 +692,22 @@ export default function TorneoIndividualDashboard() {
     const standingsMap = new Map<string, LocalPlayerStanding>();
     jugadoresInscriptos.forEach((tj) => {
       if (tj.jugador) {
+        let initialPts = Number((tj as any).puntos_iniciales) || 0;
+        if (!initialPts && torneo?.notas) {
+          const matchTag = torneo.notas.match(new RegExp(`\\[PUNTOS_INICIALES_${tj.jugador_id}:(\\d+(?:\\.\\d+)?)\\]`));
+          if (matchTag && matchTag[1]) {
+            initialPts = Number(matchTag[1]);
+          }
+        }
+
         standingsMap.set(tj.jugador_id, {
           jugador_id: tj.jugador_id,
           nombre: tj.jugador.nombre,
           apellido: tj.jugador.apellido,
           dni: tj.jugador.dni,
           podio_final: (tj as any).podio_final,
-          puntos: 0,
+          puntos: initialPts,
+          puntos_iniciales: initialPts,
           setsGanados: 0,
           setsPerdidos: 0,
           gamesGanados: 0,
@@ -1043,6 +1067,42 @@ export default function TorneoIndividualDashboard() {
       setSelectedJugadorId("");
       fetchTournamentData();
     }
+  };
+
+  // Actions: Reemplazo / Sustitución de jugador
+  const handleAbrirReemplazoIndividual = (tj: TorneoJugador) => {
+    const playerStanding = standings.find((s) => s.jugador_id === tj.jugador_id);
+    setJugadorParaReemplazo({
+      id: tj.id,
+      jugador_id: tj.jugador_id,
+      nombre: tj.jugador?.nombre || "",
+      apellido: tj.jugador?.apellido || "",
+      club: tj.jugador?.club,
+      telefono: tj.jugador?.telefono,
+      dni: tj.jugador?.dni,
+      puntos: playerStanding?.puntos || 0,
+      partidosJugados: playerStanding?.partidosJugados || 0,
+    });
+    setReemplazoDialogOpen(true);
+  };
+
+  const handleAbrirReemplazoPareja = (p: any, jugadorNum: 1 | 2) => {
+    const coupleStanding = standings.find((s) => s.pareja_id === p.id);
+    const targetJugador = jugadorNum === 1 ? p.jugador1 : p.jugador2;
+    const targetJugadorId = jugadorNum === 1 ? p.jugador1_id : p.jugador2_id;
+    setJugadorParaReemplazo({
+      id: p.id,
+      pareja_id: p.id,
+      jugador_id: targetJugadorId,
+      nombre: targetJugador?.nombre || "",
+      apellido: targetJugador?.apellido || "",
+      club: targetJugador?.club,
+      telefono: targetJugador?.telefono,
+      dni: targetJugador?.dni,
+      puntos: coupleStanding?.puntos || 0,
+      partidosJugados: coupleStanding?.partidosJugados || 0,
+    });
+    setReemplazoDialogOpen(true);
   };
 
   // Actions: Remove player
@@ -3132,14 +3192,40 @@ export default function TorneoIndividualDashboard() {
                                   </div>
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  <Button
-                                    variant="ghost"
-                                    size="icon"
-                                    className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                    onClick={() => handleQuitarPareja(p.id, p.jugador1_id, p.jugador2_id)}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
+                                  <div className="flex items-center justify-end gap-1">
+                                    {isAdmin && (
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-1.5 text-[10px] gap-1 border-purple-500/40 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+                                          onClick={() => handleAbrirReemplazoPareja(p, 1)}
+                                          title={`Sustituir a ${p.jugador1?.apellido || "J1"} (Hereda 50% de puntos)`}
+                                        >
+                                          <UserCog className="h-3 w-3" />
+                                          <span>Sust. J1</span>
+                                        </Button>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="h-7 px-1.5 text-[10px] gap-1 border-purple-500/40 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+                                          onClick={() => handleAbrirReemplazoPareja(p, 2)}
+                                          title={`Sustituir a ${p.jugador2?.apellido || "J2"} (Hereda 50% de puntos)`}
+                                        >
+                                          <UserCog className="h-3 w-3" />
+                                          <span>Sust. J2</span>
+                                        </Button>
+                                      </div>
+                                    )}
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                      onClick={() => handleQuitarPareja(p.id, p.jugador1_id, p.jugador2_id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -3236,14 +3322,29 @@ export default function TorneoIndividualDashboard() {
                                 </Select>
                               </TableCell>
                               <TableCell className="text-right">
-                                <Button
-                                  variant="ghost"
-                                  size="icon"
-                                  className="text-destructive hover:text-destructive hover:bg-destructive/10"
-                                  onClick={() => handleQuitarJugador(tj.jugador_id)}
-                                >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
+                                <div className="flex items-center justify-end gap-1">
+                                  {isAdmin && (
+                                    <Button
+                                      variant="outline"
+                                      size="sm"
+                                      className="h-8 px-2 text-xs gap-1 border-purple-500/40 text-purple-600 dark:text-purple-400 hover:bg-purple-500/10"
+                                      onClick={() => handleAbrirReemplazoIndividual(tj)}
+                                      title="Sustituir jugador (Hereda el 50% de puntos)"
+                                    >
+                                      <UserCog className="h-3.5 w-3.5" />
+                                      <span className="hidden sm:inline">Sustituir</span>
+                                    </Button>
+                                  )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-8 w-8 text-destructive hover:text-destructive hover:bg-destructive/10"
+                                    onClick={() => handleQuitarJugador(tj.jugador_id)}
+                                    title="Quitar jugador"
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
                               </TableCell>
                             </TableRow>
                           ))
@@ -4260,7 +4361,12 @@ export default function TorneoIndividualDashboard() {
                               </span>
                             </TableCell>
                           <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
-                            {s.puntos} pts
+                            <div>{s.puntos} pts</div>
+                            {Number((s as any).puntos_iniciales) > 0 && (
+                              <span className="block text-[9px] font-normal text-purple-500 dark:text-purple-400" title="Heredó el 50% de los puntos acumulados por sustitución">
+                                (+{(s as any).puntos_iniciales} heredados)
+                              </span>
+                            )}
                           </TableCell>
                           {isAdmin && (
                             <TableCell className="text-center">
@@ -4300,7 +4406,12 @@ export default function TorneoIndividualDashboard() {
                               </span>
                             </TableCell>
                           <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400">
-                            {s.puntos} pts
+                            <div>{s.puntos} pts</div>
+                            {Number((s as any).puntos_iniciales) > 0 && (
+                              <span className="block text-[9px] font-normal text-purple-500 dark:text-purple-400" title="Heredó el 50% de los puntos acumulados por sustitución">
+                                (+{(s as any).puntos_iniciales} heredados)
+                              </span>
+                            )}
                           </TableCell>
                           {isAdmin && (
                             <TableCell className="text-center">
@@ -4817,6 +4928,20 @@ export default function TorneoIndividualDashboard() {
         standings={standings}
         subtitulo={(torneo as any)?.subtitulo_fase || undefined}
         esPuntosPorSet={settingsForm.sistema_puntuacion === "puntos_por_set"}
+      />
+
+      <ReemplazoJugadorDialog
+        open={reemplazoDialogOpen}
+        onOpenChange={setReemplazoDialogOpen}
+        torneoId={torneo?.id || ""}
+        torneoNotas={torneo?.notas}
+        isModalidadParejas={torneo?.modalidad === "parejas"}
+        jugadorSaliente={jugadorParaReemplazo}
+        todosJugadores={todosJugadores}
+        jugadoresInscriptosIds={jugadoresInscriptos.map((j) => j.jugador_id)}
+        onSuccess={() => {
+          fetchTournamentData();
+        }}
       />
     </div>
   );

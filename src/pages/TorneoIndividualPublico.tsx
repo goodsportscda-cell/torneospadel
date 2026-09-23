@@ -52,6 +52,7 @@ interface PlayerStanding {
   dni: string | null;
   club: string | null;
   puntos: number;
+  puntos_iniciales?: number;
   setsGanados: number;
   setsPerdidos: number;
   gamesGanados: number;
@@ -271,13 +272,22 @@ export default function TorneoIndividualPublico() {
     if (torneo.modalidad === "parejas") {
       const standingsMap = new Map<string, any>();
       parejas.forEach((p) => {
+        let initialPts = Number((p as any).puntos_iniciales) || 0;
+        if (!initialPts && torneo?.notas) {
+          const matchTag = torneo.notas.match(new RegExp(`\\[PUNTOS_INICIALES_${p.id}:(\\d+(?:\\.\\d+)?)\\]`));
+          if (matchTag && matchTag[1]) {
+            initialPts = Number(matchTag[1]);
+          }
+        }
+
         standingsMap.set(p.id, {
           pareja_id: p.id,
           jugador1_id: p.jugador1_id,
           jugador2_id: p.jugador2_id,
           jugador1: p.jugador1,
           jugador2: p.jugador2,
-          puntos: 0,
+          puntos: initialPts,
+          puntos_iniciales: initialPts,
           setsGanados: 0,
           setsPerdidos: 0,
           gamesGanados: 0,
@@ -436,6 +446,14 @@ export default function TorneoIndividualPublico() {
     const standingsMap = new Map<string, PlayerStanding>();
     jugadoresInscriptos.forEach((tj) => {
       if (tj.jugador) {
+        let initialPts = Number((tj as any).puntos_iniciales) || 0;
+        if (!initialPts && torneo?.notas) {
+          const matchTag = torneo.notas.match(new RegExp(`\\[PUNTOS_INICIALES_${tj.jugador_id}:(\\d+(?:\\.\\d+)?)\\]`));
+          if (matchTag && matchTag[1]) {
+            initialPts = Number(matchTag[1]);
+          }
+        }
+
         standingsMap.set(tj.jugador_id, {
           jugador_id: tj.jugador_id,
           nombre: tj.jugador.nombre,
@@ -443,7 +461,8 @@ export default function TorneoIndividualPublico() {
           dni: tj.jugador.dni,
           club: tj.jugador.club,
           podio_final: (tj as any).podio_final,
-          puntos: 0,
+          puntos: initialPts,
+          puntos_iniciales: initialPts,
           setsGanados: 0,
           setsPerdidos: 0,
           gamesGanados: 0,
@@ -861,7 +880,12 @@ export default function TorneoIndividualPublico() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400 text-sm">
-                                {s.puntos} pts
+                                <div>{s.puntos} pts</div>
+                                {Number(s.puntos_iniciales) > 0 && (
+                                  <span className="block text-[9px] font-normal text-purple-500 dark:text-purple-400" title="Incluye el 50% de los puntos heredados por sustitución">
+                                    (+{s.puntos_iniciales} heredados)
+                                  </span>
+                                )}
                               </TableCell>
                             </TableRow>
                           );
@@ -926,7 +950,12 @@ export default function TorneoIndividualPublico() {
                                 </span>
                               </TableCell>
                               <TableCell className="text-right font-bold text-indigo-600 dark:text-indigo-400 text-sm">
-                                {s.puntos} pts
+                                <div>{s.puntos} pts</div>
+                                {Number(s.puntos_iniciales) > 0 && (
+                                  <span className="block text-[9px] font-normal text-purple-500 dark:text-purple-400" title="Incluye el 50% de los puntos heredados por sustitución">
+                                    (+{s.puntos_iniciales} heredados)
+                                  </span>
+                                )}
                               </TableCell>
                             </TableRow>
                           );
