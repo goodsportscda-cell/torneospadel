@@ -71,6 +71,29 @@ export function updatePodioFinalInNotas(notas: string | null | undefined, id: st
 }
 
 /**
+ * Extrae la foto asociada a un partido fijada en notas como capa de persistencia resiliente.
+ */
+export function extractFotoFromNotas(notas: string | null | undefined, matchId: string): string | null {
+  if (!notas || !matchId) return null;
+  const match = notas.match(new RegExp(`\\[FOTO_${matchId}:([^\\]]+)\\]`));
+  return match && match[1] ? match[1].trim() : null;
+}
+
+/**
+ * Añade o remueve la etiqueta [FOTO_matchId:url] en el texto de notas del torneo.
+ */
+export function updateFotoInNotas(notas: string | null | undefined, matchId: string, fotoUrl: string | null): string {
+  let currentNotas = (notas || "").trim();
+  const regex = new RegExp(`\\[FOTO_${matchId}:[^\\]]+\\]\\s*`, "g");
+  currentNotas = currentNotas.replace(regex, "").trim();
+
+  if (fotoUrl && fotoUrl.trim().length > 0) {
+    currentNotas = `${currentNotas} [FOTO_${matchId}:${fotoUrl.trim()}]`.trim();
+  }
+  return currentNotas;
+}
+
+/**
  * Aplica el ordenamiento de posiciones combinando las posiciones manuales forzadas
  * con el orden matemático habitual de los participantes sin posición fija.
  * 

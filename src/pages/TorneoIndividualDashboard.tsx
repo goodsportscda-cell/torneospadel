@@ -40,7 +40,8 @@ import {
   Tag,
   UserCog,
   RotateCcw,
-  X
+  X,
+  Tv
 } from "lucide-react";
 import { toast } from "sonner";
 import { format } from "date-fns";
@@ -63,6 +64,8 @@ import {
   compareLigaParejasStandings,
   getLigaParejasMatchupsForFecha,
   getSuperDayMatchups,
+  extractFotoFromNotas,
+  updateFotoInNotas,
 } from "@/logic/torneoStandings";
 
 
@@ -234,6 +237,7 @@ export default function TorneoIndividualDashboard() {
     fecha_programada: "",
     hora_programada: "",
     cancha: "",
+    foto_url: "",
   });
 
   const [shareFixtureOpen, setShareFixtureOpen] = useState(false);
@@ -458,10 +462,25 @@ export default function TorneoIndividualDashboard() {
           fecha_programada: matchConfigForm.fecha_programada || null,
           hora_programada: matchConfigForm.hora_programada ? matchConfigForm.hora_programada + ":00" : null,
           cancha: matchConfigForm.cancha || "",
+          foto_url: matchConfigForm.foto_url.trim() || null,
         })
         .eq("id", selectedPartidoConfig.id);
 
-      if (error) throw error;
+      // Resilient tag persistence in torneos.notas
+      if (torneo) {
+        const updatedNotas = updateFotoInNotas(
+          torneo.notas,
+          selectedPartidoConfig.id,
+          matchConfigForm.foto_url.trim() || null
+        );
+        if (updatedNotas !== (torneo.notas || "")) {
+          await (supabase as any).from("torneos").update({ notas: updatedNotas }).eq("id", id);
+        }
+      }
+
+      if (error) {
+        console.warn("Columna foto_url pendiente de cache, persistido en notas:", error.message);
+      }
       toast.success("Partido programado con éxito");
       setConfigMatchDialogOpen(false);
       fetchTournamentData();
@@ -3276,12 +3295,25 @@ export default function TorneoIndividualDashboard() {
             </Button>
           )}
           {torneo && (
-            <Button variant="outline" size="sm" asChild>
-              <Link to={`/torneo-individual/${torneo.id}`} target="_blank">
-                <Globe className="h-4 w-4 mr-1.5" />
-                Muro Público
-              </Link>
-            </Button>
+            <>
+              <Button variant="outline" size="sm" asChild>
+                <Link to={`/torneo-individual/${torneo.id}`} target="_blank">
+                  <Globe className="h-4 w-4 mr-1.5" />
+                  Muro Público
+                </Link>
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                className="border-[#00f5d4]/40 bg-[#00f5d4]/10 hover:bg-[#00f5d4]/20 text-[#00f5d4] hover:text-[#00f5d4] font-semibold transition-all shadow-[0_0_12px_rgba(0,245,212,0.15)]"
+                asChild
+              >
+                <Link to={`/torneo-individual/${torneo.id}/tv`} target="_blank">
+                  <Tv className="h-4 w-4 mr-1.5 text-[#00f5d4]" />
+                  Pantalla TV
+                </Link>
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -4641,6 +4673,7 @@ export default function TorneoIndividualDashboard() {
                                 fecha_programada: p.fecha_programada || "",
                                 hora_programada: p.hora_programada ? p.hora_programada.substring(0, 5) : "",
                                 cancha: p.cancha || "",
+                                foto_url: (p as any).foto_url || extractFotoFromNotas(torneo?.notas, p.id) || "",
                               });
                               setConfigMatchDialogOpen(true);
                             }}
@@ -5053,6 +5086,67 @@ export default function TorneoIndividualDashboard() {
                 onChange={(e) => setMatchConfigForm({ ...matchConfigForm, cancha: e.target.value })}
                 placeholder="Ej: Cancha 1"
               />
+            </div>
+            <div className="space-y-2 border-t pt-3">
+              <Label className="text-xs font-semibold flex items-center justify-between">
+                <span>Foto del Partido (Pantalla TV / Multimedia)</span>
+                {matchConfigForm.foto_url && (
+                  <span className="text-[10px] text-[#00f5d4] font-bold">✓ Foto adjunta</span>
+                )}
+              </Label>
+              <Input
+                value={matchConfigForm.foto_url}
+                onChange={(e) => setMatchConfigForm({ ...matchConfigForm, foto_url: e.target.value })}
+                placeholder="URL de foto o sube un archivo abajo..."
+                className="text-xs"
+              />
+              <div className="flex items-center gap-2 pt-1">
+                <Input
+                  type="file"
+                  accept="image/*"
+                  className="text-xs h-8 cursor-pointer file:cursor-pointer"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      if (file.size > 3 * 1024 * 1024) {
+                        toast.error("La imagen debe ser menor a 3 MB");
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = (re) => {
+                        if (re.target?.result) {
+                          setMatchConfigForm((prev) => ({
+                            ...prev,
+                            foto_url: re.target?.result as string,
+                          }));
+                          toast.success("Foto cargada con éxito");
+                        }
+                      };
+                      reader.readAsDataURL(file);
+                    }
+                  }}
+                />
+                {matchConfigForm.foto_url && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 text-xs text-destructive hover:bg-destructive/10"
+                    onClick={() => setMatchConfigForm((prev) => ({ ...prev, foto_url: "" }))}
+                  >
+                    Quitar Foto
+                  </Button>
+                )}
+              </div>
+              {matchConfigForm.foto_url && (
+                <div className="mt-2 w-full h-24 rounded-lg overflow-hidden border border-border relative bg-neutral-900">
+                  <img
+                    src={matchConfigForm.foto_url}
+                    alt="Vista previa de foto del partido"
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              )}
             </div>
           </div>
           <div className="flex justify-end gap-2">

@@ -28,6 +28,7 @@ import RankingPublico from "./pages/RankingPublico.tsx";
 import CanchasEnVivo from "./pages/CanchasEnVivo.tsx";
 import TorneoIndividualDashboard from "./pages/TorneoIndividualDashboard.tsx";
 import TorneoIndividualPublico from "./pages/TorneoIndividualPublico.tsx";
+import TorneoTvView from "./pages/TorneoTvView.tsx";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
 import Configuracion from "./pages/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -55,6 +56,8 @@ const App = () => (
                   <Route path="/" element={<ClubHome />} />
                   <Route path="/torneo/:slug" element={<TorneoPublico />} />
                   <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
+                  <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
+                  <Route path="/tv/:id" element={<TorneoTvView />} />
                   <Route path="/ranking-publico" element={<RankingPublico />} />
                   <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
                   <Route path="/draft/:id" element={<DraftPublico />} />
@@ -66,6 +69,8 @@ const App = () => (
             <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
             <Route path="/torneo/:slug" element={<TorneoPublico />} />
             <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
+            <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
+            <Route path="/tv/:id" element={<TorneoTvView />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
             <Route path="/mi-panel" element={<Navigate to="/player/dashboard" replace />} />
             <Route path="/draft/:id" element={<DraftPublico />} />

@@ -27,7 +27,8 @@ import {
   TrendingDown,
   Info,
   Gift,
-  Share2
+  Share2,
+  Tv
 } from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
@@ -922,6 +923,17 @@ export default function TorneoIndividualPublico() {
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-8 border-[#00f5d4]/40 bg-[#00f5d4]/10 hover:bg-[#00f5d4]/20 text-[#00f5d4] hover:text-[#00f5d4] font-semibold text-xs gap-1.5 shadow-[0_0_10px_rgba(0,245,212,0.15)]"
+              asChild
+            >
+              <Link to={`/torneo-individual/${torneo?.id}/tv`} target="_blank">
+                <Tv className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Modo TV</span>
+              </Link>
+            </Button>
             <ModeToggle />
           </div>
         </div>
