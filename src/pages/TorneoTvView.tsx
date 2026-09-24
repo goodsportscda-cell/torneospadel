@@ -22,6 +22,8 @@ import {
   Radio,
   ArrowLeft,
   LayoutGrid,
+  Camera,
+  X,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -66,6 +68,7 @@ export default function TorneoTvView() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [showSidebar, setShowSidebar] = useState(true);
   const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const [mobileTab, setMobileTab] = useState<"canchas" | "posiciones">("canchas");
 
   // Digital clock
   useEffect(() => {
@@ -207,6 +210,11 @@ export default function TorneoTvView() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "torneo_individual_fechas", filter: `torneo_id=eq.${id}` },
+        () => fetchData(true)
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "torneos", filter: `id=eq.${id}` },
         () => fetchData(true)
       )
       .subscribe();
@@ -479,13 +487,13 @@ export default function TorneoTvView() {
     if (count === 1) return "grid-cols-1 max-w-4xl mx-auto";
     if (count === 2) return "grid-cols-1 md:grid-cols-2";
     if (count === 3) return "grid-cols-1 md:grid-cols-3";
-    if (count === 4) return "grid-cols-1 sm:grid-cols-2 grid-rows-2";
-    if (count <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 grid-rows-2";
+    if (count === 4) return "grid-cols-1 sm:grid-cols-2 md:grid-rows-2";
+    if (count <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 md:grid-rows-2";
     return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
   }, [partidosDeFecha.length]);
 
   return (
-    <div className="w-screen h-screen overflow-hidden bg-[#07070a] text-white flex flex-col font-sans select-none relative">
+    <div className="w-full min-h-screen h-auto md:h-screen overflow-x-hidden md:overflow-hidden bg-[#07070a] text-white flex flex-col font-sans select-none relative">
       {/* Background Cyber Glow & Grid Lines */}
       <div className="absolute inset-0 pointer-events-none z-0">
         <div className="absolute -top-32 -left-32 w-96 h-96 bg-[#00f5d4]/10 rounded-full blur-[140px]" />
@@ -495,7 +503,7 @@ export default function TorneoTvView() {
       </div>
 
       {/* TOP HEADER BAR */}
-      <header className="relative z-10 h-16 border-b border-white/10 bg-[#0a0a12]/80 backdrop-blur-xl px-5 flex items-center justify-between shrink-0 shadow-lg">
+      <header className="relative z-10 h-auto py-2.5 px-3 md:px-5 border-b border-white/10 bg-[#0a0a12]/80 backdrop-blur-xl flex flex-wrap sm:flex-nowrap items-center justify-between gap-2.5 shrink-0 shadow-lg">
         {/* Brand & Tournament Name */}
         <div className="flex items-center gap-3.5">
           <Link
@@ -523,7 +531,7 @@ export default function TorneoTvView() {
           {/* Tournament Title & Category */}
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
-              <h1 className="text-sm md:text-base font-extrabold tracking-tight text-white truncate max-w-[280px] md:max-w-md lg:max-w-lg">
+              <h1 className="text-sm md:text-base font-extrabold tracking-tight text-white truncate max-w-[200px] sm:max-w-xs md:max-w-md lg:max-w-lg">
                 {torneo?.nombre || "Torneo en Vivo"}
               </h1>
               {isLigaParejas ? (
@@ -536,14 +544,14 @@ export default function TorneoTvView() {
                 </Badge>
               )}
             </div>
-            <p className="text-[11px] text-neutral-400 font-medium truncate">
+            <p className="text-[10px] sm:text-[11px] text-neutral-400 font-medium truncate">
               {torneo?.sede || "Complejo Deportivo"} · {torneo?.categoria_libre || "Categoría Libre"}
             </p>
           </div>
         </div>
 
         {/* Date Selector & Live Status */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3">
           {/* Week Selector */}
           <div className="flex items-center bg-white/5 border border-white/10 rounded-xl p-1 gap-1 shadow-inner">
             <Button
@@ -556,8 +564,8 @@ export default function TorneoTvView() {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <div className="px-2 text-center min-w-[110px]">
-              <span className="text-[10px] text-neutral-400 uppercase font-bold block tracking-wider">
+            <div className="px-1.5 sm:px-2 text-center min-w-[95px] sm:min-w-[110px]">
+              <span className="text-[9px] sm:text-[10px] text-neutral-400 uppercase font-bold block tracking-wider">
                 {isLigaParejas && selectedFechaNum === 11 ? "FINALÍSIMA" : "FECHA / SEMANA"}
               </span>
               <span className="text-xs font-black text-[#00f5d4] tracking-tight">
@@ -584,18 +592,18 @@ export default function TorneoTvView() {
             </span>
           </div>
 
-          {/* Sidebar Toggle */}
+          {/* Sidebar Toggle (Desktop only) */}
           <Button
             size="sm"
             variant="outline"
             onClick={() => setShowSidebar((prev) => !prev)}
-            className={`h-9 px-2.5 text-xs font-bold border-white/10 ${
+            className={`hidden md:flex h-9 px-2.5 text-xs font-bold border-white/10 ${
               showSidebar ? "bg-white/10 text-white" : "bg-transparent text-neutral-400 hover:text-white"
             }`}
             title="Mostrar / Ocultar Tabla de Posiciones (Tecla S)"
           >
             <Trophy className="h-3.5 w-3.5 mr-1 text-amber-400" />
-            <span className="hidden md:inline">Tabla</span>
+            <span className="hidden lg:inline">Tabla</span>
           </Button>
 
           {/* Fullscreen Button */}
@@ -603,17 +611,17 @@ export default function TorneoTvView() {
             size="sm"
             variant="outline"
             onClick={toggleFullscreen}
-            className="h-9 px-2.5 text-xs font-bold border-[#8338ec]/40 bg-[#8338ec]/20 hover:bg-[#8338ec]/30 text-white shadow-[0_0_15px_rgba(131,56,236,0.3)]"
+            className="h-9 px-2 sm:px-2.5 text-xs font-bold border-[#8338ec]/40 bg-[#8338ec]/20 hover:bg-[#8338ec]/30 text-white shadow-[0_0_15px_rgba(131,56,236,0.3)]"
             title="Alternar Pantalla Completa (Tecla F)"
           >
             {isFullscreen ? (
               <>
-                <Minimize2 className="h-3.5 w-3.5 mr-1" />
+                <Minimize2 className="h-3.5 w-3.5 sm:mr-1" />
                 <span className="hidden md:inline">Salir</span>
               </>
             ) : (
               <>
-                <Maximize2 className="h-3.5 w-3.5 mr-1" />
+                <Maximize2 className="h-3.5 w-3.5 sm:mr-1" />
                 <span className="hidden md:inline">Pantalla Completa</span>
               </>
             )}
@@ -621,10 +629,38 @@ export default function TorneoTvView() {
         </div>
       </header>
 
+      {/* MOBILE SEGMENTED TABS (CANCHAS VS POSICIONES) */}
+      <div className="flex md:hidden relative z-10 w-full items-center p-1.5 bg-[#0a0a14]/95 border-b border-white/10 shrink-0 gap-1.5 px-3">
+        <button
+          type="button"
+          onClick={() => setMobileTab("canchas")}
+          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 transition-all ${
+            mobileTab === "canchas"
+              ? "bg-[#00f5d4]/20 text-[#00f5d4] border border-[#00f5d4]/40 shadow-[0_0_12px_rgba(0,245,212,0.25)]"
+              : "text-neutral-400 hover:text-white bg-white/5"
+          }`}
+        >
+          <LayoutGrid className="h-3.5 w-3.5" />
+          <span>Canchas en Vivo ({partidosDeFecha.length})</span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileTab("posiciones")}
+          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 transition-all ${
+            mobileTab === "posiciones"
+              ? "bg-amber-400/20 text-amber-400 border border-amber-400/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
+              : "text-neutral-400 hover:text-white bg-white/5"
+          }`}
+        >
+          <Trophy className="h-3.5 w-3.5" />
+          <span>Tabla Posiciones</span>
+        </button>
+      </div>
+
       {/* MAIN VIEWPORT (COURTS GRID + LEADERBOARD SIDEBAR) */}
-      <div className="relative z-10 flex-1 min-h-0 flex overflow-hidden p-3 md:p-4 gap-4">
+      <div className="relative z-10 flex-1 min-h-0 flex flex-col md:flex-row overflow-y-auto md:overflow-hidden p-3 md:p-4 gap-4">
         {/* COURTS GRID CONTAINER */}
-        <main className="flex-1 min-h-0 flex flex-col overflow-hidden">
+        <main className={`flex-1 min-h-0 flex-col overflow-y-auto md:overflow-hidden ${mobileTab === "posiciones" ? "hidden md:flex" : "flex"}`}>
           {loading ? (
             <div className="flex-1 flex flex-col items-center justify-center gap-3">
               <RefreshCw className="h-8 w-8 text-[#00f5d4] animate-spin" />
@@ -687,7 +723,7 @@ export default function TorneoTvView() {
                 return (
                   <div
                     key={partido.id}
-                    className={`rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between shadow-2xl backdrop-blur-xl ${
+                    className={`rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between shadow-2xl backdrop-blur-xl min-h-[230px] md:min-h-0 ${
                       isPlaying
                         ? "border-[#00f5d4]/60 bg-gradient-to-b from-[#0a1219]/90 to-[#070b0f]/95 shadow-[0_0_35px_rgba(0,245,212,0.18)] ring-1 ring-[#00f5d4]/40"
                         : hasWinner
@@ -695,13 +731,17 @@ export default function TorneoTvView() {
                         : "border-white/10 bg-neutral-900/70"
                     }`}
                   >
-                    {/* Background Multimedia Backdrop (Photo Overlay) */}
+                    {/* Background Multimedia Backdrop (Photo Overlay with Glassmorphism) */}
                     {fotoUrl && (
-                      <div className="absolute inset-0 pointer-events-none z-0 overflow-hidden">
+                      <div 
+                        className="absolute inset-0 z-0 overflow-hidden cursor-pointer group"
+                        onClick={() => setPreviewPhoto(fotoUrl)}
+                        title="Clic para ver foto del partido en tamaño completo"
+                      >
                         <img
                           src={fotoUrl}
-                          alt="Foto del Partido"
-                          className="w-full h-full object-cover opacity-15 filter blur-[0.5px] scale-105 transition-transform duration-700 hover:scale-110"
+                          alt="Foto Oficial del Partido"
+                          className="w-full h-full object-cover opacity-20 filter blur-[0.5px] scale-100 group-hover:scale-105 transition-transform duration-700"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/80 to-[#07070a]/40" />
                       </div>
@@ -728,10 +768,11 @@ export default function TorneoTvView() {
                           <button
                             type="button"
                             onClick={() => setPreviewPhoto(fotoUrl)}
-                            className="p-1 rounded-md bg-white/10 hover:bg-white/20 text-neutral-300 hover:text-white transition-colors"
-                            title="Ver Foto del Partido"
+                            className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#00f5d4]/15 hover:bg-[#00f5d4]/30 border border-[#00f5d4]/40 text-[#00f5d4] transition-all text-[10px] md:text-[11px] font-black shadow-[0_0_12px_rgba(0,245,212,0.25)] cursor-pointer"
+                            title="Ver Foto Oficial del Partido (Estilo Competencia)"
                           >
-                            <ImageIcon className="h-3.5 w-3.5 text-[#00f5d4]" />
+                            <Camera className="h-3 w-3 md:h-3.5 md:w-3.5" />
+                            <span>FOTO</span>
                           </button>
                         )}
 
@@ -884,11 +925,31 @@ export default function TorneoTvView() {
               })}
             </div>
           )}
+
+          {/* Quick link on mobile to view standings if matches exist */}
+          {partidosDeFecha.length > 0 && (
+            <div className="block md:hidden py-4 text-center">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setMobileTab("posiciones")}
+                className="border-amber-400/40 bg-amber-400/10 text-amber-400 hover:bg-amber-400/20 font-bold text-xs py-2 px-4 rounded-xl"
+              >
+                <Trophy className="h-4 w-4 mr-1.5" /> Ver Tabla de Posiciones Completa
+              </Button>
+            </div>
+          )}
         </main>
 
-        {/* SIDEBAR: LIVE STANDINGS TICKER */}
-        {showSidebar && (
-          <aside className="w-72 lg:w-80 h-full flex flex-col bg-neutral-900/80 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shrink-0 shadow-2xl">
+        {/* SIDEBAR / LEADERBOARD: LIVE STANDINGS TICKER */}
+        {(showSidebar || mobileTab === "posiciones") && (
+          <aside className={`flex-col bg-neutral-900/80 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl ${
+            mobileTab === "posiciones"
+              ? "flex md:hidden w-full min-h-[400px] mb-8"
+              : showSidebar
+              ? "hidden md:flex w-72 lg:w-80 h-full shrink-0"
+              : "hidden"
+          }`}>
             {/* Sidebar Header */}
             <div className="p-3.5 border-b border-white/10 bg-black/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -897,9 +958,21 @@ export default function TorneoTvView() {
                   TABLA DE POSICIONES
                 </span>
               </div>
-              <Badge className="bg-amber-400/15 text-amber-400 border border-amber-400/30 text-[9px] font-mono px-1.5 py-0">
-                EN VIVO
-              </Badge>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-amber-400/15 text-amber-400 border border-amber-400/30 text-[9px] font-mono px-1.5 py-0">
+                  EN VIVO
+                </Badge>
+                {mobileTab === "posiciones" && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setMobileTab("canchas")}
+                    className="md:hidden h-7 text-[10px] font-bold text-[#00f5d4] hover:bg-[#00f5d4]/10 px-2"
+                  >
+                    <ArrowLeft className="h-3 w-3 mr-1" /> Canchas
+                  </Button>
+                )}
+              </div>
             </div>
 
             {/* Sidebar Table Content */}
@@ -984,17 +1057,36 @@ export default function TorneoTvView() {
       {/* FULL PHOTO LIGHTBOX PREVIEW */}
       {previewPhoto && (
         <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-xl flex items-center justify-center p-6 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 bg-black/95 backdrop-blur-2xl flex flex-col items-center justify-center p-3 sm:p-6 animate-in fade-in duration-200"
           onClick={() => setPreviewPhoto(null)}
         >
-          <div className="relative max-w-4xl max-h-[90vh] rounded-2xl overflow-hidden border border-white/20 shadow-[0_0_50px_rgba(0,245,212,0.3)]">
-            <img src={previewPhoto} alt="Foto del Partido" className="w-full h-full object-contain" />
-            <button
-              onClick={() => setPreviewPhoto(null)}
-              className="absolute top-4 right-4 bg-black/60 hover:bg-black/90 text-white rounded-full p-2 border border-white/20 transition-colors"
-            >
-              ✕
-            </button>
+          <div
+            className="relative max-w-4xl max-h-[90vh] w-full rounded-2xl overflow-hidden border border-white/20 shadow-[0_0_60px_rgba(0,245,212,0.3)] bg-neutral-950 flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-3 bg-black/70 border-b border-white/10 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="h-4 w-4 text-[#00f5d4]" />
+                <span className="text-xs font-bold text-white uppercase tracking-wider">
+                  Foto Oficial del Partido · Padel ID Broadcast
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewPhoto(null)}
+                className="bg-white/10 hover:bg-white/20 text-white rounded-full p-1.5 transition-colors"
+                title="Cerrar (Esc)"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden flex items-center justify-center p-2 bg-black/50">
+              <img
+                src={previewPhoto}
+                alt="Foto del Partido Ampliada"
+                className="max-h-[75vh] w-auto max-w-full object-contain rounded-lg"
+              />
+            </div>
           </div>
         </div>
       )}

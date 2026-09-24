@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink } from "lucide-react";
+import { Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { activeTenant } from "@/lib/tenant";
+import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 
 type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string; canchas_count?: number };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
@@ -53,6 +54,8 @@ export default function CanchasEnVivo() {
     { local: "", visitante: "" }, { local: "", visitante: "" }, { local: "", visitante: "" }
   ]);
   const [ganadorSeleccionado, setGanadorSeleccionado] = useState<string | null>(null);
+  const [fotoCanchaEnVivo, setFotoCanchaEnVivo] = useState<string>("");
+  const [isUploadingFotoCancha, setIsUploadingFotoCancha] = useState(false);
   
   const [descargando, setDescargando] = useState(false);
   const flyerRef = useRef<HTMLDivElement>(null);
@@ -296,6 +299,8 @@ export default function CanchasEnVivo() {
     setPartidoCargar(p);
     setSets([{ local: "", visitante: "" }, { local: "", visitante: "" }, { local: "", visitante: "" }]);
     setGanadorSeleccionado(null);
+    setFotoCanchaEnVivo(p.partido_individual_raw?.foto_url || "");
+    setIsUploadingFotoCancha(false);
   };
 
   const tieneSetCargado = useMemo(() => {
@@ -400,6 +405,14 @@ export default function CanchasEnVivo() {
             sets_pareja2: setsP2,
           })
           .eq("id", partidoCargar.id);
+
+        if (fotoCanchaEnVivo) {
+          const tId = partidoCargar.torneo_id || (torneoId !== "todos" ? torneoId : "");
+          if (tId) {
+            const { data: tData } = await supabase.from("torneos").select("notas").eq("id", tId).single();
+            await persistPartidoPhoto(tId, partidoCargar.id, fotoCanchaEnVivo, tData?.notas);
+          }
+        }
       } else {
         const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
         
@@ -802,6 +815,67 @@ export default function CanchasEnVivo() {
                     />
                   </div>
                 ))}
+              </div>
+
+              {/* Foto de Partido para Pantalla TV */}
+              <div className="space-y-2 p-2.5 rounded-lg border border-border/60 bg-muted/20">
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-foreground flex items-center gap-1.5">
+                    <Camera className="h-3.5 w-3.5 text-primary" /> Foto del Partido (TV)
+                  </span>
+                  {fotoCanchaEnVivo && (
+                    <span className="text-[9px] font-bold text-[#00f5d4]">✓ Adjunta</span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold cursor-pointer shrink-0">
+                    <Upload className="h-3 w-3" />
+                    {isUploadingFotoCancha ? "..." : "Subir Foto"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isUploadingFotoCancha}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        const tId = partidoCargar.torneo_id || (torneoId !== "todos" ? torneoId : "");
+                        if (!file || !tId) return;
+                        try {
+                          setIsUploadingFotoCancha(true);
+                          const url = await uploadPartidoPhoto(file, tId, partidoCargar.id);
+                          setFotoCanchaEnVivo(url);
+                          toast.success("Foto cargada con éxito");
+                        } catch (err: any) {
+                          toast.error("Error al procesar foto: " + (err?.message || ""));
+                        } finally {
+                          setIsUploadingFotoCancha(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  <Input
+                    value={fotoCanchaEnVivo}
+                    onChange={(e) => setFotoCanchaEnVivo(e.target.value)}
+                    placeholder="URL directa de foto..."
+                    className="text-xs h-8 flex-1"
+                  />
+                  {fotoCanchaEnVivo && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 text-xs text-destructive px-1.5"
+                      onClick={() => setFotoCanchaEnVivo("")}
+                    >
+                      Quitar
+                    </Button>
+                  )}
+                </div>
+                {fotoCanchaEnVivo && (
+                  <div className="w-full h-20 rounded-md overflow-hidden border border-border">
+                    <img src={fotoCanchaEnVivo} alt="Foto" className="w-full h-full object-cover" />
+                  </div>
+                )}
               </div>
 
               <DialogFooter className="flex flex-col sm:flex-row gap-2">

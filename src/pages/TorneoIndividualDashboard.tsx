@@ -41,8 +41,11 @@ import {
   UserCog,
   RotateCcw,
   X,
-  Tv
+  Tv,
+  Camera,
+  Upload
 } from "lucide-react";
+import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
@@ -220,6 +223,9 @@ export default function TorneoIndividualDashboard() {
     suplente3: "",
     suplente4: "",
   });
+
+  const [scoreMatchPhoto, setScoreMatchPhoto] = useState<string>("");
+  const [isUploadingMatchPhoto, setIsUploadingMatchPhoto] = useState<boolean>(false);
 
   // Final Week Draft modal state
   const [draftDialogOpen, setDraftDialogOpen] = useState(false);
@@ -3008,6 +3014,9 @@ export default function TorneoIndividualDashboard() {
     });
 
     setCurrentWOTeam(extractWOFromNotas(torneo?.notas, p.id));
+    const photo = (p as any).foto_url || extractFotoFromNotas(torneo?.notas, p.id) || "";
+    setScoreMatchPhoto(photo);
+    setIsUploadingMatchPhoto(false);
     setScoreDialogOpen(true);
   };
 
@@ -3142,11 +3151,12 @@ export default function TorneoIndividualDashboard() {
 
       await Promise.all(setPromises);
 
-      // Guardar etiqueta de Walkover en torneos.notas
+      // Guardar etiqueta de Walkover y foto en torneos.notas + BD
       if (torneo && selectedPartido) {
-        const updatedNotas = updateWOInNotas(torneo.notas, selectedPartido.id, currentWOTeam);
+        let updatedNotas = updateWOInNotas(torneo.notas, selectedPartido.id, currentWOTeam);
+        updatedNotas = await persistPartidoPhoto(id!, selectedPartido.id, scoreMatchPhoto, updatedNotas);
         if (updatedNotas !== (torneo.notas || "")) {
-          await (supabase as any).from("torneos").update({ notas: updatedNotas }).eq("id", id);
+          setTorneo({ ...torneo, notas: updatedNotas });
         }
       }
 
@@ -4681,6 +4691,49 @@ export default function TorneoIndividualDashboard() {
                               Finalizado
                             </Badge>
                           )}
+                          {(() => {
+                            const pFoto = (p as any).foto_url || extractFotoFromNotas(torneo?.notas, p.id);
+                            return pFoto ? (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="h-6 px-1.5 text-[10px] font-bold border-[#00f5d4]/40 bg-[#00f5d4]/10 text-[#00f5d4] hover:bg-[#00f5d4]/20 flex items-center gap-1"
+                                onClick={() => {
+                                  setSelectedPartidoConfig(p);
+                                  setMatchConfigForm({
+                                    fecha_programada: p.fecha_programada || "",
+                                    hora_programada: p.hora_programada ? p.hora_programada.substring(0, 5) : "",
+                                    cancha: p.cancha || "",
+                                    foto_url: pFoto,
+                                  });
+                                  setConfigMatchDialogOpen(true);
+                                }}
+                                title="Foto del Partido cargada (Clic para ver/editar)"
+                              >
+                                <Camera className="h-3 w-3" />
+                                <span>Foto</span>
+                              </Button>
+                            ) : (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-6 w-6 text-muted-foreground hover:text-[#00f5d4]"
+                                onClick={() => {
+                                  setSelectedPartidoConfig(p);
+                                  setMatchConfigForm({
+                                    fecha_programada: p.fecha_programada || "",
+                                    hora_programada: p.hora_programada ? p.hora_programada.substring(0, 5) : "",
+                                    cancha: p.cancha || "",
+                                    foto_url: "",
+                                  });
+                                  setConfigMatchDialogOpen(true);
+                                }}
+                                title="Subir Foto del Partido (Pantalla TV)"
+                              >
+                                <Camera className="h-3 w-3" />
+                              </Button>
+                            );
+                          })()}
                           <Button 
                             variant="ghost" 
                             size="icon" 
@@ -5123,24 +5176,19 @@ export default function TorneoIndividualDashboard() {
                   type="file"
                   accept="image/*"
                   className="text-xs h-8 cursor-pointer file:cursor-pointer"
-                  onChange={(e) => {
+                  onChange={async (e) => {
                     const file = e.target.files?.[0];
-                    if (file) {
-                      if (file.size > 3 * 1024 * 1024) {
-                        toast.error("La imagen debe ser menor a 3 MB");
-                        return;
+                    if (file && selectedPartidoConfig && id) {
+                      try {
+                        const url = await uploadPartidoPhoto(file, id, selectedPartidoConfig.id);
+                        setMatchConfigForm((prev) => ({
+                          ...prev,
+                          foto_url: url,
+                        }));
+                        toast.success("Foto procesada con éxito");
+                      } catch (err: any) {
+                        toast.error("Error al procesar foto: " + (err?.message || ""));
                       }
-                      const reader = new FileReader();
-                      reader.onload = (re) => {
-                        if (re.target?.result) {
-                          setMatchConfigForm((prev) => ({
-                            ...prev,
-                            foto_url: re.target?.result as string,
-                          }));
-                          toast.success("Foto cargada con éxito");
-                        }
-                      };
-                      reader.readAsDataURL(file);
                     }
                   }}
                 />
@@ -5414,6 +5462,91 @@ export default function TorneoIndividualDashboard() {
                   />
                 </div>
               </div>
+            </div>
+
+            {/* Foto del Partido Ultra Visible para Pantalla TV */}
+            <div className="border-t pt-3 space-y-2.5 bg-muted/20 p-3 rounded-xl border border-primary/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Camera className="h-4 w-4 text-primary" />
+                  <Label className="text-xs font-bold uppercase tracking-wider text-foreground">
+                    Foto del Partido (Pantalla TV & Multimedia)
+                  </Label>
+                </div>
+                {scoreMatchPhoto ? (
+                  <Badge className="bg-[#00f5d4]/20 text-[#00f5d4] border border-[#00f5d4]/40 text-[10px] font-bold">
+                    ✓ Foto Lista
+                  </Badge>
+                ) : (
+                  <span className="text-[10px] text-muted-foreground italic">Opcional</span>
+                )}
+              </div>
+              <p className="text-[11px] text-muted-foreground">
+                Sube la foto del partido o los jugadores para proyectarla en tiempo real en la Pantalla TV y en el portal público.
+              </p>
+
+              <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
+                <label className="flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-bold cursor-pointer transition-all shadow-sm shrink-0">
+                  <Upload className="h-3.5 w-3.5" />
+                  {isUploadingMatchPhoto ? "Procesando..." : "Subir Foto / Tomar Cámara"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={isUploadingMatchPhoto}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file || !selectedPartido || !id) return;
+                      try {
+                        setIsUploadingMatchPhoto(true);
+                        const url = await uploadPartidoPhoto(file, id, selectedPartido.id);
+                        setScoreMatchPhoto(url);
+                        toast.success("Foto procesada con éxito");
+                      } catch (err: any) {
+                        toast.error("Error al procesar foto: " + (err?.message || ""));
+                      } finally {
+                        setIsUploadingMatchPhoto(false);
+                      }
+                    }}
+                  />
+                </label>
+
+                <div className="flex-1">
+                  <Input
+                    value={scoreMatchPhoto}
+                    onChange={(e) => setScoreMatchPhoto(e.target.value)}
+                    placeholder="O pega URL directa de imagen..."
+                    className="text-xs h-9"
+                  />
+                </div>
+
+                {scoreMatchPhoto && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="h-9 text-xs text-destructive hover:bg-destructive/10 shrink-0"
+                    onClick={() => setScoreMatchPhoto("")}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1" /> Quitar
+                  </Button>
+                )}
+              </div>
+
+              {scoreMatchPhoto && (
+                <div className="relative w-full h-32 rounded-xl overflow-hidden border border-border bg-black/60 shadow-inner group">
+                  <img
+                    src={scoreMatchPhoto}
+                    alt="Vista previa foto del partido"
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <span className="text-xs text-white bg-black/70 px-2.5 py-1 rounded font-semibold">
+                      Vista previa de pantalla TV
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
