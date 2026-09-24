@@ -926,12 +926,16 @@ export default function TorneoIndividualPublico() {
             <Button
               variant="outline"
               size="sm"
-              className="h-8 border-[#00f5d4]/40 bg-[#00f5d4]/10 hover:bg-[#00f5d4]/20 text-[#00f5d4] hover:text-[#00f5d4] font-semibold text-xs gap-1.5 shadow-[0_0_10px_rgba(0,245,212,0.15)]"
+              className="h-8 border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold text-xs gap-1.5 shadow-[0_0_12px_rgba(0,245,212,0.2)] transition-all shrink-0"
               asChild
             >
               <Link to={`/torneo-individual/${torneo?.id}/tv`} target="_blank">
-                <Tv className="h-3.5 w-3.5" />
-                <span className="hidden sm:inline">Modo TV</span>
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00f5d4] opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00f5d4]"></span>
+                </span>
+                <Tv className="h-3.5 w-3.5 text-[#00f5d4]" />
+                <span>Pantalla TV</span>
               </Link>
             </Button>
             <ModeToggle />
@@ -1045,12 +1049,26 @@ export default function TorneoIndividualPublico() {
             )}
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-            <TabsList className={`grid ${ocultarReglamento ? "grid-cols-3 max-w-md" : "grid-cols-4 max-w-lg"} w-full bg-muted text-xs`}>
-              <TabsTrigger value="ranking">Tabla</TabsTrigger>
-              <TabsTrigger value="fixture">Encuentros</TabsTrigger>
-              {!ocultarReglamento && <TabsTrigger value="reglamento">Reglamento</TabsTrigger>}
-              <TabsTrigger value="premios">Premios</TabsTrigger>
-            </TabsList>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+              <TabsList className={`grid ${ocultarReglamento ? "grid-cols-3 max-w-md" : "grid-cols-4 max-w-lg"} w-full bg-muted text-xs`}>
+                <TabsTrigger value="ranking">Tabla</TabsTrigger>
+                <TabsTrigger value="fixture">Encuentros</TabsTrigger>
+                {!ocultarReglamento && <TabsTrigger value="reglamento">Reglamento</TabsTrigger>}
+                <TabsTrigger value="premios">Premios</TabsTrigger>
+              </TabsList>
+
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold text-xs gap-1.5 shadow-[0_0_12px_rgba(0,245,212,0.15)] transition-all shrink-0 self-start sm:self-auto"
+                asChild
+              >
+                <Link to={`/torneo-individual/${torneo?.id}/tv`} target="_blank">
+                  <Tv className="h-3.5 w-3.5 text-[#00f5d4]" />
+                  <span>Pantalla TV / Canchas en Vivo</span>
+                </Link>
+              </Button>
+            </div>
 
             {/* TAB 1: STANDINGS */}
             <TabsContent value="ranking" className="space-y-4">
@@ -1311,17 +1329,30 @@ export default function TorneoIndividualPublico() {
                   </Badge>
                 )}
 
-                {partidosDeFecha.length > 0 && (
+                <div className="ml-auto flex items-center gap-2">
                   <Button
                     size="sm"
                     variant="outline"
-                    className="ml-auto h-7 text-[10px] font-bold border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
-                    onClick={() => setShareFixtureOpen(true)}
+                    className="h-7 text-[10px] font-bold border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] shadow-[0_0_8px_rgba(0,245,212,0.15)] gap-1"
+                    asChild
                   >
-                    <Share2 className="h-3 w-3 mr-1" />
-                    Compartir
+                    <Link to={`/torneo-individual/${torneo?.id}/tv`} target="_blank">
+                      <Tv className="h-3 w-3 text-[#00f5d4]" />
+                      Pantalla TV
+                    </Link>
                   </Button>
-                )}
+                  {partidosDeFecha.length > 0 && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="h-7 text-[10px] font-bold border-indigo-600 text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-950/20"
+                      onClick={() => setShareFixtureOpen(true)}
+                    >
+                      <Share2 className="h-3 w-3 mr-1" />
+                      Compartir
+                    </Button>
+                  )}
+                </div>
               </div>
 
               {!isSelectedFechaPublicada ? (

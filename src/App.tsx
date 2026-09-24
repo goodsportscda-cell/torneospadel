@@ -57,6 +57,7 @@ const App = () => (
                   <Route path="/torneo/:slug" element={<TorneoPublico />} />
                   <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
                   <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
+                  <Route path="/torneo/:id/tv" element={<TorneoTvView />} />
                   <Route path="/tv/:id" element={<TorneoTvView />} />
                   <Route path="/ranking-publico" element={<RankingPublico />} />
                   <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
@@ -70,6 +71,7 @@ const App = () => (
             <Route path="/torneo/:slug" element={<TorneoPublico />} />
             <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
             <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
+            <Route path="/torneo/:id/tv" element={<TorneoTvView />} />
             <Route path="/tv/:id" element={<TorneoTvView />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
             <Route path="/mi-panel" element={<Navigate to="/player/dashboard" replace />} />
@@ -122,6 +124,7 @@ const App = () => (
               <Route path="/configuracion" element={<Configuracion />} />
               <Route path="/marcador" element={<Marcador />} />
               <Route path="/admin/torneo-individual/:id" element={<TorneoIndividualDashboard />} />
+              <Route path="/admin/torneo-individual/:id/tv" element={<TorneoTvView />} />
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>

@@ -3305,11 +3305,15 @@ export default function TorneoIndividualDashboard() {
               <Button
                 variant="outline"
                 size="sm"
-                className="border-[#00f5d4]/40 bg-[#00f5d4]/10 hover:bg-[#00f5d4]/20 text-[#00f5d4] hover:text-[#00f5d4] font-semibold transition-all shadow-[0_0_12px_rgba(0,245,212,0.15)]"
+                className="border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold transition-all shadow-[0_0_15px_rgba(0,245,212,0.2)] gap-1.5"
                 asChild
               >
                 <Link to={`/torneo-individual/${torneo.id}/tv`} target="_blank">
-                  <Tv className="h-4 w-4 mr-1.5 text-[#00f5d4]" />
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00f5d4] opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00f5d4]"></span>
+                  </span>
+                  <Tv className="h-4 w-4 text-[#00f5d4]" />
                   Pantalla TV
                 </Link>
               </Button>
@@ -4483,6 +4487,20 @@ export default function TorneoIndividualDashboard() {
                   >
                     <Share2 className="h-4 w-4 mr-1.5" />
                     Compartir Fixture
+                  </Button>
+                )}
+
+                {torneo && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold shadow-[0_0_12px_rgba(0,245,212,0.2)] transition-all gap-1.5"
+                    asChild
+                  >
+                    <Link to={`/torneo-individual/${torneo.id}/tv`} target="_blank">
+                      <Tv className="h-4 w-4 text-[#00f5d4]" />
+                      Pantalla TV
+                    </Link>
                   </Button>
                 )}
 
