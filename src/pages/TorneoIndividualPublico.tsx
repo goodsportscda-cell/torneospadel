@@ -36,6 +36,9 @@ import {
   applyManualPositions,
   extractPosicionManualFromNotas,
   extractPodioFinalFromNotas,
+  isLigaParejasTournament,
+  extractWOFromNotas,
+  compareLigaParejasStandings,
 } from "@/logic/torneoStandings";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
@@ -339,6 +342,8 @@ export default function TorneoIndividualPublico() {
     }
   }, [fechas]);
 
+  const isLigaParejas = useMemo(() => isLigaParejasTournament(torneo), [torneo]);
+
   const esPuntosPorSet = useMemo(() => Boolean(
     (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
     torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
@@ -497,55 +502,103 @@ export default function TorneoIndividualPublico() {
           }
         }
 
-        // Apply rules for forfeits if sub limit > 2
-        const p1Forfeit = sA.suplenciasUsadas > 2;
-        const p2Forfeit = sB.suplenciasUsadas > 2;
+        if (isLigaParejas) {
+          const woTeam = extractWOFromNotas(torneo?.notas, m.id);
+          if (woTeam === 1) {
+            // Pareja A infractor W.O. (-1 pt)
+            sA.puntos -= 1;
+            sB.puntos += 3;
+            sB.setsGanados += 2;
+            sA.setsPerdidos += 2;
+            sB.gamesGanados += 12;
+            sA.gamesPerdidos += 12;
+          } else if (woTeam === 2) {
+            // Pareja B infractor W.O. (-1 pt)
+            sB.puntos -= 1;
+            sA.puntos += 3;
+            sA.setsGanados += 2;
+            sB.setsPerdidos += 2;
+            sA.gamesGanados += 12;
+            sB.gamesPerdidos += 12;
+          } else {
+            // Resultado normal al mejor de 3 sets o Super Tie-break
+            const isSTB = (setsP1 === 2 && setsP2 === 1) || (setsP1 === 1 && setsP2 === 2);
+            if (p1Won) {
+              sA.puntos += isSTB ? 2 : 3;
+              sB.puntos += isSTB ? 1 : 0;
+            } else {
+              sB.puntos += isSTB ? 2 : 3;
+              sA.puntos += isSTB ? 1 : 0;
+            }
 
-        if (p1Forfeit && p2Forfeit) {
-          // Both forfeited: 0-0 games, 0-2 sets, 1pt each
-          sA.puntos += 1;
-          sB.puntos += 1;
-          sA.setsPerdidos += 2;
-          sB.setsPerdidos += 2;
-          sA.gamesPerdidos += 12;
-          sB.gamesPerdidos += 12;
-        } else if (p1Forfeit) {
-          // Couple A forfeit
-          sB.puntos += ptsWinner;
-          sA.puntos += 1;
-          sB.setsGanados += 2;
-          sA.setsPerdidos += 2;
-          sB.gamesGanados += 12;
-          sA.gamesPerdidos += 12;
-        } else if (p2Forfeit) {
-          // Couple B forfeit
-          sA.puntos += ptsWinner;
-          sB.puntos += 1;
-          sA.setsGanados += 2;
-          sB.setsPerdidos += 2;
-          sA.gamesGanados += 12;
-          sB.gamesPerdidos += 12;
+            sA.setsGanados += m.sets_pareja1;
+            sA.setsPerdidos += m.sets_pareja2;
+            sB.setsGanados += m.sets_pareja2;
+            sB.setsPerdidos += m.sets_pareja1;
+
+            let gA = 0;
+            let gB = 0;
+            m.sets?.forEach((s: any) => {
+              gA += s.games_pareja1;
+              gB += s.games_pareja2;
+            });
+
+            sA.gamesGanados += gA;
+            sA.gamesPerdidos += gB;
+            sB.gamesGanados += gB;
+            sB.gamesPerdidos += gA;
+          }
         } else {
-          // Normal scoring
-          sA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWinner : ptsLoser);
-          sB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWinner : ptsLoser);
+          // Apply rules for forfeits if sub limit > 2 (Torneo 8 Semanas Parejas)
+          const p1Forfeit = sA.suplenciasUsadas > 2;
+          const p2Forfeit = sB.suplenciasUsadas > 2;
 
-          sA.setsGanados += m.sets_pareja1;
-          sA.setsPerdidos += m.sets_pareja2;
-          sB.setsGanados += m.sets_pareja2;
-          sB.setsPerdidos += m.sets_pareja1;
+          if (p1Forfeit && p2Forfeit) {
+            // Both forfeited: 0-0 games, 0-2 sets, 1pt each
+            sA.puntos += 1;
+            sB.puntos += 1;
+            sA.setsPerdidos += 2;
+            sB.setsPerdidos += 2;
+            sA.gamesPerdidos += 12;
+            sB.gamesPerdidos += 12;
+          } else if (p1Forfeit) {
+            // Couple A forfeit
+            sB.puntos += ptsWinner;
+            sA.puntos += 1;
+            sB.setsGanados += 2;
+            sA.setsPerdidos += 2;
+            sB.gamesGanados += 12;
+            sA.gamesPerdidos += 12;
+          } else if (p2Forfeit) {
+            // Couple B forfeit
+            sA.puntos += ptsWinner;
+            sB.puntos += 1;
+            sA.setsGanados += 2;
+            sB.setsPerdidos += 2;
+            sA.gamesGanados += 12;
+            sB.gamesPerdidos += 12;
+          } else {
+            // Normal scoring
+            sA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWinner : ptsLoser);
+            sB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWinner : ptsLoser);
 
-          let gA = 0;
-          let gB = 0;
-          m.sets?.forEach((s: any) => {
-            gA += s.games_pareja1;
-            gB += s.games_pareja2;
-          });
+            sA.setsGanados += m.sets_pareja1;
+            sA.setsPerdidos += m.sets_pareja2;
+            sB.setsGanados += m.sets_pareja2;
+            sB.setsPerdidos += m.sets_pareja1;
 
-          sA.gamesGanados += gA;
-          sA.gamesPerdidos += gB;
-          sB.gamesGanados += gB;
-          sB.gamesPerdidos += gA;
+            let gA = 0;
+            let gB = 0;
+            m.sets?.forEach((s: any) => {
+              gA += s.games_pareja1;
+              gB += s.games_pareja2;
+            });
+
+            sA.gamesGanados += gA;
+            sA.gamesPerdidos += gB;
+            sB.gamesGanados += gB;
+            sB.gamesPerdidos += gA;
+          }
         }
       });
 
@@ -556,6 +609,9 @@ export default function TorneoIndividualPublico() {
       }));
 
       const defaultSorter = (a: any, b: any) => {
+        if (isLigaParejas) {
+          return compareLigaParejasStandings(a, b, finalizedMatches);
+        }
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
         if (b.difSets !== a.difSets) return b.difSets - a.difSets;
         if (b.difGames !== a.difGames) return b.difGames - a.difGames;
@@ -854,7 +910,11 @@ export default function TorneoIndividualPublico() {
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight">{torneo?.nombre || "Muro de Resultados"}</h1>
               <Badge className="bg-indigo-600 text-white text-[10px] uppercase font-bold tracking-wider">
-                {torneo?.modalidad === "parejas" ? "Desafío Parejas" : "Americano"}
+                {isLigaParejas
+                  ? "Liga de Parejas (11 Semanas)"
+                  : torneo?.modalidad === "parejas"
+                  ? "Desafío Parejas"
+                  : "Americano"}
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
@@ -1276,6 +1336,7 @@ export default function TorneoIndividualPublico() {
                 <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-3">
                   {partidosDeFecha.map((p) => {
                     const hasWinner = p.estado === "finalizado";
+                    const woTeam = extractWOFromNotas(torneo?.notas, p.id);
                     const isUserInMatch = Boolean(
                       currentUserJugador && (
                         p.jugador1_id === currentUserJugador.id ||
@@ -1296,8 +1357,20 @@ export default function TorneoIndividualPublico() {
                       >
                         <div>
                           <div className={`px-3 py-1.5 text-[10px] font-bold uppercase border-b flex items-center justify-between ${getCanchaColor(p.cancha)}`}>
-                            <span>{esPuntosPorSet ? p.cancha.replace(/:\s*(Élite|Desafío|Base|Promoción)/i, "") : p.cancha}</span>
+                            <div className="flex flex-col">
+                              <span>{esPuntosPorSet ? p.cancha.replace(/:\s*(Élite|Desafío|Base|Promoción)/i, "") : p.cancha}</span>
+                              {isLigaParejas && selectedFechaNum === 11 && (
+                                <span className="text-[9px] text-amber-600 dark:text-amber-400 font-extrabold tracking-tight">
+                                  {p.cancha.includes("Cancha 1") ? "🏆 Gran Final (1° vs 2°)" : p.cancha.includes("Cancha 2") ? "🥉 Duelo Podio (3° vs 4°)" : "⚡ Permanencia (5° vs 6°)"}
+                                </span>
+                              )}
+                            </div>
                             <div className="flex items-center gap-1.5">
+                              {woTeam && (
+                                <Badge variant="destructive" className="text-[8px] font-extrabold uppercase px-1 py-0 h-4">
+                                  W.O. P{woTeam}
+                                </Badge>
+                              )}
                               {isUserInMatch && (
                                 <Badge className="bg-[#9d4edd] hover:bg-[#8338ec] text-white text-[8px] font-extrabold uppercase px-1.5 py-0 h-4 border-none shadow-none">
                                   Tu Partido
@@ -1430,7 +1503,9 @@ export default function TorneoIndividualPublico() {
                       Reglamento Oficial - Liga Crown Pádel
                     </CardTitle>
                     <CardDescription className="text-xs">
-                      {esPuntosPorSet
+                      {isLigaParejas
+                        ? "Liga de 6 parejas: 10 fechas todos contra todos ida y vuelta + Semana 11 Super Day."
+                        : esPuntosPorSet
                         ? "Formato por sumatoria acumulada de puntos por sets ganados."
                         : torneo?.modalidad === "parejas"
                         ? "Formato por parejas fijas de 8 semanas con ascensos y descensos directos por cancha."
@@ -1438,8 +1513,70 @@ export default function TorneoIndividualPublico() {
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="relative z-10 space-y-4 text-xs leading-relaxed text-muted-foreground">
-                    {torneo?.notas?.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim() ? (
-                      <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas.replace(/\[(SISTEMA|SUBTITULO):.*?\]/g, "").trim()}</div>
+                    {torneo?.notas?.replace(/\[.*?\]/g, "").trim() ? (
+                      <div className="whitespace-pre-wrap text-sm text-foreground/90">{torneo.notas.replace(/\[.*?\]/g, "").trim()}</div>
+                  ) : isLigaParejas ? (
+                    <>
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Trophy className="h-4 w-4 text-secondary" /> 1. Estructura y Formato del Torneo
+                        </h3>
+                        <p>
+                          La competición reúne a **6 parejas fijas** compitiendo a lo largo de **11 semanas** en 3 canchas en simultáneo:
+                        </p>
+                        <ul className="list-disc pl-4 space-y-1">
+                          <li><strong>Fase Regular (Semanas 1 a 10):</strong> Sistema round-robin todos contra todos en formato ida y vuelta. Cada pareja enfrenta a cada uno de sus 5 rivales exactamente dos veces.</li>
+                          <li><strong>Super Day (Semana 11):</strong> Jornada final de definición por posiciones definitivas:
+                            <ul className="list-disc pl-4 mt-1 space-y-0.5">
+                              <li><strong>Cancha 1:</strong> 1° vs 2° — Gran Final por el Título de Campeones.</li>
+                              <li><strong>Cancha 2:</strong> 3° vs 4° — Duelo por el 3° Puesto y Podio.</li>
+                              <li><strong>Cancha 3:</strong> 5° vs 6° — Duelo por el 5° Puesto y Permanencia.</li>
+                            </ul>
+                          </li>
+                        </ul>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <Award className="h-4 w-4 text-indigo-500" /> 2. Formato de Partidos y Sistema de Puntuación
+                        </h3>
+                        <p>
+                          Los encuentros se juegan al mejor de 3 sets (dos sets tradicionales a 6 games con diferencia de 2 y tie-break a 7 en caso de 6-6; si empatan 1-1 en sets, se define en un Súper Tie-break a 10 puntos con diferencia de 2).
+                        </p>
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                          <div className="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                            <span className="font-bold block text-xs">Victoria 2-0 en Sets</span>
+                            <span className="text-[11px] block mt-0.5"><strong>+3 Puntos</strong> al ganador</span>
+                            <span className="text-[10px] text-muted-foreground block">0 puntos al perdedor</span>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/20 text-blue-700 dark:text-blue-300">
+                            <span className="font-bold block text-xs">Victoria 2-1 (STB)</span>
+                            <span className="text-[11px] block mt-0.5"><strong>+2 Puntos</strong> al ganador</span>
+                            <span className="text-[10px] text-muted-foreground block"><strong>+1 Punto</strong> al perdedor</span>
+                          </div>
+                          <div className="p-2.5 rounded-lg bg-rose-500/10 border border-rose-500/20 text-rose-700 dark:text-rose-300">
+                            <span className="font-bold block text-xs">Walkover (W.O.)</span>
+                            <span className="text-[11px] block mt-0.5"><strong>-1 Punto</strong> al infractor</span>
+                            <span className="text-[10px] text-muted-foreground block">3 pts al ganador (0-6 / 0-6)</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <h3 className="font-bold text-foreground flex items-center gap-1.5 text-sm">
+                          <TrendingUp className="h-4 w-4 text-amber-500" /> 3. Criterios Oficiales de Desempate
+                        </h3>
+                        <p>
+                          En caso de igualdad en la puntuación general, los criterios de desempate son:
+                        </p>
+                        <ol className="list-decimal pl-4 space-y-1">
+                          <li><strong>Puntos totales:</strong> Mayor cantidad de puntos acumulados.</li>
+                          <li><strong>Enfrentamiento directo (Head-to-Head):</strong> Puntos obtenidos en los duelos directos entre las parejas igualadas.</li>
+                          <li><strong>Diferencia de Sets:</strong> Sets a favor menos sets en contra en todo el certamen.</li>
+                          <li><strong>Diferencia de Games:</strong> Games a favor menos games en contra en todo el certamen.</li>
+                        </ol>
+                      </div>
+                    </>
                   ) : esPuntosPorSet ? (
                     <>
                       <div className="space-y-2">

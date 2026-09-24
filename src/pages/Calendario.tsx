@@ -259,7 +259,9 @@ export default function Calendario() {
       costo_fecha_jugador: t.costo_fecha_jugador?.toString() ?? "10000",
       costo_fecha_cancha: t.costo_fecha_cancha?.toString() ?? "22000",
       porcentaje_premios: t.porcentaje_premios?.toString() ?? "60",
-      modalidad: t.modalidad ?? "individual",
+      modalidad: (t.modalidad === "liga_parejas" || t.notas?.includes("[SISTEMA:liga_parejas]"))
+        ? "liga_parejas"
+        : (t.modalidad ?? "individual"),
     });
     setDialogOpen(true);
   };
@@ -286,6 +288,17 @@ export default function Calendario() {
       computedFechaFin = `${ey}-${em}-${ed}`;
     }
 
+    let finalNotas = form.notas.trim() || null;
+    if (form.modalidad === "liga_parejas") {
+      if (!finalNotas) {
+        finalNotas = "[SISTEMA:liga_parejas]";
+      } else if (!finalNotas.includes("[SISTEMA:liga_parejas]")) {
+        finalNotas = `${finalNotas} [SISTEMA:liga_parejas]`;
+      }
+    } else if (finalNotas?.includes("[SISTEMA:liga_parejas]")) {
+      finalNotas = finalNotas.replace(/\[SISTEMA:liga_parejas\]/g, "").trim() || null;
+    }
+
     const payload = {
       nombre: form.nombre.trim(),
       tipo: form.tipo,
@@ -297,7 +310,7 @@ export default function Calendario() {
       sede: form.sede.trim() || null,
       costo_inscripcion: form.costo_inscripcion ? Number(form.costo_inscripcion) : null,
       estado: form.estado,
-      notas: form.notas.trim() || null,
+      notas: finalNotas,
       numero_fecha: form.numero_fecha ? Number(form.numero_fecha) : null,
       multiplicador_puntos: form.multiplicador_puntos ? Number(form.multiplicador_puntos) : 1,
       desafio_semanas: form.tipo === "americano_individual" ? Math.max(7, Number(form.desafio_semanas) || 8) : null,
@@ -308,7 +321,7 @@ export default function Calendario() {
       costo_fecha_jugador: form.tipo === "americano_individual" ? Number(form.costo_fecha_jugador) || 10000 : null,
       costo_fecha_cancha: form.tipo === "americano_individual" ? Number(form.costo_fecha_cancha) || 22000 : null,
       porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) || 60 : null,
-      modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
+      modalidad: form.tipo === "americano_individual" ? (form.modalidad === "liga_parejas" ? "parejas" : (form.modalidad || "individual")) : null,
       club_id: clubId,
     };
 
@@ -721,14 +734,23 @@ export default function Calendario() {
                     <Label htmlFor="modalidad">Modalidad *</Label>
                     <Select
                       value={form.modalidad || "individual"}
-                      onValueChange={(v) => setForm({ ...form, modalidad: v })}
+                      onValueChange={(v) => {
+                        if (v === "liga_parejas") {
+                          setForm({ ...form, modalidad: v, desafio_semanas: "11", canchas_count: "3" });
+                        } else if (v === "parejas") {
+                          setForm({ ...form, modalidad: v, desafio_semanas: "8", canchas_count: "3" });
+                        } else {
+                          setForm({ ...form, modalidad: v });
+                        }
+                      }}
                     >
                       <SelectTrigger id="modalidad">
                         <SelectValue placeholder="Modalidad" />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="individual">Individual</SelectItem>
-                        <SelectItem value="parejas">Parejas</SelectItem>
+                        <SelectItem value="parejas">Parejas (8 Semanas)</SelectItem>
+                        <SelectItem value="liga_parejas">Liga de Parejas (11 Semanas - Super Day)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

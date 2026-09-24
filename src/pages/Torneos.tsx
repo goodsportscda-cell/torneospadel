@@ -290,7 +290,9 @@ export default function Torneos() {
       ingresos_sponsors: t.ingresos_sponsors?.toString() ?? "0",
       gastos_trofeos: t.gastos_trofeos?.toString() ?? "0",
       gastos_regalos: t.gastos_regalos?.toString() ?? "0",
-      modalidad: t.modalidad ?? "individual",
+      modalidad: (t.modalidad === "liga_parejas" || t.notas?.includes("[SISTEMA:liga_parejas]"))
+        ? "liga_parejas"
+        : (t.modalidad ?? "individual"),
       datos_bancarios: t.datos_bancarios ?? "",
     });
     setDialogOpen(true);
@@ -350,9 +352,20 @@ export default function Torneos() {
       computedFechaFin = `${ey}-${em}-${ed}`;
     }
 
+    let finalNotas = form.notas.trim() || null;
+    if (form.modalidad === "liga_parejas") {
+      if (!finalNotas) {
+        finalNotas = "[SISTEMA:liga_parejas]";
+      } else if (!finalNotas.includes("[SISTEMA:liga_parejas]")) {
+        finalNotas = `${finalNotas} [SISTEMA:liga_parejas]`;
+      }
+    } else if (finalNotas?.includes("[SISTEMA:liga_parejas]")) {
+      finalNotas = finalNotas.replace(/\[SISTEMA:liga_parejas\]/g, "").trim() || null;
+    }
+
     const payload: any = {
       nombre: form.nombre.trim(),
-      // slug, // Temporalmente deshabilitado por error de cache en Supabase
+      slug: generateSlug(form.nombre),
       tipo: form.tipo,
       categoria_id: form.tipo === "oficial" ? form.categoria_id : null,
       categoria_libre: (form.tipo === "americano" || form.tipo === "americano_individual") ? form.categoria_libre.trim() : null,
@@ -363,7 +376,7 @@ export default function Torneos() {
       costo_inscripcion: form.costo_inscripcion ? Number(form.costo_inscripcion) : null,
       premios: form.premios.trim() || null,
       estado: form.estado,
-      notas: form.notas.trim() || null,
+      notas: finalNotas,
       numero_fecha: form.numero_fecha ? Number(form.numero_fecha) : null,
       multiplicador_puntos: form.multiplicador_puntos ? Number(form.multiplicador_puntos) : 1,
       cupo_maximo: form.cupo_maximo ? Number(form.cupo_maximo) : null,
@@ -375,7 +388,7 @@ export default function Torneos() {
       ingresos_sponsors: form.tipo === "americano_individual" ? Number(form.ingresos_sponsors) || 0 : null,
       gastos_trofeos: form.tipo === "americano_individual" ? Number(form.gastos_trofeos) || 0 : null,
       gastos_regalos: form.tipo === "americano_individual" ? Number(form.gastos_regalos) || 0 : null,
-      modalidad: form.tipo === "americano_individual" ? (form.modalidad || "individual") : null,
+      modalidad: form.tipo === "americano_individual" ? (form.modalidad === "liga_parejas" ? "parejas" : (form.modalidad || "individual")) : null,
       datos_bancarios: form.datos_bancarios || null,
       club_id: clubId, // Se asigna automáticamente al club del admin
       ...(form.estado === "finalizado" ? { ranking_publicado: true } : {}),
@@ -774,14 +787,23 @@ export default function Torneos() {
                           <Label htmlFor="modalidad">Modalidad *</Label>
                           <Select
                             value={form.modalidad || "individual"}
-                            onValueChange={(v) => setForm({ ...form, modalidad: v })}
+                            onValueChange={(v) => {
+                              if (v === "liga_parejas") {
+                                setForm({ ...form, modalidad: v, desafio_semanas: "11", canchas_count: "3" });
+                              } else if (v === "parejas") {
+                                setForm({ ...form, modalidad: v, desafio_semanas: "8", canchas_count: "3" });
+                              } else {
+                                setForm({ ...form, modalidad: v });
+                              }
+                            }}
                           >
                             <SelectTrigger id="modalidad">
                               <SelectValue placeholder="Modalidad" />
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="individual">Individual</SelectItem>
-                              <SelectItem value="parejas">Parejas</SelectItem>
+                              <SelectItem value="parejas">Parejas (8 Semanas)</SelectItem>
+                              <SelectItem value="liga_parejas">Liga de Parejas (11 Semanas - Super Day)</SelectItem>
                             </SelectContent>
                           </Select>
                         </div>
@@ -807,7 +829,7 @@ export default function Torneos() {
                             placeholder="Ej: 3"
                           />
                           <span className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
-                            {form.canchas_count ? (form.modalidad === 'parejas' ? `${Number(form.canchas_count) * 2} parejas` : `${Number(form.canchas_count) * 4} jugadores`) : ""}
+                            {form.canchas_count ? ((form.modalidad === 'parejas' || form.modalidad === 'liga_parejas') ? `${Number(form.canchas_count) * 2} parejas` : `${Number(form.canchas_count) * 4} jugadores`) : ""}
                           </span>
                         </div>
                       </div>

@@ -57,7 +57,14 @@ import {
   updatePosicionManualInNotas,
   extractPodioFinalFromNotas,
   updatePodioFinalInNotas,
+  isLigaParejasTournament,
+  extractWOFromNotas,
+  updateWOInNotas,
+  compareLigaParejasStandings,
+  getLigaParejasMatchupsForFecha,
+  getSuperDayMatchups,
 } from "@/logic/torneoStandings";
+
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -186,6 +193,7 @@ export default function TorneoIndividualDashboard() {
 
   // Modals state
   const [scoreDialogOpen, setScoreDialogOpen] = useState(false);
+  const [currentWOTeam, setCurrentWOTeam] = useState<1 | 2 | null>(null);
   const [selectedPartido, setSelectedPartido] = useState<PartidoInd | null>(null);
   const [setsInput, setSetsInput] = useState<{
     set1_local: string;
@@ -336,10 +344,13 @@ export default function TorneoIndividualDashboard() {
       const pctPremios = tRes.porcentaje_premios ?? 60;
       const parsed = parsePremiosString(tRes.premios);
       const totalCash = Math.round((ganProj * pctPremios) / 100);
+      const isLiga = isLigaParejasTournament(tRes);
       const isPuntosPorSet = Boolean(
-        (tRes as any)?.sistema_puntuacion === "puntos_por_set" ||
-        tRes?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-        tRes?.canchas_count === 2
+        !isLiga && (
+          (tRes as any)?.sistema_puntuacion === "puntos_por_set" ||
+          tRes?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+          tRes?.canchas_count === 2
+        )
       );
 
       const extractedSubtitulo = (tRes as any)?.subtitulo_fase || 
@@ -358,7 +369,7 @@ export default function TorneoIndividualDashboard() {
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
         notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO):.*?\]/g, "").replace(/\[OCULTAR_REGLAMENTO\]/g, "").trim() || "",
-        sistema_puntuacion: isPuntosPorSet ? "puntos_por_set" : "por_cancha",
+        sistema_puntuacion: isLiga ? "liga_parejas" : isPuntosPorSet ? "puntos_por_set" : "por_cancha",
         subtitulo_fase: extractedSubtitulo,
         ocultar_reglamento: Boolean(tRes.notas?.includes("[OCULTAR_REGLAMENTO]")),
       });
@@ -492,14 +503,17 @@ export default function TorneoIndividualDashboard() {
   const computedStandings = useMemo(() => {
     if (!torneo) return [];
     const countCanchas = torneo.canchas_count ?? 3;
+    const isLigaParejas = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
     const esPuntosPorSet = Boolean(
-      settingsForm.sistema_puntuacion === "puntos_por_set" ||
-      (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-      torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-      torneo?.canchas_count === 2
+      !isLigaParejas && (
+        settingsForm.sistema_puntuacion === "puntos_por_set" ||
+        (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
+        torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+        torneo?.canchas_count === 2
+      )
     );
 
-    if (torneo.modalidad === "parejas") {
+    if (torneo.modalidad === "parejas" || isLigaParejas) {
       interface CoupleStanding {
         pareja_id: string;
         jugador1_id: string;
@@ -646,7 +660,7 @@ export default function TorneoIndividualDashboard() {
         let ptsLose = 1;
 
         // Reglamento Oficial (Semanas 9 y 10 de Definición por Tabla Viva)
-        if (!esPuntosPorSet) {
+        if (!esPuntosPorSet && !isLigaParejas) {
           if (p.fecha === 9) {
             ptsWin = 4;
             ptsLose = 1;
@@ -656,21 +670,68 @@ export default function TorneoIndividualDashboard() {
           }
         }
 
-        // Couple A
-        standA.partidosJugados++;
-        standA.setsGanados += setsP1;
-        standA.setsPerdidos += setsP2;
-        standA.gamesGanados += gamesP1;
-        standA.gamesPerdidos += gamesP2;
-        standA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWin : ptsLose);
+        const woInfractor = extractWOFromNotas(torneo?.notas, p.id);
 
-        // Couple B
-        standB.partidosJugados++;
-        standB.setsGanados += setsP2;
-        standB.setsPerdidos += setsP1;
-        standB.gamesGanados += gamesP2;
-        standB.gamesPerdidos += gamesP1;
-        standB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWin : ptsLose);
+        if (isLigaParejas) {
+          // Lógica Oficial Liga de Parejas:
+          // 2-0: 3 pts (0 al perdedor)
+          // 2-1 (STB): 2 pts (1 al perdedor)
+          // W.O.: -1 pt al infractor, 3 pts al ganador (0-6 / 0-6)
+          if (woInfractor === 1) {
+            standA.puntos += -1;
+            standB.puntos += 3;
+            standA.setsPerdidos += 2;
+            standB.setsGanados += 2;
+            standA.gamesPerdidos += 12;
+            standB.gamesGanados += 12;
+            standA.partidosJugados++;
+            standB.partidosJugados++;
+          } else if (woInfractor === 2) {
+            standA.puntos += 3;
+            standB.puntos += -1;
+            standA.setsGanados += 2;
+            standB.setsPerdidos += 2;
+            standA.gamesGanados += 12;
+            standB.gamesPerdidos += 12;
+            standA.partidosJugados++;
+            standB.partidosJugados++;
+          } else {
+            const wentToSTB = (setsP1 === 2 && setsP2 === 1) || (setsP1 === 1 && setsP2 === 2);
+            if (wentToSTB) {
+              standA.puntos += p1Won ? 2 : 1;
+              standB.puntos += !p1Won ? 2 : 1;
+            } else {
+              standA.puntos += p1Won ? 3 : 0;
+              standB.puntos += !p1Won ? 3 : 0;
+            }
+            standA.partidosJugados++;
+            standB.partidosJugados++;
+            standA.setsGanados += setsP1;
+            standA.setsPerdidos += setsP2;
+            standB.setsGanados += setsP2;
+            standB.setsPerdidos += setsP1;
+            standA.gamesGanados += gamesP1;
+            standA.gamesPerdidos += gamesP2;
+            standB.gamesGanados += gamesP2;
+            standB.gamesPerdidos += gamesP1;
+          }
+        } else {
+          // Couple A
+          standA.partidosJugados++;
+          standA.setsGanados += setsP1;
+          standA.setsPerdidos += setsP2;
+          standA.gamesGanados += gamesP1;
+          standA.gamesPerdidos += gamesP2;
+          standA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWin : ptsLose);
+
+          // Couple B
+          standB.partidosJugados++;
+          standB.setsGanados += setsP2;
+          standB.setsPerdidos += setsP1;
+          standB.gamesGanados += gamesP2;
+          standB.gamesPerdidos += gamesP1;
+          standB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWin : ptsLose);
+        }
       });
 
       const list = Array.from(standingsMap.values()).map((s) => ({
@@ -680,6 +741,9 @@ export default function TorneoIndividualDashboard() {
       }));
 
       const defaultSorter = (a: any, b: any) => {
+        if (isLigaParejas) {
+          return compareLigaParejasStandings(a, b, partidos);
+        }
         if (b.puntos !== a.puntos) return b.puntos - a.puntos;
         if (b.difSets !== a.difSets) return b.difSets - a.difSets;
         if (b.difGames !== a.difGames) return b.difGames - a.difGames;
@@ -1270,7 +1334,9 @@ export default function TorneoIndividualDashboard() {
       .replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO):.*?\]/g, "")
       .replace(/\[OCULTAR_REGLAMENTO\]/g, "")
       .trim();
-    if (settingsForm.sistema_puntuacion === "puntos_por_set") {
+    if (settingsForm.sistema_puntuacion === "liga_parejas") {
+      finalNotas = finalNotas ? `${finalNotas} [SISTEMA:liga_parejas]` : "[SISTEMA:liga_parejas]";
+    } else if (settingsForm.sistema_puntuacion === "puntos_por_set") {
       finalNotas = finalNotas ? `${finalNotas} [SISTEMA:puntos_por_set]` : "[SISTEMA:puntos_por_set]";
     }
     if (settingsForm.subtitulo_fase.trim()) {
@@ -1294,6 +1360,7 @@ export default function TorneoIndividualDashboard() {
       gastos_regalos: gastosRegalos,
       premios: premiosTexto || null,
       notas: finalNotas || null,
+      ...(settingsForm.sistema_puntuacion === "liga_parejas" ? { modalidad: "liga_parejas" } : {}),
     };
 
     let { error } = await (supabase as any)
@@ -1585,6 +1652,53 @@ export default function TorneoIndividualDashboard() {
   const handleGenerarFecha1 = async () => {
     if (!id || !torneo) return;
     const courtsCount = torneo.canchas_count ?? 3;
+
+    const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
+    if (isLiga) {
+      if (parejas.length !== 6) {
+        toast.error(`La Liga de Parejas requiere exactamente 6 parejas inscriptas (tienes ${parejas.length})`);
+        return;
+      }
+      try {
+        const { data: dateRow, error: fErr } = await (supabase as any)
+          .from("torneo_individual_fechas")
+          .upsert({
+            torneo_id: id,
+            fecha: 1,
+            estado: "pendiente",
+            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * 3,
+            publicado: false,
+          }, { onConflict: "torneo_id, fecha" })
+          .select()
+          .single();
+
+        if (fErr) throw fErr;
+
+        await (supabase as any).from("partidos_individuales").delete().eq("torneo_id", id).eq("fecha", 1);
+
+        const matchups = getLigaParejasMatchupsForFecha(1, parejas);
+        const matchPromises = matchups.map((m) =>
+          (supabase as any).from("partidos_individuales").insert({
+            torneo_id: id,
+            fecha: 1,
+            cancha: m.cancha,
+            jugador1_id: m.jugador1_id,
+            jugador2_id: m.jugador2_id,
+            jugador3_id: m.jugador3_id,
+            jugador4_id: m.jugador4_id,
+            estado: "pendiente" as const,
+          })
+        );
+
+        await Promise.all(matchPromises);
+        toast.success("Fecha 1 de Liga de Parejas generada con éxito");
+        fetchTournamentData();
+      } catch (e: any) {
+        console.error(e);
+        toast.error("Error al generar la Fecha 1: " + e.message);
+      }
+      return;
+    }
 
     if (torneo.modalidad === "parejas") {
       if (courtsCount !== 3) {
@@ -2032,6 +2146,58 @@ export default function TorneoIndividualDashboard() {
     if (torneo.modalidad === "parejas" && courtsCount !== 3) {
       toast.error("La modalidad de parejas fijas requiere exactamente 3 canchas.");
       return;
+    }
+
+    const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
+    if (isLiga) {
+      if (fechaNum === 11) {
+        await handleGenerarSuperDay();
+        return;
+      }
+      if (fechaNum >= 2 && fechaNum <= 10) {
+        if (parejas.length !== 6) {
+          toast.error(`La Liga de Parejas requiere exactamente 6 parejas inscriptas (tienes ${parejas.length})`);
+          return;
+        }
+        try {
+          const { data: dateRow, error: fErr } = await (supabase as any)
+            .from("torneo_individual_fechas")
+            .upsert({
+              torneo_id: id,
+              fecha: fechaNum,
+              costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * 3,
+              estado: "pendiente",
+            }, { onConflict: "torneo_id, fecha" })
+            .select()
+            .single();
+
+          if (fErr) throw fErr;
+
+          await (supabase as any).from("partidos_individuales").delete().eq("torneo_id", id).eq("fecha", fechaNum);
+
+          const matchups = getLigaParejasMatchupsForFecha(fechaNum, parejas);
+          const promises = matchups.map((m) =>
+            (supabase as any).from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: fechaNum,
+              cancha: m.cancha,
+              jugador1_id: m.jugador1_id,
+              jugador2_id: m.jugador2_id,
+              jugador3_id: m.jugador3_id,
+              jugador4_id: m.jugador4_id,
+              estado: "pendiente" as const,
+            })
+          );
+          await Promise.all(promises);
+          toast.success(`Fecha ${fechaNum} de Liga de Parejas generada con éxito`);
+          fetchTournamentData();
+          return;
+        } catch (e: any) {
+          console.error(e);
+          toast.error(`Error al generar la Fecha ${fechaNum}: ` + e.message);
+          return;
+        }
+      }
     }
 
     // Check if the previous week was completed
@@ -2509,6 +2675,131 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
+  // Matchmaking engine: Super Day (Semana 11) para Liga de Parejas
+  const handleGenerarSuperDay = async () => {
+    if (!id || !torneo) return;
+    if (standings.length < 6) {
+      toast.error("Se requieren al menos 6 parejas en la tabla de posiciones para generar el Super Day.");
+      return;
+    }
+
+    try {
+      const { data: dateRow, error: fErr } = await (supabase as any)
+        .from("torneo_individual_fechas")
+        .upsert({
+          torneo_id: id,
+          fecha: 11,
+          costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * 3,
+          estado: "pendiente",
+          publicado: false,
+        }, { onConflict: "torneo_id, fecha" })
+        .select()
+        .single();
+
+      if (fErr) throw fErr;
+
+      // Limpiar partidos existentes de fecha 11 si hubiera alguno
+      await (supabase as any)
+        .from("partidos_individuales")
+        .delete()
+        .eq("torneo_id", id)
+        .eq("fecha", 11);
+
+      // Cruces oficiales Super Day:
+      // Cancha 1: 1° vs 2° (Gran Final)
+      // Cancha 2: 3° vs 4° (Duelo por el Podio)
+      // Cancha 3: 5° vs 6° (Permanencia)
+      const matchups = getSuperDayMatchups(standings);
+      const matchPromises = matchups.map((m) =>
+        (supabase as any).from("partidos_individuales").insert({
+          torneo_id: id,
+          fecha: 11,
+          cancha: m.cancha,
+          jugador1_id: m.jugador1_id,
+          jugador2_id: m.jugador2_id,
+          jugador3_id: m.jugador3_id,
+          jugador4_id: m.jugador4_id,
+          estado: "pendiente" as const,
+        })
+      );
+
+      await Promise.all(matchPromises);
+
+      // Inyectar leyenda de Semana 11 en torneos.notas si no existiera
+      if (!torneo.notas?.includes("[LEYENDA_FECHA_11:")) {
+        const updatedNotas = `${torneo.notas || ""} [LEYENDA_FECHA_11:Super Day (Finales)]`.trim();
+        await (supabase as any).from("torneos").update({ notas: updatedNotas }).eq("id", id);
+      }
+
+      toast.success("¡Semana 11 (Super Day) generada con éxito: 1°v2° Final, 3°v4° Podio, 5°v6° Permanencia!");
+      await queryClient.invalidateQueries({ queryKey: ["torneo", id] });
+      await queryClient.invalidateQueries({ queryKey: ["fechas"] });
+      await queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar el Super Day: " + e.message);
+    }
+  };
+
+  // Generar Fixture Completo (Fechas 1 a 10) para Liga de Parejas
+  const handleGenerarFixtureCompletoLiga = async () => {
+    if (!id || !torneo) return;
+    if (parejas.length !== 6) {
+      toast.error(`La Liga de Parejas requiere exactamente 6 parejas inscriptas (tienes ${parejas.length})`);
+      return;
+    }
+    if (!window.confirm("¿Deseas generar el fixture completo de las 10 fechas regulares (Ida y Vuelta) de la Liga de Parejas?")) return;
+
+    try {
+      const fechaPromises = [];
+      const matchPromises = [];
+
+      for (let f = 1; f <= 10; f++) {
+        fechaPromises.push(
+          (supabase as any).from("torneo_individual_fechas").upsert({
+            torneo_id: id,
+            fecha: f,
+            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * 3,
+            estado: "pendiente",
+            publicado: false,
+          }, { onConflict: "torneo_id, fecha" })
+        );
+
+        // Limpiar partidos existentes de esa fecha
+        await (supabase as any).from("partidos_individuales").delete().eq("torneo_id", id).eq("fecha", f);
+
+        const matchups = getLigaParejasMatchupsForFecha(f, parejas);
+        matchups.forEach((m) => {
+          matchPromises.push(
+            (supabase as any).from("partidos_individuales").insert({
+              torneo_id: id,
+              fecha: f,
+              cancha: m.cancha,
+              jugador1_id: m.jugador1_id,
+              jugador2_id: m.jugador2_id,
+              jugador3_id: m.jugador3_id,
+              jugador4_id: m.jugador4_id,
+              estado: "pendiente" as const,
+            })
+          );
+        });
+      }
+
+      await Promise.all(fechaPromises);
+      await Promise.all(matchPromises);
+
+      toast.success("¡Fixture completo de las 10 fechas regulares generado con éxito!");
+      await queryClient.invalidateQueries({ queryKey: ["torneo", id] });
+      await queryClient.invalidateQueries({ queryKey: ["fechas"] });
+      await queryClient.invalidateQueries({ queryKey: ["partidos"] });
+      fetchTournamentData();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al generar fixture completo: " + e.message);
+    }
+  };
+
   // Final Week Draft modal trigger
   const handleOpenDraftWeek8 = () => {
     const finalWeek = torneo?.desafio_semanas ?? 8;
@@ -2697,6 +2988,7 @@ export default function TorneoIndividualDashboard() {
       set3_visitante: s3?.games_pareja2?.toString() ?? "",
     });
 
+    setCurrentWOTeam(extractWOFromNotas(torneo?.notas, p.id));
     setScoreDialogOpen(true);
   };
 
@@ -2729,11 +3021,14 @@ export default function TorneoIndividualDashboard() {
     const g3_local = parseInt(set3_local, 10);
     const g3_visi = parseInt(set3_visitante, 10);
 
+    const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
     const esPuntosPorSet = Boolean(
-      settingsForm.sistema_puntuacion === "puntos_por_set" ||
-      (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-      torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-      torneo?.canchas_count === 2
+      !isLiga && (
+        settingsForm.sistema_puntuacion === "puntos_por_set" ||
+        (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
+        torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
+        torneo?.canchas_count === 2
+      )
     );
 
     if (setsLocal === 1 && setsVisi === 1) {
@@ -2743,7 +3038,7 @@ export default function TorneoIndividualDashboard() {
           return;
         }
 
-        if (torneo?.modalidad === "parejas") {
+        if (torneo?.modalidad === "parejas" && !isLiga) {
           if (g3_local !== 7 && g3_visi !== 7) {
             toast.error("El Supertiebreak es 'a 7 a morir'. El ganador debe tener exactamente 7 puntos.");
             return;
@@ -2827,6 +3122,15 @@ export default function TorneoIndividualDashboard() {
       }
 
       await Promise.all(setPromises);
+
+      // Guardar etiqueta de Walkover en torneos.notas
+      if (torneo && selectedPartido) {
+        const updatedNotas = updateWOInNotas(torneo.notas, selectedPartido.id, currentWOTeam);
+        if (updatedNotas !== (torneo.notas || "")) {
+          await (supabase as any).from("torneos").update({ notas: updatedNotas }).eq("id", id);
+        }
+      }
+
       toast.success("Resultado guardado");
       setScoreDialogOpen(false);
       fetchTournamentData();
@@ -2876,7 +3180,13 @@ export default function TorneoIndividualDashboard() {
       toast.error("Error al cerrar la fecha: " + error.message);
     } else {
       toast.success(`Fecha ${selectedFechaNum} cerrada con éxito`);
-      fetchTournamentData();
+      const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
+      if (isLiga && selectedFechaNum === 10) {
+        toast.info("Generando automáticamente los cruces de la Semana 11 (Super Day)...");
+        await handleGenerarSuperDay();
+      } else {
+        fetchTournamentData();
+      }
     }
   };
 
@@ -3892,7 +4202,13 @@ export default function TorneoIndividualDashboard() {
                         <Label className="text-[10px] uppercase font-bold text-muted-foreground">Sistema de Puntuación</Label>
                         <Select
                           value={settingsForm.sistema_puntuacion}
-                          onValueChange={(val) => setSettingsForm({ ...settingsForm, sistema_puntuacion: val })}
+                          onValueChange={(val) => {
+                            if (val === "liga_parejas") {
+                              setSettingsForm({ ...settingsForm, sistema_puntuacion: val, desafio_semanas: "11", canchas_count: "3" });
+                            } else {
+                              setSettingsForm({ ...settingsForm, sistema_puntuacion: val });
+                            }
+                          }}
                         >
                           <SelectTrigger className="h-8 text-xs font-semibold bg-background">
                             <SelectValue placeholder="Seleccionar..." />
@@ -3900,6 +4216,7 @@ export default function TorneoIndividualDashboard() {
                           <SelectContent>
                             <SelectItem value="por_cancha">Por Cancha (Ganador/Perdedor según cancha)</SelectItem>
                             <SelectItem value="puntos_por_set">1 Punto por Set Ganado (2-0 = 2pts, 1-1 = 1pt c/u)</SelectItem>
+                            <SelectItem value="liga_parejas">Liga de Parejas (Ida y Vuelta + Super Day)</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -4201,31 +4518,51 @@ export default function TorneoIndividualDashboard() {
                   </div>
                   {isAdmin && selectedFechaNum === 1 ? (
                     <div className="flex flex-col gap-2">
-                      <Button onClick={handleGenerarFecha1}>
-                        <Settings className="h-4 w-4 mr-1.5" />
-                        Sorteo Inicial e Inaugurar Fecha 1
-                      </Button>
-                      {jugadoresInscriptos.length === 8 && torneo?.modalidad !== "parejas" && (
-                        <Button onClick={handleGenerarFixture8} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                          <Settings className="h-4 w-4 mr-1.5" />
-                          Generar Fixture (8 Jugadores)
-                        </Button>
-                      )}
-                      {jugadoresInscriptos.length === 12 && torneo?.modalidad !== "parejas" && (
-                        <Button onClick={handleGenerarFixture12} className="bg-indigo-600 hover:bg-indigo-700 text-white">
-                          <Settings className="h-4 w-4 mr-1.5" />
-                          Generar Fixture (12 Jugadores)
-                        </Button>
+                      {isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) ? (
+                        <>
+                          <Button onClick={handleGenerarFecha1} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                            <Settings className="h-4 w-4 mr-1.5" />
+                            Generar Fecha 1 de Liga (6 Parejas)
+                          </Button>
+                          <Button onClick={handleGenerarFixtureCompletoLiga} variant="outline" className="border-indigo-500 text-indigo-400 hover:bg-indigo-950/20">
+                            <CalendarDays className="h-4 w-4 mr-1.5" />
+                            Generar Fixture Completo (Fechas 1 a 10)
+                          </Button>
+                        </>
+                      ) : (
+                        <>
+                          <Button onClick={handleGenerarFecha1}>
+                            <Settings className="h-4 w-4 mr-1.5" />
+                            Sorteo Inicial e Inaugurar Fecha 1
+                          </Button>
+                          {jugadoresInscriptos.length === 8 && torneo?.modalidad !== "parejas" && (
+                            <Button onClick={handleGenerarFixture8} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                              <Settings className="h-4 w-4 mr-1.5" />
+                              Generar Fixture (8 Jugadores)
+                            </Button>
+                          )}
+                          {jugadoresInscriptos.length === 12 && torneo?.modalidad !== "parejas" && (
+                            <Button onClick={handleGenerarFixture12} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                              <Settings className="h-4 w-4 mr-1.5" />
+                              Generar Fixture (12 Jugadores)
+                            </Button>
+                          )}
+                        </>
                       )}
                     </div>
-                  ) : isAdmin && selectedFechaNum === ((torneo?.desafio_semanas ?? 8) - 1) && torneo?.modalidad !== "parejas" && jugadoresInscriptos.length === 12 ? (
+                  ) : isAdmin && isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) && selectedFechaNum === 11 ? (
+                    <Button onClick={handleGenerarSuperDay} className="bg-amber-600 hover:bg-amber-700 text-white font-bold">
+                      <Trophy className="h-4 w-4 mr-1.5" />
+                      Generar Cruces Super Day (Semana 11)
+                    </Button>
+                  ) : isAdmin && selectedFechaNum === ((torneo?.desafio_semanas ?? 8) - 1) && torneo?.modalidad !== "parejas" && !isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) && jugadoresInscriptos.length === 12 ? (
                     <div className="flex flex-col gap-2">
                       <Button onClick={handleGenerarSemifinales12Jugadores} className="bg-blue-600 hover:bg-blue-700 text-white">
                         <Trophy className="h-4 w-4 mr-1.5" />
                         Generar Semifinales y Cruces Posicionales (Semana {selectedFechaNum})
                       </Button>
                     </div>
-                  ) : isAdmin && selectedFechaNum === (torneo?.desafio_semanas ?? 8) ? (
+                  ) : isAdmin && selectedFechaNum === (torneo?.desafio_semanas ?? 8) && !isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) ? (
                     torneo?.modalidad === "parejas" ? (
                       <Button onClick={handleGenerarFecha8Parejas}>
                         Generar Gran Final y Cruces Finales (Semana {torneo?.desafio_semanas ?? 8})
@@ -4261,12 +4598,19 @@ export default function TorneoIndividualDashboard() {
               <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                 {partidosDeFecha.map((p) => {
                   const hasWinner = p.estado === "finalizado";
+                  const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
+                  const woTeam = extractWOFromNotas(torneo?.notas, p.id);
 
                   return (
                     <Card key={p.id} className="relative overflow-hidden">
                       <div className="bg-muted px-3 py-1.5 text-xs font-semibold flex items-start justify-between border-b gap-2">
                         <div className="flex flex-col">
                           <span>{p.cancha}</span>
+                          {isLiga && selectedFechaNum === 11 && (
+                            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-bold tracking-tight">
+                              {p.cancha === "Cancha 1" ? "🏆 Gran Final (1° vs 2°)" : p.cancha === "Cancha 2" ? "🥉 Duelo Podio (3° vs 4°)" : "⚡ Permanencia (5° vs 6°)"}
+                            </span>
+                          )}
                           {(p.fecha_programada || p.hora_programada) && (
                             <span className="text-[10px] text-muted-foreground font-normal mt-0.5 flex items-center gap-1">
                               <Calendar className="h-2.5 w-2.5" />
@@ -4277,6 +4621,11 @@ export default function TorneoIndividualDashboard() {
                           )}
                         </div>
                         <div className="flex items-center gap-1">
+                          {woTeam && (
+                            <Badge variant="destructive" className="py-0 text-[10px] h-4">
+                              W.O. P{woTeam}
+                            </Badge>
+                          )}
                           {hasWinner && (
                             <Badge variant="outline" className="border-primary text-primary py-0 text-[10px] h-4">
                               Finalizado
@@ -4410,7 +4759,9 @@ export default function TorneoIndividualDashboard() {
                       )}
                     </CardTitle>
                     <CardDescription>
-                      Ordenado prioritariamente por posiciones forzadas manuales, y luego por Puntos, Sets Ganados y Diferencia de Games.
+                      {isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion)
+                        ? "Liga de 6 Parejas: Criterios de desempate oficial: 1) Puntos, 2) Enfrentamiento directo entre sí, 3) Diferencia de Sets, 4) Diferencia de Games."
+                        : "Ordenado prioritariamente por posiciones forzadas manuales, y luego por Puntos, Sets Ganados y Diferencia de Games."}
                     </CardDescription>
                   </div>
                   <div className="flex items-center gap-2">
@@ -4769,6 +5120,78 @@ export default function TorneoIndividualDashboard() {
             </div>
           )}
 
+          {isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) && (
+            <div className="bg-amber-500/10 border border-amber-500/30 text-amber-700 dark:text-amber-300 p-2.5 rounded-lg text-xs space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5">
+                🏆 Sistema de Puntuación Liga de Parejas:
+              </div>
+              <ul className="list-disc list-inside text-[11px] space-y-0.5 opacity-90">
+                <li><strong>2-0 en sets:</strong> 3 pts al ganador / 0 pts al perdedor.</li>
+                <li><strong>2-1 en sets (STB):</strong> 2 pts al ganador / 1 pt al perdedor.</li>
+                <li><strong>Walkover (W.O.):</strong> -1 pt al infractor / 3 pts al ganador (0-6 / 0-6).</li>
+              </ul>
+              <div className="pt-2 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={currentWOTeam === 1 ? "destructive" : "outline"}
+                  className="text-[11px] h-7"
+                  onClick={() => {
+                    if (currentWOTeam === 1) {
+                      setCurrentWOTeam(null);
+                    } else {
+                      setCurrentWOTeam(1);
+                      setSetsInput({
+                        set1_local: "0",
+                        set1_visitante: "6",
+                        set2_local: "0",
+                        set2_visitante: "6",
+                        set3_local: "",
+                        set3_visitante: "",
+                      });
+                    }
+                  }}
+                >
+                  {currentWOTeam === 1 ? "✓ W.O. Aplicado: Pareja A (-1 pt)" : "⚡ Declarar W.O. Pareja A (-1 pt)"}
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={currentWOTeam === 2 ? "destructive" : "outline"}
+                  className="text-[11px] h-7"
+                  onClick={() => {
+                    if (currentWOTeam === 2) {
+                      setCurrentWOTeam(null);
+                    } else {
+                      setCurrentWOTeam(2);
+                      setSetsInput({
+                        set1_local: "6",
+                        set1_visitante: "0",
+                        set2_local: "6",
+                        set2_visitante: "0",
+                        set3_local: "",
+                        set3_visitante: "",
+                      });
+                    }
+                  }}
+                >
+                  {currentWOTeam === 2 ? "✓ W.O. Aplicado: Pareja B (-1 pt)" : "⚡ Declarar W.O. Pareja B (-1 pt)"}
+                </Button>
+                {currentWOTeam && (
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="text-[11px] h-7 text-muted-foreground"
+                    onClick={() => setCurrentWOTeam(null)}
+                  >
+                    Quitar W.O.
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
           <div className="space-y-4 py-2">
             {/* Score Grid */}
             <div className="grid grid-cols-4 gap-2 text-center items-center">
@@ -4778,8 +5201,8 @@ export default function TorneoIndividualDashboard() {
               <div className="text-xs font-semibold text-muted-foreground">Set 3 (STB)</div>
 
               {/* Pareja A */}
-              <div className="text-xs font-bold text-left truncate">
-                Pareja A (J1+J2)
+              <div className="text-xs font-bold text-left truncate" title={selectedPartido?.jugador1 ? `${selectedPartido.jugador1.apellido} / ${selectedPartido.jugador2?.apellido}` : "Pareja A"}>
+                {selectedPartido?.jugador1 ? `${selectedPartido.jugador1.apellido} / ${selectedPartido.jugador2?.apellido || ""}` : "Pareja A"}
               </div>
               <Input
                 type="number"
@@ -4805,8 +5228,8 @@ export default function TorneoIndividualDashboard() {
               />
 
               {/* Pareja B */}
-              <div className="text-xs font-bold text-left truncate">
-                Pareja B (J3+J4)
+              <div className="text-xs font-bold text-left truncate" title={selectedPartido?.jugador3 ? `${selectedPartido.jugador3.apellido} / ${selectedPartido.jugador4?.apellido}` : "Pareja B"}>
+                {selectedPartido?.jugador3 ? `${selectedPartido.jugador3.apellido} / ${selectedPartido.jugador4?.apellido || ""}` : "Pareja B"}
               </div>
               <Input
                 type="number"
