@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2 } from "lucide-react";
+import { Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { activeTenant } from "@/lib/tenant";
 
-type Torneo = { id: string; nombre: string };
+type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
 
@@ -32,6 +32,7 @@ export default function CanchasEnVivo() {
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>("");
   const [cantidadCanchas, setCantidadCanchas] = useState(4);
+  const [tvSelectModalOpen, setTvSelectModalOpen] = useState(false);
   
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
@@ -53,14 +54,31 @@ export default function CanchasEnVivo() {
   useEffect(() => {
     supabase
       .from("torneos")
-      .select("id, nombre")
-      .in("estado", ["en_curso", "inscripciones_cerradas", "proximamente"])
-      .order("fecha_inicio", { ascending: false })
+      .select("id, nombre, estado, modalidad")
+      .neq("estado", "cancelado")
+      .order("created_at", { ascending: false })
       .then(({ data }) => {
-        setTorneos(data ?? []);
+        setTorneos((data as Torneo[]) ?? []);
         if (data && data.length > 0 && !torneoId) setTorneoId(data[0].id);
       });
   }, []);
+
+  const torneoActivoSeleccionado = useMemo(() => {
+    return torneos.find(t => t.id === torneoId);
+  }, [torneos, torneoId]);
+
+  const handleOpenTvMode = (targetTorneoId?: string) => {
+    const selectedId = targetTorneoId || (torneoId !== "todos" && torneoId ? torneoId : torneos[0]?.id);
+    if (!selectedId) {
+      toast.error("No hay torneos registrados para proyectar en TV");
+      return;
+    }
+    if (!targetTorneoId && (torneoId === "todos" || !torneoId) && torneos.length > 1) {
+      setTvSelectModalOpen(true);
+      return;
+    }
+    window.open(`/torneo-individual/${selectedId}/tv`, "_blank");
+  };
 
   const cargarDatos = async () => {
     if (!torneoId) return;
@@ -360,6 +378,20 @@ export default function CanchasEnVivo() {
           <p className="text-sm text-muted-foreground">Monitor en vivo de canchas</p>
         </div>
         <div className="flex gap-2 items-center flex-wrap">
+          <Button
+            size="sm"
+            onClick={() => handleOpenTvMode()}
+            className="h-8 border border-cyan-500/60 bg-gradient-to-r from-cyan-500/20 via-purple-600/20 to-cyan-500/20 hover:from-cyan-500/30 hover:to-cyan-500/30 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold text-xs gap-1.5 shadow-[0_0_15px_rgba(0,245,212,0.2)] transition-all shrink-0"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#00f5d4] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-[#00f5d4]"></span>
+            </span>
+            <Tv className="h-4 w-4 text-[#00f5d4]" />
+            <span>Abrir Modo Pantalla TV</span>
+            <ExternalLink className="h-3 w-3 opacity-70" />
+          </Button>
+
           <Button variant="outline" size="sm" onClick={descargarImagen} disabled={descargando} className="gap-2 text-xs h-7">
             {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>}
             Descargar
@@ -389,6 +421,45 @@ export default function CanchasEnVivo() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      {/* Banner Cyber Neon de Acceso Directo a Modo Pantalla TV */}
+      <div className="rounded-xl border border-cyan-500/30 bg-gradient-to-r from-[#0a0a14] via-[#0f172a] to-[#0a0a14] p-4 shadow-[0_0_20px_rgba(0,245,212,0.08)] flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3.5">
+          <div className="h-11 w-11 rounded-xl bg-gradient-to-tr from-[#8338ec] to-[#00f5d4] p-[1.5px] shadow-[0_0_15px_rgba(0,245,212,0.25)] shrink-0">
+            <div className="w-full h-full bg-[#0a0a14] rounded-[10px] flex items-center justify-center">
+              <Tv className="h-5 w-5 text-[#00f5d4] animate-pulse" />
+            </div>
+          </div>
+          <div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-sm md:text-base font-extrabold text-white tracking-wide">
+                Modo Pantalla TV Gigante
+              </h2>
+              <Badge className="bg-[#00f5d4]/20 text-[#00f5d4] border border-[#00f5d4]/40 text-[9px] uppercase font-bold tracking-wider">
+                Cyber Neon · Smart TV 16:9
+              </Badge>
+              {torneoActivoSeleccionado && (
+                <Badge variant="outline" className="text-[10px] text-neutral-300 border-white/20">
+                  {torneoActivoSeleccionado.nombre}
+                </Badge>
+              )}
+            </div>
+            <p className="text-xs text-neutral-400 mt-1">
+              Transmisión optimizada para el Smart TV o proyector del complejo: marcador LED en tiempo real, fotos multimedia de parejas, reloj digital y tabla rotativa.
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2.5 w-full md:w-auto shrink-0">
+          <Button
+            onClick={() => handleOpenTvMode()}
+            className="w-full md:w-auto border border-cyan-500/60 bg-gradient-to-r from-cyan-500/25 via-purple-600/25 to-cyan-500/25 hover:from-cyan-500/40 hover:to-cyan-500/40 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold text-xs gap-2 shadow-[0_0_20px_rgba(0,245,212,0.25)] transition-all h-9"
+          >
+            <Tv className="h-4 w-4 text-[#00f5d4]" />
+            <span>Abrir Modo Pantalla TV</span>
+            <ExternalLink className="h-3.5 w-3.5 opacity-80" />
+          </Button>
         </div>
       </div>
 
@@ -578,6 +649,65 @@ export default function CanchasEnVivo() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal Cyber Neon para seleccionar torneo al transmitir a TV */}
+      <Dialog open={tvSelectModalOpen} onOpenChange={setTvSelectModalOpen}>
+        <DialogContent className="max-w-md bg-[#0a0a14] border border-[#00f5d4]/40 text-white shadow-[0_0_30px_rgba(0,245,212,0.15)]">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2.5 text-white font-extrabold text-base">
+              <div className="h-8 w-8 rounded-xl bg-gradient-to-tr from-[#8338ec] to-[#00f5d4] p-[1.5px] flex items-center justify-center shrink-0 shadow-[0_0_12px_rgba(0,245,212,0.3)]">
+                <div className="w-full h-full bg-[#0a0a14] rounded-[9px] flex items-center justify-center">
+                  <Tv className="h-4 w-4 text-[#00f5d4]" />
+                </div>
+              </div>
+              Seleccionar Torneo para Pantalla TV
+            </DialogTitle>
+          </DialogHeader>
+          <p className="text-xs text-neutral-400">
+            Elige el torneo que deseas proyectar en la pantalla gigante o Smart TV del club:
+          </p>
+          <div className="space-y-2 mt-2 max-h-[320px] overflow-y-auto pr-1">
+            {torneos.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => {
+                  setTvSelectModalOpen(false);
+                  window.open(`/torneo-individual/${t.id}/tv`, "_blank");
+                }}
+                className="w-full text-left p-3 rounded-lg border border-white/10 hover:border-[#00f5d4]/50 bg-white/5 hover:bg-[#00f5d4]/10 transition-all flex items-center justify-between group cursor-pointer"
+              >
+                <div>
+                  <p className="text-sm font-bold text-white group-hover:text-[#00f5d4] transition-colors">
+                    {t.nombre}
+                  </p>
+                  <p className="text-[10px] text-neutral-400 mt-0.5">
+                    {t.modalidad === "liga_parejas"
+                      ? "🏆 Liga de Parejas (11 Semanas)"
+                      : t.modalidad === "parejas"
+                      ? "Desafío Parejas"
+                      : "Americano Individual / Torneo"}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs text-[#00f5d4] font-bold opacity-80 group-hover:opacity-100 shrink-0 ml-2">
+                  <span>Proyectar TV</span>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </div>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setTvSelectModalOpen(false)}
+              className="text-neutral-400 hover:text-white"
+            >
+              Cerrar
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
