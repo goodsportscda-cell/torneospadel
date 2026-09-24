@@ -12,20 +12,26 @@ import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { activeTenant } from "@/lib/tenant";
 
-type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string };
+type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string; canchas_count?: number };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
 
 type Partido = {
   id: string;
-  origen: "zona" | "llave";
+  origen: "zona" | "llave" | "individual";
   faseNombre: string;
   pareja_local_id: string | null;
   pareja_visitante_id: string | null;
+  pareja_local_label?: string;
+  pareja_visitante_label?: string;
   estado: string;
   cancha: string | null;
   fecha_hora: string | null;
+  hora_display?: string | null;
   ganador_id: string | null;
+  torneo_id?: string;
+  fecha_num?: number;
+  partido_individual_raw?: any;
 };
 
 export default function CanchasEnVivo() {
@@ -54,18 +60,30 @@ export default function CanchasEnVivo() {
   useEffect(() => {
     supabase
       .from("torneos")
-      .select("id, nombre, estado, modalidad")
+      .select("id, nombre, estado, modalidad, canchas_count")
       .neq("estado", "cancelado")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
-        setTorneos((data as Torneo[]) ?? []);
-        if (data && data.length > 0 && !torneoId) setTorneoId(data[0].id);
+        const torneosData = (data as Torneo[]) ?? [];
+        setTorneos(torneosData);
+        if (torneosData.length > 0 && !torneoId) {
+          setTorneoId(torneosData[0].id);
+          if (torneosData[0].canchas_count) {
+            setCantidadCanchas(torneosData[0].canchas_count);
+          }
+        }
       });
   }, []);
 
   const torneoActivoSeleccionado = useMemo(() => {
     return torneos.find(t => t.id === torneoId);
   }, [torneos, torneoId]);
+
+  useEffect(() => {
+    if (torneoActivoSeleccionado?.canchas_count) {
+      setCantidadCanchas(torneoActivoSeleccionado.canchas_count);
+    }
+  }, [torneoActivoSeleccionado]);
 
   const handleOpenTvMode = (targetTorneoId?: string) => {
     const selectedId = targetTorneoId || (torneoId !== "todos" && torneoId ? torneoId : torneos[0]?.id);
@@ -98,12 +116,17 @@ export default function CanchasEnVivo() {
       setInscripciones((ins ?? []) as Inscripcion[]);
       setJugadores((jugs ?? []) as Jugador[]);
 
-      const { data: zs } = await supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds);
-      const { data: lls } = await supabase.from("llaves").select("id, tamanio_cuadro, torneo_id").in("torneo_id", torneoIds);
+      const [{ data: zs }, { data: lls }, { data: pInd }] = await Promise.all([
+        supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds),
+        supabase.from("llaves").select("id, tamanio_cuadro, torneo_id").in("torneo_id", torneoIds),
+        supabase.from("partidos_individuales").select("*").in("torneo_id", torneoIds).order("fecha", { ascending: false }),
+      ]);
 
       const tMap = new Map(torneos.map(t => [t.id, t.nombre]));
+      const jugsMap = new Map((jugs ?? []).map(j => [j.id, j]));
       let partsArr: Partido[] = [];
 
+      // 1. Partidos tradicionales por Zonas
       if (zs && zs.length > 0) {
         const zMap = new Map(zs.map(z => [z.id, { nombre: z.nombre, torneo_id: z.torneo_id }]));
         const { data: pz } = await supabase.from("partidos_zona").select("*").in("zona_id", zs.map(z => z.id));
@@ -114,7 +137,7 @@ export default function CanchasEnVivo() {
             const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
             return {
               id: p.id,
-              origen: "zona",
+              origen: "zona" as const,
               faseNombre: `${prefix}${zInfo?.nombre || "Zona"}`,
               pareja_local_id: p.pareja_local_id,
               pareja_visitante_id: p.pareja_visitante_id,
@@ -127,6 +150,7 @@ export default function CanchasEnVivo() {
         }
       }
 
+      // 2. Partidos tradicionales por Llaves
       if (lls && lls.length > 0) {
         const llMap = new Map(lls.map(l => [l.id, l.torneo_id]));
         const { data: pl } = await supabase.from("partidos_llave").select("*").in("llave_id", lls.map(l => l.id));
@@ -137,7 +161,7 @@ export default function CanchasEnVivo() {
             const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
             return {
               id: p.id,
-              origen: "llave",
+              origen: "llave" as const,
               faseNombre: `${prefix}${p.ronda}`,
               pareja_local_id: p.pareja_local_id,
               pareja_visitante_id: p.pareja_visitante_id,
@@ -148,6 +172,49 @@ export default function CanchasEnVivo() {
             };
           }));
         }
+      }
+
+      // 3. Partidos de Torneos Semanales / Individuales / Desafíos / Liga de Parejas
+      if (pInd && pInd.length > 0) {
+        partsArr = partsArr.concat(pInd.map(p => {
+          const tNombre = tMap.get(p.torneo_id) || "";
+          const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
+
+          const j1 = jugsMap.get(p.jugador1_id);
+          const j2 = jugsMap.get(p.jugador2_id);
+          const j3 = jugsMap.get(p.jugador3_id);
+          const j4 = jugsMap.get(p.jugador4_id);
+
+          const pareja1Label = `${j1 ? `${j1.apellido}, ${j1.nombre}` : (p.suplente1_nombre || "?")} / ${j2 ? `${j2.apellido}, ${j2.nombre}` : (p.suplente2_nombre || "?")}`;
+          const pareja2Label = `${j3 ? `${j3.apellido}, ${j3.nombre}` : (p.suplente3_nombre || "?")} / ${j4 ? `${j4.apellido}, ${j4.nombre}` : (p.suplente4_nombre || "?")}`;
+
+          let fechaHoraStr = null;
+          if (p.fecha_programada) {
+            fechaHoraStr = p.hora_programada 
+              ? `${p.fecha_programada}T${p.hora_programada}` 
+              : `${p.fecha_programada}T00:00:00`;
+          }
+
+          const horaDisplay = p.hora_programada ? p.hora_programada.substring(0, 5) + " hs" : null;
+
+          return {
+            id: p.id,
+            origen: "individual" as const,
+            faseNombre: `${prefix}Fecha ${p.fecha || 1}`,
+            pareja_local_id: p.id + "-p1",
+            pareja_visitante_id: p.id + "-p2",
+            pareja_local_label: pareja1Label,
+            pareja_visitante_label: pareja2Label,
+            estado: p.estado,
+            cancha: p.cancha,
+            fecha_hora: fechaHoraStr,
+            hora_display: horaDisplay,
+            ganador_id: (p.sets_pareja1 ?? 0) > (p.sets_pareja2 ?? 0) ? p.id + "-p1" : (p.sets_pareja2 ?? 0) > (p.sets_pareja1 ?? 0) ? p.id + "-p2" : null,
+            torneo_id: p.torneo_id,
+            fecha_num: p.fecha,
+            partido_individual_raw: p,
+          };
+        }));
       }
 
       setPartidos(partsArr);
@@ -164,9 +231,25 @@ export default function CanchasEnVivo() {
 
   const jugadorMap = useMemo(() => new Map(jugadores.map((j) => [j.id, j])), [jugadores]);
 
-  const parejaLabel = (inscripcionId: string | null): string => {
-    if (!inscripcionId) return "Por definir";
-    const ins = inscripciones.find((i) => i.id === inscripcionId);
+  const parseCanchaNum = (canchaStr: string | null | undefined): string | null => {
+    if (!canchaStr) return null;
+    const match = canchaStr.match(/\d+/);
+    return match ? match[0] : null;
+  };
+
+  const parejaLabel = (pIdOrInsId: string | null, partido?: Partido): string => {
+    if (!pIdOrInsId) return "Por definir";
+    if (partido?.origen === "individual") {
+      if (pIdOrInsId === partido.pareja_local_id) return partido.pareja_local_label || "Pareja 1";
+      if (pIdOrInsId === partido.pareja_visitante_id) return partido.pareja_visitante_label || "Pareja 2";
+    }
+    const found = partidos.find(p => p.pareja_local_id === pIdOrInsId || p.pareja_visitante_id === pIdOrInsId);
+    if (found && found.origen === "individual") {
+      return pIdOrInsId === found.pareja_local_id 
+        ? (found.pareja_local_label || "Pareja 1")
+        : (found.pareja_visitante_label || "Pareja 2");
+    }
+    const ins = inscripciones.find((i) => i.id === pIdOrInsId);
     if (!ins) return "—";
     const j1 = jugadorMap.get(ins.jugador1_id);
     const j2 = jugadorMap.get(ins.jugador2_id);
@@ -188,15 +271,24 @@ export default function CanchasEnVivo() {
     const p = partidos.find(x => x.id === partidoId);
     if (!p) return;
     
-    const tabla = p.origen === "zona" ? "partidos_zona" : "partidos_llave";
     const toastId = toast.loading("Asignando...");
-    const { error } = await supabase.from(tabla).update({ cancha: cancha, estado: "en_juego" }).eq("id", p.id);
-    if (error) {
-      toast.error("Error al asignar", { id: toastId });
-    } else {
+    try {
+      if (p.origen === "individual") {
+        const { error } = await supabase
+          .from("partidos_individuales")
+          .update({ cancha: `Cancha ${cancha}`, estado: "en_juego" })
+          .eq("id", p.id);
+        if (error) throw error;
+      } else {
+        const tabla = p.origen === "zona" ? "partidos_zona" : "partidos_llave";
+        const { error } = await supabase.from(tabla).update({ cancha: cancha, estado: "en_juego" }).eq("id", p.id);
+        if (error) throw error;
+      }
       toast.success("Partido en juego", { id: toastId });
       setAsignarCanchaNum(null);
       cargarDatos();
+    } catch (err: any) {
+      toast.error("Error al asignar: " + (err?.message || ""), { id: toastId });
     }
   };
 
@@ -215,34 +307,58 @@ export default function CanchasEnVivo() {
     const toastId = toast.loading("Guardando resultado parcial...");
     
     try {
-      const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
-      
-      await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
-      
-      const inserts = sets
-        .map((s, i) => ({
-          numero_set: i + 1,
-          games_local: parseInt(s.local),
-          games_visitante: parseInt(s.visitante),
-          partido_id: partidoCargar.origen === "zona" ? partidoCargar.id : null,
-          partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
-        }))
-        .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
+      if (partidoCargar.origen === "individual") {
+        await supabase
+          .from("sets_partido_individual")
+          .delete()
+          .eq("partido_individual_id", partidoCargar.id);
 
-      if (inserts.length > 0) {
-        await supabase.from("sets_partido").insert(inserts as never);
+        const inserts = sets
+          .map((s, i) => ({
+            partido_individual_id: partidoCargar.id,
+            numero_set: i + 1,
+            games_pareja1: parseInt(s.local),
+            games_pareja2: parseInt(s.visitante),
+          }))
+          .filter(s => !isNaN(s.games_pareja1) && !isNaN(s.games_pareja2));
+
+        if (inserts.length > 0) {
+          await supabase.from("sets_partido_individual").insert(inserts);
+        }
+
+        await supabase
+          .from("partidos_individuales")
+          .update({ estado: "en_juego" })
+          .eq("id", partidoCargar.id);
+      } else {
+        const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
+        await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
+        
+        const inserts = sets
+          .map((s, i) => ({
+            numero_set: i + 1,
+            games_local: parseInt(s.local),
+            games_visitante: parseInt(s.visitante),
+            partido_id: partidoCargar.origen === "zona" ? partidoCargar.id : null,
+            partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
+          }))
+          .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
+
+        if (inserts.length > 0) {
+          await supabase.from("sets_partido").insert(inserts as never);
+        }
+
+        await supabase.from(tabla).update({
+          estado: "en_juego",
+          ganador_id: null
+        }).eq("id", partidoCargar.id);
       }
 
-      await supabase.from(tabla).update({
-        estado: "en_juego",
-        ganador_id: null
-      }).eq("id", partidoCargar.id);
-
-      toast.success("Resultado parcial guardado", { id: toastId });
+      toast.success("Resultado guardado", { id: toastId });
       setPartidoCargar(null);
       cargarDatos();
-    } catch (e) {
-      toast.error("Ocurrió un error", { id: toastId });
+    } catch (e: any) {
+      toast.error("Ocurrió un error: " + (e?.message || ""), { id: toastId });
     }
   };
 
@@ -251,46 +367,92 @@ export default function CanchasEnVivo() {
     const toastId = toast.loading("Guardando...");
     
     try {
-      const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
-      
-      const inserts = sets
-        .map((s, i) => ({
-          numero_set: i + 1,
-          games_local: parseInt(s.local),
-          games_visitante: parseInt(s.visitante),
-          partido_id: partidoCargar.origen === "zona" ? partidoCargar.id : null,
-          partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
-        }))
-        .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
+      if (partidoCargar.origen === "individual") {
+        await supabase
+          .from("sets_partido_individual")
+          .delete()
+          .eq("partido_individual_id", partidoCargar.id);
 
-      if (inserts.length === 0) {
-        toast.error("Debe ingresar los resultados de los sets para marcar un ganador.", { id: toastId });
-        return;
+        const inserts = sets
+          .map((s, i) => ({
+            partido_individual_id: partidoCargar.id,
+            numero_set: i + 1,
+            games_pareja1: parseInt(s.local),
+            games_pareja2: parseInt(s.visitante),
+          }))
+          .filter(s => !isNaN(s.games_pareja1) && !isNaN(s.games_pareja2));
+
+        if (inserts.length === 0) {
+          toast.error("Debe ingresar los resultados de los sets para marcar un ganador.", { id: toastId });
+          return;
+        }
+
+        await supabase.from("sets_partido_individual").insert(inserts);
+
+        const setsP1 = inserts.filter(s => s.games_pareja1 > s.games_pareja2).length;
+        const setsP2 = inserts.filter(s => s.games_pareja2 > s.games_pareja1).length;
+
+        await supabase
+          .from("partidos_individuales")
+          .update({
+            estado: "finalizado",
+            sets_pareja1: setsP1,
+            sets_pareja2: setsP2,
+          })
+          .eq("id", partidoCargar.id);
+      } else {
+        const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
+        
+        const inserts = sets
+          .map((s, i) => ({
+            numero_set: i + 1,
+            games_local: parseInt(s.local),
+            games_visitante: parseInt(s.visitante),
+            partido_id: partidoCargar.origen === "zona" ? partidoCargar.id : null,
+            partido_llave_id: partidoCargar.origen === "llave" ? partidoCargar.id : null,
+          }))
+          .filter(s => !isNaN(s.games_local) && !isNaN(s.games_visitante));
+
+        if (inserts.length === 0) {
+          toast.error("Debe ingresar los resultados de los sets para marcar un ganador.", { id: toastId });
+          return;
+        }
+
+        await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
+
+        if (inserts.length > 0) {
+          await supabase.from("sets_partido").insert(inserts as never);
+        }
+
+        await supabase.from(tabla).update({
+          estado: "finalizado",
+          ganador_id: ganadorSeleccionado
+        }).eq("id", partidoCargar.id);
       }
 
-      await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
-
-      if (inserts.length > 0) {
-        await supabase.from("sets_partido").insert(inserts as never);
-      }
-
-      await supabase.from(tabla).update({
-        estado: "finalizado",
-        ganador_id: ganadorSeleccionado
-      }).eq("id", partidoCargar.id);
-
-      toast.success("Resultado guardado", { id: toastId });
+      toast.success("Resultado guardado y partido finalizado", { id: toastId });
       setPartidoCargar(null);
       cargarDatos();
-    } catch (e) {
-      toast.error("Ocurrió un error", { id: toastId });
+    } catch (e: any) {
+      toast.error("Ocurrió un error: " + (e?.message || ""), { id: toastId });
     }
   };
 
   const liberarCancha = async (p: Partido) => {
-    const tabla = p.origen === "zona" ? "partidos_zona" : "partidos_llave";
-    await supabase.from(tabla).update({ cancha: null, estado: "programado" }).eq("id", p.id);
-    cargarDatos();
+    try {
+      if (p.origen === "individual") {
+        await supabase
+          .from("partidos_individuales")
+          .update({ cancha: null, estado: "pendiente" })
+          .eq("id", p.id);
+      } else {
+        const tabla = p.origen === "zona" ? "partidos_zona" : "partidos_llave";
+        await supabase.from(tabla).update({ cancha: null, estado: "programado" }).eq("id", p.id);
+      }
+      cargarDatos();
+    } catch (err) {
+      console.error(err);
+    }
   };
 
   const descargarImagen = async () => {
@@ -472,7 +634,10 @@ export default function CanchasEnVivo() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
           {canchas.map(numeroCancha => {
-            const partidosEnCancha = partidosActivos.filter(p => p.cancha === numeroCancha || p.cancha === `Cancha ${numeroCancha}`);
+            const partidosEnCancha = partidosActivos.filter(p => {
+              const cNum = parseCanchaNum(p.cancha);
+              return cNum === numeroCancha || p.cancha === numeroCancha || p.cancha === `Cancha ${numeroCancha}`;
+            });
             const enJuego = partidosEnCancha.find(p => p.estado === "en_juego");
             const proximos = partidosEnCancha.filter(p => p.estado !== "en_juego").sort((a, b) => new Date(a.fecha_hora || 0).getTime() - new Date(b.fecha_hora || 0).getTime());
 
@@ -505,11 +670,11 @@ export default function CanchasEnVivo() {
                       </div>
                       <div className="space-y-3">
                         <div className="font-semibold text-sm truncate p-2 bg-muted/30 rounded border border-border/50">
-                          {parejaLabel(enJuego.pareja_local_id)}
+                          {parejaLabel(enJuego.pareja_local_id, enJuego)}
                         </div>
                         <div className="text-[10px] text-muted-foreground text-center italic font-bold uppercase tracking-widest">Versus</div>
                         <div className="font-semibold text-sm truncate p-2 bg-muted/30 rounded border border-border/50">
-                          {parejaLabel(enJuego.pareja_visitante_id)}
+                          {parejaLabel(enJuego.pareja_visitante_id, enJuego)}
                         </div>
                       </div>
                       <Button onClick={() => abrirCargarResultado(enJuego)} className="w-full mt-4 text-xs h-9 bg-primary/90 hover:bg-primary font-bold">
@@ -536,14 +701,14 @@ export default function CanchasEnVivo() {
                           <div key={p.id} className="text-xs border p-2 rounded bg-background shadow-sm space-y-1.5">
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-bold text-[10px] text-primary bg-primary/10 px-1.5 rounded">
-                                {p.fecha_hora ? new Date(p.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Sin hora'}
+                                {p.hora_display || (p.fecha_hora ? new Date(p.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Sin hora')}
                               </span>
                               <span className="text-[9px] text-muted-foreground uppercase font-bold">
                                 {p.faseNombre}
                               </span>
                             </div>
-                            <p className="truncate text-muted-foreground">{parejaLabel(p.pareja_local_id)}</p>
-                            <p className="truncate text-muted-foreground">{parejaLabel(p.pareja_visitante_id)}</p>
+                            <p className="truncate text-foreground font-semibold text-xs">{parejaLabel(p.pareja_local_id, p)}</p>
+                            <p className="truncate text-foreground font-semibold text-xs">{parejaLabel(p.pareja_visitante_id, p)}</p>
                             <div className="flex justify-end pt-1 border-t border-muted/50">
                               <Button
                                 size="sm"
@@ -580,8 +745,8 @@ export default function CanchasEnVivo() {
                 <div key={p.id} className="border p-3 rounded-lg flex items-center justify-between gap-3 hover:bg-muted/50 transition-colors">
                   <div className="min-w-0 flex-1 space-y-1">
                     <Badge variant="secondary" className="text-[9px] mb-1">{p.faseNombre}</Badge>
-                    <p className="text-sm font-medium truncate">{parejaLabel(p.pareja_local_id)}</p>
-                    <p className="text-sm font-medium truncate">{parejaLabel(p.pareja_visitante_id)}</p>
+                    <p className="text-sm font-medium truncate">{parejaLabel(p.pareja_local_id, p)}</p>
+                    <p className="text-sm font-medium truncate">{parejaLabel(p.pareja_visitante_id, p)}</p>
                   </div>
                   <Button size="sm" onClick={() => handleAsignarCancha(p.id, asignarCanchaNum!)}>
                     Jugar
@@ -608,7 +773,7 @@ export default function CanchasEnVivo() {
                   onClick={() => setGanadorSeleccionado(partidoCargar.pareja_local_id)}
                 >
                   <span className="text-[10px] uppercase opacity-70">Ganador</span>
-                  <span className="text-xs whitespace-normal line-clamp-2">{parejaLabel(partidoCargar.pareja_local_id)}</span>
+                  <span className="text-xs whitespace-normal line-clamp-2">{parejaLabel(partidoCargar.pareja_local_id, partidoCargar)}</span>
                 </Button>
                 <span className="text-muted-foreground text-xs font-bold px-2">VS</span>
                 <Button 
@@ -617,7 +782,7 @@ export default function CanchasEnVivo() {
                   onClick={() => setGanadorSeleccionado(partidoCargar.pareja_visitante_id)}
                 >
                   <span className="text-[10px] uppercase opacity-70">Ganador</span>
-                  <span className="text-xs whitespace-normal line-clamp-2">{parejaLabel(partidoCargar.pareja_visitante_id)}</span>
+                  <span className="text-xs whitespace-normal line-clamp-2">{parejaLabel(partidoCargar.pareja_visitante_id, partidoCargar)}</span>
                 </Button>
               </div>
 
@@ -728,7 +893,7 @@ export default function CanchasEnVivo() {
 
         <div className="flex-1 space-y-4">
           {canchas.map(numeroCancha => {
-            const enJuego = partidosActivos.find(p => p.estado === "en_juego" && (p.cancha === numeroCancha || p.cancha === `Cancha ${numeroCancha}`));
+            const enJuego = partidosActivos.find(p => p.estado === "en_juego" && (parseCanchaNum(p.cancha) === numeroCancha || p.cancha === numeroCancha || p.cancha === `Cancha ${numeroCancha}`));
             if (!enJuego) return null;
             return (
               <div key={numeroCancha} className="bg-slate-800 rounded-xl p-4 border border-slate-700 shadow-xl relative overflow-hidden">
@@ -740,11 +905,11 @@ export default function CanchasEnVivo() {
                 </h3>
                 <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center">
                   <div className="text-right font-bold text-sm leading-tight text-slate-200">
-                    {parejaLabel(enJuego.pareja_local_id)}
+                    {parejaLabel(enJuego.pareja_local_id, enJuego)}
                   </div>
                   <div className="text-slate-500 font-black text-xs italic">VS</div>
                   <div className="text-left font-bold text-sm leading-tight text-slate-200">
-                    {parejaLabel(enJuego.pareja_visitante_id)}
+                    {parejaLabel(enJuego.pareja_visitante_id, enJuego)}
                   </div>
                 </div>
               </div>
