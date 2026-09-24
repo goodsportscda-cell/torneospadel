@@ -319,6 +319,7 @@ export default function TorneoPublico() {
                   <ZonaCard 
                     key={z.id} 
                     zona={z} 
+                    torneoId={id}
                     parejasDisponibles={[]} 
                     parejaLabel={parejaLabel}
                     onChanged={() => {}} 
@@ -375,6 +376,7 @@ export default function TorneoPublico() {
                           <PartidoCard
                             key={p.id}
                             partidoId={p.id}
+                            torneoId={id}
                             orden={p.numero}
                             labelPartido={`Partido ${p.numero}`}
                             tabla="partidos_llave"

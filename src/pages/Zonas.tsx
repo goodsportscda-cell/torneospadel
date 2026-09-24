@@ -385,6 +385,7 @@ export default function Zonas() {
                   <ZonaCard
                     key={z.id}
                     zona={z}
+                    torneoId={torneoId}
                     parejasDisponibles={parejasDisponibles}
                     parejaLabel={parejaLabel}
                     onChanged={cargarDatos}

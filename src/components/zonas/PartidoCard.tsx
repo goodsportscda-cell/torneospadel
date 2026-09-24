@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -11,9 +12,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trophy, Save, CalendarClock, MapPin, Pencil, X, Lock } from "lucide-react";
+import { Trophy, Save, CalendarClock, MapPin, Pencil, X, Lock, Camera, Upload, Eye, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
+import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
+import { extractFotoFromNotas } from "@/logic/torneoStandings";
 
 type Pareja = {
   inscripcion_id: string;
@@ -30,6 +33,7 @@ type SetRow = {
 type Props = {
   partidoId: string;
   zonaId?: string;
+  torneoId?: string;
   orden: number;
   tipo?: "directo" | "ganadores" | "perdedores" | null;
   parejaLocal: Pareja | null;
@@ -55,6 +59,7 @@ type Props = {
 export function PartidoCard({
   partidoId,
   zonaId,
+  torneoId,
   orden,
   tipo,
   parejaLocal,
@@ -73,6 +78,7 @@ export function PartidoCard({
   readOnly = false,
   parejasZona,
 }: Props) {
+  const routeParams = useParams<{ id: string }>();
   const [sets, setSets] = useState<SetRow[]>([]);
   const [saving, setSaving] = useState(false);
   const [showProgEditor, setShowProgEditor] = useState(false);
@@ -90,7 +96,59 @@ export function PartidoCard({
   // Selección explícita de ganador (tiene prioridad sobre cálculo por sets)
   const [ganadorOverride, setGanadorOverride] = useState<string | null>(ganadorId);
 
+  // Estados de foto de partido (Torneos Oficiales / Zonas / Llaves)
+  const [fotoUrl, setFotoUrl] = useState<string>("");
+  const [uploadingFoto, setUploadingFoto] = useState<boolean>(false);
+  const [lightboxOpen, setLightboxOpen] = useState<boolean>(false);
+  const [effectiveTorneoId, setEffectiveTorneoId] = useState<string>(torneoId || "");
+
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadFotoAndTorneo = async () => {
+      let tId = torneoId || routeParams.id;
+      if (!tId && zonaId) {
+        const { data: z } = await supabase.from("zonas").select("torneo_id").eq("id", zonaId).maybeSingle();
+        if (z?.torneo_id) tId = z.torneo_id;
+      }
+      if (!tId && tabla === "partidos_llave") {
+        const { data: pl } = await supabase.from("partidos_llave").select("llave_id, llaves(torneo_id)").eq("id", partidoId).maybeSingle();
+        if ((pl as any)?.llaves?.torneo_id) tId = (pl as any).llaves.torneo_id;
+      }
+
+      if (tId) {
+        if (isMounted) setEffectiveTorneoId(tId);
+        const { data: t } = await supabase.from("torneos").select("notas").eq("id", tId).maybeSingle();
+        if (isMounted && t?.notas) {
+          const extracted = extractFotoFromNotas(t.notas, partidoId);
+          if (extracted) setFotoUrl(extracted);
+        }
+      }
+    };
+    loadFotoAndTorneo();
+    return () => { isMounted = false; };
+  }, [partidoId, torneoId, zonaId, tabla, routeParams.id]);
+
+  const handleFotoUpload = async (file: File) => {
+    if (!file) return;
+    setUploadingFoto(true);
+    try {
+      const url = await uploadPartidoPhoto(file, effectiveTorneoId || "general", partidoId);
+      setFotoUrl(url);
+      if (effectiveTorneoId) {
+        const { data: tData } = await supabase.from("torneos").select("notas").eq("id", effectiveTorneoId).maybeSingle();
+        await persistPartidoPhoto(effectiveTorneoId, partidoId, url, tData?.notas);
+        queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
+        queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });
+      }
+      toast.success("Foto del partido guardada");
+    } catch (err: any) {
+      toast.error("Error al subir foto: " + (err?.message || ""));
+    } finally {
+      setUploadingFoto(false);
+    }
+  };
 
   useEffect(() => {
     if (setsExistentes.length > 0) {
@@ -331,6 +389,15 @@ export function PartidoCard({
         }
       }
 
+      if (effectiveTorneoId && fotoUrl) {
+        try {
+          const { data: tData } = await supabase.from("torneos").select("notas").eq("id", effectiveTorneoId).maybeSingle();
+          await persistPartidoPhoto(effectiveTorneoId, partidoId, fotoUrl, tData?.notas);
+        } catch (photoErr) {
+          console.warn("Error guardando foto en notas:", photoErr);
+        }
+      }
+
       toast.success("Resultado guardado");
       onUpdated();
       queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
@@ -380,7 +447,44 @@ export function PartidoCard({
       <CardContent className="p-3 space-y-2">
         <div className="flex items-center justify-between text-xs text-muted-foreground gap-2">
           <span className="font-medium">{labelPartido ?? `Partido ${orden}`}</span>
-          <div className="flex items-center gap-1 flex-wrap justify-end">
+          <div className="flex items-center gap-1.5 flex-wrap justify-end">
+            {/* Badge de Foto del Partido o subida rápida */}
+            {fotoUrl ? (
+              <button
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 px-2 py-0.5 rounded-full transition-all cursor-pointer shadow-sm hover:scale-105 active:scale-95"
+                title="Ver foto del partido"
+              >
+                <Camera className="h-3 w-3 text-emerald-400" />
+                <span>FOTO</span>
+              </button>
+            ) : !readOnly ? (
+              <label
+                htmlFor={`header-foto-input-${partidoId}`}
+                className="inline-flex items-center gap-1 text-[11px] font-medium text-muted-foreground hover:text-primary hover:bg-primary/10 border border-transparent hover:border-primary/20 px-1.5 py-0.5 rounded-full transition-all cursor-pointer"
+                title="Subir o tomar foto del partido"
+              >
+                {uploadingFoto ? (
+                  <Loader2 className="h-3 w-3 animate-spin text-primary" />
+                ) : (
+                  <Camera className="h-3 w-3" />
+                )}
+                <input
+                  id={`header-foto-input-${partidoId}`}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uploadingFoto}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) handleFotoUpload(file);
+                    e.target.value = "";
+                  }}
+                />
+              </label>
+            ) : null}
+
             {tipoBadge && <Badge variant="outline" className="text-xs">{tipoBadge}</Badge>}
             {estado !== "pendiente" && (
               <Badge variant={estadoBadgeVariant(estado)} className="text-xs flex items-center gap-1">
@@ -732,6 +836,85 @@ export function PartidoCard({
                     )}
                   </div>
                 ))}
+                {/* Sección de Foto del Partido (Competición / Podio / Cancha) */}
+                <div className="pt-2 border-t space-y-1.5">
+                  <div className="flex items-center justify-between text-[10px] uppercase font-bold text-muted-foreground">
+                    <span className="flex items-center gap-1">
+                      <Camera className="h-3 w-3 text-primary" />
+                      Foto del Partido (Podio / Cancha)
+                    </span>
+                    {fotoUrl && (
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          setFotoUrl("");
+                          if (effectiveTorneoId) {
+                            const { data: tData } = await supabase.from("torneos").select("notas").eq("id", effectiveTorneoId).maybeSingle();
+                            await persistPartidoPhoto(effectiveTorneoId, partidoId, "", tData?.notas);
+                            toast.info("Foto eliminada");
+                          }
+                        }}
+                        className="text-red-500 hover:text-red-700 normal-case font-normal text-[10px]"
+                      >
+                        Quitar foto
+                      </button>
+                    )}
+                  </div>
+
+                  {fotoUrl ? (
+                    <div className="relative rounded-lg overflow-hidden border border-border group h-24 bg-muted/30">
+                      <img
+                        src={fotoUrl}
+                        alt="Foto del partido"
+                        className="w-full h-full object-cover cursor-pointer group-hover:scale-105 transition-transform duration-300"
+                        onClick={() => setLightboxOpen(true)}
+                      />
+                      <div 
+                        onClick={() => setLightboxOpen(true)}
+                        className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-1.5 text-white text-xs font-semibold cursor-pointer"
+                      >
+                        <Eye className="h-4 w-4" />
+                        Ampliar foto
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <input
+                        type="file"
+                        id={`editor-foto-input-${partidoId}`}
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingFoto}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) handleFotoUpload(file);
+                          e.target.value = "";
+                        }}
+                      />
+                      <label
+                        htmlFor={`editor-foto-input-${partidoId}`}
+                        className={`flex items-center justify-center gap-2 border border-dashed rounded-lg p-2 text-xs cursor-pointer transition-all ${
+                          uploadingFoto
+                            ? "opacity-50 pointer-events-none bg-muted"
+                            : "border-primary/40 hover:border-primary hover:bg-primary/5 text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {uploadingFoto ? (
+                          <>
+                            <Loader2 className="h-3.5 w-3.5 animate-spin text-primary" />
+                            <span>Optimizando y subiendo...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Upload className="h-3.5 w-3.5 text-primary" />
+                            <span>Subir o tomar foto del partido</span>
+                          </>
+                        )}
+                      </label>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2">
                   {sets.length < 5 && (
                     <Button variant="outline" size="sm" onClick={addSet} className="text-xs">
@@ -748,6 +931,40 @@ export function PartidoCard({
           </div>
         )}
       </CardContent>
+
+      {/* Lightbox para visualización ampliada de la foto */}
+      {lightboxOpen && fotoUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightboxOpen(false)}
+        >
+          <div className="relative max-w-4xl max-h-[85vh] w-full flex flex-col items-center" onClick={(e) => e.stopPropagation()}>
+            <img
+              src={fotoUrl}
+              alt="Foto ampliada del partido"
+              className="max-w-full max-h-[75vh] object-contain rounded-xl border border-white/20 shadow-2xl"
+            />
+            <div className="mt-4 flex items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setLightboxOpen(false)}
+                className="rounded-full text-xs font-semibold px-4"
+              >
+                Cerrar vista previa
+              </Button>
+              <a
+                href={fotoUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-xs text-zinc-300 hover:text-white underline"
+              >
+                Abrir original
+              </a>
+            </div>
+          </div>
+        </div>
+      )}
     </Card>
   );
 }

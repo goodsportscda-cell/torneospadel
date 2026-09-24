@@ -836,6 +836,7 @@ export default function Llaves() {
                       <PartidoCard
                         key={p.id}
                         partidoId={p.id}
+                        torneoId={torneoId}
                         orden={p.numero}
                         labelPartido={`Partido ${p.numero}`}
                         tabla="partidos_llave"

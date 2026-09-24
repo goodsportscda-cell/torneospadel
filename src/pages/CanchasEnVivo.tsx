@@ -12,8 +12,9 @@ import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { activeTenant } from "@/lib/tenant";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
+import { extractFotoFromNotas } from "@/logic/torneoStandings";
 
-type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string; canchas_count?: number };
+type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string; canchas_count?: number; notas?: string | null };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
 
@@ -32,6 +33,7 @@ type Partido = {
   ganador_id: string | null;
   torneo_id?: string;
   fecha_num?: number;
+  foto_url?: string | null;
   partido_individual_raw?: any;
 };
 
@@ -63,7 +65,7 @@ export default function CanchasEnVivo() {
   useEffect(() => {
     supabase
       .from("torneos")
-      .select("id, nombre, estado, modalidad, canchas_count")
+      .select("id, nombre, estado, modalidad, canchas_count, notas")
       .neq("estado", "cancelado")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -126,6 +128,7 @@ export default function CanchasEnVivo() {
       ]);
 
       const tMap = new Map(torneos.map(t => [t.id, t.nombre]));
+      const tNotasMap = new Map(torneos.map(t => [t.id, t.notas]));
       const jugsMap = new Map((jugs ?? []).map(j => [j.id, j]));
       let partsArr: Partido[] = [];
 
@@ -136,7 +139,9 @@ export default function CanchasEnVivo() {
         if (pz) {
           partsArr = partsArr.concat(pz.map(p => {
             const zInfo = zMap.get(p.zona_id);
-            const tNombre = zInfo ? tMap.get(zInfo.torneo_id) : "";
+            const tId = zInfo?.torneo_id;
+            const tNombre = tId ? tMap.get(tId) : "";
+            const tNotas = tId ? tNotasMap.get(tId) : "";
             const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
             return {
               id: p.id,
@@ -147,7 +152,9 @@ export default function CanchasEnVivo() {
               estado: p.estado,
               cancha: p.cancha,
               fecha_hora: p.fecha_hora,
-              ganador_id: p.ganador_id
+              ganador_id: p.ganador_id,
+              torneo_id: tId,
+              foto_url: extractFotoFromNotas(tNotas, p.id),
             };
           }));
         }
@@ -161,6 +168,7 @@ export default function CanchasEnVivo() {
           partsArr = partsArr.concat(pl.map(p => {
             const tId = llMap.get(p.llave_id);
             const tNombre = tId ? tMap.get(tId) : "";
+            const tNotas = tId ? tNotasMap.get(tId) : "";
             const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
             return {
               id: p.id,
@@ -171,7 +179,9 @@ export default function CanchasEnVivo() {
               estado: p.estado,
               cancha: p.cancha,
               fecha_hora: p.fecha_hora,
-              ganador_id: p.ganador_id
+              ganador_id: p.ganador_id,
+              torneo_id: tId,
+              foto_url: extractFotoFromNotas(tNotas, p.id),
             };
           }));
         }
@@ -181,6 +191,8 @@ export default function CanchasEnVivo() {
       if (pInd && pInd.length > 0) {
         partsArr = partsArr.concat(pInd.map(p => {
           const tNombre = tMap.get(p.torneo_id) || "";
+          const tNotas = tNotasMap.get(p.torneo_id);
+          const pFoto = (p as any).foto_url || extractFotoFromNotas(tNotas, p.id);
           const prefix = torneoId === "todos" && tNombre ? `${tNombre.split(' ')[0]} - ` : "";
 
           const j1 = jugsMap.get(p.jugador1_id);
@@ -215,6 +227,7 @@ export default function CanchasEnVivo() {
             ganador_id: (p.sets_pareja1 ?? 0) > (p.sets_pareja2 ?? 0) ? p.id + "-p1" : (p.sets_pareja2 ?? 0) > (p.sets_pareja1 ?? 0) ? p.id + "-p2" : null,
             torneo_id: p.torneo_id,
             fecha_num: p.fecha,
+            foto_url: pFoto,
             partido_individual_raw: p,
           };
         }));
@@ -299,7 +312,7 @@ export default function CanchasEnVivo() {
     setPartidoCargar(p);
     setSets([{ local: "", visitante: "" }, { local: "", visitante: "" }, { local: "", visitante: "" }]);
     setGanadorSeleccionado(null);
-    setFotoCanchaEnVivo(p.partido_individual_raw?.foto_url || "");
+    setFotoCanchaEnVivo(p.foto_url || p.partido_individual_raw?.foto_url || "");
     setIsUploadingFotoCancha(false);
   };
 
@@ -359,6 +372,14 @@ export default function CanchasEnVivo() {
         }).eq("id", partidoCargar.id);
       }
 
+      if (fotoCanchaEnVivo) {
+        const tId = partidoCargar.torneo_id || (torneoId !== "todos" ? torneoId : "");
+        if (tId) {
+          const { data: tData } = await supabase.from("torneos").select("notas").eq("id", tId).single();
+          await persistPartidoPhoto(tId, partidoCargar.id, fotoCanchaEnVivo, tData?.notas);
+        }
+      }
+
       toast.success("Resultado guardado", { id: toastId });
       setPartidoCargar(null);
       cargarDatos();
@@ -405,14 +426,6 @@ export default function CanchasEnVivo() {
             sets_pareja2: setsP2,
           })
           .eq("id", partidoCargar.id);
-
-        if (fotoCanchaEnVivo) {
-          const tId = partidoCargar.torneo_id || (torneoId !== "todos" ? torneoId : "");
-          if (tId) {
-            const { data: tData } = await supabase.from("torneos").select("notas").eq("id", tId).single();
-            await persistPartidoPhoto(tId, partidoCargar.id, fotoCanchaEnVivo, tData?.notas);
-          }
-        }
       } else {
         const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
         
@@ -441,6 +454,14 @@ export default function CanchasEnVivo() {
           estado: "finalizado",
           ganador_id: ganadorSeleccionado
         }).eq("id", partidoCargar.id);
+      }
+
+      if (fotoCanchaEnVivo) {
+        const tId = partidoCargar.torneo_id || (torneoId !== "todos" ? torneoId : "");
+        if (tId) {
+          const { data: tData } = await supabase.from("torneos").select("notas").eq("id", tId).single();
+          await persistPartidoPhoto(tId, partidoCargar.id, fotoCanchaEnVivo, tData?.notas);
+        }
       }
 
       toast.success("Resultado guardado y partido finalizado", { id: toastId });

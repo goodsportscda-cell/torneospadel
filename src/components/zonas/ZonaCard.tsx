@@ -36,6 +36,7 @@ export type Zona = {
   nombre: string;
   tamanio: number;
   orden: number;
+  torneo_id?: string;
 };
 
 export type ParejaInscripta = {
@@ -67,6 +68,7 @@ type Partido = {
 
 type Props = {
   zona: Zona;
+  torneoId?: string;
   parejasDisponibles: ParejaInscripta[];
   parejaLabel: (id: string) => string;
   onChanged: () => void;
@@ -78,7 +80,7 @@ type Props = {
   parejaDisponibilidad?: (id: string) => string | null;
 };
 
-export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad }: Props) {
+export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad }: Props) {
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
@@ -691,6 +693,7 @@ export function ZonaCard({ zona, parejasDisponibles, parejaLabel, onChanged, onD
                   key={p.id}
                   partidoId={p.id}
                   zonaId={zona.id}
+                  torneoId={torneoId || zona.torneo_id}
                   orden={p.orden}
                   tipo={p.tipo}
                   parejaLocal={p.pareja_local_id ? { 
