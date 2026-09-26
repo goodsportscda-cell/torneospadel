@@ -66,7 +66,7 @@ export default function TorneoPublico() {
       { data: llavesData }
     ] = await Promise.all([
       (supabase as any).from("zonas").select("*").eq("torneo_id", tData.id).order("orden"),
-      (supabase as any).from("inscripciones").select("*, jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido), jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)").eq("torneo_id", tData.id).eq("estado", "confirmada"),
+      (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at, jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido), jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)").eq("torneo_id", tData.id).eq("estado", "confirmada"),
       (supabase as any).from("jugadores").select("*"),
       (supabase as any).from("llaves").select("*").eq("torneo_id", tData.id).maybeSingle(),
       (supabase as any).from("partidos_llave").select("*").order("numero")

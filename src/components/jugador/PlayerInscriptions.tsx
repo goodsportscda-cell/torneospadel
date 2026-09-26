@@ -85,11 +85,18 @@ export function PlayerInscriptions({ jugadorId }: Props) {
         // 2. Obtener inscripciones tradicionales en torneos oficiales/abiertos
         const { data: misInsc } = await supabase
           .from("inscripciones")
-          .select("id, torneo_id, jugador1_id, jugador2_id, estado, estado_pago")
+          .select("id, torneo_id, jugador1_id, jugador2_id, estado")
           .in("torneo_id", tIds)
           .or(`jugador1_id.eq.${jugadorId},jugador2_id.eq.${jugadorId}`);
 
         if (misInsc && misInsc.length > 0) {
+          const { data: pagosPropios } = await (supabase as any).rpc(
+            "get_my_inscription_payment_status",
+            { p_jugador_id: jugadorId },
+          );
+          const pagoMap = new Map<string, string>(
+            (pagosPropios ?? []).map((p: { inscripcion_id: string; estado_pago: string }) => [p.inscripcion_id, p.estado_pago]),
+          );
           const compaIds = new Set<string>();
           misInsc.forEach(i => {
             compaIds.add(i.jugador1_id === jugadorId ? i.jugador2_id : i.jugador1_id);
@@ -145,7 +152,7 @@ export function PlayerInscriptions({ jugadorId }: Props) {
               torneo_nombre: tInfo?.nombre ?? "?",
               tipo_torneo: tInfo?.tipo ?? "oficial",
               estado: i.estado,
-              estado_pago: i.estado_pago,
+              estado_pago: pagoMap.get(i.id) ?? "pendiente",
               companero_nombre: jugMap.get(i.jugador1_id === jugadorId ? i.jugador2_id : i.jugador1_id) ?? "?",
               partidos: partidosProgramados.filter(p => p.insc_id === i.id).sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime())
             });

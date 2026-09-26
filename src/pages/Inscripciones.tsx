@@ -64,6 +64,9 @@ type DispFranja = {
   };
 };
 type InscripcionConJugadores = Inscripcion & {
+  comprobante_url?: string | null;
+  pago_j1_comprobante?: string | null;
+  pago_j2_comprobante?: string | null;
   jugador1?: JugadorSimple | null;
   jugador2?: JugadorSimple | null;
   disponibilidades?: DispFranja[] | null;
@@ -203,8 +206,8 @@ export default function Inscripciones() {
   const fetchInscripciones = async () => {
     setLoading(true);
     try {
-      let query = supabase
-        .from("inscripciones")
+      let query = (supabase as any)
+        .from("inscripciones_admin")
         .select(`
           *,
           jugador1:jugadores!inscripciones_jugador1_id_fkey(id, nombre, apellido, club, telefono, dni),
@@ -222,7 +225,28 @@ export default function Inscripciones() {
       if (error) {
         toast.error("Error al cargar inscripciones: " + error.message);
       } else {
-        setInscripciones((data ?? []) as InscripcionConJugadores[]);
+        const rows = (data ?? []) as InscripcionConJugadores[];
+        const signedRows = await Promise.all(rows.map(async (row) => {
+          const sign = async (value: string | null | undefined) => {
+            if (!value) return value;
+            const marker = "/storage/v1/object/public/comprobantes/";
+            const path = value.includes(marker)
+              ? decodeURIComponent(value.split(marker)[1])
+              : value;
+            if (/^https?:\/\//i.test(path)) return value;
+            const { data: signed } = await supabase.storage
+              .from("comprobantes")
+              .createSignedUrl(path, 300);
+            return signed?.signedUrl ?? value;
+          };
+          return {
+            ...row,
+            comprobante_url: await sign(row.comprobante_url),
+            pago_j1_comprobante: await sign(row.pago_j1_comprobante),
+            pago_j2_comprobante: await sign(row.pago_j2_comprobante),
+          };
+        }));
+        setInscripciones(signedRows);
       }
     } catch (err: any) {
       console.error(err);

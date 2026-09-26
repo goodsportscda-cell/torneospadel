@@ -38,7 +38,7 @@ const BodySchema = z.object({
   jugador2: JugadorSchema,
   disponibilidad_horaria: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
   observaciones: z.string().trim().max(500).optional().or(z.literal("").transform(() => undefined)),
-  comprobante_url: z.string().url().optional(),
+  comprobante_url: z.string().max(500).regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\//i).optional(),
   franjas_ids: z.array(z.string().uuid()).optional(),
 });
 

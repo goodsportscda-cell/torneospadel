@@ -48,7 +48,7 @@ export default function Zonas() {
     if (!torneoId) return;
     try {
       const [{ data: ins }, { data: jugs }, { data: zs }] = await Promise.all([
-        supabase.from("inscripciones").select("*").eq("torneo_id", torneoId).eq("estado", "confirmada"),
+        supabase.from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at").eq("torneo_id", torneoId).eq("estado", "confirmada"),
         supabase.from("jugadores").select("*"),
         supabase.from("zonas").select("*").eq("torneo_id", torneoId).order("orden"),
       ]);

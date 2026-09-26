@@ -67,7 +67,7 @@ export function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 /**
- * Sube la foto del partido a Supabase Storage (bucket comprobantes)
+ * Sube la foto del partido a Supabase Storage (bucket fotos-partidos)
  * con fallback a DataURL ultra comprimido si hay problemas de red o storage.
  */
 export async function uploadPartidoPhoto(
@@ -81,7 +81,7 @@ export async function uploadPartidoPhoto(
 
   try {
     const { data: uploadData, error: uploadErr } = await supabase.storage
-      .from("comprobantes")
+      .from("fotos-partidos")
       .upload(fileName, compressedBlob, {
         upsert: true,
         contentType: "image/jpeg",
@@ -94,7 +94,7 @@ export async function uploadPartidoPhoto(
 
     if (uploadData) {
       const { data: publicUrlData } = supabase.storage
-        .from("comprobantes")
+        .from("fotos-partidos")
         .getPublicUrl(fileName);
       if (publicUrlData?.publicUrl) {
         return publicUrlData.publicUrl;

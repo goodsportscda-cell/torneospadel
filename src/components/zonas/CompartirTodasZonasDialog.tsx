@@ -85,7 +85,7 @@ export function CompartirTodasZonasDialog({
           { data: zonasParejas },
           { data: partidosZona },
         ] = await Promise.all([
-          supabase.from("inscripciones").select("*").eq("torneo_id", torneoId).eq("estado", "confirmada"),
+          supabase.from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at").eq("torneo_id", torneoId).eq("estado", "confirmada"),
           supabase.from("jugadores").select("*"),
           supabase.from("zonas_parejas").select("*, zonas!inner(torneo_id)").eq("zonas.torneo_id", torneoId),
           supabase.from("partidos_zona").select("*, zonas!inner(torneo_id)").eq("zonas.torneo_id", torneoId).order("orden"),

@@ -249,7 +249,7 @@ export default function InscripcionPublica() {
         let comprobanteUrl: string | undefined = undefined;
 
         if (comprobanteFile) {
-          const fileExt = comprobanteFile.name.split('.').pop();
+          const fileExt = comprobanteFile.name.split('.').pop()?.toLowerCase();
           const fileName = `${torneo.id}/${Date.now()}-${j1.dni}.${fileExt}`;
           const { error: uploadError, data: uploadData } = await supabase.storage
             .from('comprobantes')
@@ -261,10 +261,7 @@ export default function InscripcionPublica() {
             console.error("Error uploading comprobante:", uploadError);
             toast.error("Error al subir el comprobante. La inscripción continuará sin él.");
           } else if (uploadData) {
-            const { data: publicUrlData } = supabase.storage
-              .from('comprobantes')
-              .getPublicUrl(fileName);
-            comprobanteUrl = publicUrlData.publicUrl;
+            comprobanteUrl = uploadData.path;
           }
         }
 
@@ -638,8 +635,17 @@ export default function InscripcionPublica() {
                   <Input 
                     id="comprobante" 
                     type="file" 
-                    accept="image/*,.pdf"
-                    onChange={(e) => setComprobanteFile(e.target.files?.[0] || null)}
+                    accept="image/jpeg,image/png,image/webp,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0] || null;
+                      if (file && file.size > 5 * 1024 * 1024) {
+                        toast.error("El comprobante no puede superar los 5 MB.");
+                        e.currentTarget.value = "";
+                        setComprobanteFile(null);
+                        return;
+                      }
+                      setComprobanteFile(file);
+                    }}
                     className="text-xs h-9"
                   />
                 </div>
