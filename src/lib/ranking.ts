@@ -62,7 +62,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
     // 1. Datos del torneo
     const { data: torneo, error: errT } = await supabase
       .from("torneos")
-      .select("id, fecha_inicio, categoria_id, genero, categoria_libre, tipo, numero_fecha, multiplicador_puntos")
+      .select("id, club_id, fecha_inicio, categoria_id, genero, categoria_libre, tipo, numero_fecha, multiplicador_puntos")
       .eq("id", torneoId)
       .maybeSingle();
     if (errT) throw errT;
@@ -85,9 +85,10 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
     const multiplicador = Number(torneo.multiplicador_puntos ?? 1) || 1;
 
     // 2. Cargar tabla de puntos
-    const { data: puntosCfg, error: errP } = await supabase
+    const { data: puntosCfg, error: errP } = await (supabase as any)
       .from("puntos_ranking")
-      .select("instancia, puntos");
+      .select("instancia, puntos")
+      .eq("club_id", torneo.club_id);
     if (errP) throw errP;
     const puntosMap = new Map<string, number>();
     (puntosCfg ?? []).forEach((p) => puntosMap.set(p.instancia, p.puntos));
@@ -242,24 +243,38 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
   }
 }
 
-export async function recalcularTodosLosAscensos(anio: number): Promise<void> {
+export async function recalcularTodosLosAscensos(anio: number, clubId?: string | null): Promise<void> {
   try {
+    let categoryIds: string[] | null = null;
+    if (clubId) {
+      const { data: categories, error: categoriesError } = await supabase
+        .from("categorias")
+        .select("id")
+        .eq("club_id", clubId);
+      if (categoriesError) throw categoriesError;
+      categoryIds = (categories ?? []).map((category) => category.id);
+      if (!categoryIds.length) return;
+    }
     // 1. Obtener todos los ascensos de este año ordenados cronológicamente
-    const { data: ascensos, error: errA } = await supabase
+    let ascensosQuery = supabase
       .from("ascensos")
       .select("id, jugador_id, categoria_origen_id, categoria_destino_id")
       .eq("anio", anio)
       .order("fecha", { ascending: true })
       .order("created_at", { ascending: true });
+    if (categoryIds) ascensosQuery = ascensosQuery.in("categoria_origen_id", categoryIds);
+    const { data: ascensos, error: errA } = await ascensosQuery;
 
     if (errA) throw errA;
     if (!ascensos || ascensos.length === 0) return;
 
     // 2. Obtener todos los puntos de ranking_jugadores del año
-    const { data: rankingData, error: errR } = await supabase
+    let rankingQuery = supabase
       .from("ranking_jugadores")
       .select("jugador_id, categoria_id, puntos")
       .eq("anio", anio);
+    if (categoryIds) rankingQuery = rankingQuery.in("categoria_id", categoryIds);
+    const { data: rankingData, error: errR } = await rankingQuery;
 
     if (errR) throw errR;
 

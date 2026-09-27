@@ -5,6 +5,9 @@ import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import {
   Calendar,
   Trophy,
@@ -70,6 +73,9 @@ export default function PlayerDashboard() {
   const [miRanking, setMiRanking] = useState<RankingEntry[]>([]);
   const [linking, setLinking] = useState(false);
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
+  const [profile, setProfile] = useState({ nombre: "", apellido: "", dni: "", telefono: "", ciudad: "" });
   const anio = new Date().getFullYear();
 
   useEffect(() => {
@@ -86,6 +92,7 @@ export default function PlayerDashboard() {
       // Get jugador name
       if (jId) {
         setJugadorNombre(`${linkResult.nombre} ${linkResult.apellido}`);
+        setProfile({ nombre: linkResult.nombre ?? "", apellido: linkResult.apellido ?? "", dni: linkResult.dni ?? "", telefono: linkResult.telefono ?? "", ciudad: linkResult.club ?? "" });
       }
 
       // Get upcoming/active tournaments
@@ -195,6 +202,7 @@ export default function PlayerDashboard() {
       }
       setJugadorId(data.jugador_id);
       setJugadorNombre(`${data.nombre} ${data.apellido}`);
+      setProfile({ nombre: data.nombre ?? "", apellido: data.apellido ?? "", dni: data.dni ?? "", telefono: data.telefono ?? "", ciudad: data.club ?? "" });
       setLinkMessage(null);
       toast.success("¡Perfil vinculado exitosamente!");
     } catch (err: any) {
@@ -207,6 +215,29 @@ export default function PlayerDashboard() {
   const handleSignOut = async () => {
     await signOut();
     toast.success("Sesión cerrada");
+  };
+
+  const handleSaveProfile = async () => {
+    setProfileSaving(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("update_my_player_profile", {
+        p_nombre: profile.nombre,
+        p_apellido: profile.apellido,
+        p_dni: profile.dni,
+        p_telefono: profile.telefono,
+        p_ciudad: profile.ciudad,
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "No se pudieron guardar los datos");
+      setJugadorNombre(`${data.nombre} ${data.apellido}`);
+      setProfile({ nombre: data.nombre ?? "", apellido: data.apellido ?? "", dni: data.dni ?? "", telefono: data.telefono ?? "", ciudad: data.club ?? "" });
+      setProfileOpen(false);
+      toast.success("Tus datos personales se actualizaron");
+    } catch (err: any) {
+      toast.error(err.message ?? "No se pudieron guardar tus datos");
+    } finally {
+      setProfileSaving(false);
+    }
   };
 
   const handleQuickEnroll = async (torneoId: string) => {
@@ -326,6 +357,20 @@ export default function PlayerDashboard() {
                       Ver ranking completo <Award className="h-3.5 w-3.5" />
                     </Link>
                   </Button>
+                </div>
+              )}
+              {jugadorId && (
+                <div className="flex justify-end">
+                  <Dialog open={profileOpen} onOpenChange={setProfileOpen}>
+                    <DialogTrigger asChild><Button variant="outline" size="sm">Editar mis datos</Button></DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader><DialogTitle>Mis datos personales</DialogTitle><DialogDescription>Podés actualizar tus datos de contacto. Tu categoría y rendimiento deportivo se administran por club.</DialogDescription></DialogHeader>
+                      <div className="grid gap-3">
+                        {([['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['ciudad','Ciudad']] as const).map(([key,label]) => <div className="grid gap-1.5" key={key}><Label htmlFor={`perfil-${key}`}>{label}</Label><Input id={`perfil-${key}`} value={profile[key]} onChange={(e) => setProfile({ ...profile, [key]: e.target.value })} /></div>)}
+                      </div>
+                      <DialogFooter><Button variant="outline" onClick={() => setProfileOpen(false)}>Cancelar</Button><Button onClick={handleSaveProfile} disabled={profileSaving}>{profileSaving ? "Guardando…" : "Guardar"}</Button></DialogFooter>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               )}
             </div>

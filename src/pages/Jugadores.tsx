@@ -33,9 +33,10 @@ import type { Database } from "@/integrations/supabase/types";
 
 import FusionarDialog from "@/components/jugadores/FusionarDialog";
 import DetalleJugadorDialog from "@/components/jugadores/DetalleJugadorDialog";
+import { useAuth } from "@/hooks/useAuth";
 
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { genero?: Genero | null; notas?: string | null };
-type Categoria = Database["public"]["Tables"]["categorias"]["Row"];
+type Categoria = { id: string; nombre: string; genero: Genero; orden: number; activa: boolean; club_id: string };
 type Genero = Database["public"]["Enums"]["genero_categoria"];
 
 interface FormState {
@@ -63,6 +64,7 @@ const emptyForm: FormState = {
 };
 
 export default function Jugadores() {
+  const { clubId, isSuperAdmin } = useAuth();
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
@@ -80,9 +82,15 @@ export default function Jugadores() {
 
   const fetchCategorias = async () => {
     setLoading(true);
+    if (!clubId) {
+      setCategorias([]);
+      setLoading(false);
+      return;
+    }
     const { data: c, error: ec } = await (supabase as any)
       .from("categorias_jugadores")
       .select("*")
+      .eq("club_id", clubId)
       .eq("activa", true)
       .order("orden");
     if (ec) toast.error("Error cargando categorías: " + ec.message);
@@ -92,7 +100,7 @@ export default function Jugadores() {
 
   useEffect(() => {
     fetchCategorias();
-  }, []);
+  }, [clubId]);
 
   const handleSearch = async (queryText: string, genero: string, categoria: string, letra: string) => {
     const q = queryText.trim();
@@ -102,6 +110,14 @@ export default function Jugadores() {
     }
     setLoadingJugadores(true);
     try {
+      let idsPorCategoria: string[] | null = null;
+      if (categoria !== "todas") {
+        const { data: asignaciones, error: asignacionesError } = await (supabase as any)
+          .from("jugador_categorias_club").select("jugador_id")
+          .eq("club_id", clubId).eq("categoria_id", categoria);
+        if (asignacionesError) throw asignacionesError;
+        idsPorCategoria = (asignaciones ?? []).map((a: { jugador_id: string }) => a.jugador_id);
+      }
       let dbQuery = supabase.from("jugadores").select("*");
       if (q.length >= 3) {
         dbQuery = dbQuery.or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%,dni.ilike.%${q}%,club.ilike.%${q}%`);
@@ -109,8 +125,9 @@ export default function Jugadores() {
         dbQuery = dbQuery.ilike('apellido', `${letra}%`);
       }
 
-      if (categoria !== "todas") {
-        dbQuery = dbQuery.eq("categoria_id", categoria);
+      if (idsPorCategoria) {
+        if (!idsPorCategoria.length) { setJugadores([]); return; }
+        dbQuery = dbQuery.in("id", idsPorCategoria);
       } else if (genero !== "todos") {
         dbQuery = dbQuery.eq("genero", genero);
       }
@@ -119,7 +136,14 @@ export default function Jugadores() {
       if (error) {
         toast.error("Error al buscar jugadores: " + error.message);
       } else {
-        setJugadores(data ?? []);
+        const found = data ?? [];
+        const ids = found.map((j) => j.id);
+        const { data: asignaciones, error: asignacionesError } = ids.length && clubId
+          ? await (supabase as any).from("jugador_categorias_club").select("jugador_id,categoria_id").eq("club_id", clubId).in("jugador_id", ids)
+          : { data: [], error: null };
+        if (asignacionesError) throw asignacionesError;
+        const catByPlayer = new Map((asignaciones ?? []).map((a: {jugador_id:string;categoria_id:string|null}) => [a.jugador_id,a.categoria_id]));
+        setJugadores(found.map((j) => ({ ...j, categoria_id: catByPlayer.get(j.id) ?? null })));
       }
     } catch (err: any) {
       toast.error("Error: " + err.message);
@@ -164,7 +188,7 @@ export default function Jugadores() {
       telefono: j.telefono ?? "",
       email: j.email ?? "",
       genero: j.genero ?? "",
-      categoria_id: j.categoria_id ?? "",
+      categoria_id: (j as any).categoria_id ?? "",
       club: j.club ?? "",
       notas: j.notas ?? "",
     });
@@ -188,11 +212,11 @@ export default function Jugadores() {
       telefono: form.telefono.trim() || null,
       email: form.email.trim() || null,
       genero: form.genero || null,
-      categoria_id: form.categoria_id || null,
       club: form.club.trim() || null,
       notas: form.notas.trim() || null,
     };
 
+    let savedPlayerId = editing?.id;
     if (editing) {
       const { error } = await (supabase as any).from("jugadores").update(payload).eq("id", editing.id);
       if (error) {
@@ -202,19 +226,27 @@ export default function Jugadores() {
       }
       toast.success("Jugador actualizado");
     } else {
-      const { error } = await (supabase as any).from("jugadores").insert(payload);
+      const { data: created, error } = await (supabase as any).from("jugadores").insert(payload).select("id").single();
       if (error) {
         if (error.message.includes("jugadores_dni_unique"))
           return toast.error("Ya existe un jugador with ese DNI");
         return toast.error("Error al crear: " + error.message);
       }
+      savedPlayerId = created.id;
       toast.success("Jugador creado");
+    }
+    if (savedPlayerId && clubId) {
+      const { error: categoryError } = await (supabase as any).from("jugador_categorias_club").upsert({
+        jugador_id: savedPlayerId, club_id: clubId, categoria_id: form.categoria_id || null,
+      }, { onConflict: "jugador_id,club_id" });
+      if (categoryError) toast.error("Los datos se guardaron, pero no se pudo guardar la categoría de este club: " + categoryError.message);
     }
     setDialogOpen(false);
     refreshSearchList();
   };
 
   const handleDelete = async (id: string) => {
+    if (!isSuperAdmin) return toast.error("Solo superadmin puede eliminar fichas compartidas.");
     const { error } = await supabase.from("jugadores").delete().eq("id", id);
     if (error) return toast.error("Error al eliminar: " + error.message);
     toast.success("Jugador eliminado");
@@ -222,13 +254,14 @@ export default function Jugadores() {
   };
 
   const handleCategoriaChange = async (jugadorId: string, nuevaCategoriaId: string) => {
+    if (!clubId) return toast.error("Elegí un club para cambiar su categoría deportiva.");
     const isSinCategoria = nuevaCategoriaId === "sin-categoria";
     const payload = { categoria_id: isSinCategoria ? null : nuevaCategoriaId };
     
     // Optimistic UI update
     setJugadores(prev => prev.map(j => j.id === jugadorId ? { ...j, categoria_id: payload.categoria_id } : j));
     
-    const { error } = await (supabase as any).from("jugadores").update(payload).eq("id", jugadorId);
+    const { error } = await (supabase as any).from("jugador_categorias_club").upsert({ jugador_id: jugadorId, club_id: clubId, ...payload }, { onConflict: "jugador_id,club_id" });
     if (error) {
       toast.error("Error al actualizar la categoría: " + error.message);
       refreshSearchList(); // Revert on error
@@ -267,10 +300,10 @@ export default function Jugadores() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setFusionarOpen(true)}>
+          {isSuperAdmin && <Button variant="outline" onClick={() => setFusionarOpen(true)}>
             <Merge className="h-4 w-4" />
             Fusionar
-          </Button>
+          </Button>}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
             <Button onClick={openCreate}>
@@ -521,7 +554,7 @@ export default function Jugadores() {
                     </div>
                     <Select 
                       value={j.categoria_id || "sin-categoria"} 
-                      onValueChange={(val) => handleCategoriaChange(j.id, val)}
+            onValueChange={(val) => handleCategoriaChange(j.id, val)}
                     >
                       <SelectTrigger className="h-7 text-xs w-[110px] border-dashed shrink-0">
                         <SelectValue placeholder="Categoría" />
@@ -571,7 +604,7 @@ export default function Jugadores() {
                     >
                       <Pencil className="h-3.5 w-3.5" />
                     </Button>
-                    <AlertDialog>
+                    {isSuperAdmin && <AlertDialog>
                       <AlertDialogTrigger asChild>
                         <Button
                           size="sm"
@@ -599,7 +632,7 @@ export default function Jugadores() {
                           </AlertDialogAction>
                         </AlertDialogFooter>
                       </AlertDialogContent>
-                    </AlertDialog>
+                    </AlertDialog>}
                   </div>
                 </CardContent>
               </Card>
@@ -614,6 +647,7 @@ export default function Jugadores() {
           onOpenChange={setDetailOpen}
           jugador={selectedJugador}
           categorias={categorias}
+          clubId={clubId}
         />
       )}
     </div>

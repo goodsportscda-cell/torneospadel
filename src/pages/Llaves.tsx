@@ -78,7 +78,8 @@ type PartidoLlaveRow = {
 const setsVacios: any[] = [];
 
 export default function Llaves() {
-  const { clubId, isAdmin } = useAuth();
+  const { clubId, isAdmin, isOperador } = useAuth();
+  const canOperateTournament = isAdmin || isOperador;
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>(() => {
     return localStorage.getItem("ultimo_torneo_consultado") || "";
@@ -668,7 +669,7 @@ export default function Llaves() {
         </Select>
       </div>
 
-      {!llave && isAdmin && (
+      {!llave && canOperateTournament && (
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Generar cuadro</CardTitle>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -39,6 +39,8 @@ const GENEROS = [
 ];
 
 export default function RankingPublico() {
+  const { clubSlug } = useParams<{ clubSlug?: string }>();
+  const activeClubSlug = clubSlug || "goodsports";
   const [searchParams, setSearchParams] = useSearchParams();
   const [loadingFiltros, setLoadingFiltros] = useState(true);
   
@@ -47,6 +49,7 @@ export default function RankingPublico() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [aniosDisp, setAniosDisp] = useState<number[]>([]);
   const [cuposMaster, setCuposMaster] = useState<Record<string, number>>({});
+  const [clubId, setClubId] = useState<string | null>(null);
 
   const [filtroAnio, setFiltroAnio] = useState<number>(() => {
     const yr = searchParams.get("anio");
@@ -62,11 +65,10 @@ export default function RankingPublico() {
   const [copiado, setCopiado] = useState(false);
   
   const { rankingRows: rows, loading: rankingLoading } = useClubRanking(
-    undefined,
+    clubId,
     filtroCategoria,
     filtroGenero,
-    filtroAnio,
-    false
+    filtroAnio
   );
   
   const loading = loadingFiltros || rankingLoading;
@@ -81,10 +83,20 @@ export default function RankingPublico() {
 
   const cargarFiltros = async () => {
     setLoadingFiltros(true);
-    const [{ data: cats }, { data: anios }, { data: cupos }] = await Promise.all([
-      supabase.from("categorias").select("id, nombre, genero").eq("activa", true).order("orden"),
-      supabase.from("ranking_jugadores").select("anio"),
-      supabase.from("cupos_master").select("categoria_id, cupos"),
+    const { data: club } = await supabase.from("clubes").select("id").eq("slug", activeClubSlug).maybeSingle();
+    if (!club) {
+      setCategorias([]);
+      setLoadingFiltros(false);
+      return;
+    }
+    setClubId(club.id);
+    const { data: cats } = await supabase.from("categorias").select("id, nombre, genero").eq("activa", true).eq("club_id", club.id).order("orden");
+    const categoryIds = (cats ?? []).map((category) => category.id);
+    const { data: tournaments } = await supabase.from("torneos").select("id").eq("club_id", club.id);
+    const tournamentIds = (tournaments ?? []).map((tournament) => tournament.id);
+    const [{ data: anios }, { data: cupos }] = await Promise.all([
+      tournamentIds.length ? supabase.from("ranking_jugadores").select("anio").in("torneo_id", tournamentIds) : Promise.resolve({ data: [] as { anio: number }[] }),
+      categoryIds.length ? supabase.from("cupos_master").select("categoria_id, cupos").in("categoria_id", categoryIds) : Promise.resolve({ data: [] as { categoria_id: string; cupos: number }[] }),
     ]);
     
     const activeCats = (cats ?? []) as Categoria[];
@@ -128,7 +140,7 @@ export default function RankingPublico() {
   
   useEffect(() => {
     cargarFiltros();
-  }, []);
+  }, [activeClubSlug]);
 
   useEffect(() => {
     // Sincronizar filtros con la URL

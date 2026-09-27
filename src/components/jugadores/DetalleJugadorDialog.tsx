@@ -38,13 +38,14 @@ import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
 import type { Database } from "@/integrations/supabase/types";
 
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { notas?: string | null };
-type Categoria = Database["public"]["Tables"]["categorias"]["Row"];
+type Categoria = { id: string; nombre: string; genero: string };
 
 interface Props {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   jugador: Jugador;
   categorias: Categoria[];
+  clubId: string | null;
 }
 
 interface TournamentResult {
@@ -96,6 +97,7 @@ export default function DetalleJugadorDialog({
   onOpenChange,
   jugador,
   categorias,
+  clubId,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [torneosJugados, setTorneosJugados] = useState<TournamentResult[]>([]);
@@ -107,6 +109,19 @@ export default function DetalleJugadorDialog({
     const fetchHistory = async () => {
       setLoading(true);
       try {
+        if (!clubId) {
+          setTorneosJugados([]);
+          setAscensosHistorial([]);
+          return;
+        }
+        const { data: clubTorneos, error: clubTorneosError } = await supabase.from("torneos").select("id").eq("club_id", clubId);
+        if (clubTorneosError) throw clubTorneosError;
+        const clubTournamentIds = (clubTorneos ?? []).map((t) => t.id);
+        if (!clubTournamentIds.length) {
+          setTorneosJugados([]);
+          setAscensosHistorial([]);
+          return;
+        }
         // 1. Obtener todas las inscripciones del jugador
         const { data: inscripciones, error: errInsc } = await supabase
           .from("inscripciones")
@@ -130,7 +145,10 @@ export default function DetalleJugadorDialog({
               apellido
             )
           `)
-          .or(`jugador1_id.eq.${jugador.id},jugador2_id.eq.${jugador.id}`);
+          .or(`jugador1_id.eq.${jugador.id},jugador2_id.eq.${jugador.id}`)
+          .in("torneo_id", clubTournamentIds);
+        // The profile's sporting history belongs to the active club only.
+        const clubInscripciones = (inscripciones ?? []).filter((ins: any) => clubTournamentIds.includes(ins.torneo_id));
 
         if (errInsc) throw errInsc;
 
@@ -138,7 +156,8 @@ export default function DetalleJugadorDialog({
         const { data: rankingPoints, error: errRank } = await supabase
           .from("ranking_jugadores")
           .select("id, torneo_id, inscripcion_id, instancia, puntos")
-          .eq("jugador_id", jugador.id);
+          .eq("jugador_id", jugador.id)
+          .in("torneo_id", clubTournamentIds);
 
         if (errRank) throw errRank;
 
@@ -147,7 +166,7 @@ export default function DetalleJugadorDialog({
         );
 
         // 3. Procesar las inscripciones y unirlas al ranking de torneos
-        const results: TournamentResult[] = (inscripciones ?? []).map((ins: any) => {
+        const results: TournamentResult[] = clubInscripciones.map((ins: any) => {
           const torneo = ins.torneos;
 
           // Resolver compañero
@@ -212,14 +231,14 @@ export default function DetalleJugadorDialog({
           .eq("jugador_id", jugador.id)
           .order("anio", { ascending: false });
 
-        const { data: catsAll } = await (supabase as any).from("categorias").select("id, nombre, genero");
-        const { data: catsJugAll } = await (supabase as any).from("categorias_jugadores").select("id, nombre, genero");
+        const { data: catsAll } = await (supabase as any).from("categorias").select("id, nombre, genero").eq("club_id", clubId);
+        const { data: catsJugAll } = await (supabase as any).from("categorias_jugadores").select("id, nombre, genero").eq("club_id", clubId);
 
         const catNameMap = new Map<string, string>();
         (catsAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
         (catsJugAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
 
-        const ascResult: AscensoItem[] = (ascData ?? []).map((a: any) => ({
+        const ascResult: AscensoItem[] = (ascData ?? []).filter((a: any) => catNameMap.has(a.categoria_origen_id) && catNameMap.has(a.categoria_destino_id)).map((a: any) => ({
           id: a.id,
           catOrigenNombre: catNameMap.get(a.categoria_origen_id) || "Categoría Origen",
           catDestinoNombre: catNameMap.get(a.categoria_destino_id) || "Categoría Destino",
@@ -239,7 +258,7 @@ export default function DetalleJugadorDialog({
     };
 
     fetchHistory();
-  }, [open, jugador.id]);
+  }, [open, jugador.id, clubId]);
 
   const categoriaLabel = () => {
     const c = categorias.find((c) => c.id === jugador.categoria_id);

@@ -17,6 +17,8 @@ export type RankingRowUnified = {
   jugador_apellido: string;
   jugador_club: string | null;
   jugador_categoria_id: string | null;
+  jugador_categoria_nombre: string | null;
+  jugador_categoria_genero: string | null;
   puntos_totales: number;
   puntos_torneos: number;
   puntos_ascenso: number;
@@ -39,6 +41,7 @@ export function useClubRanking(
       setLoading(true);
       setError(null);
       setRankingRows([]);
+      if (!clubId) return;
 
       // Categories are owned by a club. They also scope ascension points,
       // because ascensos themselves do not carry a club_id.
@@ -231,6 +234,18 @@ export function useClubRanking(
       for (const res of results) {
         if (res.data) jugadores = [...jugadores, ...res.data];
       }
+      const categoryByPlayer = new Map<string, { id: string; nombre: string; genero: string }>();
+      if (clubId) {
+        const { data: playerCategories, error: playerCategoriesError } = await (supabase as any)
+          .from("jugador_categorias_publicas")
+          .select("jugador_id, categoria_id, categoria_nombre, genero")
+          .eq("club_id", clubId)
+          .in("jugador_id", ids);
+        if (playerCategoriesError) throw playerCategoriesError;
+        (playerCategories ?? []).forEach((row: { jugador_id: string; categoria_id: string; categoria_nombre: string; genero: string }) => {
+          categoryByPlayer.set(row.jugador_id, { id: row.categoria_id, nombre: row.categoria_nombre, genero: row.genero });
+        });
+      }
 
       // 6. Mapear y Ordenar
       const finalResult: RankingRowUnified[] = ids.map((id) => {
@@ -254,7 +269,9 @@ export function useClubRanking(
           jugador_nombre: j?.nombre ?? "?",
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
-          jugador_categoria_id: j?.categoria_id ?? null,
+          jugador_categoria_id: categoryByPlayer.get(id)?.id ?? null,
+          jugador_categoria_nombre: categoryByPlayer.get(id)?.nombre ?? null,
+          jugador_categoria_genero: categoryByPlayer.get(id)?.genero ?? null,
           puntos_totales,
           puntos_torneos: m.ptsTorneos,
           puntos_ascenso: m.ptsAscenso,

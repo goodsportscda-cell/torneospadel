@@ -147,7 +147,7 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
       // Hacer el recálculo de ascensos UNA SOLA VEZ al final para todos
       if (torneosFecha.length > 0) {
         const anio = new Date(torneosFecha[0].fecha_inicio).getFullYear();
-        await recalcularTodosLosAscensos(anio);
+        await recalcularTodosLosAscensos(anio, clubId);
       }
       
       toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);

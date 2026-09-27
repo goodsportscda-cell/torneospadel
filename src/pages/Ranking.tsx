@@ -112,7 +112,10 @@ export default function Ranking() {
   const [busqueda, setBusqueda] = useState("");
   const [copiado, setCopiado] = useState(false);
 
-  const copiarEnlacePublico = () => {
+  const copiarEnlacePublico = async () => {
+    if (!clubId) return toast.error("Elegí un club antes de compartir el ranking.");
+    const { data: club, error } = await supabase.from("clubes").select("slug").eq("id", clubId).maybeSingle();
+    if (error || !club) return toast.error("No se pudo identificar el club para compartir el ranking.");
     const params = new URLSearchParams();
     if (filtroAnio !== new Date().getFullYear()) {
       params.set("anio", String(filtroAnio));
@@ -124,7 +127,8 @@ export default function Ranking() {
       params.set("genero", filtroGenero);
     }
     const queryString = params.toString();
-    const url = `${window.location.origin}/ranking-publico${queryString ? "?" + queryString : ""}`;
+    const ruta = club.slug === "goodsports" ? "/ranking-publico" : `/c/${club.slug}/ranking-publico`;
+    const url = `${window.location.origin}${ruta}${queryString ? "?" + queryString : ""}`;
     navigator.clipboard.writeText(url);
     setCopiado(true);
     toast.success("¡Enlace del ranking público copiado! Listo para compartir en WhatsApp.");
@@ -439,7 +443,7 @@ export default function Ranking() {
     setLoading(true);
     const [{ data: cats }, { data: cfg }, { data: anios }, { data: cupos }] = await Promise.all([
       supabase.from("categorias").select("id, nombre, genero, orden").eq("activa", true).eq("club_id", clubId),
-      supabase.from("puntos_ranking").select("instancia, puntos, orden").order("orden"),
+      (supabase as any).from("puntos_ranking").select("instancia, puntos, orden").eq("club_id", clubId).order("orden"),
       supabase.from("ranking_jugadores").select("anio"),
       supabase.from("cupos_master").select("categoria_id, cupos"),
     ]);
@@ -648,9 +652,17 @@ export default function Ranking() {
       console.error("Error fetching jugadores in chunks:", err);
     }
 
+    const { data: playerCategories } = await (supabase as any)
+      .from("jugador_categorias_publicas")
+      .select("jugador_id, categoria_id, categoria_nombre, genero")
+      .eq("club_id", clubId)
+      .in("jugador_id", ids);
+    const playerCategoryById = new Map<string, any>((playerCategories ?? []).map((row: any) => [row.jugador_id, row]));
+
     const result: RankingRowUnified[] = ids.map((id) => {
       const j = jugadores?.find((x) => x.id === id);
       const m = map.get(id)!;
+      const playerCategory = playerCategoryById.get(id);
       return {
         posicion: 0,
         jugador_id: id,
@@ -661,7 +673,9 @@ export default function Ranking() {
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
         jugador_club: j?.club ?? null,
-        jugador_categoria_id: j?.categoria_id ?? null,
+        jugador_categoria_id: playerCategory?.categoria_id ?? null,
+        jugador_categoria_nombre: playerCategory?.categoria_nombre ?? null,
+        jugador_categoria_genero: playerCategory?.genero ?? null,
         desglose: [],
       };
     });
@@ -712,7 +726,8 @@ export default function Ranking() {
         const { error } = await (supabase as any)
           .from("puntos_ranking")
           .update({ puntos: p.puntos })
-          .eq("instancia", p.instancia);
+          .eq("instancia", p.instancia)
+          .eq("club_id", clubId);
         if (error) throw error;
       }
       toast.success("Puntos actualizados. Recalculá los torneos finalizados para aplicar.");
@@ -808,9 +823,10 @@ export default function Ranking() {
         if (tData) torneos = tData;
       }
 
-      const { data: puntosCfg } = await supabase
+      const { data: puntosCfg } = await (supabase as any)
         .from("puntos_ranking")
-        .select("instancia, puntos");
+        .select("instancia, puntos")
+        .eq("club_id", clubId);
       const puntosBaseMap = new Map<string, number>();
       (puntosCfg ?? []).forEach((p) => puntosBaseMap.set(p.instancia, p.puntos));
 
@@ -970,7 +986,7 @@ export default function Ranking() {
     }
 
     // Recalcular todos los ascensos del año para garantizar coherencia
-    await recalcularTodosLosAscensos(filtroAnio);
+    await recalcularTodosLosAscensos(filtroAnio, clubId);
     
     toast.success(`Ascenso guardado. ${ptsTransferidos} puntos transferidos.`);
     setSavingAscenso(false);
@@ -1040,7 +1056,7 @@ export default function Ranking() {
   const eliminarAscenso = async (id: string) => {
     const { error } = await supabase.from("ascensos").delete().eq("id", id);
     if (error) { toast.error("Error: " + error.message); return; }
-    await recalcularTodosLosAscensos(filtroAnio);
+    await recalcularTodosLosAscensos(filtroAnio, clubId);
     toast.success("Ascenso eliminado");
     cargarAscensos();
     cargarRanking();
@@ -1300,11 +1316,11 @@ export default function Ranking() {
                         {r.jugador_club ?? "—"}
                       </TableCell>
                       <TableCell className="hidden md:table-cell">
-                        {r.jugador_categoria_id ? (() => {
-                          const cat = categorias.find(c => c.id === r.jugador_categoria_id);
-                          if (!cat) return <span className="text-muted-foreground">—</span>;
-                          return <Badge variant="secondary" className="shrink-0">{cat.genero === "caballeros" ? "Cab." : cat.genero === "damas" ? "Dam." : "Mix."} {cat.nombre}</Badge>;
-                        })() : <span className="text-muted-foreground">—</span>}
+                        {r.jugador_categoria_nombre ? (
+                          <Badge variant="secondary" className="shrink-0">
+                            {r.jugador_categoria_genero === "caballeros" ? "Cab." : r.jugador_categoria_genero === "damas" ? "Dam." : "Mix."} {r.jugador_categoria_nombre}
+                          </Badge>
+                        ) : <span className="text-muted-foreground">—</span>}
                       </TableCell>
                       <TableCell className="text-center">
                         <Badge variant="outline">{r.torneos_jugados}</Badge>

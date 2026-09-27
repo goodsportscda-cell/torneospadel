@@ -39,7 +39,7 @@ export function AppSidebar() {
   const visibleItems = items.filter(item => {
     if (isAdmin) return true;
     // Para Operadores, solo mostramos las secciones operativas:
-    return ["Torneos", "Inscripciones", "Zonas", "Canchas en vivo", "Llaves", "Marcador en Vivo"].includes(item.title);
+    return ["Inscripciones", "Zonas", "Canchas en vivo", "Llaves", "Marcador en Vivo"].includes(item.title);
   });
   
   const displayNombre = clubActivo?.nombre || activeTenant.name;

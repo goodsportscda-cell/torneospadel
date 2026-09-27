@@ -31,7 +31,8 @@ type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
 
 export default function Zonas() {
-  const { clubId, isAdmin } = useAuth();
+  const { clubId, isAdmin, isOperador } = useAuth();
+  const canOperateTournament = isAdmin || isOperador;
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>(() => {
     return localStorage.getItem("ultimo_torneo_consultado") || "";
@@ -313,7 +314,7 @@ export default function Zonas() {
                 Actualizar
               </Button>
 
-              {isAdmin && (
+              {canOperateTournament && (
                 <Button variant="secondary" size="sm" onClick={handleAddZona}>
                   <Plus className="h-4 w-4 mr-2" />
                   Añadir Zona
@@ -321,7 +322,7 @@ export default function Zonas() {
               )}
 
               {zonas.length === 0 ? (
-                isAdmin && (
+                canOperateTournament && (
                   <GenerarZonasAutoDialog 
                     torneoId={torneoId}
                     onZonasCreadas={() => cargarDatos()}
@@ -353,7 +354,7 @@ export default function Zonas() {
                   </AlertDialog>
                 )
               )}
-              {zonas.length > 0 && isAdmin && (
+              {zonas.length > 0 && canOperateTournament && (
                 <>
                   <Button 
                     variant="outline" 

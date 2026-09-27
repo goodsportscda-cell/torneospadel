@@ -147,6 +147,7 @@ export default function ClubHome() {
   }, [torneos]);
 
   const abrirDetalle = async (jugador: RankingRowUnified) => {
+    if (!club) return;
     setDetalleJugador(jugador);
     setDetalleOpen(true);
     setLoadingDetalle(true);
@@ -172,7 +173,8 @@ export default function ClubHome() {
         .from("ascensos")
         .select("categoria_origen_id, notas")
         .eq("jugador_id", jugador.jugador_id)
-        .eq("anio", filtroAnio);
+        .eq("anio", filtroAnio)
+        .in("categoria_origen_id", categorias.map((category) => category.id));
       const ascendidosDesdeIds = new Set((playerAscensos ?? []).map(a => a.categoria_origen_id));
       const notasList = (playerAscensos ?? []).map(a => a.notas).filter(Boolean);
       setDetalleAscensoNotas(notasList.length > 0 ? notasList.join(" | ") : null);
@@ -181,7 +183,8 @@ export default function ClubHome() {
         .from("ranking_jugadores")
         .select("torneo_id, instancia, puntos, categoria_id")
         .eq("jugador_id", jugador.jugador_id)
-        .eq("anio", filtroAnio);
+        .eq("anio", filtroAnio)
+        .in("categoria_id", categorias.map((category) => category.id));
       if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
       if (filtroGenero !== "todos") q = q.eq("genero", filtroGenero);
       const { data: rj, error } = await q;
@@ -195,13 +198,15 @@ export default function ClubHome() {
         const { data: tData } = await supabase
           .from("torneos")
           .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
-          .in("id", torneoIds);
+          .in("id", torneoIds)
+          .eq("club_id", club.id);
         if (tData) torneosInfo = tData;
       }
 
-      const { data: puntosCfg } = await supabase
+      const { data: puntosCfg } = await (supabase as any)
         .from("puntos_ranking")
-        .select("instancia, puntos");
+        .select("instancia, puntos")
+        .eq("club_id", club.id);
       const puntosBaseMap = new Map<string, number>();
       (puntosCfg ?? []).forEach((p) => puntosBaseMap.set(p.instancia, p.puntos));
 
