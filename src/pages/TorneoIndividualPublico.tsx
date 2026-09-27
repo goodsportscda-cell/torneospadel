@@ -54,7 +54,6 @@ type PartidoInd = Database["public"]["Tables"]["partidos_individuales"]["Row"] &
 };
 type SetPartidoInd = Database["public"]["Tables"]["sets_partido_individual"]["Row"];
 type TorneoFecha = Database["public"]["Tables"]["torneo_individual_fechas"]["Row"];
-type TorneoPago = Database["public"]["Tables"]["torneo_individual_pagos"]["Row"];
 
 interface PlayerStanding {
   jugador_id: string;
@@ -122,7 +121,6 @@ export default function TorneoIndividualPublico() {
   // Data lists
   const [jugadoresInscriptos, setJugadoresInscriptos] = useState<TorneoJugador[]>([]);
   const [fechas, setFechas] = useState<TorneoFecha[]>([]);
-  const [pagos, setPagos] = useState<TorneoPago[]>([]);
   const [partidos, setPartidos] = useState<PartidoInd[]>([]);
   const [standings, setStandings] = useState<any[]>([]);
   const [parejas, setParejas] = useState<any[]>([]);
@@ -146,14 +144,12 @@ export default function TorneoIndividualPublico() {
         { data: tRes },
         { data: tjRes },
         { data: fRes },
-        { data: pRes },
         { data: partRes },
         { data: tpRes },
       ] = await Promise.all([
         supabase.from("torneos").select("*").eq("id", id).maybeSingle(),
-        (supabase as any).from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
+        (supabase as any).from("torneo_individual_jugadores").select("*").eq("torneo_id", id),
         (supabase as any).from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
-        (supabase as any).from("torneo_individual_pagos").select("*").eq("torneo_id", id),
         (supabase as any).from("partidos_individuales").select("*").eq("torneo_id", id),
         (supabase as any).from("torneo_individual_parejas").select("*").eq("torneo_id", id),
       ]);
@@ -163,8 +159,22 @@ export default function TorneoIndividualPublico() {
         return;
       }
 
+      const inscriptosBase = (tjRes ?? []) as TorneoJugador[];
+      const jugadorIds = [...new Set(inscriptosBase.map((tj) => tj.jugador_id))];
+      const { data: jugadoresPublicos } = jugadorIds.length > 0
+        ? await (supabase as any)
+            .from("jugadores_publicos")
+            .select("id, nombre, apellido, club, categoria_id, genero")
+            .in("id", jugadorIds)
+        : { data: [] };
+      const jugadoresMap = new Map((jugadoresPublicos ?? []).map((j: any) => [j.id, j as Jugador]));
+      const inscriptos = inscriptosBase.map((tj) => ({
+        ...tj,
+        jugador: jugadoresMap.get(tj.jugador_id),
+      })) as TorneoJugador[];
+
       setTorneo(tRes);
-      setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
+      setJugadoresInscriptos(inscriptos);
 
       // Map fechas with fallback to notas
       const mappedFechas = (fRes ?? []).map((f: any) => {
@@ -175,13 +185,12 @@ export default function TorneoIndividualPublico() {
         };
       });
       setFechas(mappedFechas);
-      setPagos(pRes ?? []);
 
       // Map couples players
       const mappedParejas = (tpRes ?? []).map((p: any) => ({
         ...p,
-        jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
-        jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
+        jugador1: inscriptos.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
+        jugador2: inscriptos.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
       }));
       setParejas(mappedParejas);
 
@@ -202,10 +211,10 @@ export default function TorneoIndividualPublico() {
 
         const fullPartidos: PartidoInd[] = partRes.map((p: any) => ({
           ...p,
-          jugador1: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
-          jugador2: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
-          jugador3: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador3_id)?.jugador || null,
-          jugador4: (tjRes as TorneoJugador[])?.find((tj) => tj.jugador_id === p.jugador4_id)?.jugador || null,
+          jugador1: inscriptos.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
+          jugador2: inscriptos.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
+          jugador3: inscriptos.find((tj) => tj.jugador_id === p.jugador3_id)?.jugador || null,
+          jugador4: inscriptos.find((tj) => tj.jugador_id === p.jugador4_id)?.jugador || null,
           sets: setsMap[p.id] ?? [],
         }));
 
@@ -255,66 +264,21 @@ export default function TorneoIndividualPublico() {
     let isMounted = true;
     const resolvePlayer = async () => {
       try {
-        // 1. Consultar tabla profiles por user_id
-        const { data: profile } = await (supabase as any)
-          .from("profiles")
-          .select("jugador_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        let jId = profile?.jugador_id || (user.user_metadata?.jugador_id as string | undefined);
-
-        // 2. Si no esta vinculado en profiles, buscar por DNI o Email en jugadores
-        if (!jId) {
-          const userDni = user.user_metadata?.dni ? String(user.user_metadata.dni).trim() : null;
-          if (userDni) {
-            const cleanDni = userDni.replace(/[\s.-]/g, "");
-            const { data: jugCandidates } = await (supabase as any)
-              .from("jugadores")
-              .select("id, dni")
-              .or(`dni.eq.${cleanDni},dni.ilike.%${cleanDni}%`)
-              .limit(5);
-            if (jugCandidates && jugCandidates.length > 0) jId = jugCandidates[0].id;
-          }
-        }
-
-        if (!jId && user.email) {
-          const { data: jugEmail } = await (supabase as any)
-            .from("jugadores")
-            .select("id")
-            .ilike("email", user.email.trim())
-            .maybeSingle();
-          if (jugEmail) jId = jugEmail.id;
-        }
-
-        // 3. Obtener los datos completos del jugador
-        if (jId && isMounted) {
-          const { data: jugData } = await (supabase as any)
-            .from("jugadores")
-            .select("*")
-            .eq("id", jId)
-            .maybeSingle();
-          if (jugData && isMounted) {
-            setCurrentUserJugador(jugData);
-
-            // Asegurar persistencia en profiles y auth user_metadata si no estaba vinculado en DB
-            if (!profile?.jugador_id) {
-              await (supabase as any)
-                .from("profiles")
-                .upsert(
-                  {
-                    user_id: user.id,
-                    jugador_id: jId,
-                    email: user.email,
-                    display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Jugador",
-                  },
-                  { onConflict: "user_id" }
-                );
-              await supabase.auth.updateUser({
-                data: { jugador_id: jId },
-              });
-            }
-          }
+        const { data, error } = await (supabase as any).rpc("get_or_link_my_player");
+        if (error) throw error;
+        if (isMounted && data?.ok) {
+          setCurrentUserJugador({
+            id: data.jugador_id,
+            nombre: data.nombre,
+            apellido: data.apellido,
+            club: data.club,
+            categoria_id: data.categoria_id,
+            dni: data.dni,
+            email: data.email,
+            telefono: data.telefono,
+          } as Jugador);
+        } else if (isMounted) {
+          setCurrentUserJugador(null);
         }
       } catch (err) {
         console.warn("No se pudo resolver el perfil de jugador del usuario:", err);
@@ -641,7 +605,7 @@ export default function TorneoIndividualPublico() {
           jugador_id: tj.jugador_id,
           nombre: tj.jugador.nombre,
           apellido: tj.jugador.apellido,
-          dni: tj.jugador.dni,
+          dni: null,
           club: tj.jugador.club,
           podio_final: (tj as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, tj.jugador_id),
           posicion_manual: manualPos,

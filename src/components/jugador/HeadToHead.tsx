@@ -42,7 +42,7 @@ export function HeadToHead({ jugadorId, jugadorNombre }: Props) {
     if (!searchRival.trim() || searchRival.length < 2) return;
     setSearching(true);
     const { data } = await supabase
-      .from("jugadores")
+      .from("jugadores_publicos" as any)
       .select("id, nombre, apellido")
       .ilike("apellido", `%${searchRival.trim()}%`)
       .neq("id", jugadorId)

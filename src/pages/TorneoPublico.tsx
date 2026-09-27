@@ -61,16 +61,22 @@ export default function TorneoPublico() {
     const [
       { data: zData },
       { data: iData },
-      { data: jData },
       { data: lData },
       { data: llavesData }
     ] = await Promise.all([
       (supabase as any).from("zonas").select("*").eq("torneo_id", tData.id).order("orden"),
-      (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at, jugador1:jugadores!inscripciones_jugador1_id_fkey(nombre, apellido), jugador2:jugadores!inscripciones_jugador2_id_fkey(nombre, apellido)").eq("torneo_id", tData.id).eq("estado", "confirmada"),
-      (supabase as any).from("jugadores").select("*"),
+      (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at").eq("torneo_id", tData.id).eq("estado", "confirmada"),
       (supabase as any).from("llaves").select("*").eq("torneo_id", tData.id).maybeSingle(),
       (supabase as any).from("partidos_llave").select("*").order("numero")
     ]);
+
+    const jugadorIds = [...new Set((iData ?? []).flatMap((i: any) => [i.jugador1_id, i.jugador2_id]).filter(Boolean))];
+    const { data: jData } = jugadorIds.length > 0
+      ? await (supabase as any)
+          .from("jugadores_publicos")
+          .select("id, nombre, apellido, club, categoria_id, genero")
+          .in("id", jugadorIds)
+      : { data: [] };
 
     setZonas((zData ?? []) as Zona[]);
     setInscripciones(iData ?? []);
@@ -121,8 +127,8 @@ export default function TorneoPublico() {
     if (!id) return "— por definir —";
     const i = inscripciones.find(x => x.id === id);
     if (!i) return "?";
-    const n1 = i.jugador1?.apellido ?? "?";
-    const n2 = i.jugador2?.apellido ?? "?";
+    const n1 = jugadorMap.get(i.jugador1_id)?.apellido ?? "?";
+    const n2 = jugadorMap.get(i.jugador2_id)?.apellido ?? "?";
     return `${n1} / ${n2}`;
   };
   const formatRefLabel = useCallback((ref: string | null) => {

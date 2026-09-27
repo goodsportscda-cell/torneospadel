@@ -67,33 +67,20 @@ export default function InscripcionPublica() {
       
       // Auto-fill user if logged in
       if (user) {
-        const { data: profile } = await (supabase as any)
-          .from("profiles")
-          .select("jugador_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-          
-        if (profile?.jugador_id) {
-          const { data: jug } = await supabase
-            .from("jugadores")
-            .select("*")
-            .eq("id", profile.jugador_id)
-            .maybeSingle();
-            
-          if (jug) {
-            setJ1({
-              dni: jug.dni || "",
-              nombre: jug.nombre || "",
-              apellido: jug.apellido || "",
-              telefono: jug.telefono || "",
-              email: jug.email || user.email || "",
-              club: jug.club || "",
-              encontrado: true,
-            });
-            // Auto skip step 1 since it's pre-filled
-            if (jug.dni && jug.nombre && jug.apellido && jug.telefono) {
-              setPaso(2);
-            }
+        const { data: linkResult } = await (supabase as any).rpc("get_or_link_my_player");
+        if (linkResult?.ok) {
+          setJ1({
+            dni: linkResult.dni || "",
+            nombre: linkResult.nombre || "",
+            apellido: linkResult.apellido || "",
+            telefono: linkResult.telefono || "",
+            email: linkResult.email || user.email || "",
+            club: linkResult.club || "",
+            encontrado: true,
+          });
+          // Auto skip step 1 only when all required player details are verified.
+          if (linkResult.dni && linkResult.nombre && linkResult.apellido && linkResult.telefono) {
+            setPaso(2);
           }
         }
       }

@@ -103,7 +103,7 @@ export function PlayerInscriptions({ jugadorId }: Props) {
           });
 
           const { data: jugs } = await supabase
-            .from("jugadores")
+            .from("jugadores_publicos" as any)
             .select("id, nombre, apellido")
             .in("id", Array.from(compaIds));
             
@@ -193,7 +193,7 @@ export function PlayerInscriptions({ jugadorId }: Props) {
         if (misSemanalesParejas && misSemanalesParejas.length > 0) {
           const parejaCompaIds = misSemanalesParejas.map((sp: any) => sp.jugador1_id === jugadorId ? sp.jugador2_id : sp.jugador1_id);
           const { data: compaJugadores } = await supabase
-            .from("jugadores")
+            .from("jugadores_publicos" as any)
             .select("id, nombre, apellido")
             .in("id", parejaCompaIds);
           const compaMap = new Map((compaJugadores ?? []).map(j => [j.id, `${j.apellido}, ${j.nombre}`]));

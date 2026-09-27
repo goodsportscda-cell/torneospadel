@@ -13,11 +13,8 @@ import {
   Loader2,
   User,
   LogOut,
-  Search,
   ExternalLink,
 } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
@@ -72,10 +69,7 @@ export default function PlayerDashboard() {
   const [misTorneos, setMisTorneos] = useState<MiTorneo[]>([]);
   const [miRanking, setMiRanking] = useState<RankingEntry[]>([]);
   const [linking, setLinking] = useState(false);
-  const [searchDni, setSearchDni] = useState("");
-  const [searchNombre, setSearchNombre] = useState("");
-  const [searchResults, setSearchResults] = useState<Array<{ id: string; nombre: string; apellido: string; dni: string | null }>>([]);
-  const [searching, setSearching] = useState(false);
+  const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const anio = new Date().getFullYear();
 
   useEffect(() => {
@@ -83,75 +77,15 @@ export default function PlayerDashboard() {
     const load = async () => {
       setLoading(true);
 
-      // Get profile to check if linked to jugador
-      const { data: profile } = await (supabase as any)
-        .from("profiles")
-        .select("jugador_id")
-        .eq("user_id", user.id)
-        .maybeSingle();
-
-      let jId = profile?.jugador_id || (user.user_metadata?.jugador_id as string | undefined) || null;
-
-      // Auto-link if not linked yet: check email or DNI
-      if (!jId) {
-        // 1. By email
-        if (user.email) {
-          const { data: jugEmail } = await (supabase as any)
-            .from("jugadores")
-            .select("id")
-            .ilike("email", user.email.trim())
-            .maybeSingle();
-          if (jugEmail) jId = jugEmail.id;
-        }
-
-        // 2. By DNI in user metadata
-        if (!jId && user.user_metadata?.dni) {
-          const rawDni = String(user.user_metadata.dni).trim();
-          const cleanDni = rawDni.replace(/[\s.-]/g, "");
-          if (cleanDni) {
-            const { data: jugCandidates } = await (supabase as any)
-              .from("jugadores")
-              .select("id, dni")
-              .or(`dni.eq.${cleanDni},dni.ilike.%${cleanDni}%`)
-              .limit(5);
-            if (jugCandidates && jugCandidates.length > 0) {
-              jId = jugCandidates[0].id;
-            }
-          }
-        }
-
-        // If found, persist it immediately via upsert and auth metadata
-        if (jId) {
-          await (supabase as any)
-            .from("profiles")
-            .upsert(
-              {
-                user_id: user.id,
-                jugador_id: jId,
-                email: user.email,
-                display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Jugador",
-              },
-              { onConflict: "user_id" }
-            );
-
-          await supabase.auth.updateUser({
-            data: { jugador_id: jId },
-          });
-
-          toast.success("¡Tu ficha de jugador fue vinculada automáticamente!");
-        }
-      }
-
+      const { data: linkResult, error: linkError } = await (supabase as any).rpc("get_or_link_my_player");
+      if (linkError) console.error("Error al verificar la ficha del jugador:", linkError);
+      const jId = linkResult?.ok ? linkResult.jugador_id : null;
+      setLinkMessage(linkResult?.ok ? null : linkResult?.error ?? null);
       setJugadorId(jId);
 
       // Get jugador name
       if (jId) {
-        const { data: jug } = await supabase
-          .from("jugadores")
-          .select("nombre, apellido")
-          .eq("id", jId)
-          .maybeSingle();
-        if (jug) setJugadorNombre(`${jug.nombre} ${jug.apellido}`);
+        setJugadorNombre(`${linkResult.nombre} ${linkResult.apellido}`);
       }
 
       // Get upcoming/active tournaments
@@ -249,65 +183,20 @@ export default function PlayerDashboard() {
     load();
   }, [user, anio]);
 
-  const handleSearch = async () => {
-    if (!searchDni.trim() && !searchNombre.trim()) return;
-    setSearching(true);
-    let query = supabase.from("jugadores").select("id, nombre, apellido, dni");
-    if (searchDni.trim()) {
-      const cleanDni = searchDni.trim().replace(/[\s.-]/g, "");
-      query = query.or(`dni.eq.${cleanDni},dni.ilike.%${cleanDni}%,dni.ilike.%${searchDni.trim()}%`);
-    } else {
-      const term = searchNombre.trim();
-      query = query.or(`apellido.ilike.%${term}%,nombre.ilike.%${term}%`);
-    }
-    const { data } = await query.limit(10);
-    setSearchResults(data ?? []);
-    setSearching(false);
-  };
-
-  const handleLink = async (jid: string) => {
+  const handleLinkMyPlayer = async () => {
     if (!user) return;
     setLinking(true);
     try {
-      // 1. Upsert profile so it works even if profile row doesn't exist yet
-      const { error: profileErr } = await (supabase as any)
-        .from("profiles")
-        .upsert(
-          {
-            user_id: user.id,
-            jugador_id: jid,
-            email: user.email,
-            display_name: user.user_metadata?.display_name || user.email?.split("@")[0] || "Jugador",
-          },
-          { onConflict: "user_id" }
-        );
-
-      if (profileErr) {
-        console.error("Error upserting profile:", profileErr);
+      const { data, error } = await (supabase as any).rpc("get_or_link_my_player");
+      if (error) throw error;
+      if (!data?.ok) {
+        setLinkMessage(data?.error ?? "No se pudo vincular la ficha");
+        return;
       }
-
-      // 2. Persist in Auth User Metadata as persistent session fallback
-      const j = searchResults.find(r => r.id === jid);
-      await supabase.auth.updateUser({
-        data: {
-          jugador_id: jid,
-          dni: j?.dni || user.user_metadata?.dni,
-        },
-      });
-
-      // 3. Associate user email to player if null
-      if (user.email) {
-        await supabase
-          .from("jugadores")
-          .update({ email: user.email })
-          .eq("id", jid)
-          .is("email", null);
-      }
-
+      setJugadorId(data.jugador_id);
+      setJugadorNombre(`${data.nombre} ${data.apellido}`);
+      setLinkMessage(null);
       toast.success("¡Perfil vinculado exitosamente!");
-      setJugadorId(jid);
-      if (j) setJugadorNombre(`${j.nombre} ${j.apellido}`);
-      setSearchResults([]);
     } catch (err: any) {
       toast.error("Error al vincular perfil: " + (err?.message || "Intente nuevamente"));
     } finally {
@@ -341,20 +230,18 @@ export default function PlayerDashboard() {
       return;
     }
 
-    // Inscribir
-    const { error } = await supabase
-      .from("torneo_individual_jugadores")
-      .insert({
-        torneo_id: torneoId,
-        jugador_id: jugadorId,
-        estado: "confirmada", // Auto-aprobar ya que es rápido
-      });
+    // The server verifies that this ficha belongs to the signed-in account.
+    const { data, error } = await (supabase as any).rpc("inscribir_mi_americano_individual", {
+      p_torneo_id: torneoId,
+    });
 
     setLoading(false);
-    if (error) {
-      toast.error("Error al inscribirte: " + error.message);
+    if (error || !data?.ok) {
+      toast.error("Error al inscribirte: " + (error?.message || data?.error || "Intente nuevamente"));
     } else {
-      toast.success("¡Inscripción confirmada exitosamente!");
+      toast.success(data.estado === "lista_espera"
+        ? "El cupo está completo. Quedaste en lista de espera."
+        : "¡Inscripción confirmada exitosamente!");
       // Forzar recarga o actualizar lista local
       window.location.reload();
     }
@@ -419,55 +306,14 @@ export default function PlayerDashboard() {
                 <Card className="border-dashed">
                   <CardContent className="pt-4 space-y-3">
                     <p className="text-sm text-muted-foreground">
-                      Vinculá tu cuenta con tu ficha de jugador en Padel ID para ver tu rendimiento y ranking.
+                      Vinculá tu cuenta usando el mismo correo verificado que figura en tu ficha de jugador.
                     </p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="space-y-1">
-                        <Label className="text-xs">DNI</Label>
-                        <Input
-                          placeholder="Ej: 35123456"
-                          value={searchDni}
-                          onChange={(e) => setSearchDni(e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-                      <div className="space-y-1">
-                        <Label className="text-xs">Apellido</Label>
-                        <Input
-                          placeholder="Ej: García"
-                          value={searchNombre}
-                          onChange={(e) => setSearchNombre(e.target.value)}
-                          className="h-9"
-                        />
-                      </div>
-                    </div>
-                    <Button size="sm" onClick={handleSearch} disabled={searching} className="w-full">
-                      <Search className="h-3.5 w-3.5 mr-1" />
-                      {searching ? "Buscando..." : "Buscar mi ficha"}
+                    <Button size="sm" onClick={handleLinkMyPlayer} disabled={linking} className="w-full">
+                      {linking ? "Verificando correo..." : "Verificar y vincular mi ficha"}
                     </Button>
-                    {searchResults.length > 0 && (
-                      <ul className="space-y-1">
-                        {searchResults.map((j) => (
-                          <li
-                            key={j.id}
-                            className="flex items-center justify-between p-2 rounded-md border text-sm"
-                          >
-                            <span>{j.apellido}, {j.nombre} {j.dni ? `(${j.dni})` : ""}</span>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleLink(j.id)}
-                              disabled={linking}
-                            >
-                              Vincular
-                            </Button>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                    {searchResults.length === 0 && (searchDni || searchNombre) && !searching && (
-                      <p className="text-xs text-muted-foreground text-center">
-                        No se encontraron resultados
+                    {linkMessage && (
+                      <p className="text-xs text-muted-foreground text-center" role="status">
+                        {linkMessage}
                       </p>
                     )}
                   </CardContent>

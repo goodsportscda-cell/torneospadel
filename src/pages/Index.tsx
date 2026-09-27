@@ -150,7 +150,7 @@ const Index = () => {
           const results = await Promise.all(
             chunks.map(chunk => 
               supabase
-                .from("jugadores")
+                .from("jugadores_publicos" as any)
                 .select("id, nombre, apellido")
                 .in("id", chunk)
             )

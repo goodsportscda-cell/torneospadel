@@ -31,19 +31,32 @@ export const DraftPublico = () => {
       // Fetch Partidos de la Final
       const { data: pData, error: pErr } = await supabase
         .from("partidos_individuales")
-        .select(`
-          *,
-          jugador1:torneo_individual_jugadores!jugador1_id(jugador_id, jugador:jugadores(nombre, apellido)),
-          jugador2:torneo_individual_jugadores!jugador2_id(jugador_id, jugador:jugadores(nombre, apellido)),
-          jugador3:torneo_individual_jugadores!jugador3_id(jugador_id, jugador:jugadores(nombre, apellido)),
-          jugador4:torneo_individual_jugadores!jugador4_id(jugador_id, jugador:jugadores(nombre, apellido))
-        `)
+        .select("*")
         .eq("torneo_id", id)
         .eq("fecha", finalWeek)
         .order("cancha");
 
       if (pErr) throw pErr;
-      setPartidosFinal(pData || []);
+      const playerIds = [...new Set((pData ?? []).flatMap((partido: any) => [
+        partido.jugador1_id,
+        partido.jugador2_id,
+        partido.jugador3_id,
+        partido.jugador4_id,
+      ]).filter(Boolean))];
+      const { data: publicPlayers } = playerIds.length > 0
+        ? await (supabase as any)
+            .from("jugadores_publicos")
+            .select("id, nombre, apellido")
+            .in("id", playerIds)
+        : { data: [] };
+      const playerMap = new Map((publicPlayers ?? []).map((player: any) => [player.id, player]));
+      setPartidosFinal((pData ?? []).map((partido: any) => ({
+        ...partido,
+        jugador1: partido.jugador1_id ? { jugador: playerMap.get(partido.jugador1_id) ?? null } : null,
+        jugador2: partido.jugador2_id ? { jugador: playerMap.get(partido.jugador2_id) ?? null } : null,
+        jugador3: partido.jugador3_id ? { jugador: playerMap.get(partido.jugador3_id) ?? null } : null,
+        jugador4: partido.jugador4_id ? { jugador: playerMap.get(partido.jugador4_id) ?? null } : null,
+      })));
     } catch (e: any) {
       console.error(e);
       toast.error("Error cargando el draft en vivo.");

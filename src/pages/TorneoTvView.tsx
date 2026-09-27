@@ -140,20 +140,16 @@ export default function TorneoTvView() {
         supabase.from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
         supabase
           .from("torneo_individual_jugadores")
-          .select("*, jugador:jugadores(*)")
+          .select("*")
           .eq("torneo_id", id),
         supabase
           .from("torneo_individual_parejas")
-          .select("*, jugador1:jugador1_id(*), jugador2:jugador2_id(*)")
+          .select("*")
           .eq("torneo_id", id),
         supabase
           .from("partidos_individuales")
           .select(`
             *,
-            jugador1:jugador1_id(*),
-            jugador2:jugador2_id(*),
-            jugador3:jugador3_id(*),
-            jugador4:jugador4_id(*),
             sets:sets_partido_individual(*)
           `)
           .eq("torneo_id", id),
@@ -172,9 +168,45 @@ export default function TorneoTvView() {
           }
         }
       }
-      if (jRes.data) setJugadoresInscriptos(jRes.data as any);
-      if (pRes.data) setParejas(pRes.data);
-      if (mRes.data) setPartidos(mRes.data as any);
+      const jugadoresRows = jRes.data ?? [];
+      const parejasRows = pRes.data ?? [];
+      const partidosRows = mRes.data ?? [];
+      const playerIds = new Set<string>();
+      jugadoresRows.forEach((row: any) => playerIds.add(row.jugador_id));
+      parejasRows.forEach((row: any) => {
+        if (row.jugador1_id) playerIds.add(row.jugador1_id);
+        if (row.jugador2_id) playerIds.add(row.jugador2_id);
+      });
+      partidosRows.forEach((row: any) => {
+        [row.jugador1_id, row.jugador2_id, row.jugador3_id, row.jugador4_id]
+          .filter(Boolean)
+          .forEach((playerId: string) => playerIds.add(playerId));
+      });
+
+      const { data: publicPlayers } = playerIds.size > 0
+        ? await (supabase as any)
+            .from("jugadores_publicos")
+            .select("id, nombre, apellido, club, categoria_id, genero")
+            .in("id", [...playerIds])
+        : { data: [] };
+      const playerMap = new Map((publicPlayers ?? []).map((player: any) => [player.id, player]));
+
+      if (jRes.data) setJugadoresInscriptos(jugadoresRows.map((row: any) => ({
+        ...row,
+        jugador: playerMap.get(row.jugador_id) ?? null,
+      })) as any);
+      if (pRes.data) setParejas(parejasRows.map((row: any) => ({
+        ...row,
+        jugador1: playerMap.get(row.jugador1_id) ?? null,
+        jugador2: playerMap.get(row.jugador2_id) ?? null,
+      })));
+      if (mRes.data) setPartidos(partidosRows.map((row: any) => ({
+        ...row,
+        jugador1: playerMap.get(row.jugador1_id) ?? null,
+        jugador2: playerMap.get(row.jugador2_id) ?? null,
+        jugador3: playerMap.get(row.jugador3_id) ?? null,
+        jugador4: playerMap.get(row.jugador4_id) ?? null,
+      })) as any);
 
       setLastUpdated(new Date());
     } catch (e) {
@@ -405,7 +437,7 @@ export default function TorneoTvView() {
           jugador_id: tj.jugador_id,
           nombre: tj.jugador.nombre,
           apellido: tj.jugador.apellido,
-          dni: tj.jugador.dni,
+          dni: null,
           club: tj.jugador.club,
           puntos: initialPts,
           puntos_iniciales: initialPts,

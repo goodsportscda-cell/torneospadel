@@ -213,7 +213,7 @@ export function PlayerStats({ jugadorId }: Props) {
 
         if (idsResolving.length > 0) {
           const { data: dbNombres } = await supabase
-            .from("jugadores")
+            .from("jugadores_publicos" as any)
             .select("id, nombre, apellido")
             .in("id", idsResolving);
 

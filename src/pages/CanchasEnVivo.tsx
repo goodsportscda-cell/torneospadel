@@ -116,7 +116,7 @@ export default function CanchasEnVivo() {
 
       const [{ data: ins }, { data: jugs }] = await Promise.all([
         supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds).eq("estado", "confirmada"),
-        supabase.from("jugadores").select("id, nombre, apellido"),
+        (supabase as any).from("jugadores_publicos").select("id, nombre, apellido"),
       ]);
       setInscripciones((ins ?? []) as Inscripcion[]);
       setJugadores((jugs ?? []) as Jugador[]);

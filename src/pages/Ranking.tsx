@@ -223,7 +223,7 @@ export default function Ranking() {
         if (sortedEntries.length > 0) {
           const ids = sortedEntries.map(([id]) => id);
           const { data: jugData } = await supabase
-            .from("jugadores")
+            .from("jugadores_publicos" as any)
             .select("id, nombre, apellido, club")
             .in("id", ids);
 
@@ -630,7 +630,7 @@ export default function Ranking() {
       const results = await Promise.all(
         chunks.map(chunk => 
           supabase
-            .from("jugadores")
+            .from("jugadores_publicos" as any)
             .select("id, nombre, apellido, club, categoria_id")
             .in("id", chunk)
         )
@@ -850,7 +850,7 @@ export default function Ranking() {
     setAscensoJugadorBusqueda(q);
     if (q.length < 2) { setAscensoJugadores([]); return; }
     const { data } = await (supabase as any)
-      .from("jugadores")
+      .from("jugadores_publicos")
       .select("id, nombre, apellido, categoria_id")
       .or(`nombre.ilike.%${q}%,apellido.ilike.%${q}%`)
       .limit(10);
@@ -1013,7 +1013,7 @@ export default function Ranking() {
       const results = await Promise.all(
         chunks.map(chunk => 
           (supabase as any)
-            .from("jugadores")
+          .from("jugadores_publicos")
             .select("id, nombre, apellido")
             .in("id", chunk)
         )

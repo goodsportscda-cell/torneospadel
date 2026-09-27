@@ -134,7 +134,7 @@ export function PlayerUpcomingMatches({ jugadorId }: Props) {
           jugadorIds.add(i.jugador1_id);
           jugadorIds.add(i.jugador2_id);
         });
-        const { data: dbJugadores } = await supabase.from("jugadores").select("id, nombre, apellido").in("id", Array.from(jugadorIds));
+        const { data: dbJugadores } = await (supabase as any).from("jugadores_publicos").select("id, nombre, apellido").in("id", Array.from(jugadorIds));
         const jugadoresMap = new Map(dbJugadores?.map(j => [j.id, `${j.nombre} ${j.apellido}`]));
         const jugadoresApellidoMap = new Map(dbJugadores?.map(j => [j.id, j.apellido]));
 
