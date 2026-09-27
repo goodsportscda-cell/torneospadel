@@ -34,6 +34,7 @@ import { INSTANCIA_LABEL, type Instancia, recalcularTodosLosAscensos, isAscenso 
 import { activeTenant } from "@/lib/tenant";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { DesglosePuntosModal } from "@/components/ranking/DesglosePuntosModal";
+import { useAuth } from "@/hooks/useAuth";
 
 // Convierte una imagen importada a dataURL para incrustarla en el PDF
 const loadImageAsDataURL = (src: string): Promise<string> =>
@@ -98,6 +99,7 @@ const GENEROS = [
 const CUPO_DEFAULT = 16;
 
 export default function Ranking() {
+  const { clubId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RankingRowUnified[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -433,9 +435,10 @@ export default function Ranking() {
   const [ascensosList, setAscensosList] = useState<(Ascenso & { jugador_nombre?: string; jugador_apellido?: string })[]>([]);
 
   const cargarTodo = async () => {
+    if (!clubId) return;
     setLoading(true);
     const [{ data: cats }, { data: cfg }, { data: anios }, { data: cupos }] = await Promise.all([
-      supabase.from("categorias").select("id, nombre, genero, orden").eq("activa", true),
+      supabase.from("categorias").select("id, nombre, genero, orden").eq("activa", true).eq("club_id", clubId),
       supabase.from("puntos_ranking").select("instancia, puntos, orden").order("orden"),
       supabase.from("ranking_jugadores").select("anio"),
       supabase.from("cupos_master").select("categoria_id, cupos"),
@@ -471,7 +474,7 @@ export default function Ranking() {
         lc => lc.nombre.toLowerCase() === ec.nombre.toLowerCase() && lc.genero === ec.genero
       );
       if (!existing) {
-        categoriesToInsert.push(ec);
+        categoriesToInsert.push({ ...ec, club_id: clubId });
       } else if (existing.orden !== ec.orden) {
         categoriesToUpdate.push({ id: existing.id, orden: ec.orden });
       }
@@ -516,6 +519,14 @@ export default function Ranking() {
   };
 
   const cargarRanking = async () => {
+    if (!clubId) return;
+    const [{ data: clubCategories }, { data: clubTournaments }] = await Promise.all([
+      supabase.from("categorias").select("id").eq("club_id", clubId),
+      supabase.from("torneos").select("id").eq("club_id", clubId),
+    ]);
+    const categoryIds = new Set((clubCategories ?? []).map((category) => category.id));
+    const tournamentIds = new Set((clubTournaments ?? []).map((tournament) => tournament.id));
+
     let rankingData: any[] = [];
     let isFetchingRanking = true;
     let rankingOffset = 0;
@@ -554,7 +565,9 @@ export default function Ranking() {
     }
     
     // Asignar los datos completos para seguir con el resto de la función
-    const data = rankingData;
+    const data = rankingData.filter((row) => isAscenso(row.instancia)
+      ? categoryIds.has(row.categoria_id)
+      : Boolean(row.torneo_id && tournamentIds.has(row.torneo_id)));
 
     // Cargar todos los ascensos del año para deduplicar y calcular exclusión
     const { data: ascensosAllData } = await supabase
@@ -564,7 +577,7 @@ export default function Ranking() {
 
     // Deduplicar ascensos
     const ascensosDeduplicados = new Map<string, any>();
-    (ascensosAllData ?? []).forEach((a) => {
+    (ascensosAllData ?? []).filter((a) => categoryIds.has(a.categoria_origen_id) && categoryIds.has(a.categoria_destino_id)).forEach((a) => {
       const key = `${a.jugador_id}_${a.categoria_origen_id}_${a.categoria_destino_id}`;
       const existing = ascensosDeduplicados.get(key);
       if (!existing || new Date(a.created_at || a.fecha).getTime() > new Date(existing.created_at || existing.fecha).getTime()) {
@@ -658,13 +671,19 @@ export default function Ranking() {
   };
 
   useEffect(() => {
+    if (!clubId) return;
+    setRows([]);
+    setCategorias([]);
+    setAscensosList([]);
+    setLoading(true);
     cargarTodo();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clubId]);
 
   useEffect(() => {
     if (!loading) cargarRanking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroAnio, filtroCategoria, filtroGenero, loading]);
+  }, [filtroAnio, filtroCategoria, filtroGenero, loading, clubId]);
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return rows;
@@ -746,7 +765,9 @@ export default function Ranking() {
         .from("ascensos")
         .select("categoria_origen_id, categoria_destino_id, notas")
         .eq("jugador_id", jugador.jugador_id)
-        .eq("anio", filtroAnio);
+        .eq("anio", filtroAnio)
+        .in("categoria_origen_id", categorias.map((c) => c.id))
+        .in("categoria_destino_id", categorias.map((c) => c.id));
       const ascendidosDesdeIds = new Set((playerAscensos ?? []).map((a: any) => a.categoria_origen_id));
       const activeAscensos = (playerAscensos ?? []).filter((a: any) => {
         const isSuperseded = (playerAscensos ?? []).some(
@@ -763,7 +784,8 @@ export default function Ranking() {
         .from("ranking_jugadores")
         .select("torneo_id, instancia, puntos, categoria_id")
         .eq("jugador_id", jugador.jugador_id)
-        .eq("anio", filtroAnio);
+        .eq("anio", filtroAnio)
+        .in("categoria_id", categorias.map((c) => c.id));
       if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
       if (filtroGenero !== "todos") q = q.eq("genero", filtroGenero);
       const { data: rj, error } = await q;
@@ -781,7 +803,8 @@ export default function Ranking() {
         const { data: tData } = await supabase
           .from("torneos")
           .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
-          .in("id", torneoIds);
+          .in("id", torneoIds)
+          .eq("club_id", clubId);
         if (tData) torneos = tData;
       }
 
@@ -853,7 +876,8 @@ export default function Ranking() {
       .from("ranking_jugadores")
       .select("categoria_id, puntos")
       .eq("jugador_id", j.id)
-      .eq("anio", filtroAnio);
+      .eq("anio", filtroAnio)
+      .in("categoria_id", categorias.map((category) => category.id));
 
     // Agrupar puntos por categoría de torneo
     const puntosXCat = new Map<string, number>();
@@ -867,7 +891,8 @@ export default function Ranking() {
       .from("ascensos")
       .select("categoria_destino_id, puntos_transferidos")
       .eq("jugador_id", j.id)
-      .eq("anio", filtroAnio);
+      .eq("anio", filtroAnio)
+      .in("categoria_destino_id", categorias.map((category) => category.id));
     (ascPrev ?? []).forEach((a) => {
       puntosXCat.set(a.categoria_destino_id, (puntosXCat.get(a.categoria_destino_id) ?? 0) + a.puntos_transferidos);
     });
@@ -944,20 +969,6 @@ export default function Ranking() {
       return;
     }
 
-    // Buscar equivalente en categorias_jugadores
-    const catDestinoTorneo = categorias.find(c => c.id === ascensoCatDestino);
-    if (catDestinoTorneo) {
-      const { data: catJug } = await (supabase as any)
-        .from("categorias_jugadores")
-        .select("id")
-        .eq("nombre", catDestinoTorneo.nombre)
-        .eq("genero", catDestinoTorneo.genero)
-        .maybeSingle();
-      if ((catJug as any)?.id) {
-        await (supabase as any).from("jugadores").update({ categoria_id: (catJug as any).id }).eq("id", ascensoJugadorId);
-      }
-    }
-
     // Recalcular todos los ascensos del año para garantizar coherencia
     await recalcularTodosLosAscensos(filtroAnio);
     
@@ -980,10 +991,13 @@ export default function Ranking() {
   };
 
   const cargarAscensos = async () => {
+    if (!clubId || categorias.length === 0) { setAscensosList([]); return; }
     const { data } = await (supabase as any)
       .from("ascensos")
       .select("*")
       .eq("anio", filtroAnio)
+      .in("categoria_origen_id", categorias.map((c) => c.id))
+      .in("categoria_destino_id", categorias.map((c) => c.id))
       .order("fecha", { ascending: false });
     if (!data || (data as any[]).length === 0) { setAscensosList([]); return; }
     const jugIds = Array.from(new Set((data as any[]).map((a: any) => a.jugador_id)));
@@ -1035,7 +1049,7 @@ export default function Ranking() {
   useEffect(() => {
     if (!loading) cargarAscensos();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroAnio, loading]);
+  }, [filtroAnio, loading, clubId, categorias]);
 
   // Categorías del mismo género para ascensos
   const categoriasOrigenGenero = useMemo(() => {

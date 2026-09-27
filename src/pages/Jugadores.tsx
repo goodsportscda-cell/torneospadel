@@ -70,7 +70,7 @@ export default function Jugadores() {
   const [search, setSearch] = useState("");
   const [filtroGenero, setFiltroGenero] = useState<Genero | "todos">("todos");
   const [filtroCategoriaMain, setFiltroCategoriaMain] = useState<string>("todas");
-  const [letraActiva, setLetraActiva] = useState<string>("A");
+  const [letraActiva, setLetraActiva] = useState<string>("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fusionarOpen, setFusionarOpen] = useState(false);
   const [editing, setEditing] = useState<Jugador | null>(null);
@@ -96,7 +96,7 @@ export default function Jugadores() {
 
   const handleSearch = async (queryText: string, genero: string, categoria: string, letra: string) => {
     const q = queryText.trim();
-    if (q.length < 3 && categoria === "todas" && !letra) {
+    if (q.length < 3 && categoria === "todas" && genero === "todos" && !letra) {
       setJugadores([]);
       return;
     }
@@ -130,7 +130,7 @@ export default function Jugadores() {
 
   useEffect(() => {
     const q = search.trim();
-    if (q.length < 3 && filtroCategoriaMain === "todas" && !letraActiva) {
+    if (q.length < 3 && filtroCategoriaMain === "todas" && filtroGenero === "todos" && !letraActiva) {
       setJugadores([]);
       return;
     }
@@ -249,6 +249,7 @@ export default function Jugadores() {
   };
 
   const filtered = jugadores;
+  const consultaActiva = search.trim().length >= 3 || Boolean(letraActiva) || filtroCategoriaMain !== "todas" || filtroGenero !== "todos";
 
   return (
     <div className="space-y-4">
@@ -256,7 +257,13 @@ export default function Jugadores() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Jugadores</h1>
           <p className="text-sm text-muted-foreground">
-            {jugadores.length} {jugadores.length === 1 ? "jugador" : "jugadores"} en el sistema.
+            {!consultaActiva
+              ? "Usá la búsqueda o los filtros para consultar jugadores."
+              : loadingJugadores
+                ? "Buscando jugadores…"
+                : jugadores.length >= 100
+                  ? "Mostrando los primeros 100 resultados."
+                  : `${jugadores.length} ${jugadores.length === 1 ? "jugador encontrado" : "jugadores encontrados"}.`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -482,7 +489,7 @@ export default function Jugadores() {
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground mr-2" />
           <p className="text-sm text-muted-foreground">Buscando jugadores...</p>
         </div>
-      ) : search.trim().length < 3 && filtroCategoriaMain === "todas" && !letraActiva ? (
+      ) : !consultaActiva ? (
         <Card className="border border-dashed bg-muted/10">
           <CardContent className="py-12 text-center flex flex-col items-center justify-center text-muted-foreground">
             <Search className="h-10 w-10 text-muted-foreground/30 mb-3" />

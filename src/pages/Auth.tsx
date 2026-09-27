@@ -50,7 +50,7 @@ export default function Auth() {
       email,
       password,
       options: {
-        emailRedirectTo: `https://torneospadel-sigma.vercel.app`,
+        emailRedirectTo: window.location.origin,
         data: { 
           display_name: displayName || email.split("@")[0],
           dni: dni.trim()

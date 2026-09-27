@@ -108,7 +108,7 @@ export function InstallPwaPrompt() {
   return (
     <>
       {/* Botón Flotante Elegante "Instalar App" */}
-      <div className="fixed bottom-4 left-4 z-50 print:hidden animate-in fade-in slide-in-from-bottom-4 duration-300">
+      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 z-50 print:hidden animate-in fade-in slide-in-from-bottom-4 duration-300 sm:bottom-4 sm:left-4">
         <div className="relative group">
           <button
             onClick={handleInstallClick}

@@ -38,6 +38,19 @@ export function useClubRanking(
     try {
       setLoading(true);
       setError(null);
+      setRankingRows([]);
+
+      // Categories are owned by a club. They also scope ascension points,
+      // because ascensos themselves do not carry a club_id.
+      let categoryIds = new Set<string>();
+      if (clubId) {
+        const { data: categories, error: categoriesError } = await supabase
+          .from("categorias")
+          .select("id")
+          .eq("club_id", clubId);
+        if (categoriesError) throw categoriesError;
+        categoryIds = new Set((categories || []).map((category) => category.id));
+      }
 
       // 1. Obtener Torneos para mapear nombres y fechas
       let torneosQuery = supabase
@@ -45,10 +58,12 @@ export function useClubRanking(
         .select("id, nombre, fecha_inicio, fecha_fin, estado, ranking_publicado, club_id");
 
       if (clubId) {
-        torneosQuery = torneosQuery.or(`club_id.eq.${clubId},club_id.is.null`);
+        torneosQuery = torneosQuery.eq("club_id", clubId);
       }
 
-      const { data: torneosData } = await torneosQuery;
+      const { data: torneosData, error: torneosError } = await torneosQuery;
+      if (torneosError) throw torneosError;
+      const clubTournamentIds = new Set((torneosData || []).map((t) => t.id));
       
       const torneosMap = new Map<string, { 
         nombre: string; 
@@ -95,7 +110,11 @@ export function useClubRanking(
         if (rankingError) throw rankingError;
 
         if (chunk && chunk.length > 0) {
-          rankingData = rankingData.concat(chunk);
+          rankingData = rankingData.concat(clubId
+            ? chunk.filter((row) => isAscenso(row.instancia)
+              ? categoryIds.has(row.categoria_id)
+              : Boolean(row.torneo_id && clubTournamentIds.has(row.torneo_id)))
+            : chunk);
         }
         
         if (!chunk || chunk.length < step) {
@@ -114,7 +133,7 @@ export function useClubRanking(
       if (ascensosError) throw ascensosError;
 
       const ascensosDeduplicados = new Map<string, any>();
-      (ascensosData || []).forEach((a) => {
+      (ascensosData || []).filter((a) => !clubId || (categoryIds.has(a.categoria_origen_id) && categoryIds.has(a.categoria_destino_id))).forEach((a) => {
         const key = `${a.jugador_id}_${a.categoria_origen_id}_${a.categoria_destino_id}`;
         const existing = ascensosDeduplicados.get(key);
         if (!existing || new Date(a.created_at || a.fecha).getTime() > new Date(existing.created_at || existing.fecha).getTime()) {
