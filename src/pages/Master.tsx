@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Star, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { activeTenant } from "@/lib/tenant";
+import { useClubBrand } from "@/hooks/useClubBrand";
+import padelIdLogo from "@/assets/new-padel-id-logo.jpg";
 
 // Convierte una imagen importada a dataURL para incrustarla en el PDF
 const loadImageAsDataURL = (src: string): Promise<string> =>
@@ -48,6 +49,7 @@ const labelGenero = (g: string) =>
   g === "caballeros" ? "Caballeros" : g === "damas" ? "Damas" : "Mixto";
 
 export default function Master() {
+  const clubBrand = useClubBrand();
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<CategoriaMaster[]>([]);
@@ -219,7 +221,7 @@ export default function Master() {
       // Cargar logo Good Padel
       let logoData: string | null = null;
       try {
-        logoData = await loadImageAsDataURL(activeTenant.logo);
+        logoData = await loadImageAsDataURL(clubBrand.logoUrl ?? padelIdLogo);
       } catch (err) {
         console.warn("No se pudo cargar el logo", err);
       }
@@ -262,10 +264,10 @@ export default function Master() {
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
         pdf.setTextColor(227, 6, 19); // color de marca
-        pdf.text(activeTenant.name.toUpperCase(), marginX, footerY);
+        pdf.text(clubBrand.nombre.toUpperCase(), marginX, footerY);
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(120);
-        pdf.text(activeTenant.instagram || activeTenant.subtext, pageW / 2, footerY, { align: "center" });
+        pdf.text("Padel ID · Torneos y rankings", pageW / 2, footerY, { align: "center" });
         const pageNum = pdf.getCurrentPageInfo().pageNumber;
         const totalPages = pdf.getNumberOfPages();
         pdf.text(`Página ${pageNum} de ${totalPages}`, pageW - marginX, footerY, {

@@ -306,7 +306,7 @@ export default function PlayerDashboard() {
           </div>
           <div className="flex-1">
             <h1 className="text-sm font-bold leading-none">Padel ID</h1>
-            <p className="text-[10px] text-muted-foreground uppercase">Anita Quiroga</p>
+            <p className="text-[10px] text-muted-foreground uppercase">Padel ID · Perfil de jugador</p>
           </div>
           <ModeToggle />
           <Button variant="ghost" size="icon" onClick={handleSignOut} title="Cerrar sesión">

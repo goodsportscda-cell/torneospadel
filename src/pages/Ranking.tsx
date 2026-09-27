@@ -31,10 +31,11 @@ import {
 import { Trophy, Settings, Save, Medal, Star, Eye, ArrowUpCircle, Trash2, Share2, Check, Download, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { INSTANCIA_LABEL, type Instancia, recalcularTodosLosAscensos, isAscenso } from "@/lib/ranking";
-import { activeTenant } from "@/lib/tenant";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { DesglosePuntosModal } from "@/components/ranking/DesglosePuntosModal";
 import { useAuth } from "@/hooks/useAuth";
+import { useClubBrand } from "@/hooks/useClubBrand";
+import padelIdLogo from "@/assets/new-padel-id-logo.jpg";
 
 // Convierte una imagen importada a dataURL para incrustarla en el PDF
 const loadImageAsDataURL = (src: string): Promise<string> =>
@@ -100,6 +101,7 @@ const CUPO_DEFAULT = 16;
 
 export default function Ranking() {
   const { clubId } = useAuth();
+  const clubBrand = useClubBrand();
   const [loading, setLoading] = useState(true);
   const [rows, setRows] = useState<RankingRowUnified[]>([]);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
@@ -275,7 +277,7 @@ export default function Ranking() {
 
       let logoData: string | null = null;
       try {
-        logoData = await loadImageAsDataURL(activeTenant.logo);
+        logoData = await loadImageAsDataURL(clubBrand.logoUrl ?? padelIdLogo);
       } catch (err) {
         console.warn("No se pudo cargar el logo", err);
       }
@@ -314,10 +316,10 @@ export default function Ranking() {
         pdf.setFont("helvetica", "bold");
         pdf.setFontSize(8.5);
         pdf.setTextColor(227, 6, 19);
-        pdf.text(activeTenant.name.toUpperCase(), marginX, footerY);
+        pdf.text(clubBrand.nombre.toUpperCase(), marginX, footerY);
         pdf.setFont("helvetica", "normal");
         pdf.setTextColor(120);
-        pdf.text(activeTenant.instagram || activeTenant.subtext, pageW / 2, footerY, { align: "center" });
+        pdf.text("Padel ID · Torneos y rankings", pageW / 2, footerY, { align: "center" });
         const pageNum = pdf.getCurrentPageInfo().pageNumber;
         const totalPages = pdf.getNumberOfPages();
         pdf.text(`Página ${pageNum} de ${totalPages}`, pageW - marginX, footerY, {

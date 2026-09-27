@@ -23,8 +23,8 @@ import { Trash2, X, ArrowUpDown, ChevronDown, Loader2, Share2, RefreshCw, Edit2,
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
-import { activeTenant } from "@/lib/tenant";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
+import { useClubBrand } from "@/hooks/useClubBrand";
 import { calcularTabla, generarFixture, type PartidoConSets } from "@/lib/zonas";
 import { PartidoCard } from "./PartidoCard";
 import { TablaPosiciones } from "./TablaPosiciones";
@@ -81,6 +81,7 @@ type Props = {
 };
 
 export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad }: Props) {
+  const clubBrand = useClubBrand();
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
   const [zonaParejas, setZonaParejas] = useState<ZonaPareja[]>([]);
@@ -778,7 +779,7 @@ export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onCh
             <PadelIdLogo size={40} />
             <div className="text-left">
               <p className="text-sm font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
-              <p style={{ fontSize: '8px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1">Anita Quiroga</p>
+              <p style={{ fontSize: '8px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1">Torneos y rankings</p>
             </div>
           </div>
         </div>
@@ -811,10 +812,7 @@ export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onCh
         </div>
 
         <div style={{ marginTop: 'auto', textAlign: 'center', paddingTop: '20px', zIndex: 10 }}>
-           <p style={{ fontSize: '16px', fontWeight: '800', color: '#34d399', letterSpacing: '0.05em', marginBottom: '4px' }}>{activeTenant.name.toUpperCase()}</p>
-           {activeTenant.instagram && (
-             <p style={{ fontSize: '12px', color: 'rgba(52, 211, 153, 0.5)', fontWeight: '500' }}>{activeTenant.instagram}</p>
-           )}
+           <p style={{ fontSize: '16px', fontWeight: '800', color: '#34d399', letterSpacing: '0.05em', marginBottom: '4px' }}>{clubBrand.nombre.toUpperCase()}</p>
         </div>
       </div>
 

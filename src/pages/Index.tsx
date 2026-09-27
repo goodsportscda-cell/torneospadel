@@ -12,12 +12,12 @@ import {
   MapPin,
   Loader2,
   Share2,
+  Building2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { ESTADO_TORNEO_BADGE, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
-import { activeTenant } from "@/lib/tenant";
 import { useAuth } from "@/hooks/useAuth";
 
 type TorneoProx = {
@@ -233,14 +233,14 @@ const Index = () => {
         <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 w-full sm:w-auto">
           {/* active client info badge */}
           <div className="flex items-center gap-2.5 bg-muted/50 dark:bg-muted/20 border border-border/80 rounded-xl px-4 py-2 w-full sm:w-auto">
-            <img
-              src={clubActivo?.logo_url || activeTenant.logo}
-              alt={clubActivo?.nombre || activeTenant.name}
-              className="h-8 w-8 object-contain shrink-0 rounded"
-            />
+            {clubActivo?.logo_url ? (
+              <img src={clubActivo.logo_url} alt={clubActivo.nombre} className="h-8 w-8 object-contain shrink-0 rounded" />
+            ) : (
+              <Building2 className="h-8 w-8 shrink-0 text-muted-foreground" />
+            )}
             <div className="min-w-0 flex-1">
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider leading-none">Organizado por</p>
-              <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{clubActivo?.nombre || activeTenant.name}</h2>
+              <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{clubActivo?.nombre || "Club activo"}</h2>
               <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">Club activo</p>
             </div>
           </div>
@@ -251,7 +251,8 @@ const Index = () => {
               size="sm" 
               className="flex-1 sm:flex-none gap-2 font-semibold shadow-sm"
               onClick={() => {
-                const url = `${window.location.origin}/c/${clubActivo?.slug || activeTenant.slug}/`;
+                if (!clubActivo?.slug) return toast.error("No se pudo identificar la página pública del club.");
+                const url = `${window.location.origin}/c/${clubActivo.slug}/`;
                 navigator.clipboard.writeText(url);
                 toast.success("¡Enlace copiado al portapapeles!");
               }}
@@ -260,7 +261,7 @@ const Index = () => {
               Compartir Portal
             </Button>
             <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
-              <Link to={`/c/${clubActivo?.slug || activeTenant.slug}/`} target="_blank">
+              <Link to={clubActivo?.slug ? `/c/${clubActivo.slug}/` : "/"} target="_blank">
                 Ver
               </Link>
             </Button>

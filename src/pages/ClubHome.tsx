@@ -570,7 +570,7 @@ export default function ClubHome() {
         </Tabs>
       </main>
 
-      <PublicFooter />
+      <PublicFooter clubId={club?.id} />
 
       <Dialog open={detalleOpen} onOpenChange={setDetalleOpen}>
         <DialogContent className="max-w-lg">

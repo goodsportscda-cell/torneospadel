@@ -51,7 +51,7 @@ export default function AppLayout() {
             <Outlet />
             <footer className="mt-12 pt-6 border-t text-center text-[10px] sm:text-xs text-muted-foreground print:hidden">
               <p>© {new Date().getFullYear()} <span className="font-bold text-foreground">Padel ID</span> — Todos los derechos reservados.</p>
-              <p className="mt-1">Propiedad de <span className="font-semibold text-primary">Anita Quiroga</span></p>
+              <p className="mt-1">Plataforma de gestión deportiva</p>
             </footer>
           </main>
         </div>

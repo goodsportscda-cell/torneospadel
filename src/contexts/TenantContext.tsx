@@ -65,3 +65,7 @@ export function useTenant() {
   }
   return context;
 }
+
+export function useOptionalTenant() {
+  return useContext(TenantContext);
+}

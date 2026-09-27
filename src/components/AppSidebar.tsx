@@ -1,4 +1,4 @@
-import { Users, Calendar, Trophy, ClipboardList, LayoutGrid, Upload, GitBranch, BarChart3, Award, Star, Activity, Settings, Tv } from "lucide-react";
+import { Users, Calendar, Trophy, ClipboardList, LayoutGrid, Upload, GitBranch, BarChart3, Award, Star, Activity, Settings, Tv, Building2 } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import {
   Sidebar,
@@ -13,7 +13,6 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
-import { activeTenant } from "@/lib/tenant";
 import { useAuth } from "@/hooks/useAuth";
 
 const items = [
@@ -42,8 +41,7 @@ export function AppSidebar() {
     return ["Inscripciones", "Zonas", "Canchas en vivo", "Llaves", "Marcador en Vivo"].includes(item.title);
   });
   
-  const displayNombre = clubActivo?.nombre || activeTenant.name;
-  const displayLogo = clubActivo?.logo_url || activeTenant.logo;
+  const displayNombre = clubActivo?.nombre || "Elegí un club";
 
   return (
     <Sidebar collapsible="icon" className="print:hidden">
@@ -56,11 +54,11 @@ export function AppSidebar() {
             
             {/* Identidad del club activo */}
             <div className="flex items-center gap-2.5 bg-muted/65 dark:bg-muted/30 border border-border/80 rounded-lg p-2 mt-1">
-              <img
-                src={displayLogo}
-                alt={displayNombre}
-                className="h-6 w-6 object-contain shrink-0 rounded"
-              />
+              {clubActivo?.logo_url ? (
+                <img src={clubActivo.logo_url} alt={displayNombre} className="h-6 w-6 object-contain shrink-0 rounded" />
+              ) : (
+                <Building2 className="h-6 w-6 shrink-0 text-muted-foreground" />
+              )}
               <div className="min-w-0 flex-1">
                 <p className="text-[9px] text-muted-foreground font-semibold leading-none uppercase tracking-wider">Club activo</p>
                 <p className="text-xs font-bold truncate leading-tight mt-0.5 text-foreground">{displayNombre}</p>

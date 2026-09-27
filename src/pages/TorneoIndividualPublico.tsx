@@ -33,6 +33,7 @@ import {
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 import PublicFooter from "@/components/PublicFooter";
+import { useClubBrand } from "@/hooks/useClubBrand";
 import {
   applyManualPositions,
   extractPosicionManualFromNotas,
@@ -129,6 +130,7 @@ export default function TorneoIndividualPublico() {
 
   // Auth user state
   const { user } = useAuth();
+  const { nombre: nombreClub } = useClubBrand(torneo?.club_id);
   const [currentUserJugador, setCurrentUserJugador] = useState<Jugador | null>(null);
 
   // Active selections
@@ -883,7 +885,7 @@ export default function TorneoIndividualPublico() {
               </Badge>
             </div>
             <p className="text-xs text-muted-foreground">
-              Anita Quiroga Pádel · {torneo?.categoria_libre || "Libre"} · {torneo?.sede || "Complejo Oficial"}
+              {nombreClub} · {torneo?.categoria_libre || "Libre"} · {torneo?.sede || "Complejo Oficial"}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -1976,7 +1978,7 @@ export default function TorneoIndividualPublico() {
       )}
     </div>
 
-      <PublicFooter />
+      <PublicFooter clubId={torneo?.club_id} />
 
       <CompartirFixtureIndividualDialog
         isOpen={shareFixtureOpen}

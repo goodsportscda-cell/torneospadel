@@ -39,7 +39,7 @@ type RoleAudit = {
 
 export default function SuperAdminDashboard() {
   const { signOut, setImpersonatedClubId } = useAuth();
-  const [stats, setStats] = useState({ clubes: 0, torneos: 0, perfiles: 0 });
+  const [stats, setStats] = useState<{ clubes: number | null; torneos: number | null; perfiles: number | null }>({ clubes: null, torneos: null, perfiles: null });
   const [clubes, setClubes] = useState<Club[]>([]);
   const [roleAudit, setRoleAudit] = useState<RoleAudit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,9 +58,9 @@ export default function SuperAdminDashboard() {
     setLoading(true);
     
     // Stats
-    const { count: clubesCount } = await supabase.from("clubes").select("*", { count: "exact", head: true });
-    const { count: torneosCount } = await supabase.from("torneos").select("*", { count: "exact", head: true });
-    const { count: perfilesCount } = await supabase.from("perfiles").select("*", { count: "exact", head: true });
+    const { count: clubesCount, error: clubesError } = await supabase.from("clubes").select("*", { count: "exact", head: true });
+    const { count: torneosCount, error: torneosError } = await supabase.from("torneos").select("*", { count: "exact", head: true });
+    const { count: perfilesCount, error: perfilesError } = await supabase.from("perfiles").select("*", { count: "exact", head: true });
     const { data: auditData } = await (supabase as any)
       .from("auditoria_roles_perfiles")
       .select("id, email_actor, email_objetivo, rol_anterior, rol_nuevo, club_anterior_id, club_nuevo_id, cambiado_en")
@@ -68,9 +68,9 @@ export default function SuperAdminDashboard() {
       .limit(10);
     
     setStats({
-      clubes: clubesCount || 0,
-      torneos: torneosCount || 0,
-      perfiles: perfilesCount || 0,
+      clubes: clubesError ? null : clubesCount ?? 0,
+      torneos: torneosError ? null : torneosCount ?? 0,
+      perfiles: perfilesError ? null : perfilesCount ?? 0,
     });
 
     // Clubes
@@ -191,8 +191,8 @@ export default function SuperAdminDashboard() {
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.clubes}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">Todos los clubes cargados en Padel ID.</p>
+                  <div className="text-2xl font-bold">{stats.clubes ?? "—"}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{stats.clubes === null ? "No se pudo consultar este total." : "Registros de clubes en Padel ID."}</p>
                 </CardContent>
               </Card>
               <Card>
@@ -201,18 +201,18 @@ export default function SuperAdminDashboard() {
                   <Trophy className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.torneos}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">Todos los registros, sin filtrar por fecha ni estado.</p>
+                  <div className="text-2xl font-bold">{stats.torneos ?? "—"}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{stats.torneos === null ? "No se pudo consultar este total." : "Registros de torneos; incluye todas las fechas y estados."}</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Cuentas de usuario</CardTitle>
+                  <CardTitle className="text-sm font-medium">Perfiles registrados</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{stats.perfiles}</div>
-                  <p className="mt-1 text-xs text-muted-foreground">Perfiles de jugadores y administradores.</p>
+                  <div className="text-2xl font-bold">{stats.perfiles ?? "—"}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">{stats.perfiles === null ? "No se pudo consultar este total." : "Filas guardadas en perfiles; no cuenta usuarios sin perfil."}</p>
                 </CardContent>
               </Card>
             </div>

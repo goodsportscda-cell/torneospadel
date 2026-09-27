@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
-import { activeTenant } from "@/lib/tenant";
+import { useClubBrand } from "@/hooks/useClubBrand";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas } from "@/logic/torneoStandings";
 
@@ -38,6 +38,7 @@ type Partido = {
 };
 
 export default function CanchasEnVivo() {
+  const clubBrand = useClubBrand();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>("");
   const [cantidadCanchas, setCantidadCanchas] = useState(4);
@@ -977,7 +978,11 @@ export default function CanchasEnVivo() {
         className="fixed top-0 left-0 opacity-[0.0001] pointer-events-none w-[540px] h-[960px] bg-slate-900 text-slate-50 flex flex-col p-8 z-[-100]"
       >
         <div className="flex justify-center mb-6">
-          <img src={activeTenant.logo} alt={activeTenant.name} className="h-16 object-contain" />
+          {clubBrand.logoUrl ? (
+            <img src={clubBrand.logoUrl} alt={clubBrand.nombre} className="h-16 object-contain" />
+          ) : (
+            <p className="text-2xl font-black tracking-tight">Padel ID</p>
+          )}
         </div>
         <div className="text-center mb-8">
           <h1 className="text-3xl font-black tracking-tight text-white mb-2">PARTIDOS EN VIVO</h1>
@@ -1013,7 +1018,7 @@ export default function CanchasEnVivo() {
         </div>
 
         <div className="text-center mt-auto pt-6 border-t border-slate-800">
-          <p className="font-black text-slate-300 tracking-widest">{activeTenant.name.toUpperCase()}</p>
+          <p className="font-black text-slate-300 tracking-widest">{clubBrand.nombre.toUpperCase()}</p>
           <p className="text-xs text-slate-500 mt-1">Sigue los resultados en la app</p>
         </div>
       </div>

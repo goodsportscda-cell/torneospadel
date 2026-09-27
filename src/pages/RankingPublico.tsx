@@ -372,7 +372,7 @@ export default function RankingPublico() {
         )}
       </main>
 
-      <PublicFooter />
+      <PublicFooter clubId={clubId} />
     </div>
   );
 }

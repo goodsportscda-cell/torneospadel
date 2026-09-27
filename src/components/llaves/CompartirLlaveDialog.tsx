@@ -31,6 +31,7 @@ import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { parseRef, NOMBRE_RONDA, ORDEN_RONDA, type RondaLlave } from "@/lib/llaves";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
+import { useClubBrand } from "@/hooks/useClubBrand";
 
 interface CompartirLlaveDialogProps {
   isOpen: boolean;
@@ -45,6 +46,7 @@ interface CompartirLlaveDialogProps {
     numero_fecha?: number | null;
     sede?: string | null;
     premios?: string | null;
+    club_id?: string | null;
   } | null;
   categoriaNombre?: string;
   partidos: any[];
@@ -64,6 +66,7 @@ export function CompartirLlaveDialog({
   setsLlave,
   inscripciones,
 }: CompartirLlaveDialogProps) {
+  const clubBrand = useClubBrand(torneo?.club_id);
   const [ratio, setRatio] = useState<AspectRatio>("square");
   const [theme, setTheme] = useState<ThemePreset>("cyber-neon");
   const [showSchedule, setShowSchedule] = useState(true);
@@ -427,7 +430,7 @@ export function CompartirLlaveDialog({
             <PadelIdLogo size={52} />
             <div className="text-left">
               <p className="text-lg font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
-              <p style={{ fontSize: '10px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1.5">Anita Quiroga</p>
+              <p style={{ fontSize: '10px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1.5">{clubBrand.nombre}</p>
             </div>
           </div>
         </div>

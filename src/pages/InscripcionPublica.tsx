@@ -10,7 +10,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, CheckCircle2, AlertCircle, Trophy, ArrowLeft, ArrowRight, Send, Clock, DollarSign } from "lucide-react";
 import { toast } from "sonner";
-import { activeTenant } from "@/lib/tenant";
+import { useClubBrand } from "@/hooks/useClubBrand";
 import JugadorStep, { type JugadorForm, emptyJugador } from "@/components/inscripcion/JugadorStep";
 import JugadorCompaneroStep from "@/components/inscripcion/JugadorCompaneroStep";
 import type { Database } from "@/integrations/supabase/types";
@@ -30,6 +30,7 @@ export default function InscripcionPublica() {
   const { torneoId } = useParams<{ torneoId: string }>();
   const { user } = useAuth();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
+  const { nombre: nombreClub } = useClubBrand(torneo?.club_id);
   const [loading, setLoading] = useState(true);
   const [paso, setPaso] = useState<1 | 2 | 3 | 4>(1);
   const [enviando, setEnviando] = useState(false);
@@ -92,17 +93,17 @@ export default function InscripcionPublica() {
 
   // Título dinámico de la pestaña/preview al compartir
   useEffect(() => {
-    const base = `${activeTenant.platformName} - Gestión de Torneos`;
+    const base = "Padel ID - Torneos y rankings";
     if (torneo) {
       const fechaTxt = torneo.numero_fecha ? ` - Fecha ${torneo.numero_fecha}` : "";
-      document.title = `${torneo.nombre}${fechaTxt} | ${activeTenant.name}`;
+      document.title = `${torneo.nombre}${fechaTxt} | ${nombreClub}`;
     } else {
-      document.title = `Inscripción a torneo | ${activeTenant.name}`;
+      document.title = `Inscripción a torneo | ${nombreClub}`;
     }
     return () => {
       document.title = base;
     };
-  }, [torneo]);
+  }, [torneo, nombreClub]);
 
   const validarJugador1 = (j: JugadorForm): boolean => {
     if (!/^\d{7,9}$/.test(j.dni)) {
@@ -684,7 +685,7 @@ function Wrapper({ children, torneo }: { children: React.ReactNode; torneo?: Tor
         </div>
       </header>
       <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">{children}</main>
-      <PublicFooter />
+      <PublicFooter clubId={torneo?.club_id} />
     </div>
   );
 }

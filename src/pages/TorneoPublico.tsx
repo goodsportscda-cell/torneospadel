@@ -15,6 +15,7 @@ import { NOMBRE_RONDA, ORDEN_RONDA, parseRef, type RondaLlave } from "@/lib/llav
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
 import PublicFooter from "@/components/PublicFooter";
+import { useClubBrand } from "@/hooks/useClubBrand";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
@@ -25,6 +26,7 @@ export default function TorneoPublico() {
   const { slug } = useParams<{ slug: string }>();
   const navigate = useNavigate();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
+  const { nombre: nombreClub } = useClubBrand(torneo?.club_id);
   const [categoriaNombre, setCategoriaNombre] = useState<string>("");
   const [loading, setLoading] = useState(true);
   
@@ -178,7 +180,7 @@ export default function TorneoPublico() {
             </div>
             <div>
               <h1 className="text-sm font-bold leading-tight">Padel ID</h1>
-              <p className="text-[10px] text-muted-foreground uppercase font-medium">Anita Quiroga</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-medium">{nombreClub}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -437,7 +439,7 @@ export default function TorneoPublico() {
         </Tabs>
       </main>
 
-      <PublicFooter />
+      <PublicFooter clubId={torneo?.club_id} />
 
       <CompartirLlaveDialog
         isOpen={isCompartirOpen}

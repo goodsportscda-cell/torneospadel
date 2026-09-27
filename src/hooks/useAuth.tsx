@@ -9,7 +9,7 @@ interface AuthContextType {
   isSuperAdmin: boolean;
   isOperador: boolean;
   clubId: string | null;
-  clubActivo: { id: string; nombre: string; logo_url: string | null } | null;
+  clubActivo: { id: string; nombre: string; slug: string; logo_url: string | null } | null;
   loading: boolean;
   setImpersonatedClubId: (id: string | null) => void;
   refreshClub: () => Promise<void>;
@@ -36,7 +36,7 @@ async function fetchProfile(userId: string) {
 async function fetchClubDetails(clubId: string) {
   const { data, error } = await supabase
     .from("clubes")
-    .select("id, nombre, logo_url")
+    .select("id, nombre, slug, logo_url")
     .eq("id", clubId)
     .maybeSingle();
     
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
   const [isOperador, setIsOperador] = useState(false);
   const [clubId, setClubId] = useState<string | null>(null);
-  const [clubActivo, setClubActivo] = useState<{ id: string; nombre: string; logo_url: string | null } | null>(null);
+  const [clubActivo, setClubActivo] = useState<{ id: string; nombre: string; slug: string; logo_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
