@@ -30,7 +30,7 @@ export function PadelIdLogo({
             Padel <span className="text-primary">ID</span>
           </span>
           <span className="text-[9px] text-muted-foreground uppercase tracking-widest font-bold mt-0.5">
-            Tournament Platform
+            Torneos y rankings
           </span>
         </div>
       )}

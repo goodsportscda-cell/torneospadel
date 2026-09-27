@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Trophy, Users, Search, Plus, Shield, LogOut } from "lucide-react";
+import { Building2, Trophy, Users, Search, Plus, Shield, LogOut, History } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useAuth } from "@/hooks/useAuth";
@@ -26,11 +26,24 @@ type UserProfile = {
   apellido: string;
 };
 
+type RoleAudit = {
+  id: string;
+  email_actor: string;
+  email_objetivo: string;
+  rol_anterior: string;
+  rol_nuevo: string;
+  club_anterior_id: string | null;
+  club_nuevo_id: string | null;
+  cambiado_en: string;
+};
+
 export default function SuperAdminDashboard() {
   const { signOut, setImpersonatedClubId } = useAuth();
   const [stats, setStats] = useState({ clubes: 0, torneos: 0, perfiles: 0 });
   const [clubes, setClubes] = useState<Club[]>([]);
+  const [roleAudit, setRoleAudit] = useState<RoleAudit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [assigningRole, setAssigningRole] = useState(false);
 
   // New club form
   const [newClub, setNewClub] = useState({ nombre: "", slug: "", logo_url: "" });
@@ -48,6 +61,11 @@ export default function SuperAdminDashboard() {
     const { count: clubesCount } = await supabase.from("clubes").select("*", { count: "exact", head: true });
     const { count: torneosCount } = await supabase.from("torneos").select("*", { count: "exact", head: true });
     const { count: perfilesCount } = await supabase.from("perfiles").select("*", { count: "exact", head: true });
+    const { data: auditData } = await (supabase as any)
+      .from("auditoria_roles_perfiles")
+      .select("id, email_actor, email_objetivo, rol_anterior, rol_nuevo, club_anterior_id, club_nuevo_id, cambiado_en")
+      .order("cambiado_en", { ascending: false })
+      .limit(10);
     
     setStats({
       clubes: clubesCount || 0,
@@ -60,6 +78,7 @@ export default function SuperAdminDashboard() {
     if (clubesData) {
       setClubes(clubesData);
     }
+    setRoleAudit(auditData ?? []);
     
     setLoading(false);
   };
@@ -90,11 +109,11 @@ export default function SuperAdminDashboard() {
     e.preventDefault();
     if (!searchEmail) return;
 
-    // Search profile by email (assuming email is stored in public.perfiles via the new trigger)
+    // La búsqueda queda disponible solo para superadmins por la política RLS de perfiles.
     const { data, error } = await supabase
       .from("perfiles")
-      .select("*, jugadores(nombre, apellido)")
-      .eq("email", searchEmail)
+      .select("id, email, rol, club_id")
+      .ilike("email", searchEmail.trim())
       .maybeSingle();
 
     if (error) {
@@ -108,19 +127,13 @@ export default function SuperAdminDashboard() {
       return;
     }
 
-    // Attempt to extract name from linked jugadores table if any
-    let n = "Desconocido";
-    let a = "";
-    // Note: since perfiles is 1-to-1 with auth, and jugadores is separate, they might not be directly linked in a single query easily 
-    // unless there is a foreign key from jugadores to auth.id. We will just use the profile ID for display.
-
     setSearchedUser({
       id: data.id,
       email: data.email || searchEmail,
       rol: data.rol,
       club_id: data.club_id,
-      nombre: "Usuario",
-      apellido: "Padel ID"
+      nombre: "",
+      apellido: "",
     });
   };
 
@@ -130,17 +143,17 @@ export default function SuperAdminDashboard() {
       return;
     }
 
-    const { error } = await supabase
-      .from("perfiles")
-      .update({ rol: "club_admin", club_id: selectedClubId })
-      .eq("id", searchedUser.id);
-
-    if (error) {
-      toast.error(`Error al asignar rol: ${error.message}`);
-    } else {
-      toast.success("¡Rol de administrador de club asignado exitosamente!");
-      setSearchedUser({ ...searchedUser, rol: "club_admin", club_id: selectedClubId });
-    }
+    setAssigningRole(true);
+    const { data, error } = await (supabase as any).rpc("assign_club_admin", {
+      p_perfil_id: searchedUser.id,
+      p_club_id: selectedClubId,
+    });
+    setAssigningRole(false);
+    if (error) return toast.error(`No se pudo asignar el rol: ${error.message}`);
+    if (!data?.ok) return toast.error(data?.error ?? "No se pudo asignar el rol.");
+    toast.success(data.ya_asignado ? "Ese usuario ya es administrador de ese club." : "Administrador asignado. El cambio quedó registrado.");
+    setSearchedUser({ ...searchedUser, rol: "club_admin", club_id: selectedClubId });
+    await loadData();
   };
 
   return (
@@ -149,7 +162,7 @@ export default function SuperAdminDashboard() {
         <div className="container mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <PadelIdLogo size={32} showText={false} />
-            <span className="font-bold text-lg text-primary">SaaS Super Admin</span>
+            <span className="font-bold text-lg text-primary">Administración de plataforma</span>
           </div>
           <Button variant="ghost" size="sm" onClick={signOut}>
             <LogOut className="h-4 w-4 mr-2" />
@@ -162,7 +175,7 @@ export default function SuperAdminDashboard() {
         <div className="flex flex-col md:flex-row gap-4 items-start md:items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold tracking-tight">Panel Global</h1>
-            <p className="text-muted-foreground">Gestiona los clubes, inquilinos y accesos de la plataforma.</p>
+            <p className="text-muted-foreground">Gestioná los clubes, las cuentas y sus permisos.</p>
           </div>
         </div>
 
@@ -174,29 +187,32 @@ export default function SuperAdminDashboard() {
             <div className="grid gap-4 md:grid-cols-3">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Clubes Registrados</CardTitle>
+                  <CardTitle className="text-sm font-medium">Clubes registrados</CardTitle>
                   <Building2 className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.clubes}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Todos los clubes cargados en Padel ID.</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Torneos Históricos</CardTitle>
+                  <CardTitle className="text-sm font-medium">Torneos cargados</CardTitle>
                   <Trophy className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.torneos}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Todos los registros, sin filtrar por fecha ni estado.</p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">Total Perfiles de Usuario</CardTitle>
+                  <CardTitle className="text-sm font-medium">Cuentas de usuario</CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{stats.perfiles}</div>
+                  <p className="mt-1 text-xs text-muted-foreground">Perfiles de jugadores y administradores.</p>
                 </CardContent>
               </Card>
             </div>
@@ -216,9 +232,9 @@ export default function SuperAdminDashboard() {
                     </DialogTrigger>
                     <DialogContent>
                       <DialogHeader>
-                        <DialogTitle>Dar de alta un nuevo Club (Tenant)</DialogTitle>
+                        <DialogTitle>Registrar un nuevo club</DialogTitle>
                         <DialogDescription>
-                          Crea la instancia en la base de datos para que el complejo pueda empezar a gestionar sus torneos.
+                          El club podrá empezar a publicar y gestionar sus torneos en Padel ID.
                         </DialogDescription>
                       </DialogHeader>
                       <form onSubmit={handleCreateClub} className="space-y-4 pt-4">
@@ -232,14 +248,14 @@ export default function SuperAdminDashboard() {
                           />
                         </div>
                         <div className="space-y-2">
-                          <Label htmlFor="slug">Slug (URL única, sin espacios)</Label>
+                          <Label htmlFor="slug">Dirección corta del club</Label>
                           <Input 
                             id="slug" 
                             placeholder="Ej: el-galpon" 
                             value={newClub.slug}
                             onChange={(e) => setNewClub({...newClub, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, '')})}
                           />
-                          <p className="text-[10px] text-muted-foreground">La web quedará como: /c/{newClub.slug || 'slug'}/</p>
+                          <p className="text-[10px] text-muted-foreground">La página pública quedará como: /c/{newClub.slug || 'nombre-del-club'}/</p>
                         </div>
                         <div className="space-y-2">
                           <Label htmlFor="logo">URL del Logo (Opcional)</Label>
@@ -275,7 +291,7 @@ export default function SuperAdminDashboard() {
                           size="sm" 
                           onClick={() => {
                             setImpersonatedClubId(c.id);
-                            window.location.href = "/";
+                            window.location.href = "/panel";
                           }}
                         >
                           Administrar Club
@@ -335,9 +351,9 @@ export default function SuperAdminDashboard() {
                         <Button 
                           className="w-full mt-2" 
                           onClick={handleAssignAdmin}
-                          disabled={!selectedClubId}
+                          disabled={!selectedClubId || assigningRole}
                         >
-                          Hacer Administrador del Club
+                          {assigningRole ? "Guardando asignación…" : "Hacer Administrador del Club"}
                         </Button>
                       </div>
                     </div>
@@ -345,6 +361,36 @@ export default function SuperAdminDashboard() {
                 </CardContent>
               </Card>
             </div>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2"><History className="h-5 w-5 text-primary" />Cambios recientes de roles</CardTitle>
+                <CardDescription>Las asignaciones y cambios de club quedan registrados automáticamente.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                {roleAudit.length ? (
+                  <div className="space-y-3">
+                    {roleAudit.map((event) => (
+                      <div key={event.id} className="flex flex-col gap-1 border-b pb-3 last:border-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-medium">{event.email_objetivo}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {event.rol_anterior} → {event.rol_nuevo}
+                            {event.club_nuevo_id ? ` · ${clubes.find((club) => club.id === event.club_nuevo_id)?.nombre ?? "Club"}` : " · Sin club"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">Por {event.email_actor || "usuario del sistema"}</p>
+                        </div>
+                        <time className="shrink-0 text-xs text-muted-foreground" dateTime={event.cambiado_en}>
+                          {new Date(event.cambiado_en).toLocaleString("es-AR")}
+                        </time>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">Todavía no hay cambios de roles registrados.</p>
+                )}
+              </CardContent>
+            </Card>
           </>
         )}
       </main>

@@ -64,7 +64,7 @@ const fmtFecha = (iso: string) =>
   });
 
 export default function PlayerDashboard() {
-  const { user, signOut, isAdmin, loading: authLoading } = useAuth();
+  const { user, signOut, isAdmin, isOperador, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [jugadorId, setJugadorId] = useState<string | null>(null);
@@ -290,7 +290,10 @@ export default function PlayerDashboard() {
   }
 
   if (isAdmin) {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/panel" replace />;
+  }
+  if (isOperador) {
+    return <Navigate to="/inscripciones" replace />;
   }
 
   return (

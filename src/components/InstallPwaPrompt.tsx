@@ -107,12 +107,12 @@ export function InstallPwaPrompt() {
 
   return (
     <>
-      {/* Botón Flotante Elegante "Instalar App" */}
-      <div className="fixed bottom-[calc(env(safe-area-inset-bottom)+1rem)] left-3 z-50 print:hidden animate-in fade-in slide-in-from-bottom-4 duration-300 sm:bottom-4 sm:left-4">
-        <div className="relative group">
+      {/* Se mantiene en el flujo de la página para no tapar controles en móviles. */}
+      <div className="flex justify-center px-3 py-4 print:hidden animate-in fade-in slide-in-from-bottom-2 duration-300">
+        <div className="relative">
           <button
             onClick={handleInstallClick}
-            className="flex items-center gap-2.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 text-slate-950 font-black text-xs shadow-[0_4px_20px_rgba(245,158,11,0.4)] hover:shadow-[0_6px_25px_rgba(245,158,11,0.6)] hover:scale-[1.02] active:scale-95 transition-all border border-amber-300/60"
+            className="flex items-center gap-2.5 rounded-full border border-amber-300/60 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 px-3.5 py-2 text-xs font-black text-slate-950 shadow-sm transition-all hover:shadow-md active:scale-95"
             title="Instalar Padel ID en tu pantalla de inicio"
           >
             <img

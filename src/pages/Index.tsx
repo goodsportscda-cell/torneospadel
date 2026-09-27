@@ -241,7 +241,7 @@ const Index = () => {
             <div className="min-w-0 flex-1">
               <p className="text-[9px] text-muted-foreground font-semibold uppercase tracking-wider leading-none">Organizado por</p>
               <h2 className="text-sm font-bold text-foreground leading-tight mt-0.5">{clubActivo?.nombre || activeTenant.name}</h2>
-              <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">{activeTenant.subtext}</p>
+              <p className="text-[9px] text-muted-foreground font-medium leading-none mt-0.5">Club activo</p>
             </div>
           </div>
           
@@ -251,7 +251,7 @@ const Index = () => {
               size="sm" 
               className="flex-1 sm:flex-none gap-2 font-semibold shadow-sm"
               onClick={() => {
-                const url = `${window.location.origin}/c/${activeTenant.slug}/`;
+                const url = `${window.location.origin}/c/${clubActivo?.slug || activeTenant.slug}/`;
                 navigator.clipboard.writeText(url);
                 toast.success("¡Enlace copiado al portapapeles!");
               }}
@@ -260,7 +260,7 @@ const Index = () => {
               Compartir Portal
             </Button>
             <Button asChild variant="outline" size="sm" className="flex-1 sm:flex-none">
-              <Link to={`/c/${activeTenant.slug}/`} target="_blank">
+              <Link to={`/c/${clubActivo?.slug || activeTenant.slug}/`} target="_blank">
                 Ver
               </Link>
             </Button>

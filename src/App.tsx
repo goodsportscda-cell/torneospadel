@@ -11,6 +11,7 @@ import SuperAdminRoute from "@/components/SuperAdminRoute";
 import AppLayout from "@/components/AppLayout";
 import { TenantProvider } from "@/contexts/TenantContext";
 import Auth from "./pages/Auth.tsx";
+import PublicHome from "./pages/PublicHome.tsx";
 import Index from "./pages/Index.tsx";
 import ClubHome from "./pages/ClubHome.tsx";
 import PlayerDashboard from "./pages/PlayerDashboard.tsx";
@@ -47,6 +48,7 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            <Route path="/" element={<PublicHome />} />
             <Route path="/auth" element={<Auth />} />
             
             {/* Rutas Publicas Hibridas - Especificas por Club */}
@@ -109,7 +111,7 @@ const App = () => (
                 </ProtectedRoute>
               }
             >
-              <Route path="/" element={<Index />} />
+              <Route path="/panel" element={<Index />} />
               <Route path="/jugadores" element={<Jugadores />} />
               <Route path="/calendario" element={<Calendario />} />
               <Route path="/torneos" element={<Torneos />} />

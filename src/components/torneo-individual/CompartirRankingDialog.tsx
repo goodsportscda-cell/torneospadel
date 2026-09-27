@@ -210,7 +210,7 @@ export function CompartirRankingDialog({
                     Padel ID
                   </span>
                   <span className="text-[9px] font-bold tracking-widest text-white/50 uppercase">
-                    Tournament Platform
+                    Torneos y rankings
                   </span>
                 </div>
               </div>

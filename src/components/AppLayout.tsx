@@ -8,7 +8,7 @@ import { toast } from "sonner";
 import { ModeToggle } from "./mode-toggle";
 
 export default function AppLayout() {
-  const { signOut, user, isAdmin, isSuperAdmin, clubId } = useAuth();
+  const { signOut, user, isAdmin, isSuperAdmin, isOperador, clubId, clubActivo } = useAuth();
 
   if (isSuperAdmin && !clubId) {
     return <Navigate to="/super-admin" replace />;
@@ -26,15 +26,20 @@ export default function AppLayout() {
         <div className="min-w-0 flex-1 flex flex-col">
           <header className="h-12 flex items-center border-b bg-background px-2 sticky top-0 z-10 gap-2 print:hidden">
             <SidebarTrigger />
-            <h1 className="ml-1 text-sm font-semibold flex-1 truncate">Gestión de Torneos</h1>
+            <div className="ml-1 flex min-w-0 flex-1 items-center gap-2 truncate">
+              <span className="text-sm font-bold text-primary">Padel ID</span>
+              {clubActivo && <><span className="text-muted-foreground">·</span><span className="truncate text-sm font-medium">{clubActivo.nombre}</span></>}
+            </div>
             {user && (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
                 <span className="hidden sm:inline truncate max-w-[140px]">{user.email}</span>
-                {isAdmin && (
+                {isAdmin && !isSuperAdmin && (
                   <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">
-                    Admin
+                    Administrador
                   </span>
                 )}
+                {isSuperAdmin && <span className="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-medium">Superadmin</span>}
+                {isOperador && <span className="px-1.5 py-0.5 rounded bg-muted text-muted-foreground font-medium">Operador</span>}
                 <ModeToggle />
                 <Button variant="ghost" size="icon" onClick={handleSignOut} title="Cerrar sesión">
                   <LogOut className="h-4 w-4" />
@@ -42,7 +47,7 @@ export default function AppLayout() {
               </div>
             )}
           </header>
-          <main className="min-w-0 flex-1 p-4 pb-24 md:p-6 md:pb-6">
+          <main className="min-w-0 flex-1 p-4 md:p-6">
             <Outlet />
             <footer className="mt-12 pt-6 border-t text-center text-[10px] sm:text-xs text-muted-foreground print:hidden">
               <p>© {new Date().getFullYear()} <span className="font-bold text-foreground">Padel ID</span> — Todos los derechos reservados.</p>

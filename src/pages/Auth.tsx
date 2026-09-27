@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
@@ -10,11 +10,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
-import { activeTenant } from "@/lib/tenant";
 
 export default function Auth() {
   const navigate = useNavigate();
-  const { user, isAdmin, isSuperAdmin, loading: authLoading } = useAuth();
+  const { user, isAdmin, isOperador, isSuperAdmin, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,11 +24,13 @@ export default function Auth() {
     if (!authLoading && user) {
       if (isSuperAdmin) {
         navigate("/super-admin", { replace: true });
+      } else if (isOperador) {
+        navigate("/inscripciones", { replace: true });
       } else {
-        navigate(isAdmin ? "/" : "/player/dashboard", { replace: true });
+        navigate(isAdmin ? "/panel" : "/player/dashboard", { replace: true });
       }
     }
-  }, [user, isAdmin, isSuperAdmin, authLoading, navigate]);
+  }, [user, isAdmin, isOperador, isSuperAdmin, authLoading, navigate]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -82,18 +83,10 @@ export default function Auth() {
           <div className="flex justify-center">
             <PadelIdLogo size={56} showText={true} />
           </div>
-          <CardDescription>Plataforma de gestión de torneos y ranking</CardDescription>
+          <CardDescription>Plataforma de gestión de torneos y rankings</CardDescription>
           
-          {/* Tenant indicator */}
-          <div className="flex items-center justify-center gap-2 border-t pt-3 mt-1">
-            <img
-              src={activeTenant.logo}
-              alt={activeTenant.name}
-              className="h-6 w-6 object-contain rounded"
-            />
-            <span className="text-xs text-muted-foreground font-semibold">
-              Accediendo al espacio de: <strong className="text-foreground">{activeTenant.name}</strong>
-            </span>
+          <div className="border-t pt-3 mt-1 text-xs text-muted-foreground">
+            Acceso para clubes, organizadores y jugadores
           </div>
         </CardHeader>
         <CardContent>
@@ -163,6 +156,11 @@ export default function Auth() {
               </form>
             </TabsContent>
           </Tabs>
+          <div className="pt-4 text-center">
+            <Link to="/" className="text-sm font-medium text-primary hover:underline">
+              Ver torneos y rankings públicos
+            </Link>
+          </div>
         </CardContent>
       </Card>
     </div>
