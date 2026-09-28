@@ -78,9 +78,10 @@ type Props = {
   torneoNombre?: string;
   todasLasZonas?: Zona[];
   parejaDisponibilidad?: (id: string) => string | null;
+  matchPhotoUrl?: (matchId: string) => string | undefined;
 };
 
-export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad }: Props) {
+export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad, matchPhotoUrl }: Props) {
   const clubBrand = useClubBrand();
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
@@ -690,8 +691,9 @@ export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onCh
               })()}
 
               {partidos.map(p => (
+                <div key={p.id} className="space-y-2">
+                {readOnly && matchPhotoUrl?.(p.id) && <img src={matchPhotoUrl(p.id)} alt={`Foto del partido ${p.orden}`} loading="lazy" className="max-h-52 w-full rounded-xl border object-cover" />}
                 <PartidoCard
-                  key={p.id}
                   partidoId={p.id}
                   zonaId={zona.id}
                   torneoId={torneoId || zona.torneo_id}
@@ -720,6 +722,7 @@ export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onCh
                     label: parejaLabel(zp.inscripcion_id),
                   }))}
                 />
+                </div>
               ))}
             </div>
 

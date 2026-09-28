@@ -30,6 +30,8 @@ import CanchasEnVivo from "./pages/CanchasEnVivo.tsx";
 import TorneoIndividualDashboard from "./pages/TorneoIndividualDashboard.tsx";
 import TorneoIndividualPublico from "./pages/TorneoIndividualPublico.tsx";
 import TorneoTvView from "./pages/TorneoTvView.tsx";
+import TorneoTvRouter from "./pages/TorneoTvRouter.tsx";
+import TorneoTvSelector from "./pages/TorneoTvSelector.tsx";
 import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
 import Configuracion from "./pages/Configuracion.tsx";
 import NotFound from "./pages/NotFound.tsx";
@@ -59,8 +61,8 @@ const App = () => (
                   <Route path="/torneo/:slug" element={<TorneoPublico />} />
                   <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
                   <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
-                  <Route path="/torneo/:id/tv" element={<TorneoTvView />} />
-                  <Route path="/tv/:id" element={<TorneoTvView />} />
+                  <Route path="/torneo/:id/tv" element={<TorneoTvRouter />} />
+                  <Route path="/tv/:id" element={<TorneoTvRouter />} />
                   <Route path="/ranking-publico" element={<RankingPublico />} />
                   <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
                   <Route path="/draft/:id" element={<DraftPublico />} />
@@ -73,8 +75,9 @@ const App = () => (
             <Route path="/torneo/:slug" element={<TorneoPublico />} />
             <Route path="/torneo-individual/:id" element={<TorneoIndividualPublico />} />
             <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
-            <Route path="/torneo/:id/tv" element={<TorneoTvView />} />
-            <Route path="/tv/:id" element={<TorneoTvView />} />
+            <Route path="/torneo/:id/tv" element={<TorneoTvRouter />} />
+            <Route path="/tv/:id" element={<TorneoTvRouter />} />
+            <Route path="/tv" element={<TorneoTvSelector />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
             <Route path="/mi-panel" element={<Navigate to="/player/dashboard" replace />} />
             <Route path="/draft/:id" element={<DraftPublico />} />

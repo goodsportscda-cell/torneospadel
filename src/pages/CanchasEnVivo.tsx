@@ -14,7 +14,7 @@ import { useClubBrand } from "@/hooks/useClubBrand";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas } from "@/logic/torneoStandings";
 
-type Torneo = { id: string; nombre: string; estado?: string; modalidad?: string; canchas_count?: number; notas?: string | null };
+type Torneo = { id: string; nombre: string; tipo?: string; estado?: string; modalidad?: string; canchas_count?: number; notas?: string | null };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
 
@@ -66,7 +66,7 @@ export default function CanchasEnVivo() {
   useEffect(() => {
     supabase
       .from("torneos")
-      .select("id, nombre, estado, modalidad, canchas_count, notas")
+      .select("id, nombre, tipo, estado, modalidad, canchas_count, notas")
       .neq("estado", "cancelado")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -101,7 +101,11 @@ export default function CanchasEnVivo() {
       setTvSelectModalOpen(true);
       return;
     }
-    window.open(`/torneo-individual/${selectedId}/tv`, "_blank");
+    const selectedTorneo = torneos.find((t) => t.id === selectedId);
+    const tvPath = selectedTorneo?.tipo === "americano_individual"
+      ? `/torneo-individual/${selectedId}/tv`
+      : `/torneo/${selectedId}/tv`;
+    window.open(tvPath, "_blank", "noopener,noreferrer");
   };
 
   const cargarDatos = async () => {
@@ -865,8 +869,15 @@ export default function CanchasEnVivo() {
                         try {
                           setIsUploadingFotoCancha(true);
                           const url = await uploadPartidoPhoto(file, tId, partidoCargar.id);
+                          const { data: tournament, error: tournamentError } = await supabase
+                            .from("torneos")
+                            .select("notas")
+                            .eq("id", tId)
+                            .single();
+                          if (tournamentError) throw tournamentError;
+                          await persistPartidoPhoto(tId, partidoCargar.id, url, tournament?.notas);
                           setFotoCanchaEnVivo(url);
-                          toast.success("Foto cargada con éxito");
+                          toast.success("Foto guardada y lista para la pantalla TV");
                         } catch (err: any) {
                           toast.error("Error al procesar foto: " + (err?.message || ""));
                         } finally {
@@ -936,7 +947,8 @@ export default function CanchasEnVivo() {
                 type="button"
                 onClick={() => {
                   setTvSelectModalOpen(false);
-                  window.open(`/torneo-individual/${t.id}/tv`, "_blank");
+                  const tvPath = t.tipo === "americano_individual" ? `/torneo-individual/${t.id}/tv` : `/torneo/${t.id}/tv`;
+                  window.open(tvPath, "_blank", "noopener,noreferrer");
                 }}
                 className="w-full text-left p-3 rounded-lg border border-white/10 hover:border-[#00f5d4]/50 bg-white/5 hover:bg-[#00f5d4]/10 transition-all flex items-center justify-between group cursor-pointer"
               >

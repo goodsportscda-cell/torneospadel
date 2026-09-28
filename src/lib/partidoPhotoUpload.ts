@@ -133,14 +133,11 @@ export async function persistPartidoPhoto(
   // 2. Actualizar torneos.notas
   const updatedNotas = updateFotoInNotas(currentNotas, matchId, cleanUrl);
   if (updatedNotas !== (currentNotas || "")) {
-    try {
-      await (supabase as any)
-        .from("torneos")
-        .update({ notas: updatedNotas || null })
-        .eq("id", torneoId);
-    } catch (notasErr: any) {
-      console.error("Error al actualizar torneos.notas:", notasErr?.message);
-    }
+    const { error: notasError } = await (supabase as any)
+      .from("torneos")
+      .update({ notas: updatedNotas || null })
+      .eq("id", torneoId);
+    if (notasError) throw notasError;
   }
 
   return updatedNotas;

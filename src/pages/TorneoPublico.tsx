@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Trophy, Calendar, MapPin, Loader2, AlertCircle, Users, LayoutGrid, GitBranch, Share2 } from "lucide-react";
+import { Trophy, Calendar, MapPin, Loader2, AlertCircle, Users, LayoutGrid, GitBranch, Share2, Tv } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { ZonaCard, type Zona } from "@/components/zonas/ZonaCard";
 import { PartidoCard } from "@/components/zonas/PartidoCard";
@@ -29,6 +29,7 @@ export default function TorneoPublico() {
   const { nombre: nombreClub } = useClubBrand(torneo?.club_id);
   const [categoriaNombre, setCategoriaNombre] = useState<string>("");
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   
   // Data for Zonas and Llaves
   const [zonas, setZonas] = useState<Zona[]>([]);
@@ -39,12 +40,19 @@ export default function TorneoPublico() {
   const [isCompartirOpen, setIsCompartirOpen] = useState(false);
 
   const fetchTorneo = useCallback(async () => {
-    if (!slug) return;
-    
+    if (!slug) {
+      setLoadError(true);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    setLoadError(false);
+    let torneoPrincipalCargado = false;
+    try {
     // Buscamos solo por ID para evitar el error de cache del slug
     const { data: tData, error: tErr } = await (supabase as any)
       .from("torneos")
-      .select("*")
+      .select("id, nombre, tipo, estado, fecha_inicio, fecha_fin, numero_fecha, club_id, categoria_id, categoria_libre, sede, multiplicador_puntos")
       .eq("id", slug)
       .maybeSingle();
     if (tErr || !tData) {
@@ -57,20 +65,36 @@ export default function TorneoPublico() {
       return;
     }
 
-    setTorneo(tData);
+    setTorneo({ ...tData, notas: null, premios: null });
+    torneoPrincipalCargado = true;
+    setLoading(false);
+
+    // Notas pueden contener datos grandes. Cargarlas aparte evita bloquear la página.
+    (supabase as any)
+      .from("torneos")
+      .select("notas, premios")
+      .eq("id", tData.id)
+      .maybeSingle()
+      .then(({ data, error }: any) => {
+        if (error) {
+          console.warn("No se pudieron cargar los detalles del torneo", error);
+          return;
+        }
+        setTorneo((current: Torneo | null) => current?.id === tData.id ? { ...current, notas: data?.notas ?? null, premios: data?.premios ?? null } : current);
+      })
+      .catch((error: unknown) => console.warn("No se pudieron cargar los detalles del torneo", error));
 
     // 2. Fetch everything else in parallel
     const [
-      { data: zData },
-      { data: iData },
-      { data: lData },
-      { data: llavesData }
+      { data: zData, error: zErr },
+      { data: iData, error: iErr },
+      { data: lData, error: lErr }
     ] = await Promise.all([
-      (supabase as any).from("zonas").select("*").eq("torneo_id", tData.id).order("orden"),
-      (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at").eq("torneo_id", tData.id).eq("estado", "confirmada"),
-      (supabase as any).from("llaves").select("*").eq("torneo_id", tData.id).maybeSingle(),
-      (supabase as any).from("partidos_llave").select("*").order("numero")
+      (supabase as any).from("zonas").select("id, nombre, tamanio, orden, torneo_id").eq("torneo_id", tData.id).order("orden"),
+      (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado").eq("torneo_id", tData.id).eq("estado", "confirmada"),
+      (supabase as any).from("llaves").select("id, torneo_id").eq("torneo_id", tData.id).maybeSingle()
     ]);
+    if (zErr || iErr || lErr) throw zErr ?? iErr ?? lErr;
 
     const jugadorIds = [...new Set((iData ?? []).flatMap((i: any) => [i.jugador1_id, i.jugador2_id]).filter(Boolean))];
     const { data: jData } = jugadorIds.length > 0
@@ -85,12 +109,19 @@ export default function TorneoPublico() {
     setJugadores(jData ?? []);
     
     if (lData) {
-      const filteredPartidos = (llavesData ?? []).filter(p => p.llave_id === lData.id);
+      const { data: llavesData, error: llavesErr } = await (supabase as any)
+        .from("partidos_llave")
+        .select("id, llave_id, numero, ronda, pareja_local_id, pareja_visitante_id, ref_local, ref_visitante, estado, ganador_id, fecha_hora, cancha")
+        .eq("llave_id", lData.id)
+        .order("numero");
+      if (llavesErr) throw llavesErr;
+      const filteredPartidos = llavesData ?? [];
       setPartidosLlave(filteredPartidos as PartidoLlaveRow[]);
       
       if (filteredPartidos.length > 0) {
         const pIds = filteredPartidos.map(p => p.id);
-        const { data: sData } = await (supabase as any).from("sets_partido").select("*").in("partido_llave_id", pIds);
+        const { data: sData, error: setsErr } = await (supabase as any).from("sets_partido").select("partido_llave_id, numero_set, games_local, games_visitante").in("partido_llave_id", pIds);
+        if (setsErr) throw setsErr;
         const map: Record<string, any[]> = {};
         (sData ?? []).forEach(s => {
           if (!map[s.partido_llave_id!]) map[s.partido_llave_id!] = [];
@@ -102,11 +133,16 @@ export default function TorneoPublico() {
 
     // Fetch Category Name if official
     if (tData.tipo === "oficial" && tData.categoria_id) {
-      const { data: cData } = await (supabase as any).from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
+      const { data: cData, error: categoryErr } = await (supabase as any).from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
+      if (categoryErr) throw categoryErr;
       if (cData) setCategoriaNombre(cData.nombre);
     }
-    
-    setLoading(false);
+    } catch (error) {
+      console.error("No se pudo cargar el torneo público", error);
+      if (!torneoPrincipalCargado) setLoadError(true);
+    } finally {
+      setLoading(false);
+    }
   }, [slug]);
 
   useEffect(() => {
@@ -158,13 +194,14 @@ export default function TorneoPublico() {
     );
   }
 
-  if (!torneo) {
+  if (!torneo || loadError) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-4 text-center space-y-4">
         <AlertCircle className="h-12 w-12 text-destructive" />
-        <h1 className="text-xl font-bold">Torneo no encontrado</h1>
-        <p className="text-muted-foreground">El link es incorrecto o el torneo ya no existe.</p>
-        <Button asChild><Link to="/">Volver al inicio</Link></Button>
+        <h1 className="text-xl font-bold">{loadError ? "No pudimos cargar el torneo" : "Torneo no encontrado"}</h1>
+        <p className="text-muted-foreground">{loadError ? "Hubo un problema al consultar sus datos. Probá nuevamente en unos segundos." : "El link es incorrecto o el torneo ya no existe."}</p>
+        {loadError && <Button onClick={fetchTorneo}>Reintentar</Button>}
+        <Button asChild variant={loadError ? "outline" : "default"}><Link to="/">Volver al inicio</Link></Button>
       </div>
     );
   }
@@ -184,6 +221,12 @@ export default function TorneoPublico() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <Button asChild size="sm" className="gap-2">
+              <Link to={`/torneo/${torneo.id}/tv`} target="_blank" rel="noreferrer">
+                <Tv className="h-4 w-4" />
+                <span className="hidden sm:inline">Pantalla TV</span>
+              </Link>
+            </Button>
             <ModeToggle />
             <Badge variant="outline" className="capitalize">{torneo.estado.replace(/_/g, " ")}</Badge>
           </div>
@@ -327,7 +370,7 @@ export default function TorneoPublico() {
                   <ZonaCard 
                     key={z.id} 
                     zona={z} 
-                    torneoId={id}
+                    torneoId={torneo.id}
                     parejasDisponibles={[]} 
                     parejaLabel={parejaLabel}
                     onChanged={() => {}} 
@@ -384,7 +427,7 @@ export default function TorneoPublico() {
                           <PartidoCard
                             key={p.id}
                             partidoId={p.id}
-                            torneoId={id}
+                            torneoId={torneo.id}
                             orden={p.numero}
                             labelPartido={`Partido ${p.numero}`}
                             tabla="partidos_llave"
