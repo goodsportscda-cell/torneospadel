@@ -325,6 +325,22 @@ export default function CanchasEnVivo() {
     return sets.some(s => s.local !== "" && s.visitante !== "");
   }, [sets]);
 
+  const ganadorSegunSets = useMemo(() => {
+    if (!partidoCargar) return null;
+    let setsLocal = 0;
+    let setsVisitante = 0;
+    sets.forEach((set) => {
+      if (set.local === "" || set.visitante === "") return;
+      const local = Number(set.local);
+      const visitante = Number(set.visitante);
+      if (!Number.isFinite(local) || !Number.isFinite(visitante) || local === visitante) return;
+      if (local > visitante) setsLocal += 1;
+      else setsVisitante += 1;
+    });
+    if (setsLocal === setsVisitante) return null;
+    return setsLocal > setsVisitante ? partidoCargar.pareja_local_id : partidoCargar.pareja_visitante_id;
+  }, [partidoCargar, sets]);
+
   const guardarResultadoParcial = async () => {
     if (!partidoCargar) return;
     const toastId = toast.loading("Guardando resultado parcial...");
@@ -394,7 +410,8 @@ export default function CanchasEnVivo() {
   };
 
   const guardarResultado = async () => {
-    if (!partidoCargar || !ganadorSeleccionado) return;
+    const ganadorFinal = ganadorSeleccionado || ganadorSegunSets;
+    if (!partidoCargar || !ganadorFinal) return;
     const toastId = toast.loading("Guardando...");
     
     try {
@@ -457,7 +474,7 @@ export default function CanchasEnVivo() {
 
         await supabase.from(tabla).update({
           estado: "finalizado",
-          ganador_id: ganadorSeleccionado
+          ganador_id: ganadorFinal
         }).eq("id", partidoCargar.id);
       }
 
@@ -807,7 +824,7 @@ export default function CanchasEnVivo() {
             <div className="space-y-6 mt-4">
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
                 <Button 
-                  variant={ganadorSeleccionado === partidoCargar.pareja_local_id ? "default" : "outline"}
+                  variant={(ganadorSeleccionado || ganadorSegunSets) === partidoCargar.pareja_local_id ? "default" : "outline"}
                   className="h-auto py-2 flex flex-col gap-1"
                   onClick={() => setGanadorSeleccionado(partidoCargar.pareja_local_id)}
                 >
@@ -816,7 +833,7 @@ export default function CanchasEnVivo() {
                 </Button>
                 <span className="text-muted-foreground text-xs font-bold px-2">VS</span>
                 <Button 
-                  variant={ganadorSeleccionado === partidoCargar.pareja_visitante_id ? "default" : "outline"}
+                  variant={(ganadorSeleccionado || ganadorSegunSets) === partidoCargar.pareja_visitante_id ? "default" : "outline"}
                   className="h-auto py-2 flex flex-col gap-1"
                   onClick={() => setGanadorSeleccionado(partidoCargar.pareja_visitante_id)}
                 >
@@ -915,7 +932,7 @@ export default function CanchasEnVivo() {
                 <Button variant="outline" disabled={!tieneSetCargado} onClick={guardarResultadoParcial} className="flex-1 text-xs">
                   Guardar Parcial
                 </Button>
-                <Button disabled={!ganadorSeleccionado} onClick={guardarResultado} className="flex-1 text-xs bg-primary text-primary-foreground">
+                <Button disabled={!tieneSetCargado || !(ganadorSeleccionado || ganadorSegunSets)} onClick={guardarResultado} className="flex-1 text-xs bg-primary text-primary-foreground">
                   Finalizar Partido
                 </Button>
               </DialogFooter>
