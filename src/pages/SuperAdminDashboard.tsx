@@ -5,9 +5,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Building2, Trophy, Users, Search, Plus, Shield, LogOut, History } from "lucide-react";
+import { Building2, Trophy, Users, Search, Plus, Shield, LogOut, History, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
 
 type Club = {
@@ -44,6 +45,8 @@ export default function SuperAdminDashboard() {
   const [roleAudit, setRoleAudit] = useState<RoleAudit[]>([]);
   const [loading, setLoading] = useState(true);
   const [assigningRole, setAssigningRole] = useState(false);
+  const [clubToDelete, setClubToDelete] = useState<Club | null>(null);
+  const [isDeletingClub, setIsDeletingClub] = useState(false);
 
   // New club form
   const [newClub, setNewClub] = useState({ nombre: "", slug: "", logo_url: "" });
@@ -102,6 +105,49 @@ export default function SuperAdminDashboard() {
       setIsNewClubOpen(false);
       setNewClub({ nombre: "", slug: "", logo_url: "" });
       loadData();
+    }
+  };
+
+  const handleDeleteClub = async () => {
+    if (!clubToDelete) return;
+    setIsDeletingClub(true);
+    try {
+      const [tournamentsResult, categoriesResult] = await Promise.all([
+        supabase.from("torneos").select("id", { count: "exact", head: true }).eq("club_id", clubToDelete.id),
+        supabase.from("categorias").select("id", { count: "exact", head: true }).eq("club_id", clubToDelete.id),
+      ]);
+      if (tournamentsResult.error) throw tournamentsResult.error;
+      if (categoriesResult.error) throw categoriesResult.error;
+
+      const linkedItems = [
+        (tournamentsResult.count ?? 0) > 0 && `${tournamentsResult.count} torneo(s)`,
+        (categoriesResult.count ?? 0) > 0 && `${categoriesResult.count} categoría(s)`,
+      ].filter(Boolean);
+      if (linkedItems.length) {
+        toast.error(`No se puede eliminar ${clubToDelete.nombre}: todavía tiene ${linkedItems.join(" y ")}.`);
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("clubes")
+        .delete()
+        .eq("id", clubToDelete.id)
+        .select("id")
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast.error("No se eliminó el club. Aplicá primero la migración de permisos para eliminar clubes.");
+        return;
+      }
+
+      toast.success(`Se eliminó el club ${clubToDelete.nombre}.`);
+      setClubToDelete(null);
+      await loadData();
+    } catch (error: any) {
+      console.error("No se pudo eliminar el club:", error);
+      toast.error(`No se pudo eliminar el club: ${error?.message || "Error de conexión"}`);
+    } finally {
+      setIsDeletingClub(false);
     }
   };
 
@@ -286,16 +332,28 @@ export default function SuperAdminDashboard() {
                           <h4 className="font-semibold truncate">{c.nombre}</h4>
                           <p className="text-xs text-muted-foreground truncate">/c/{c.slug}/</p>
                         </div>
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => {
-                            setImpersonatedClubId(c.id);
-                            window.location.href = "/panel";
-                          }}
-                        >
-                          Administrar Club
-                        </Button>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => {
+                              setImpersonatedClubId(c.id);
+                              window.location.href = "/panel";
+                            }}
+                          >
+                            Administrar Club
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Eliminar club ${c.nombre}`}
+                            title="Eliminar club vacío"
+                            onClick={() => setClubToDelete(c)}
+                            className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -389,9 +447,30 @@ export default function SuperAdminDashboard() {
                 ) : (
                   <p className="text-sm text-muted-foreground">Todavía no hay cambios de roles registrados.</p>
                 )}
-              </CardContent>
-            </Card>
-          </>
+            </CardContent>
+          </Card>
+
+          <AlertDialog open={Boolean(clubToDelete)} onOpenChange={(open) => { if (!open && !isDeletingClub) setClubToDelete(null); }}>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>¿Eliminar el club {clubToDelete?.nombre}?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Solo se puede eliminar si no tiene torneos ni categorías asociadas. Esta acción es permanente; la configuración deportiva propia del club también se eliminará.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel disabled={isDeletingClub}>Cancelar</AlertDialogCancel>
+                <AlertDialogAction
+                  onClick={(event) => { event.preventDefault(); void handleDeleteClub(); }}
+                  disabled={isDeletingClub}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {isDeletingClub ? "Eliminando…" : "Eliminar club"}
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
+        </>
         )}
       </main>
     </div>

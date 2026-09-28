@@ -13,12 +13,14 @@ export default function Configuracion() {
   const { clubActivo, refreshClub } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [clubName, setClubName] = useState(clubActivo?.nombre ?? "");
+  const [clubSlug, setClubSlug] = useState(clubActivo?.slug ?? "");
   const [isSavingClubName, setIsSavingClubName] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setClubName(clubActivo?.nombre ?? "");
-  }, [clubActivo?.id, clubActivo?.nombre]);
+    setClubSlug(clubActivo?.slug ?? "");
+  }, [clubActivo?.id, clubActivo?.nombre, clubActivo?.slug]);
 
   const handleSaveClubName = async () => {
     if (!clubActivo) return;
@@ -27,11 +29,16 @@ export default function Configuracion() {
       toast.error("El nombre del club no puede quedar vacío.");
       return;
     }
-    if (nombre === clubActivo.nombre) return;
+    if (!clubSlug) {
+      toast.error("La dirección corta no puede quedar vacía.");
+      return;
+    }
+    if (nombre === clubActivo.nombre && clubSlug === clubActivo.slug) return;
 
     setIsSavingClubName(true);
     try {
-      const { error } = await supabase.from("clubes").update({ nombre }).eq("id", clubActivo.id);
+      const { error } = await supabase.from("clubes").update({ nombre, slug: clubSlug }).eq("id", clubActivo.id);
+      if (error?.code === "23505") throw new Error("Esa dirección corta ya está en uso. Elegí otra.");
       if (error) throw error;
 
       await refreshClub();
@@ -200,22 +207,36 @@ export default function Configuracion() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre del Club</label>
+                <label htmlFor="club-name" className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre del Club</label>
                 <Input
+                  id="club-name"
                   value={clubName}
                   onChange={(event) => setClubName(event.target.value)}
                   maxLength={100}
                   disabled={!clubActivo || isSavingClubName}
                   aria-label="Nombre del club"
                 />
-                <p className="text-xs text-muted-foreground">El cambio se verá en el portal y en las pantallas del club. La dirección corta del sitio no cambia.</p>
+                <label htmlFor="club-slug" className="mt-3 block text-xs font-semibold text-muted-foreground uppercase tracking-wider">Dirección corta del sitio</label>
+                <div className="flex items-center rounded-md border bg-background focus-within:ring-2 focus-within:ring-ring">
+                  <span className="shrink-0 pl-3 text-sm text-muted-foreground">/c/</span>
+                  <Input
+                    id="club-slug"
+                    value={clubSlug}
+                    onChange={(event) => setClubSlug(event.target.value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, ""))}
+                    maxLength={60}
+                    disabled={!clubActivo || isSavingClubName}
+                    aria-label="Dirección corta del sitio"
+                    className="border-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Enlace público: /c/{clubSlug || "nombre-del-club"}. Si cambiás esta dirección, los enlaces anteriores dejarán de funcionar.</p>
                 <Button
                   type="button"
                   onClick={handleSaveClubName}
-                  disabled={!clubActivo || isSavingClubName || !clubName.trim() || clubName.trim() === clubActivo?.nombre}
+                  disabled={!clubActivo || isSavingClubName || !clubName.trim() || !clubSlug || (clubName.trim() === clubActivo?.nombre && clubSlug === clubActivo?.slug)}
                 >
                   {isSavingClubName ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                  {isSavingClubName ? "Guardando…" : "Guardar nombre"}
+                  {isSavingClubName ? "Guardando…" : "Guardar cambios"}
                 </Button>
               </div>
             </CardContent>

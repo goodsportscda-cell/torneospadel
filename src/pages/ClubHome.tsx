@@ -105,9 +105,7 @@ export default function ClubHome() {
       .select("id, nombre, fecha_inicio, fecha_fin, sede, estado, numero_fecha, multiplicador_puntos, tipo")
       .order("fecha_inicio", { ascending: false });
 
-    if (club.id) {
-      q = q.or(`club_id.eq.${club.id},club_id.is.null`);
-    }
+    q = q.eq("club_id", club.id);
     
     const { data } = await q;
     setTorneos(data || []);
@@ -119,7 +117,7 @@ export default function ClubHome() {
     const { data: cats } = await supabase
       .from("categorias")
       .select("id, nombre, genero")
-      .or(`club_id.eq.${club.id},club_id.is.null`)
+      .eq("club_id", club.id)
       .order("orden");
     
     if (cats) setCategorias(cats);
@@ -128,9 +126,7 @@ export default function ClubHome() {
     let tQuery = supabase
       .from("torneos")
       .select("fecha_inicio");
-    if (club.id) {
-      tQuery = tQuery.or(`club_id.eq.${club.id},club_id.is.null`);
-    }
+    tQuery = tQuery.eq("club_id", club.id);
     const { data: torneosAnios } = await tQuery;
     
     const anioSet = new Set<number>();
