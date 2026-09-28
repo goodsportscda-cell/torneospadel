@@ -1,3 +1,4 @@
+import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -10,34 +11,35 @@ import AdminRoute from "@/components/AdminRoute";
 import SuperAdminRoute from "@/components/SuperAdminRoute";
 import AppLayout from "@/components/AppLayout";
 import { TenantProvider } from "@/contexts/TenantContext";
-import Auth from "./pages/Auth.tsx";
-import PublicHome from "./pages/PublicHome.tsx";
-import Index from "./pages/Index.tsx";
-import ClubHome from "./pages/ClubHome.tsx";
-import PlayerDashboard from "./pages/PlayerDashboard.tsx";
-import Jugadores from "./pages/Jugadores.tsx";
-import Calendario from "./pages/Calendario.tsx";
-import Torneos from "./pages/Torneos.tsx";
-import Inscripciones from "./pages/Inscripciones.tsx";
-import Zonas from "./pages/Zonas.tsx";
-import Importar from "./pages/Importar.tsx";
-import Llaves from "./pages/Llaves.tsx";
-import Ranking from "./pages/Ranking.tsx";
-import InscripcionPublica from "./pages/InscripcionPublica.tsx";
-import TorneoPublico from "./pages/TorneoPublico.tsx";
-import RankingPublico from "./pages/RankingPublico.tsx";
-import CanchasEnVivo from "./pages/CanchasEnVivo.tsx";
-import TorneoIndividualDashboard from "./pages/TorneoIndividualDashboard.tsx";
-import TorneoIndividualPublico from "./pages/TorneoIndividualPublico.tsx";
-import TorneoTvView from "./pages/TorneoTvView.tsx";
-import TorneoTvRouter from "./pages/TorneoTvRouter.tsx";
-import TorneoTvSelector from "./pages/TorneoTvSelector.tsx";
-import SuperAdminDashboard from "./pages/SuperAdminDashboard.tsx";
-import Configuracion from "./pages/Configuracion.tsx";
-import NotFound from "./pages/NotFound.tsx";
-import Marcador from "./pages/Marcador.tsx";
-import DraftPublico from "./pages/DraftPublico.tsx";
 import { InstallPwaPrompt } from "./components/InstallPwaPrompt";
+
+const Auth = lazy(() => import("./pages/Auth.tsx"));
+const PublicHome = lazy(() => import("./pages/PublicHome.tsx"));
+const Index = lazy(() => import("./pages/Index.tsx"));
+const ClubHome = lazy(() => import("./pages/ClubHome.tsx"));
+const PlayerDashboard = lazy(() => import("./pages/PlayerDashboard.tsx"));
+const Jugadores = lazy(() => import("./pages/Jugadores.tsx"));
+const Calendario = lazy(() => import("./pages/Calendario.tsx"));
+const Torneos = lazy(() => import("./pages/Torneos.tsx"));
+const Inscripciones = lazy(() => import("./pages/Inscripciones.tsx"));
+const Zonas = lazy(() => import("./pages/Zonas.tsx"));
+const Importar = lazy(() => import("./pages/Importar.tsx"));
+const Llaves = lazy(() => import("./pages/Llaves.tsx"));
+const Ranking = lazy(() => import("./pages/Ranking.tsx"));
+const InscripcionPublica = lazy(() => import("./pages/InscripcionPublica.tsx"));
+const TorneoPublico = lazy(() => import("./pages/TorneoPublico.tsx"));
+const RankingPublico = lazy(() => import("./pages/RankingPublico.tsx"));
+const CanchasEnVivo = lazy(() => import("./pages/CanchasEnVivo.tsx"));
+const TorneoIndividualDashboard = lazy(() => import("./pages/TorneoIndividualDashboard.tsx"));
+const TorneoIndividualPublico = lazy(() => import("./pages/TorneoIndividualPublico.tsx"));
+const TorneoTvView = lazy(() => import("./pages/TorneoTvView.tsx"));
+const TorneoTvRouter = lazy(() => import("./pages/TorneoTvRouter.tsx"));
+const TorneoTvSelector = lazy(() => import("./pages/TorneoTvSelector.tsx"));
+const SuperAdminDashboard = lazy(() => import("./pages/SuperAdminDashboard.tsx"));
+const Configuracion = lazy(() => import("./pages/Configuracion.tsx"));
+const NotFound = lazy(() => import("./pages/NotFound.tsx"));
+const Marcador = lazy(() => import("./pages/Marcador.tsx"));
+const DraftPublico = lazy(() => import("./pages/DraftPublico.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -49,7 +51,14 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
-          <Routes>
+          <Suspense
+            fallback={
+              <div className="flex min-h-screen items-center justify-center bg-background text-sm text-muted-foreground">
+                Cargando Padel ID...
+              </div>
+            }
+          >
+            <Routes>
             <Route path="/" element={<PublicHome />} />
             <Route path="/auth" element={<Auth />} />
             
@@ -132,7 +141,8 @@ const App = () => (
               <Route path="/admin/torneo-individual/:id/tv" element={<TorneoTvView />} />
             </Route>
             <Route path="*" element={<NotFound />} />
-          </Routes>
+            </Routes>
+          </Suspense>
           <InstallPwaPrompt />
         </AuthProvider>
       </BrowserRouter>
