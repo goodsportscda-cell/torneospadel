@@ -6,6 +6,7 @@ import { LogOut } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { toast } from "sonner";
 import { ModeToggle } from "./mode-toggle";
+import LegalLinks from "@/components/LegalLinks";
 
 export default function AppLayout() {
   const { signOut, user, isAdmin, isSuperAdmin, isOperador, clubId, clubActivo } = useAuth();
@@ -52,6 +53,7 @@ export default function AppLayout() {
             <footer className="mt-12 pt-6 border-t text-center text-[10px] sm:text-xs text-muted-foreground print:hidden">
               <p>© {new Date().getFullYear()} <span className="font-bold text-foreground">Padel ID</span> — Todos los derechos reservados.</p>
               <p className="mt-1">Plataforma de gestión deportiva</p>
+              <div className="mt-3"><LegalLinks /></div>
             </footer>
           </main>
         </div>

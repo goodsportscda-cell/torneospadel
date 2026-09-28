@@ -6,6 +6,7 @@ import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ModeToggle } from "@/components/mode-toggle";
+import LegalLinks from "@/components/LegalLinks";
 
 type PublicClub = { id: string; nombre: string; slug: string; logo_url: string | null };
 
@@ -87,6 +88,7 @@ export default function PublicHome() {
           )}
         </section>
       </main>
+      <footer className="border-t py-6 px-4 text-muted-foreground"><LegalLinks /></footer>
     </div>
   );
 }

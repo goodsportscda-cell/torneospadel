@@ -15,6 +15,7 @@ import JugadorStep, { type JugadorForm, emptyJugador } from "@/components/inscri
 import JugadorCompaneroStep from "@/components/inscripcion/JugadorCompaneroStep";
 import type { Database } from "@/integrations/supabase/types";
 import PublicFooter from "@/components/PublicFooter";
+import PrivacyNotice from "@/components/PrivacyNotice";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 
@@ -684,7 +685,7 @@ function Wrapper({ children, torneo }: { children: React.ReactNode; torneo?: Tor
           </div>
         </div>
       </header>
-      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">{children}</main>
+      <main className="max-w-2xl mx-auto px-4 py-6 space-y-4">{torneo && <PrivacyNotice registration />}{children}</main>
       <PublicFooter clubId={torneo?.club_id} />
     </div>
   );

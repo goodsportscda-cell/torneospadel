@@ -27,6 +27,7 @@ import { PlayerInscriptions } from "@/components/jugador/PlayerInscriptions";
 import { PlayerPerformanceChart } from "@/components/jugador/PlayerPerformanceChart";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
 import { PlayerUpcomingMatches } from "@/components/jugador/PlayerUpcomingMatches";
+import LegalLinks from "@/components/LegalLinks";
 
 type Torneo = {
   id: string;
@@ -368,6 +369,7 @@ export default function PlayerDashboard() {
                     <DialogTrigger asChild><Button variant="outline" size="sm">Editar mis datos</Button></DialogTrigger>
                     <DialogContent>
                       <DialogHeader><DialogTitle>Mis datos personales</DialogTitle><DialogDescription>Podés actualizar tus datos de contacto. Tu categoría y rendimiento deportivo se administran por club.</DialogDescription></DialogHeader>
+                      <p className="text-xs text-muted-foreground">Usamos estos datos para identificar tu ficha y comunicarnos con vos. <Link to="/privacidad" target="_blank" rel="noopener noreferrer" className="underline">Consultar privacidad</Link>.</p>
                       <div className="grid gap-3">
                         {([['nombre','Nombre'],['apellido','Apellido'],['dni','DNI'],['telefono','Teléfono'],['ciudad','Ciudad']] as const).map(([key,label]) => <div className="grid gap-1.5" key={key}><Label htmlFor={`perfil-${key}`}>{label}</Label><Input id={`perfil-${key}`} value={profile[key]} onChange={(e) => setProfile({ ...profile, [key]: e.target.value })} /></div>)}
                       </div>
@@ -482,6 +484,7 @@ export default function PlayerDashboard() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
+                <p className="mb-4 text-xs leading-relaxed text-muted-foreground">Al inscribirte, el organizador usa tu ficha para gestionar el torneo. Tu nombre, participación, resultados y puntos integran la actividad pública. <Link to="/privacidad" target="_blank" rel="noopener noreferrer" className="underline">Consultar privacidad</Link>.</p>
                 {torneos.length === 0 ? (
                   <p className="text-sm text-muted-foreground italic py-4 text-center">
                     No hay torneos programados.
@@ -577,6 +580,7 @@ export default function PlayerDashboard() {
           </>
         )}
       </main>
+      <footer className="border-t px-4 py-6 text-muted-foreground"><LegalLinks /></footer>
     </div>
   );
 }

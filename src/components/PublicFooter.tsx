@@ -1,9 +1,13 @@
 import { useClubBrand } from "@/hooks/useClubBrand";
+import ClubContact from "@/components/ClubContact";
+import LegalLinks from "@/components/LegalLinks";
 
 export default function PublicFooter({ clubId }: { clubId?: string | null }) {
   const { club } = useClubBrand(clubId);
   return (
     <footer className="mt-auto border-t py-6 bg-muted/10 text-center space-y-2">
+      <ClubContact clubId={club?.id} />
+      <LegalLinks />
       <p className="text-xs font-semibold text-muted-foreground">
         © {new Date().getFullYear()} Padel ID. Todos los derechos reservados.
       </p>

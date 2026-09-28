@@ -8,6 +8,7 @@ import { Loader2, Upload, Image as ImageIcon, Users, Settings, Save } from "luci
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StaffManager } from "@/components/configuracion/StaffManager";
+import ClubContactSettings from "@/components/configuracion/ClubContactSettings";
 
 export default function Configuracion() {
   const { clubActivo, refreshClub } = useAuth();
@@ -133,6 +134,7 @@ export default function Configuracion() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
+          <ClubContactSettings key={clubActivo?.id} clubId={clubActivo?.id} />
           <Card>
             <CardHeader>
               <CardTitle>Logotipo Oficial</CardTitle>

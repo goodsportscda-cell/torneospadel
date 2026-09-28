@@ -10,6 +10,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
+import PrivacyNotice from "@/components/PrivacyNotice";
+import LegalLinks from "@/components/LegalLinks";
 
 export default function Auth() {
   const navigate = useNavigate();
@@ -132,6 +134,7 @@ export default function Auth() {
 
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4 mt-4">
+                <PrivacyNotice />
                 <div className="space-y-2">
                   <Label htmlFor="su-name">Nombre</Label>
                   <Input id="su-name" type="text" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Tu nombre" />
@@ -156,6 +159,7 @@ export default function Auth() {
               </form>
             </TabsContent>
           </Tabs>
+          <div className="pt-5"><LegalLinks /></div>
           <div className="pt-4 text-center">
             <Link to="/" className="text-sm font-medium text-primary hover:underline">
               Ver torneos y rankings públicos

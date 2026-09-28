@@ -14,6 +14,8 @@ import { TenantProvider } from "@/contexts/TenantContext";
 import { InstallPwaPrompt } from "./components/InstallPwaPrompt";
 
 const Auth = lazy(() => import("./pages/Auth.tsx"));
+const Help = lazy(() => import("./pages/Help.tsx"));
+const Legal = lazy(() => import("./pages/Legal.tsx"));
 const PublicHome = lazy(() => import("./pages/PublicHome.tsx"));
 const Index = lazy(() => import("./pages/Index.tsx"));
 const ClubHome = lazy(() => import("./pages/ClubHome.tsx"));
@@ -61,6 +63,10 @@ const App = () => (
             <Routes>
             <Route path="/" element={<PublicHome />} />
             <Route path="/auth" element={<Auth />} />
+            <Route path="/ayuda" element={<Help />} />
+            <Route path="/privacidad" element={<Legal />} />
+            <Route path="/terminos" element={<Legal />} />
+            <Route path="/cookies" element={<Legal />} />
             
             {/* Rutas Publicas Hibridas - Especificas por Club */}
             <Route path="/c/:clubSlug/*" element={
