@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink, Camera, Upload } from "lucide-react";
+import { Activity, Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink, Camera, Upload } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -38,6 +39,7 @@ type Partido = {
 };
 
 export default function CanchasEnVivo() {
+  const navigate = useNavigate();
   const clubBrand = useClubBrand();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>("");
@@ -733,9 +735,18 @@ export default function CanchasEnVivo() {
                           {parejaLabel(enJuego.pareja_visitante_id, enJuego)}
                         </div>
                       </div>
-                      <Button onClick={() => abrirCargarResultado(enJuego)} className="w-full mt-4 text-xs h-9 bg-primary/90 hover:bg-primary font-bold">
-                        Cargar Resultado Final
-                      </Button>
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          onClick={() => navigate(`/marcador?tipo=${enJuego.origen}&partidoId=${encodeURIComponent(enJuego.id)}`)}
+                          className="h-9 gap-1 px-2 text-[10px] font-bold"
+                        >
+                          <Activity className="h-3.5 w-3.5" /> Marcador TV
+                        </Button>
+                        <Button onClick={() => abrirCargarResultado(enJuego)} className="h-9 px-2 text-[10px] font-bold bg-primary/90 hover:bg-primary">
+                          Cargar Resultado
+                        </Button>
+                      </div>
                     </div>
                   ) : (
                     <div className="p-4 flex flex-col items-center justify-center text-center text-muted-foreground h-40 flex-1">

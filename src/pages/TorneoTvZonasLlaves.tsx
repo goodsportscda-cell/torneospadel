@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { CalendarClock, Check, Clock3, Copy, Maximize2, Minimize2, Radio, RefreshCw, Trophy } from "lucide-react";
 import { toast } from "sonner";
+import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
+import type { PadelState } from "@/logic/padelLogic";
 
 type Torneo = {
   id: string;
@@ -40,6 +42,7 @@ type TVPartido = {
   fechaHora: string | null;
   ganadorId: string | null;
   sets: { numero_set: number; games_local: number; games_visitante: number }[];
+  marcadorEnVivo: PadelState | null;
 };
 
 const parseCancha = (value: string | null) => value?.match(/\d+/)?.[0] ?? null;
@@ -90,10 +93,10 @@ export default function TorneoTvZonasLlaves() {
       const bracketIds = (bracketRows ?? []).map((bracket: any) => bracket.id);
       const [zoneMatchResult, bracketMatchResult] = await Promise.all([
         zoneIds.length
-          ? (supabase as any).from("partidos_zona").select("id, zona_id, orden, pareja_local_id, pareja_visitante_id, estado, cancha, fecha_hora, ganador_id").in("zona_id", zoneIds)
+          ? (supabase as any).from("partidos_zona").select("*").in("zona_id", zoneIds)
           : Promise.resolve({ data: [], error: null }),
         bracketIds.length
-          ? (supabase as any).from("partidos_llave").select("id, llave_id, numero, ronda, pareja_local_id, pareja_visitante_id, ref_local, ref_visitante, estado, cancha, fecha_hora, ganador_id").in("llave_id", bracketIds)
+          ? (supabase as any).from("partidos_llave").select("*").in("llave_id", bracketIds)
           : Promise.resolve({ data: [], error: null }),
       ]);
       if (zoneMatchResult.error || bracketMatchResult.error) throw zoneMatchResult.error ?? bracketMatchResult.error;
@@ -136,6 +139,7 @@ export default function TorneoTvZonasLlaves() {
           fechaHora: match.fecha_hora,
           ganadorId: match.ganador_id,
           sets: setsByMatch.get(match.id) ?? [],
+          marcadorEnVivo: match.marcador_en_vivo ?? null,
         })),
         ...bracketMatches.map((match: any) => ({
           id: match.id,
@@ -151,6 +155,7 @@ export default function TorneoTvZonasLlaves() {
           fechaHora: match.fecha_hora,
           ganadorId: match.ganador_id,
           sets: setsByMatch.get(match.id) ?? [],
+          marcadorEnVivo: match.marcador_en_vivo ?? null,
         })),
       ];
 
@@ -179,6 +184,28 @@ export default function TorneoTvZonasLlaves() {
     const timer = window.setInterval(() => loadData(true), 10000);
     return () => window.clearInterval(timer);
   }, [loadData]);
+
+  const activeMatchSubscriptions = useMemo(() => partidos
+    .filter((match) => match.estado === "en_juego")
+    .map((match) => `${match.origen}:${match.id}`)
+    .sort()
+    .join(","), [partidos]);
+
+  useEffect(() => {
+    if (!id || !activeMatchSubscriptions) return;
+    const channel = supabase.channel(`tv_live_matches_${id}`);
+    activeMatchSubscriptions.split(",").forEach((entry) => {
+      const [origin, matchId] = entry.split(":");
+      const table = origin === "zona" ? "partidos_zona" : "partidos_llave";
+      channel.on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table, filter: `id=eq.${matchId}` },
+        () => loadData(true)
+      );
+    });
+    channel.subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [id, activeMatchSubscriptions, loadData]);
 
   useEffect(() => {
     if (!id) return;
@@ -383,15 +410,15 @@ export default function TorneoTvZonasLlaves() {
 }
 
 function MatchSpotlight({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {
-  return <div className="overflow-hidden rounded-xl border border-rose-400/25 bg-[#141018] shadow-[0_0_24px_rgba(251,113,133,0.06)]"><div className="p-4"><div className="mb-3 flex items-center justify-between"><Badge className="bg-rose-400/15 text-rose-200 hover:bg-rose-400/15"><Radio className="mr-1 h-3 w-3" />EN JUEGO</Badge><span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{match.cancha || match.fase}</span></div><div className="space-y-2"><p className="truncate text-sm font-bold">{local}</p><p className="truncate text-sm font-bold">{visitor}</p></div><div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2 text-xs text-primary"><span>{match.fase}</span><span className="font-mono font-bold">{score || "Marcador en carga"}</span></div></div>{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="max-h-64 w-full border-t border-white/10 bg-black/40 object-contain" />}</div>;
+  return <div className="overflow-hidden rounded-xl border border-rose-400/25 bg-[#141018] shadow-[0_0_24px_rgba(251,113,133,0.06)]"><div className="p-4"><div className="mb-3 flex items-center justify-between"><Badge className="bg-rose-400/15 text-rose-200 hover:bg-rose-400/15"><Radio className="mr-1 h-3 w-3" />EN JUEGO</Badge><span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{match.cancha || match.fase}</span></div><div className="space-y-2"><p className="truncate text-sm font-bold">{local}</p><p className="truncate text-sm font-bold">{visitor}</p></div><div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2 text-xs text-primary"><span>{match.fase}</span><span className="font-mono font-bold">{score || "Marcador en carga"}</span></div>{match.marcadorEnVivo && <div className="mt-3"><LiveScoreSummary state={match.marcadorEnVivo} /></div>}</div>{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="max-h-64 w-full border-t border-white/10 bg-black/40 object-contain" />}</div>;
 }
 
 function MatchCompact({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {
-  return <div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{match.fase}</p><div className="flex items-start gap-3">{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="h-14 w-20 shrink-0 rounded-lg border border-white/10 bg-black/40 object-contain" />}<div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{local}</p><p className="truncate text-sm font-bold">{visitor}</p><span className="font-mono text-xs font-black text-primary">{score}</span></div></div></div>;
+  return <div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{match.fase}</p><div className="flex items-start gap-3">{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="h-14 w-20 shrink-0 rounded-lg border border-white/10 bg-black/40 object-contain" />}<div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{local}</p><p className="truncate text-sm font-bold">{visitor}</p><span className="font-mono text-xs font-black text-primary">{score}</span></div></div>{match.marcadorEnVivo && <LiveScoreSummary state={match.marcadorEnVivo} compact />}</div>;
 }
 
 function MatchNext({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {
-  return <div className="flex gap-2 rounded-lg border border-white/[0.07] bg-black/20 p-2.5">{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="h-14 w-16 shrink-0 rounded-md bg-black/40 object-contain" />}<div className="min-w-0 flex-1"><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-bold uppercase tracking-wider text-white/50">{match.fase}</span><span className="shrink-0 text-[10px] text-white/45">{fmtFecha(match.fechaHora)} {fmtHora(match.fechaHora)}</span></div><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs font-semibold">{local}</p><p className="truncate text-xs font-semibold text-white/70">{visitor}</p></div><span className="shrink-0 text-[9px] font-bold uppercase text-primary">{statusLabel(match.estado)}</span></div>{score && <p className="mt-1 text-right font-mono text-[10px] text-white/50">{score}</p>}</div></div>;
+  return <div className="flex gap-2 rounded-lg border border-white/[0.07] bg-black/20 p-2.5">{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="h-14 w-16 shrink-0 rounded-md bg-black/40 object-contain" />}<div className="min-w-0 flex-1"><div className="mb-1 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-bold uppercase tracking-wider text-white/50">{match.fase}</span><span className="shrink-0 text-[10px] text-white/45">{fmtFecha(match.fechaHora)} {fmtHora(match.fechaHora)}</span></div><div className="flex items-center justify-between gap-2"><div className="min-w-0"><p className="truncate text-xs font-semibold">{local}</p><p className="truncate text-xs font-semibold text-white/70">{visitor}</p></div><span className="shrink-0 text-[9px] font-bold uppercase text-primary">{statusLabel(match.estado)}</span></div>{score && <p className="mt-1 text-right font-mono text-[10px] text-white/50">{score}</p>}{match.marcadorEnVivo && <div className="mt-2"><LiveScoreSummary state={match.marcadorEnVivo} compact /></div>}</div></div>;
 }
 
 function EmptyState({ label }: { label: string }) {

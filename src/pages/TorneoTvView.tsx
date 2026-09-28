@@ -1,6 +1,8 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
+import type { PadelState } from "@/logic/padelLogic";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -914,6 +916,12 @@ export default function TorneoTvView() {
                         )}
                       </div>
                     </div>
+
+                    {partido.marcador_en_vivo && (
+                      <div className="relative z-10 mx-3 mb-3">
+                        <LiveScoreSummary state={partido.marcador_en_vivo as unknown as PadelState} compact />
+                      </div>
+                    )}
 
                     {/* CARD FOOTER: LED SCOREBOARD */}
                     <div className="relative z-10 bg-black/40 border-t border-white/10 px-4 py-3 flex items-center justify-between">

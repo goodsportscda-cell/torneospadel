@@ -307,6 +307,7 @@ export type Database = {
           jugador4_id: string | null
           sets_pareja1: number | null
           sets_pareja2: number | null
+          marcador_en_vivo: Json | null
           estado: Database["public"]["Enums"]["estado_partido"]
           suplente1_nombre: string | null
           suplente2_nombre: string | null
@@ -327,6 +328,7 @@ export type Database = {
           jugador4_id?: string | null
           sets_pareja1?: number | null
           sets_pareja2?: number | null
+          marcador_en_vivo?: Json | null
           estado?: Database["public"]["Enums"]["estado_partido"]
           suplente1_nombre?: string | null
           suplente2_nombre?: string | null
@@ -347,6 +349,7 @@ export type Database = {
           jugador4_id?: string | null
           sets_pareja1?: number | null
           sets_pareja2?: number | null
+          marcador_en_vivo?: Json | null
           estado?: Database["public"]["Enums"]["estado_partido"]
           suplente1_nombre?: string | null
           suplente2_nombre?: string | null
@@ -366,6 +369,7 @@ export type Database = {
           ganador_id: string | null
           id: string
           llave_id: string
+          marcador_en_vivo: Json | null
           numero: number
           pareja_local_id: string | null
           pareja_visitante_id: string | null
@@ -386,6 +390,7 @@ export type Database = {
           ganador_id?: string | null
           id?: string
           llave_id: string
+          marcador_en_vivo?: Json | null
           numero: number
           pareja_local_id?: string | null
           pareja_visitante_id?: string | null
@@ -406,6 +411,7 @@ export type Database = {
           ganador_id?: string | null
           id?: string
           llave_id?: string
+          marcador_en_vivo?: Json | null
           numero?: number
           pareja_local_id?: string | null
           pareja_visitante_id?: string | null
@@ -428,6 +434,7 @@ export type Database = {
           fecha_hora: string | null
           ganador_id: string | null
           id: string
+          marcador_en_vivo: Json | null
           orden: number
           pareja_local_id: string | null
           pareja_visitante_id: string | null
@@ -444,6 +451,7 @@ export type Database = {
           fecha_hora?: string | null
           ganador_id?: string | null
           id?: string
+          marcador_en_vivo?: Json | null
           orden: number
           pareja_local_id?: string | null
           pareja_visitante_id?: string | null
@@ -460,6 +468,7 @@ export type Database = {
           fecha_hora?: string | null
           ganador_id?: string | null
           id?: string
+          marcador_en_vivo?: Json | null
           orden?: number
           pareja_local_id?: string | null
           pareja_visitante_id?: string | null

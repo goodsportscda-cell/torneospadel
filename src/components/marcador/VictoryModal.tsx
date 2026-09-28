@@ -9,9 +9,10 @@ interface VictoryModalProps {
   winnerName: string | null;
   onReiniciar: () => void;
   onClose: () => void;
+  newMatchDisabled?: boolean;
 }
 
-export const VictoryModal: React.FC<VictoryModalProps> = ({ open, winnerName, onReiniciar, onClose }) => {
+export const VictoryModal: React.FC<VictoryModalProps> = ({ open, winnerName, onReiniciar, onClose, newMatchDisabled = false }) => {
   useEffect(() => {
     if (open && winnerName) {
       const duration = 3 * 1000;
@@ -55,9 +56,11 @@ export const VictoryModal: React.FC<VictoryModalProps> = ({ open, winnerName, on
           <Button onClick={onClose} variant="outline" className="bg-transparent border-slate-700 text-slate-300 hover:bg-slate-800 w-full">
             Ver Tablero
           </Button>
-          <Button onClick={onReiniciar} className="bg-padel-accent text-padel-dark hover:bg-padel-accent/90 font-bold w-full">
-            Nuevo Partido
-          </Button>
+          {!newMatchDisabled && (
+            <Button onClick={onReiniciar} className="bg-padel-accent text-padel-dark hover:bg-padel-accent/90 font-bold w-full">
+              Nuevo Partido
+            </Button>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
