@@ -7,8 +7,6 @@ type Props = {
 };
 
 export function LiveScoreSummary({ state, compact = false }: Props) {
-  const completedSets = state.sets.map((set) => `${set.p1}–${set.p2}`).join("  ");
-
   return (
     <div className={`rounded-lg border border-primary/25 bg-primary/[0.07] ${compact ? "p-2" : "p-3"}`}>
       <div className="mb-2 flex items-center justify-between gap-2">
@@ -25,7 +23,18 @@ export function LiveScoreSummary({ state, compact = false }: Props) {
           </div>
         ))}
       </div>
-      {completedSets && <p className="mt-2 text-right font-mono text-[9px] text-white/45">Sets anteriores: {completedSets}</p>}
+      {state.sets.length > 0 && (
+        <div className={`mt-2 flex flex-wrap items-center gap-1.5 border-t border-white/[0.07] pt-2 ${compact ? "justify-between" : "justify-end"}`}>
+          <span className="text-[10px] font-bold uppercase tracking-wide text-white/55">Sets anteriores</span>
+          <div className="flex flex-wrap gap-1.5">
+            {state.sets.map((set, index) => (
+              <span key={index} className={`rounded-md border border-white/10 bg-black/25 px-2 py-0.5 font-mono font-bold tabular-nums text-white/90 ${compact ? "text-xs" : "text-sm"}`}>
+                {set.p1}–{set.p2}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

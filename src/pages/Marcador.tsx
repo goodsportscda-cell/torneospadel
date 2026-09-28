@@ -337,6 +337,11 @@ const Marcador: React.FC = () => {
     setState((previous) => deshacerPunto(previous));
   };
 
+  const handleElegirSacadorSuperTieBreak = (server: "p1" | "p2") => {
+    if (!state.isSuperTieBreak || state.points.p1 + state.points.p2 > 0 || linkedMatch?.estado === "finalizado") return;
+    setState((previous) => ({ ...previous, server }));
+  };
+
   const handleReiniciar = useCallback(() => {
     if (linkedMatch && state.winner && linkedMatch.estado !== "finalizado") {
       toast.info("Estamos guardando el resultado definitivo. Esperá la confirmación antes de salir.");
@@ -422,6 +427,26 @@ const Marcador: React.FC = () => {
       <main className="flex-1 flex flex-col">
         <Scoreboard state={state} />
         <SetHistory state={state} />
+        {state.isSuperTieBreak && state.points.p1 + state.points.p2 === 0 && !state.winner && (
+          <section className="mx-auto mt-4 w-full max-w-4xl rounded-xl border border-padel-accent/25 bg-padel-accent/[0.06] p-3 text-white sm:mt-5 sm:p-4" aria-label="Elegir quién comienza sacando el super tie-break">
+            <p className="mb-2 text-center text-xs font-bold uppercase tracking-wide text-padel-accent sm:text-sm">¿Qué pareja comienza sacando el super tie-break?</p>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              {(["p1", "p2"] as const).map((player) => (
+                <Button
+                  key={player}
+                  type="button"
+                  variant={state.server === player ? "default" : "outline"}
+                  aria-pressed={state.server === player}
+                  onClick={() => handleElegirSacadorSuperTieBreak(player)}
+                  disabled={linkedMatch?.estado === "finalizado"}
+                  className={`h-auto min-h-12 whitespace-normal px-2 py-2 text-xs font-bold sm:text-sm ${state.server === player ? "bg-padel-accent text-slate-950 hover:bg-padel-accent/90" : "border-white/15 bg-slate-900/70 text-white hover:bg-white/10"}`}
+                >
+                  <span className="line-clamp-2">{state.nombres[player]}</span>
+                </Button>
+              ))}
+            </div>
+          </section>
+        )}
         <ControlPanel
           state={state}
           disabled={linkedMatch?.estado === "finalizado" || Boolean(linkedMatch && state.winner)}
