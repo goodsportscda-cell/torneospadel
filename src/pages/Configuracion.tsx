@@ -1,10 +1,10 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useAuth } from "@/hooks/useAuth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload, Image as ImageIcon, Users, Settings } from "lucide-react";
+import { Loader2, Upload, Image as ImageIcon, Users, Settings, Save } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StaffManager } from "@/components/configuracion/StaffManager";
@@ -12,7 +12,37 @@ import { StaffManager } from "@/components/configuracion/StaffManager";
 export default function Configuracion() {
   const { clubActivo, refreshClub } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
+  const [clubName, setClubName] = useState(clubActivo?.nombre ?? "");
+  const [isSavingClubName, setIsSavingClubName] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    setClubName(clubActivo?.nombre ?? "");
+  }, [clubActivo?.id, clubActivo?.nombre]);
+
+  const handleSaveClubName = async () => {
+    if (!clubActivo) return;
+    const nombre = clubName.trim();
+    if (!nombre) {
+      toast.error("El nombre del club no puede quedar vacío.");
+      return;
+    }
+    if (nombre === clubActivo.nombre) return;
+
+    setIsSavingClubName(true);
+    try {
+      const { error } = await supabase.from("clubes").update({ nombre }).eq("id", clubActivo.id);
+      if (error) throw error;
+
+      await refreshClub();
+      toast.success("Nombre del club actualizado.");
+    } catch (error: any) {
+      console.error("No se pudo actualizar el nombre del club:", error);
+      toast.error(`No se pudo guardar el nombre: ${error?.message || "Error de conexión"}`);
+    } finally {
+      setIsSavingClubName(false);
+    }
+  };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -171,8 +201,22 @@ export default function Configuracion() {
             <CardContent className="space-y-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Nombre del Club</label>
-                <Input value={clubActivo?.nombre || ''} readOnly className="bg-muted/30" />
-                <p className="text-[10px] text-muted-foreground">Para modificar el nombre, contacta a soporte.</p>
+                <Input
+                  value={clubName}
+                  onChange={(event) => setClubName(event.target.value)}
+                  maxLength={100}
+                  disabled={!clubActivo || isSavingClubName}
+                  aria-label="Nombre del club"
+                />
+                <p className="text-xs text-muted-foreground">El cambio se verá en el portal y en las pantallas del club. La dirección corta del sitio no cambia.</p>
+                <Button
+                  type="button"
+                  onClick={handleSaveClubName}
+                  disabled={!clubActivo || isSavingClubName || !clubName.trim() || clubName.trim() === clubActivo?.nombre}
+                >
+                  {isSavingClubName ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
+                  {isSavingClubName ? "Guardando…" : "Guardar nombre"}
+                </Button>
               </div>
             </CardContent>
           </Card>
