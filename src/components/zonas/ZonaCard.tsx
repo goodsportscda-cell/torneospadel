@@ -692,7 +692,7 @@ export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onCh
 
               {partidos.map(p => (
                 <div key={p.id} className="space-y-2">
-                {readOnly && matchPhotoUrl?.(p.id) && <img src={matchPhotoUrl(p.id)} alt={`Foto del partido ${p.orden}`} loading="lazy" className="max-h-52 w-full rounded-xl border object-cover" />}
+                {readOnly && matchPhotoUrl?.(p.id) && <img src={matchPhotoUrl(p.id)} alt={`Foto del partido ${p.orden}`} loading="lazy" className="max-h-52 w-full rounded-xl border bg-black/40 object-contain" />}
                 <PartidoCard
                   partidoId={p.id}
                   zonaId={zona.id}
