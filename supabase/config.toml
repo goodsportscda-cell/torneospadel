@@ -1,5 +1,8 @@
 project_id = "ijhxmckhntfquhxmussa"
 
+[functions.fusionar-jugadores]
+verify_jwt = true
+
 [functions.og-inscripcion]
 verify_jwt = false
 

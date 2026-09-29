@@ -1,4 +1,4 @@
-import { createClient } from "npm:@supabase/supabase-js@2.57.4";
+import { createClient } from "npm:@supabase/supabase-js@2.103.3";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,12 +17,15 @@ Deno.serve(async (req) => {
     const supabaseAnon = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_ANON_KEY")!,
-      { auth: { persistSession: false } },
+      { auth: { persistSession: false, autoRefreshToken: false } },
     );
-    const { data: { user }, error: authErr } = await supabaseAnon.auth.getUser(
-      authHeader.replace("Bearer ", ""),
-    );
-    if (authErr || !user) {
+    const accessToken = authHeader.match(/^Bearer\s+(\S+)$/i)?.[1];
+    const { data: { claims }, error: authErr } = accessToken
+      ? await supabaseAnon.auth.getClaims(accessToken)
+      : { data: { claims: null }, error: new Error("Missing bearer token") };
+    const userId = claims?.sub;
+    if (authErr || !userId) {
+      console.warn("fusionar-jugadores authentication rejected", authErr?.message ?? "missing subject");
       return new Response(JSON.stringify({ error: "No autenticado" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -39,7 +42,7 @@ Deno.serve(async (req) => {
     const { data: roleRow } = await svc
       .from("user_roles")
       .select("role")
-      .eq("user_id", user.id)
+      .eq("user_id", userId)
       .eq("role", "admin")
       .maybeSingle();
 
@@ -58,36 +61,17 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Verify both players exist
-    const { data: players } = await svc
-      .from("jugadores")
-      .select("id")
-      .in("id", [mantener_id, eliminar_id]);
-
-    if (!players || players.length !== 2) {
-      return new Response(
-        JSON.stringify({ error: "No se encontraron ambos jugadores" }),
-        { status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" } },
-      );
+    const { error: mergeError } = await svc.rpc("fusionar_jugadores", {
+      p_mantener_id: mantener_id,
+      p_eliminar_id: eliminar_id,
+    });
+    if (mergeError) {
+      console.warn("fusionar-jugadores merge rejected", mergeError.code, mergeError.message);
+      return new Response(JSON.stringify({ error: mergeError.message }), {
+        status: mergeError.code === "P0002" ? 404 : 409,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
-
-    // Update all references from eliminar_id -> mantener_id
-    // 1. inscripciones
-    await svc.from("inscripciones").update({ jugador1_id: mantener_id }).eq("jugador1_id", eliminar_id);
-    await svc.from("inscripciones").update({ jugador2_id: mantener_id }).eq("jugador2_id", eliminar_id);
-
-    // 2. ranking_jugadores
-    await svc.from("ranking_jugadores").update({ jugador_id: mantener_id }).eq("jugador_id", eliminar_id);
-
-    // 3. ascensos
-    await svc.from("ascensos").update({ jugador_id: mantener_id }).eq("jugador_id", eliminar_id);
-
-    // 4. profiles (jugador_id link)
-    await svc.from("profiles").update({ jugador_id: mantener_id }).eq("jugador_id", eliminar_id);
-
-    // 5. Delete the duplicate player
-    const { error: delErr } = await svc.from("jugadores").delete().eq("id", eliminar_id);
-    if (delErr) throw delErr;
 
     return new Response(
       JSON.stringify({ ok: true }),
