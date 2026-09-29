@@ -1,6 +1,7 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { SpeedInsights } from "@vercel/speed-insights/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
@@ -150,6 +151,7 @@ const App = () => (
             </Routes>
           </Suspense>
           <InstallPwaPrompt />
+          <SpeedInsights />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
