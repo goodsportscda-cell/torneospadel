@@ -1,6 +1,6 @@
 import { lazy, Suspense } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { SpeedInsights } from "@vercel/speed-insights/react";
 import { ThemeProvider } from "@/components/theme-provider";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -46,6 +46,11 @@ const DraftPublico = lazy(() => import("./pages/DraftPublico.tsx"));
 
 const queryClient = new QueryClient();
 
+const RouteAwareSpeedInsights = () => {
+  const { pathname } = useLocation();
+  return <SpeedInsights route={pathname} />;
+};
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <ThemeProvider defaultTheme="system" enableSystem attribute="class">
@@ -53,6 +58,7 @@ const App = () => (
       <Toaster />
       <Sonner />
       <BrowserRouter>
+        <RouteAwareSpeedInsights />
         <AuthProvider>
           <Suspense
             fallback={
@@ -151,7 +157,6 @@ const App = () => (
             </Routes>
           </Suspense>
           <InstallPwaPrompt />
-          <SpeedInsights />
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
