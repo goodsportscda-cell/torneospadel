@@ -50,6 +50,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { puedeAnotarseEnCategoria } from "@/lib/categoriaCompatibilidad";
 
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
@@ -331,6 +332,41 @@ export default function Inscripciones() {
     if (!form.torneo_id) return toast.error("Elegí un torneo");
     if (!form.jugador1_id || !form.jugador2_id) return toast.error("Elegí los dos jugadores");
     if (form.jugador1_id === form.jugador2_id) return toast.error("Los jugadores deben ser distintos");
+
+    const torneo = torneoMap.get(form.torneo_id);
+    if (torneo) {
+      let categoriaTorneo = torneo.categoria_libre;
+      if (torneo.categoria_id) {
+        const { data: categoria, error } = await supabase
+          .from("categorias")
+          .select("nombre")
+          .eq("id", torneo.categoria_id)
+          .maybeSingle();
+        if (error) return toast.error("No se pudo comprobar la categoría del torneo: " + error.message);
+        categoriaTorneo = categoria?.nombre ?? categoriaTorneo;
+      }
+
+      if (categoriaTorneo && torneo.club_id) {
+        const { data: categoriasJugadores, error } = await (supabase as any)
+          .from("jugador_categorias_publicas")
+          .select("jugador_id, categoria_nombre")
+          .eq("club_id", torneo.club_id)
+          .in("jugador_id", [form.jugador1_id, form.jugador2_id]);
+        if (error) return toast.error("No se pudieron comprobar las categorías de los jugadores: " + error.message);
+
+        const categoriaPorJugador = new Map<string, string>(
+          (categoriasJugadores ?? []).map((row: { jugador_id: string; categoria_nombre: string }) => [row.jugador_id, row.categoria_nombre]),
+        );
+        const incompatibles = [form.jugador1_id, form.jugador2_id]
+          .map((id) => ({ jugador: jugadorMap.get(id), categoria: categoriaPorJugador.get(id) }))
+          .filter(({ categoria }) => categoria && !puedeAnotarseEnCategoria(categoria, categoriaTorneo));
+
+        if (incompatibles.length > 0) {
+          const nombres = incompatibles.map(({ jugador }) => jugador ? `${jugador.apellido}, ${jugador.nombre}` : "Un jugador").join(" y ");
+          return toast.error(`${nombres} no puede${incompatibles.length > 1 ? "n" : ""} inscribirse en ${categoriaTorneo} por su categoría asignada.`);
+        }
+      }
+    }
 
     const payload = {
       torneo_id: form.torneo_id,
