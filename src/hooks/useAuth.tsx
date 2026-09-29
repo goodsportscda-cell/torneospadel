@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { Session, User } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -56,24 +56,36 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [clubId, setClubId] = useState<string | null>(null);
   const [clubActivo, setClubActivo] = useState<{ id: string; nombre: string; slug: string; logo_url: string | null } | null>(null);
   const [loading, setLoading] = useState(true);
+  const profileLoadedForUserRef = useRef<string | null>(null);
+  const syncGenerationRef = useRef(0);
 
   useEffect(() => {
     const syncAuthState = async (nextSession: Session | null) => {
-      setLoading(true);
       setSession(nextSession);
       setUser(nextSession?.user ?? null);
 
       if (!nextSession?.user) {
+        syncGenerationRef.current += 1;
+        profileLoadedForUserRef.current = null;
         setIsAdmin(false);
         setIsSuperAdmin(false);
         setIsOperador(false);
         setClubId(null);
+        setClubActivo(null);
         setLoading(false);
         return;
       }
 
+      // Auth events can repeat for the same user; don't fetch the same profile twice.
+      if (profileLoadedForUserRef.current === nextSession.user.id) return;
+
+      const generation = ++syncGenerationRef.current;
+      profileLoadedForUserRef.current = nextSession.user.id;
+      setLoading(true);
+
       try {
         const profile = await fetchProfile(nextSession.user.id);
+        if (generation !== syncGenerationRef.current) return;
         const isSA = profile?.rol === "super_admin";
         setIsSuperAdmin(isSA);
         setIsAdmin(isSA || profile?.rol === "club_admin");
@@ -90,27 +102,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         
         if (targetClub) {
           const clubInfo = await fetchClubDetails(targetClub);
+          if (generation !== syncGenerationRef.current) return;
           setClubActivo(clubInfo);
         } else {
           setClubActivo(null);
         }
       } catch (error) {
+        if (generation !== syncGenerationRef.current) return;
         setIsAdmin(false);
         setIsSuperAdmin(false);
         setIsOperador(false);
         setClubId(null);
         setClubActivo(null);
       } finally {
-        setLoading(false);
+        if (generation === syncGenerationRef.current) setLoading(false);
       }
     };
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      syncAuthState(newSession);
-    });
-
-    supabase.auth.getSession().then(({ data: { session: existing } }) => {
-      syncAuthState(existing);
+      // Defer Supabase queries until the auth callback releases its internal lock.
+      queueMicrotask(() => void syncAuthState(newSession));
     });
 
     return () => subscription.unsubscribe();
