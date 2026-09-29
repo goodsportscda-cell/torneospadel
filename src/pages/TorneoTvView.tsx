@@ -37,6 +37,7 @@ import {
   extractPodioFinalFromNotas,
   extractFotoFromNotas,
 } from "@/logic/torneoStandings";
+import { calcularPuntosFechaIndividual } from "@/lib/individualTorneoPuntos";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -260,6 +261,9 @@ export default function TorneoTvView() {
 
   // Format helpers
   const isLigaParejas = useMemo(() => isLigaParejasTournament(torneo), [torneo]);
+  const esPuntosPorSet = Boolean(
+    torneo?.notas?.includes("[SISTEMA:puntos_por_set]") || torneo?.canchas_count === 2
+  );
 
   // Standings computation
   const standings = useMemo((): any[] => {
@@ -455,37 +459,60 @@ export default function TorneoTvView() {
       }
     });
 
-    const finalizedMatches = partidos.filter((m) => m.estado === "finalizado");
+    const finalizedMatches = partidos
+      .filter((m) => m.estado === "finalizado" && fechas.find((f) => f.fecha === m.fecha)?.publicado === true)
+      .sort((a, b) => (a.fecha || 0) - (b.fecha || 0));
+    const absenceCountMap = new Map<string, number>();
     finalizedMatches.forEach((p) => {
-      const courtMatch = p.cancha.match(/\d+/);
-      const courtIndex = courtMatch ? parseInt(courtMatch[0], 10) : 1;
-      const ptsWinner = countCanchas - courtIndex + 2;
-      const ptsLoser = 1;
       const p1Won = (p.sets_pareja1 ?? 0) > (p.sets_pareja2 ?? 0);
-
       let gamesP1 = 0;
       let gamesP2 = 0;
-      p.sets?.forEach((s) => {
-        gamesP1 += s.games_pareja1 || 0;
-        gamesP2 += s.games_pareja2 || 0;
+      p.sets?.forEach((set) => {
+        gamesP1 += set.games_pareja1 || 0;
+        gamesP2 += set.games_pareja2 || 0;
       });
 
-      const award = (jId: string | null, won: boolean, absent: boolean, gOwn: number, gOpp: number, sOwn: number, sOpp: number) => {
-        if (!jId) return;
-        const s = standingsMap.get(jId);
-        if (!s) return;
-        if (!absent) s.partidosJugados++;
-        s.puntos += absent ? 0 : (won ? ptsWinner : ptsLoser);
-        s.setsGanados += sOwn;
-        s.setsPerdidos += sOpp;
-        s.gamesGanados += gOwn;
-        s.gamesPerdidos += gOpp;
+      const award = (
+        playerId: string | null,
+        absent: boolean,
+        setsOwn: number,
+        setsOpp: number,
+        gamesOwn: number,
+        gamesOpp: number,
+      ) => {
+        if (!playerId) return;
+        const standing = standingsMap.get(playerId);
+        if (!standing) return;
+
+        standing.partidosJugados++;
+        let absences = absenceCountMap.get(playerId) ?? 0;
+        if (absent) {
+          absences += 1;
+          absenceCountMap.set(playerId, absences);
+        }
+
+        const forfeit = absent && absences > 2;
+        standing.puntos += calcularPuntosFechaIndividual({
+          fecha: p.fecha,
+          cancha: p.cancha,
+          canchasCount: countCanchas,
+          setsPropios: setsOwn,
+          setsRival: setsOpp,
+          puntosPorSet: esPuntosPorSet,
+          ausente: absent,
+          numeroAusencias: absences,
+        });
+        standing.setsGanados += forfeit ? 0 : setsOwn;
+        standing.setsPerdidos += forfeit ? 2 : setsOpp;
+        standing.gamesGanados += forfeit ? 0 : gamesOwn;
+        standing.gamesPerdidos += forfeit ? 12 : gamesOpp;
       };
 
-      award(p.jugador1_id, p1Won, !!p.suplente1_nombre, gamesP1, gamesP2, p.sets_pareja1 ?? 0, p.sets_pareja2 ?? 0);
-      award(p.jugador2_id, p1Won, !!p.suplente2_nombre, gamesP1, gamesP2, p.sets_pareja1 ?? 0, p.sets_pareja2 ?? 0);
-      award(p.jugador3_id, !p1Won, !!p.suplente3_nombre, gamesP2, gamesP1, p.sets_pareja2 ?? 0, p.sets_pareja1 ?? 0);
-      award(p.jugador4_id, !p1Won, !!p.suplente4_nombre, gamesP2, gamesP1, p.sets_pareja2 ?? 0, p.sets_pareja1 ?? 0);
+      award(p.jugador1_id, !!p.suplente1_nombre, p.sets_pareja1 ?? 0, p.sets_pareja2 ?? 0, gamesP1, gamesP2);
+      award(p.jugador2_id, !!p.suplente2_nombre, p.sets_pareja1 ?? 0, p.sets_pareja2 ?? 0, gamesP1, gamesP2);
+      award(p.jugador3_id, !!p.suplente3_nombre, p.sets_pareja2 ?? 0, p.sets_pareja1 ?? 0, gamesP2, gamesP1);
+      award(p.jugador4_id, !!p.suplente4_nombre, p.sets_pareja2 ?? 0, p.sets_pareja1 ?? 0, gamesP2, gamesP1);
+
     });
 
     const list = Array.from(standingsMap.values()).map((s) => ({
@@ -502,7 +529,7 @@ export default function TorneoTvView() {
     };
 
     return applyManualPositions(list, defaultSorter);
-  }, [torneo, parejas, partidos, isLigaParejas, jugadoresInscriptos]);
+  }, [torneo, parejas, partidos, fechas, isLigaParejas, esPuntosPorSet, jugadoresInscriptos]);
 
   // Current fecha matches
   const partidosDeFecha = useMemo(() => {

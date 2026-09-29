@@ -1023,17 +1023,6 @@ export default function TorneoIndividualPublico() {
                 <TabsTrigger value="premios">Premios</TabsTrigger>
               </TabsList>
 
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-8 border-cyan-500/50 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] font-bold text-xs gap-1.5 shadow-[0_0_12px_rgba(0,245,212,0.15)] transition-all shrink-0 self-start sm:self-auto"
-                asChild
-              >
-                <Link to={`/torneo-individual/${torneo?.id}/tv`} target="_blank">
-                  <Tv className="h-3.5 w-3.5 text-[#00f5d4]" />
-                  <span>Pantalla TV / Canchas en Vivo</span>
-                </Link>
-              </Button>
             </div>
 
             {/* TAB 1: STANDINGS */}
@@ -1296,17 +1285,6 @@ export default function TorneoIndividualPublico() {
                 )}
 
                 <div className="ml-auto flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="h-7 text-[10px] font-bold border-cyan-500/60 bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-600 dark:text-[#00f5d4] hover:text-cyan-700 dark:hover:text-[#00f5d4] shadow-[0_0_8px_rgba(0,245,212,0.15)] gap-1"
-                    asChild
-                  >
-                    <Link to={`/torneo-individual/${torneo?.id}/tv`} target="_blank">
-                      <Tv className="h-3 w-3 text-[#00f5d4]" />
-                      Pantalla TV
-                    </Link>
-                  </Button>
                   {partidosDeFecha.length > 0 && (
                     <Button
                       size="sm"
