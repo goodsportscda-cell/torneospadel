@@ -59,25 +59,31 @@ export default function SuperAdminDashboard() {
 
   const loadData = async () => {
     setLoading(true);
-    
-    // Stats
-    const { count: clubesCount, error: clubesError } = await supabase.from("clubes").select("*", { count: "exact", head: true });
-    const { count: torneosCount, error: torneosError } = await supabase.from("torneos").select("*", { count: "exact", head: true });
-    const { count: perfilesCount, error: perfilesError } = await supabase.from("perfiles").select("*", { count: "exact", head: true });
-    const { data: auditData } = await (supabase as any)
-      .from("auditoria_roles_perfiles")
-      .select("id, email_actor, email_objetivo, rol_anterior, rol_nuevo, club_anterior_id, club_nuevo_id, cambiado_en")
-      .order("cambiado_en", { ascending: false })
-      .limit(10);
-    
+
+    const [
+      { count: clubesCount, error: clubesError },
+      { count: torneosCount, error: torneosError },
+      { count: perfilesCount, error: perfilesError },
+      { data: auditData },
+      { data: clubesData },
+    ] = await Promise.all([
+      supabase.from("clubes").select("*", { count: "exact", head: true }),
+      supabase.from("torneos").select("*", { count: "exact", head: true }),
+      supabase.from("perfiles").select("*", { count: "exact", head: true }),
+      (supabase as any)
+        .from("auditoria_roles_perfiles")
+        .select("id, email_actor, email_objetivo, rol_anterior, rol_nuevo, club_anterior_id, club_nuevo_id, cambiado_en")
+        .order("cambiado_en", { ascending: false })
+        .limit(10),
+      supabase.from("clubes").select("*").order("created_at", { ascending: false }),
+    ]);
+
     setStats({
       clubes: clubesError ? null : clubesCount ?? 0,
       torneos: torneosError ? null : torneosCount ?? 0,
       perfiles: perfilesError ? null : perfilesCount ?? 0,
     });
 
-    // Clubes
-    const { data: clubesData } = await supabase.from("clubes").select("*").order("created_at", { ascending: false });
     if (clubesData) {
       setClubes(clubesData);
     }
