@@ -214,11 +214,6 @@ export function CompartirRankingDialog({
                   </span>
                 </div>
               </div>
-              <div className="text-right">
-                <span className="text-[9px] font-bold tracking-wider uppercase px-2 py-0.5 rounded-full border border-purple-500/40 bg-purple-950/40 text-purple-300">
-                  {subtitulo || "Fase Regular"}
-                </span>
-              </div>
             </div>
 
             {/* Torneo Title */}
@@ -235,35 +230,6 @@ export function CompartirRankingDialog({
             <div className="flex-1 flex flex-col gap-2 z-10 relative my-2">
               {standings.map((s, idx) => {
                 const rank = idx + 1;
-                const countCanchas = torneo?.canchas_count ?? 3;
-
-                let courtGroup = "Base (C3)";
-                let badgeClass = currentTheme.pillBase;
-
-                if (torneo?.modalidad === "parejas") {
-                  if (rank <= 2) {
-                    courtGroup = "Élite (C1)";
-                    badgeClass = currentTheme.pillElite;
-                  } else if (rank <= 4) {
-                    courtGroup = "Desafío (C2)";
-                    badgeClass = currentTheme.pillDesafio;
-                  } else {
-                    courtGroup = "Base (C3)";
-                    badgeClass = currentTheme.pillBase;
-                  }
-                } else {
-                  if (rank <= 4) {
-                    courtGroup = "Élite (C1)";
-                    badgeClass = currentTheme.pillElite;
-                  } else if (rank <= 8 && countCanchas >= 2) {
-                    courtGroup = "Desafío (C2)";
-                    badgeClass = currentTheme.pillDesafio;
-                  } else {
-                    courtGroup = "Base (C3)";
-                    badgeClass = currentTheme.pillBase;
-                  }
-                }
-
                 const isPodium1 = rank === 1;
                 const isPodium2 = rank === 2;
                 const isPodium3 = rank === 3;
@@ -302,8 +268,8 @@ export function CompartirRankingDialog({
                           {playerName}
                         </span>
                         {!esPuntosPorSet && (
-                          <span className={`inline-block text-[9px] px-1.5 py-0.2 rounded font-semibold border w-fit mt-0.5 ${badgeClass}`}>
-                            {courtGroup}
+                          <span className="text-[9px] font-medium text-white/60 mt-0.5">
+                            {subtitulo || "Fase Regular"}
                           </span>
                         )}
                       </div>

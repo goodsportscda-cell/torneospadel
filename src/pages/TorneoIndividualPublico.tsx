@@ -1033,7 +1033,6 @@ export default function TorneoIndividualPublico() {
                     <div>
                       <CardTitle className="text-base flex items-center gap-2">
                         <span>Ranking Acumulado</span>
-                        <Badge variant="secondary" className="text-[10px] h-5">{displaySubtitulo}</Badge>
                       </CardTitle>
                       <CardDescription className="text-xs mt-1">
                         {esPuntosPorSet
@@ -1077,20 +1076,6 @@ export default function TorneoIndividualPublico() {
                       ) : torneo?.modalidad === "parejas" ? (
                         standings.map((s, idx) => {
                           const rank = idx + 1;
-                          let courtGroup = "Base (C3)";
-                          let badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
-
-                          if (rank === 1 || rank === 2) {
-                            courtGroup = "Élite (C1)";
-                            badgeStyle = "bg-purple-950/40 border-purple-500/30 text-purple-300";
-                          } else if (rank === 3 || rank === 4) {
-                            courtGroup = "Desafío (C2)";
-                            badgeStyle = "bg-pink-950/40 border-pink-500/30 text-pink-300";
-                          } else {
-                            courtGroup = "Base (C3)";
-                            badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
-                          }
-
                           const isJ1User = Boolean(currentUserJugador && (s.jugador1_id === currentUserJugador.id || s.jugador1?.id === currentUserJugador.id));
                           const isJ2User = Boolean(currentUserJugador && (s.jugador2_id === currentUserJugador.id || s.jugador2?.id === currentUserJugador.id));
                           const isUserCouple = isJ1User || isJ2User;
@@ -1130,9 +1115,9 @@ export default function TorneoIndividualPublico() {
                                     </Badge>
                                   )}
                                 </div>
-                                {!esPuntosPorSet && (
-                                  <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
-                                    {courtGroup}
+                                {!esPuntosPorSet && displaySubtitulo && (
+                                  <span className="block mt-1 text-[10px] sm:text-xs text-muted-foreground">
+                                    {displaySubtitulo}
                                   </span>
                                 )}
                               </TableCell>
@@ -1166,27 +1151,6 @@ export default function TorneoIndividualPublico() {
                       ) : (
                         standings.map((s, idx) => {
                           const rank = idx + 1;
-                          const countCanchas = torneo?.canchas_count ?? 3;
-                          let courtGroup = "Base (C3)";
-                          let badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
-
-                          if (rank <= 4) {
-                            courtGroup = "Élite (C1)";
-                            badgeStyle = "bg-purple-950/40 border-purple-500/30 text-purple-300";
-                          } else if (rank <= 8 && countCanchas >= 2) {
-                            courtGroup = "Desafío (C2)";
-                            badgeStyle = "bg-pink-950/40 border-pink-500/30 text-pink-300";
-                          } else if (rank <= 12 && countCanchas >= 3) {
-                            courtGroup = "Base (C3)";
-                            badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
-                          } else if (rank <= 16 && countCanchas >= 4) {
-                            courtGroup = "Promoción (C4)";
-                            badgeStyle = "bg-emerald-950/40 border-emerald-500/30 text-emerald-300";
-                          } else {
-                            courtGroup = "Base (C3)";
-                            badgeStyle = "bg-blue-950/40 border-blue-500/30 text-blue-300";
-                          }
-
                           const isUser = Boolean(currentUserJugador && s.jugador_id === currentUserJugador.id);
 
                           return (
@@ -1216,9 +1180,9 @@ export default function TorneoIndividualPublico() {
                                     </Badge>
                                   )}
                                 </div>
-                                {!esPuntosPorSet && (
-                                  <span className={`inline-flex items-center text-[10px] sm:text-xs px-2 py-0.5 rounded-md mt-1 font-medium border tracking-wide shadow-xs ${badgeStyle}`}>
-                                    {courtGroup}
+                                {!esPuntosPorSet && displaySubtitulo && (
+                                  <span className="block mt-1 text-[10px] sm:text-xs text-muted-foreground">
+                                    {displaySubtitulo}
                                   </span>
                                 )}
                               </TableCell>
