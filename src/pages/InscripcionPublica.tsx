@@ -16,6 +16,7 @@ import JugadorCompaneroStep from "@/components/inscripcion/JugadorCompaneroStep"
 import type { Database } from "@/integrations/supabase/types";
 import PublicFooter from "@/components/PublicFooter";
 import PrivacyNotice from "@/components/PrivacyNotice";
+import { puedeAnotarseEnCategoria } from "@/lib/categoriaCompatibilidad";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 
@@ -31,6 +32,9 @@ export default function InscripcionPublica() {
   const { torneoId } = useParams<{ torneoId: string }>();
   const { user } = useAuth();
   const [torneo, setTorneo] = useState<Torneo | null>(null);
+  const [categoriaTorneo, setCategoriaTorneo] = useState<string | null>(null);
+  const [categoriasJugadores, setCategoriasJugadores] = useState<Record<string, string | null>>({});
+  const [validandoCategorias, setValidandoCategorias] = useState(false);
   const { nombre: nombreClub } = useClubBrand(torneo?.club_id);
   const [loading, setLoading] = useState(true);
   const [paso, setPaso] = useState<1 | 2 | 3 | 4>(1);
@@ -72,6 +76,7 @@ export default function InscripcionPublica() {
         const { data: linkResult } = await (supabase as any).rpc("get_or_link_my_player");
         if (linkResult?.ok) {
           setJ1({
+            jugadorId: linkResult.jugador_id ?? null,
             dni: linkResult.dni || "",
             nombre: linkResult.nombre || "",
             apellido: linkResult.apellido || "",
@@ -91,6 +96,67 @@ export default function InscripcionPublica() {
     };
     load();
   }, [torneoId, user]);
+
+  useEffect(() => {
+    if (!torneo) {
+      setCategoriaTorneo(null);
+      return;
+    }
+    let activo = true;
+    const cargarCategoriaTorneo = async () => {
+      if (torneo.categoria_id) {
+        const { data } = await supabase
+          .from("categorias")
+          .select("nombre")
+          .eq("id", torneo.categoria_id)
+          .maybeSingle();
+        if (activo) setCategoriaTorneo(data?.nombre ?? torneo.categoria_libre ?? null);
+      } else if (activo) {
+        setCategoriaTorneo(torneo.categoria_libre ?? null);
+      }
+    };
+    void cargarCategoriaTorneo();
+    return () => { activo = false; };
+  }, [torneo?.id, torneo?.categoria_id, torneo?.categoria_libre]);
+
+  useEffect(() => {
+    const jugadorIds = [...new Set([j1.jugadorId, j2.jugadorId].filter((id): id is string => Boolean(id)))];
+    let activo = true;
+    if (jugadorIds.length === 0 || !torneo?.club_id) {
+      setCategoriasJugadores({});
+      setValidandoCategorias(false);
+      return;
+    }
+
+    setValidandoCategorias(true);
+    void Promise.all(jugadorIds.map(async (jugadorId) => {
+      const { data, error } = await (supabase as any)
+        .from("jugador_categorias_publicas")
+        .select("categoria_nombre")
+        .eq("jugador_id", jugadorId)
+        .eq("club_id", torneo.club_id)
+        .maybeSingle();
+      if (error) console.error("No se pudo consultar la categoría del jugador", error);
+      return [jugadorId, data?.categoria_nombre ?? null] as const;
+    })).then((rows) => {
+      if (activo) setCategoriasJugadores(Object.fromEntries(rows));
+    }).finally(() => {
+      if (activo) setValidandoCategorias(false);
+    });
+
+    return () => { activo = false; };
+  }, [j1.jugadorId, j2.jugadorId, torneo?.club_id]);
+
+  const categoriasIncompatibles = [
+    { id: j1.jugadorId, nombre: `${j1.apellido} ${j1.nombre}`.trim() || "Jugador 1" },
+    ...(torneo?.tipo === "americano_individual" ? [] : [{ id: j2.jugadorId, nombre: `${j2.apellido} ${j2.nombre}`.trim() || "Jugador 2" }]),
+  ].filter((jugador) => jugador.id
+    && categoriasJugadores[jugador.id]
+    && categoriaTorneo
+    && !puedeAnotarseEnCategoria(categoriasJugadores[jugador.id], categoriaTorneo));
+
+  const requiereRevisionCategoria = [j1, ...(torneo?.tipo === "americano_individual" ? [] : [j2])]
+    .some((jugador) => !jugador.encontrado || (jugador.jugadorId && !categoriasJugadores[jugador.jugadorId]));
 
   // Título dinámico de la pestaña/preview al compartir
   useEffect(() => {
@@ -574,6 +640,19 @@ export default function InscripcionPublica() {
             <header>
               <h2 className="text-lg font-semibold">Revisá la inscripción</h2>
             </header>
+            {categoriasIncompatibles.length > 0 && (
+              <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
+                {categoriasIncompatibles.map((jugador) => (
+                  <p key={jugador.id}>{jugador.nombre}: su categoría asignada ({categoriasJugadores[jugador.id!]}) no permite anotarse en {categoriaTorneo}.</p>
+                ))}
+                <p className="mt-1 font-medium">Contactá al club para revisar la categoría.</p>
+              </div>
+            )}
+            {requiereRevisionCategoria && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/5 p-3 text-sm text-amber-900 dark:text-amber-200" role="status">
+                El club verificará la categoría de quien todavía no tenga una categoría asignada.
+              </div>
+            )}
             <div className="space-y-3 text-sm">
               <ResumenItem label="Torneo" value={torneo.nombre} />
               <ResumenItem
@@ -646,7 +725,7 @@ export default function InscripcionPublica() {
                 <ArrowLeft className="h-4 w-4" />
                 Atrás
               </Button>
-              <Button type="button" className="flex-1" size="lg" onClick={enviar} disabled={enviando}>
+              <Button type="button" className="flex-1" size="lg" onClick={enviar} disabled={enviando || validandoCategorias || categoriasIncompatibles.length > 0}>
                 {enviando ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />

@@ -76,6 +76,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
         const data = await res.json();
         if (data.jugador) {
           onChange({
+            jugadorId: data.jugador.id ?? null,
             dni: data.jugador.dni ?? "",
             nombre: data.jugador.nombre ?? "",
             apellido: data.jugador.apellido ?? "",
@@ -90,6 +91,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
       }
     } else {
       onChange({
+        jugadorId: s.id,
         dni: "",
         nombre: s.nombre,
         apellido: s.apellido,
@@ -109,6 +111,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
     setModoAlta(false);
     setQuery("");
     onChange({
+      jugadorId: null,
       dni: "",
       nombre: "",
       apellido: "",
@@ -124,6 +127,7 @@ export default function JugadorCompaneroStep({ value, onChange, excludeDni }: Pr
     setSeleccionado(false);
     setSugerencias([]);
     onChange({
+      jugadorId: null,
       dni: dniVal,
       nombre: "",
       apellido: "",

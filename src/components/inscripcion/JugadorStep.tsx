@@ -6,6 +6,7 @@ import { Loader2, Search, CheckCircle2 } from "lucide-react";
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
 
 export interface JugadorForm {
+  jugadorId?: string | null;
   dni: string;
   nombre: string;
   apellido: string;
@@ -16,6 +17,7 @@ export interface JugadorForm {
 }
 
 export const emptyJugador = (): JugadorForm => ({
+  jugadorId: null,
   dni: "",
   nombre: "",
   apellido: "",
@@ -55,6 +57,7 @@ export default function JugadorStep({ value, onChange, excludeDni }: Props) {
         setBuscado(true);
         if (data.jugador) {
           onChange({
+            jugadorId: data.jugador.id ?? null,
             dni,
             nombre: data.jugador.nombre ?? "",
             apellido: data.jugador.apellido ?? "",
@@ -93,7 +96,7 @@ export default function JugadorStep({ value, onChange, excludeDni }: Props) {
             autoComplete="off"
             placeholder="Sin puntos"
             value={value.dni}
-            onChange={(e) => update({ dni: e.target.value.replace(/\D/g, "") })}
+            onChange={(e) => update({ dni: e.target.value.replace(/\D/g, ""), jugadorId: null, encontrado: false })}
             maxLength={9}
             className="pr-9"
           />

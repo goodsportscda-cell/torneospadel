@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     // 1. Validar torneo
     const { data: torneo, error: errTorneo } = await supabase
       .from("torneos")
-      .select("id, nombre, estado, fecha_inicio, fecha_fin, cupo_maximo")
+      .select("id, nombre, estado, fecha_inicio, fecha_fin, cupo_maximo, club_id, categoria_id, categoria_libre, genero")
       .eq("id", data.torneo_id)
       .maybeSingle();
 
@@ -162,6 +162,42 @@ Deno.serve(async (req) => {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         },
       );
+    }
+
+    // Check already-known players against the category assigned by this club
+    // before changing their contact data or creating either registration.
+    const findExistingPlayerId = async (j: JugadorInput): Promise<string | null> => {
+      if (!j.dni) return null;
+      const { data: existing, error } = await supabase
+        .from("jugadores")
+        .select("id")
+        .eq("dni", j.dni)
+        .maybeSingle();
+      if (error) throw error;
+      return existing?.id ?? null;
+    };
+    const knownPlayers = [
+      { label: "Jugador 1", id: await findExistingPlayerId(data.jugador1) },
+      { label: "Jugador 2", id: await findExistingPlayerId(data.jugador2) },
+    ];
+    for (const player of knownPlayers) {
+      if (!player.id) continue;
+      const { data: eligibility, error } = await supabase.rpc("jugador_puede_inscribirse_categoria", {
+        p_jugador_id: player.id,
+        p_torneo_id: torneo.id,
+      });
+      if (error) throw error;
+      if (eligibility && !eligibility.permitido) {
+        return new Response(
+          JSON.stringify({
+            error: `${player.label}: la categoría asignada por el club no permite anotarse en esta categoría. Contactá al club para revisarla.`,
+          }),
+          {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          },
+        );
+      }
     }
 
     // 2. Buscar o crear jugadores
