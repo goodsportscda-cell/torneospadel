@@ -111,16 +111,6 @@ const emptyForm: FormState = {
   datos_bancarios: "",
 };
 
-const generateSlug = (nombre: string) => {
-  return nombre
-    .toLowerCase()
-    .trim()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // quitar acentos
-    .replace(/[^a-z0-9]+/g, "-") // reemplazar no-alfanumericos por guion
-    .replace(/^-+|-+$/g, ""); // limpiar guiones al inicio/fin
-};
-
 function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: () => void }) {
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
@@ -338,9 +328,6 @@ export default function Torneos() {
       }
     }
 
-    // Generamos el slug si no existe o si cambió el nombre
-    const slug = generateSlug(form.nombre);
-
     let computedFechaFin = form.fecha_fin || null;
     if (form.tipo === "americano_individual") {
       const semanasVal = Math.max(7, Number(form.desafio_semanas) || 8);
@@ -365,7 +352,6 @@ export default function Torneos() {
 
     const payload: any = {
       nombre: form.nombre.trim(),
-      slug: generateSlug(form.nombre),
       tipo: form.tipo,
       categoria_id: form.tipo === "oficial" ? form.categoria_id : null,
       categoria_libre: (form.tipo === "americano" || form.tipo === "americano_individual") ? form.categoria_libre.trim() : null,
