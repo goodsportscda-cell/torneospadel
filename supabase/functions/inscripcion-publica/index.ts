@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
     // 1. Validar torneo
     const { data: torneo, error: errTorneo } = await supabase
       .from("torneos")
-      .select("id, nombre, estado, cupo_maximo")
+      .select("id, nombre, estado, fecha_inicio, fecha_fin, cupo_maximo")
       .eq("id", data.torneo_id)
       .maybeSingle();
 
@@ -141,6 +141,22 @@ Deno.serve(async (req) => {
         JSON.stringify({
           error: "Las inscripciones para este torneo no están abiertas.",
         }),
+        {
+          status: 409,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        },
+      );
+    }
+    const todayInArgentina = new Intl.DateTimeFormat("en-CA", {
+      timeZone: "America/Argentina/Buenos_Aires",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date());
+    const lastTournamentDay = torneo.fecha_fin || torneo.fecha_inicio;
+    if (lastTournamentDay && todayInArgentina > lastTournamentDay) {
+      return new Response(
+        JSON.stringify({ error: "Las inscripciones cerraron porque la fecha de este torneo ya pasó." }),
         {
           status: 409,
           headers: { ...corsHeaders, "Content-Type": "application/json" },

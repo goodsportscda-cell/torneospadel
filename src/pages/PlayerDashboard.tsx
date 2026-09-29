@@ -103,7 +103,16 @@ export default function PlayerDashboard() {
         .in("estado", ["proximamente", "inscripciones_abiertas", "inscripciones_cerradas", "en_curso"])
         .order("fecha_inicio", { ascending: true })
         .limit(10);
-      setTorneos((torneosData ?? []) as Torneo[]);
+      const hoyArgentina = new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Argentina/Buenos_Aires",
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+      }).format(new Date());
+      setTorneos(((torneosData ?? []) as Torneo[]).filter((torneo) => {
+        const ultimaFecha = torneo.fecha_fin || torneo.fecha_inicio;
+        return ultimaFecha >= hoyArgentina;
+      }));
 
       // If linked, get performance data
       if (jId) {

@@ -4,7 +4,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { ClipboardList, CalendarClock, MapPin, ExternalLink, CheckCircle2, Clock, Trophy } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { ClipboardList, CalendarClock, MapPin, ExternalLink, CheckCircle2, Clock, Trophy, Pencil, Loader2 } from "lucide-react";
+import { toast } from "sonner";
 const PAGO_LABELS: Record<string, string> = {
   pendiente: "Pendiente",
   parcial: "Parcial",
@@ -52,12 +57,27 @@ type MiInscripcion = {
   estado: string;
   estado_pago: string;
   companero_nombre: string;
+  disponibilidad_horaria: string;
+  franjas: { id: string; label: string; seleccionada: boolean }[];
+  torneo_estado: string;
+  torneo_fecha_inicio: string | null;
   partidos: PartidoProgramado[];
 };
+
+const fechaHoyArgentina = () => new Intl.DateTimeFormat("en-CA", {
+  timeZone: "America/Argentina/Buenos_Aires",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+}).format(new Date());
 
 export function PlayerInscriptions({ jugadorId }: Props) {
   const [loading, setLoading] = useState(true);
   const [inscripciones, setInscripciones] = useState<MiInscripcion[]>([]);
+  const [editing, setEditing] = useState<MiInscripcion | null>(null);
+  const [availabilityText, setAvailabilityText] = useState("");
+  const [selectedFranjas, setSelectedFranjas] = useState<string[]>([]);
+  const [savingAvailability, setSavingAvailability] = useState(false);
 
   useEffect(() => {
     if (!jugadorId) return;
@@ -68,7 +88,7 @@ export function PlayerInscriptions({ jugadorId }: Props) {
         // 1. Obtener torneos activos/próximos
         const { data: torneosActivos } = await supabase
           .from("torneos")
-          .select("id, nombre, tipo, modalidad")
+          .select("id, nombre, tipo, modalidad, estado, fecha_fin, fecha_inicio")
           .in("estado", ["proximamente", "inscripciones_abiertas", "inscripciones_cerradas", "en_curso"]);
         
         if (!torneosActivos || torneosActivos.length === 0) {
@@ -90,6 +110,15 @@ export function PlayerInscriptions({ jugadorId }: Props) {
           .or(`jugador1_id.eq.${jugadorId},jugador2_id.eq.${jugadorId}`);
 
         if (misInsc && misInsc.length > 0) {
+          const { data: disponibilidades, error: disponibilidadError } = await (supabase as any)
+            .rpc("get_my_inscription_availability", { p_jugador_id: jugadorId });
+          if (disponibilidadError) throw disponibilidadError;
+          const disponibilidadMap = new Map<string, { texto: string; franjas: { id: string; label: string; seleccionada: boolean }[] }>(
+            (disponibilidades ?? []).map((row: any) => [row.inscripcion_id, {
+              texto: row.disponibilidad_horaria ?? "",
+              franjas: row.franjas ?? [],
+            }]),
+          );
           const { data: pagosPropios } = await (supabase as any).rpc(
             "get_my_inscription_payment_status",
             { p_jugador_id: jugadorId },
@@ -154,6 +183,10 @@ export function PlayerInscriptions({ jugadorId }: Props) {
               estado: i.estado,
               estado_pago: pagoMap.get(i.id) ?? "pendiente",
               companero_nombre: jugMap.get(i.jugador1_id === jugadorId ? i.jugador2_id : i.jugador1_id) ?? "?",
+              disponibilidad_horaria: disponibilidadMap.get(i.id)?.texto ?? "",
+              franjas: disponibilidadMap.get(i.id)?.franjas ?? [],
+              torneo_estado: tInfo?.estado ?? "",
+              torneo_fecha_inicio: tInfo?.fecha_inicio ?? null,
               partidos: partidosProgramados.filter(p => p.insc_id === i.id).sort((a, b) => new Date(a.fecha_hora).getTime() - new Date(b.fecha_hora).getTime())
             });
           });
@@ -178,6 +211,10 @@ export function PlayerInscriptions({ jugadorId }: Props) {
               estado: s.estado || "confirmada",
               estado_pago: "pagado",
               companero_nombre: tInfo.modalidad === "parejas" ? "Pareja fija" : "Modalidad Individual (Rotativo)",
+              disponibilidad_horaria: "",
+              franjas: [],
+              torneo_estado: tInfo.estado ?? "",
+              torneo_fecha_inicio: tInfo.fecha_inicio ?? null,
               partidos: []
             });
           }
@@ -211,6 +248,10 @@ export function PlayerInscriptions({ jugadorId }: Props) {
                 estado: "confirmada",
                 estado_pago: "pagado",
                 companero_nombre: compaMap.get(compaId) || "Compañero/a de pareja",
+                disponibilidad_horaria: "",
+                franjas: [],
+                torneo_estado: tInfo.estado ?? "",
+                torneo_fecha_inicio: tInfo.fecha_inicio ?? null,
                 partidos: []
               });
             }
@@ -235,6 +276,37 @@ export function PlayerInscriptions({ jugadorId }: Props) {
   if (inscripciones.length === 0) {
     return null;
   }
+
+  const abrirEdicion = (inscripcion: MiInscripcion) => {
+    setEditing(inscripcion);
+    setAvailabilityText(inscripcion.disponibilidad_horaria);
+    setSelectedFranjas(inscripcion.franjas.filter((f) => f.seleccionada).map((f) => f.id));
+  };
+
+  const guardarDisponibilidad = async () => {
+    if (!editing) return;
+    setSavingAvailability(true);
+    try {
+      const { data, error } = await (supabase as any).rpc("update_my_inscription_availability", {
+        p_inscripcion_id: editing.id,
+        p_disponibilidad_horaria: availabilityText.trim(),
+        p_franjas_ids: selectedFranjas,
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "No se pudo guardar la disponibilidad");
+      setInscripciones((current) => current.map((item) => item.id === editing.id ? {
+        ...item,
+        disponibilidad_horaria: availabilityText.trim(),
+        franjas: editing.franjas.map((f) => ({ ...f, seleccionada: selectedFranjas.includes(f.id) })),
+      } : item));
+      setEditing(null);
+      toast.success("Disponibilidad actualizada");
+    } catch (error: any) {
+      toast.error(error.message ?? "No se pudo actualizar la disponibilidad");
+    } finally {
+      setSavingAvailability(false);
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -276,6 +348,26 @@ export function PlayerInscriptions({ jugadorId }: Props) {
                   {PAGO_LABELS[i.estado_pago as keyof typeof PAGO_LABELS]}
                 </Badge>
               </div>
+
+              {i.tipo_torneo !== "americano_individual" && (
+                <div className="rounded-md border bg-muted/20 p-3 space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-semibold">Disponibilidad horaria</p>
+                    {["proximamente", "inscripciones_abiertas", "inscripciones_cerradas"].includes(i.torneo_estado) && (i.torneo_fecha_inicio ?? "") > fechaHoyArgentina() && (
+                      <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => abrirEdicion(i)}>
+                        <Pencil className="h-3 w-3 mr-1" /> Editar
+                      </Button>
+                    )}
+                  </div>
+                  {i.franjas.some((f) => f.seleccionada) ? (
+                    <p className="text-xs text-muted-foreground">{i.franjas.filter((f) => f.seleccionada).map((f) => f.label).join(" · ")}</p>
+                  ) : i.disponibilidad_horaria ? (
+                    <p className="text-xs text-muted-foreground whitespace-pre-wrap">{i.disponibilidad_horaria}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground italic">No se informó disponibilidad.</p>
+                  )}
+                </div>
+              )}
 
               {i.tipo_torneo === "americano_individual" && (
                 <div className="pt-1">
@@ -339,6 +431,46 @@ export function PlayerInscriptions({ jugadorId }: Props) {
           </Card>
         ))}
       </div>
+
+      <Dialog open={!!editing} onOpenChange={(open) => !open && !savingAvailability && setEditing(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Editar disponibilidad</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">{editing?.torneo_nombre}</p>
+            {editing?.franjas.length ? (
+              <div className="space-y-2">
+                <Label>Elegí tus franjas horarias</Label>
+                {editing.franjas.map((franja) => (
+                  <div key={franja.id} className="flex items-center gap-2">
+                    <Checkbox
+                      id={`franja-${franja.id}`}
+                      checked={selectedFranjas.includes(franja.id)}
+                      onCheckedChange={(checked) => setSelectedFranjas((current) => checked
+                        ? [...new Set([...current, franja.id])]
+                        : current.filter((id) => id !== franja.id))}
+                    />
+                    <Label htmlFor={`franja-${franja.id}`} className="text-sm font-normal">{franja.label}</Label>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="disponibilidad-jugador">Disponibilidad horaria</Label>
+                <Textarea id="disponibilidad-jugador" rows={4} maxLength={500} value={availabilityText} onChange={(event) => setAvailabilityText(event.target.value)} placeholder="Ej.: jueves a la noche, viernes después de las 20 h" />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditing(null)} disabled={savingAvailability}>Cancelar</Button>
+            <Button onClick={guardarDisponibilidad} disabled={savingAvailability}>
+              {savingAvailability && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Guardar disponibilidad
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
