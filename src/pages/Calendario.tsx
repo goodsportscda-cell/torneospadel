@@ -37,6 +37,7 @@ import {
   LayoutGrid,
 } from "lucide-react";
 import { toast } from "sonner";
+import { CanchasAsignadasField } from "@/components/torneos/CanchasAsignadasField";
 import { useAuth } from "@/hooks/useAuth";
 import type { Database } from "@/integrations/supabase/types";
 import {
@@ -81,6 +82,7 @@ interface FormState {
   costo_fecha_cancha: string;
   porcentaje_premios: string;
   modalidad: string;
+  canchas_asignadas: number[];
 }
 
 const emptyForm: FormState = {
@@ -107,6 +109,7 @@ const emptyForm: FormState = {
   costo_fecha_cancha: "22000",
   porcentaje_premios: "60",
   modalidad: "individual",
+  canchas_asignadas: [1, 2, 3],
 };
 
 // helpers fecha (YYYY-MM-DD locales sin TZ)
@@ -262,6 +265,7 @@ export default function Calendario() {
       modalidad: (t.modalidad === "liga_parejas" || t.notas?.includes("[SISTEMA:liga_parejas]"))
         ? "liga_parejas"
         : (t.modalidad ?? "individual"),
+      canchas_asignadas: t.canchas_asignadas ?? [1, 2, 3],
     });
     setDialogOpen(true);
   };
@@ -271,6 +275,8 @@ export default function Calendario() {
     if (!form.fecha_inicio) return toast.error("La fecha de inicio es obligatoria");
     if (form.tipo === "oficial" && !form.categoria_id)
       return toast.error("Seleccioná una categoría");
+    if (form.tipo === "oficial" && form.canchas_asignadas.length === 0)
+      return toast.error("Seleccioná al menos una cancha para el torneo oficial");
     if ((form.tipo === "americano" || form.tipo === "americano_individual") && !form.categoria_libre.trim())
       return toast.error("Indicá la categoría del torneo");
     if (form.tipo === "americano_individual" && (Number(form.desafio_semanas) || 0) < 7) {
@@ -323,6 +329,8 @@ export default function Calendario() {
       porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) || 60 : null,
       modalidad: form.tipo === "americano_individual" ? (form.modalidad === "liga_parejas" ? "parejas" : (form.modalidad || "individual")) : null,
       club_id: clubId,
+      canchas_asignadas: form.canchas_asignadas,
+      canchas_disponibles: form.tipo === "oficial" ? form.canchas_asignadas.length : null,
     };
 
     if (editing) {
@@ -610,7 +618,8 @@ export default function Calendario() {
             </div>
 
             {form.tipo === "oficial" ? (
-              <div className="grid gap-1.5">
+              <div className="grid gap-3">
+                <div className="grid gap-1.5">
                 <Label>Categoría *</Label>
                 <Select
                   value={form.categoria_id}
@@ -625,6 +634,11 @@ export default function Calendario() {
                     ))}
                   </SelectContent>
                 </Select>
+                </div>
+                <CanchasAsignadasField
+                  value={form.canchas_asignadas}
+                  onChange={(canchas_asignadas) => setForm({ ...form, canchas_asignadas })}
+                />
               </div>
             ) : (
               <div className="grid grid-cols-2 gap-3">

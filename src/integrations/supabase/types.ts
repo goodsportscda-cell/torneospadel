@@ -858,6 +858,7 @@ export type Database = {
         Row: {
           canchas_count: number | null
           canchas_disponibles: number | null
+          canchas_asignadas: number[]
           categoria_id: string | null
           categoria_libre: string | null
           club_id: string | null
@@ -893,6 +894,7 @@ export type Database = {
         Insert: {
           canchas_count?: number | null
           canchas_disponibles?: number | null
+          canchas_asignadas?: number[]
           categoria_id?: string | null
           categoria_libre?: string | null
           club_id?: string | null
@@ -928,6 +930,7 @@ export type Database = {
         Update: {
           canchas_count?: number | null
           canchas_disponibles?: number | null
+          canchas_asignadas?: number[]
           categoria_id?: string | null
           categoria_libre?: string | null
           club_id?: string | null

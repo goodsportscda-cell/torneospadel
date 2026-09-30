@@ -42,6 +42,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { calcularRankingTorneo, recalcularTodosLosAscensos } from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
 import { TorneoFranjasDialog } from "@/components/torneos/TorneoFranjasDialog";
+import { CanchasAsignadasField } from "@/components/torneos/CanchasAsignadasField";
 
 import {
   ESTADO_TORNEO_LABELS as ESTADO_LABELS,
@@ -81,6 +82,7 @@ interface FormState {
   gastos_regalos: string;
   modalidad: string;
   datos_bancarios: string;
+  canchas_asignadas: number[];
 }
 
 const emptyForm: FormState = {
@@ -109,6 +111,7 @@ const emptyForm: FormState = {
   gastos_regalos: "0",
   modalidad: "individual",
   datos_bancarios: "",
+  canchas_asignadas: [1, 2, 3],
 };
 
 function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: () => void }) {
@@ -284,6 +287,7 @@ export default function Torneos() {
         ? "liga_parejas"
         : (t.modalidad ?? "individual"),
       datos_bancarios: t.datos_bancarios ?? "",
+      canchas_asignadas: t.canchas_asignadas ?? [1, 2, 3],
     });
     setDialogOpen(true);
   };
@@ -299,6 +303,10 @@ export default function Torneos() {
     }
     if (form.tipo === "oficial" && !form.categoria_id) {
       toast.error("Seleccioná una categoría para el torneo oficial");
+      return;
+    }
+    if (form.tipo === "oficial" && form.canchas_asignadas.length === 0) {
+      toast.error("Seleccioná al menos una cancha para el torneo oficial");
       return;
     }
     if ((form.tipo === "americano" || form.tipo === "americano_individual") && !form.categoria_libre.trim()) {
@@ -377,6 +385,8 @@ export default function Torneos() {
       modalidad: form.tipo === "americano_individual" ? (form.modalidad === "liga_parejas" ? "parejas" : (form.modalidad || "individual")) : null,
       datos_bancarios: form.datos_bancarios || null,
       club_id: clubId, // Se asigna automáticamente al club del admin
+      canchas_asignadas: form.canchas_asignadas,
+      canchas_disponibles: form.tipo === "oficial" ? form.canchas_asignadas.length : null,
       ...(form.estado === "finalizado" ? { ranking_publicado: true } : {}),
     };
 
@@ -680,6 +690,7 @@ export default function Torneos() {
               </div>
 
               {form.tipo === "oficial" ? (
+                <div className="grid gap-3">
                 <div className="grid gap-1.5">
                   <Label>Categoría *</Label>
                   <Select
@@ -697,6 +708,11 @@ export default function Torneos() {
                       ))}
                     </SelectContent>
                   </Select>
+                </div>
+                <CanchasAsignadasField
+                  value={form.canchas_asignadas}
+                  onChange={(canchas_asignadas) => setForm({ ...form, canchas_asignadas })}
+                />
                 </div>
               ) : (
                 <div className="space-y-3">

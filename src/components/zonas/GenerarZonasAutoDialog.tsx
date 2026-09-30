@@ -14,7 +14,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Wand2, CalendarDays, Loader2, Calendar, Clock, MapPin, ArrowRightLeft, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { generarZonasAuto, type ZonaGenerada, type FranjaData } from "@/lib/GeneradorZonasAuto";
+import { generarZonasAuto, findSharedFranjas, type FranjaData } from "@/lib/GeneradorZonasAuto";
 import { generarFixture } from "@/lib/zonas";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
@@ -45,8 +45,15 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
     setLoading(true);
     try {
       // 1. Obtener canchas disponibles del torneo
-      const { data: torneo } = await (supabase as any).from("torneos").select("canchas_disponibles").eq("id", torneoId).single();
-      const canchasDisp = (torneo as any)?.canchas_disponibles || 3;
+      const { data: torneo, error: torneoError } = await (supabase as any)
+        .from("torneos")
+        .select("canchas_disponibles, canchas_asignadas")
+        .eq("id", torneoId)
+        .single();
+      if (torneoError) throw torneoError;
+      const canchasDisp = Array.isArray(torneo?.canchas_asignadas) && torneo.canchas_asignadas.length > 0
+        ? torneo.canchas_asignadas.map(Number)
+        : Array.from({ length: Math.max(1, Number(torneo?.canchas_disponibles) || 3) }, (_, index) => index + 1);
 
       // 2. Obtener franjas horarias
       const { data: franjasData } = await supabase
@@ -150,6 +157,12 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
     const newZ = [...zonasPropuestas];
     const [parejaMovida] = newZ[fromZoneIdx].parejas.splice(pIdx, 1);
     newZ[toZoneIdx].parejas.push(parejaMovida);
+    for (const zone of [newZ[fromZoneIdx], newZ[toZoneIdx]]) {
+      const shared = findSharedFranjas(zone.parejas, franjas);
+      zone.franjasCompatibles = shared;
+      zone.franjaAsignada = shared[0];
+      zone.hora = shared[0]?.hora_inicio?.substring(0, 5) || "";
+    }
     setZonasPropuestas(newZ);
   };
 
@@ -323,6 +336,11 @@ export function GenerarZonasAutoDialog({ torneoId, onZonasCreadas, disabled }: P
                       {zp.franjaAsignada && (
                         <span className="text-[10px] text-muted-foreground truncate max-w-[120px]" title={zp.franjaAsignada.label_franja}>
                           {zp.franjaAsignada.label_franja}
+                        </span>
+                      )}
+                      {!zp.franjaAsignada && zp.parejas.length >= 3 && (
+                        <span className="text-[10px] font-medium text-amber-700 dark:text-amber-400">
+                          Sin franja común para todas las parejas; revisá el grupo.
                         </span>
                       )}
                     </div>
