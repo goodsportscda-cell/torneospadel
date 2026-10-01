@@ -34,6 +34,7 @@ export default function TorneoTvCanchas() {
   const [error, setError] = useState(false);
   const [actualizado, setActualizado] = useState<Date | null>(null);
   const [pantallaCompleta, setPantallaCompleta] = useState(false);
+  const [paginaCanchas, setPaginaCanchas] = useState(0);
 
   useEffect(() => {
     let cancelado = false;
@@ -153,17 +154,29 @@ export default function TorneoTvCanchas() {
   };
 
   const canchas = Array.from({ length: cantidadCanchas }, (_, index) => String(index + 1));
+  const canchasPorPagina = 3;
+  const cantidadPaginasCanchas = Math.ceil(canchas.length / canchasPorPagina);
+  const canchasVisibles = canchas.slice(paginaCanchas * canchasPorPagina, (paginaCanchas + 1) * canchasPorPagina);
+
+  useEffect(() => {
+    setPaginaCanchas((pagina) => pagina % Math.max(1, cantidadPaginasCanchas));
+    if (cantidadPaginasCanchas <= 1) return;
+    const interval = window.setInterval(() => {
+      setPaginaCanchas((pagina) => (pagina + 1) % cantidadPaginasCanchas);
+    }, 15000);
+    return () => window.clearInterval(interval);
+  }, [cantidadPaginasCanchas]);
 
   return (
     <main className="min-h-screen bg-[#080b12] p-5 text-white sm:p-8">
-      <header className="mx-auto mb-7 flex max-w-[1600px] flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
+      <header className="mx-auto mb-7 flex w-full flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
         <div>
           <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300"><Tv className="h-4 w-4" /> Padel ID · En vivo</div>
           <h1 className="text-3xl font-black sm:text-5xl">Canchas en juego</h1>
           <p className="mt-2 text-sm text-white/55">{nombresTorneos.join(" · ") || "Torneos en curso"}</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-white/55"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización automática cada 20 segundos{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` : ""}</div>
+          <div className="flex items-center gap-2 text-xs text-white/55"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización automática cada 20 segundos{cantidadPaginasCanchas > 1 ? ` · Canchas ${paginaCanchas * canchasPorPagina + 1}-${Math.min((paginaCanchas + 1) * canchasPorPagina, canchas.length)} de ${canchas.length}` : ""}{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` : ""}</div>
           <button type="button" onClick={copiarEnlace} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-2 text-xs font-bold text-white/75 transition hover:bg-white/10" title="Copiar enlace de TV"><Copy className="h-4 w-4" /><span className="hidden sm:inline">Copiar enlace</span></button>
           <button type="button" onClick={alternarPantallaCompleta} className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-2 text-cyan-100 transition hover:bg-cyan-300/20" title={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"} aria-label={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}>
             {pantallaCompleta ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -176,8 +189,12 @@ export default function TorneoTvCanchas() {
       ) : error ? (
         <div className="mx-auto flex min-h-[40vh] max-w-xl flex-col items-center justify-center text-center"><RefreshCw className="mb-4 h-8 w-8 text-rose-300" /><h2 className="text-xl font-bold">No pudimos cargar los partidos</h2><p className="mt-2 text-sm text-white/55">Revisá la conexión y volvé a intentar.</p><button className="mt-5 rounded-lg bg-white/10 px-4 py-2 text-sm font-bold" onClick={() => window.location.reload()}>Reintentar</button></div>
       ) : (
-        <section className="mx-auto grid max-w-[1600px] grid-cols-1 items-start gap-4 md:grid-cols-2 xl:grid-cols-3" aria-label="Partidos agrupados por cancha">
-          {canchas.map((cancha) => {
+        <section
+          className="mx-auto grid w-full items-start gap-4"
+          style={{ gridTemplateColumns: `repeat(${canchasPorPagina}, minmax(0, 1fr))` }}
+          aria-label="Partidos agrupados por cancha"
+        >
+          {canchasVisibles.map((cancha) => {
             const partidosCancha = partidos.filter((partido) => numeroCancha(partido.cancha) === cancha).sort((a, b) => {
               if (a.estado === "en_juego" && b.estado !== "en_juego") return -1;
               if (b.estado === "en_juego" && a.estado !== "en_juego") return 1;
