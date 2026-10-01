@@ -115,7 +115,9 @@ export default function TorneoTvCanchas() {
         );
         if (cancelado) return;
         setNombresTorneos(torneosLista.map((torneo) => torneo.nombre));
-        setCantidadCanchas(Math.max(1, maxCancha, ...visibles.map((partido) => Number(numeroCancha(partido.cancha) ?? 0))));
+        // El club trabaja con tres canchas aunque los torneos activos solo tengan
+        // partidos asignados a dos por el momento; la TV debe conservar las tres columnas.
+        setCantidadCanchas(Math.max(3, maxCancha, ...visibles.map((partido) => Number(numeroCancha(partido.cancha) ?? 0))));
         setPartidos(visibles);
         setActualizado(new Date());
         setError(false);
