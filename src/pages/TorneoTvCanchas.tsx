@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Activity, Loader2, MapPin, RefreshCw, Tv } from "lucide-react";
+import { Activity, Loader2, MapPin, Maximize2, Minimize2, RefreshCw, Tv } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { extractFotoFromNotas } from "@/logic/torneoStandings";
 
 type PartidoTv = {
   id: string;
@@ -12,9 +13,11 @@ type PartidoTv = {
   fechaHora: string | null;
   local: string;
   visitante: string;
+  fotoUrl: string | null;
 };
 
 const numeroCancha = (cancha: string | null) => cancha?.match(/\d+/)?.[0] ?? null;
+const esUrlDeFotoSegura = (value: string | null): value is string => Boolean(value && (/^https?:\/\//i.test(value) || /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(value)));
 
 export default function TorneoTvCanchas() {
   const [searchParams] = useSearchParams();
@@ -26,6 +29,7 @@ export default function TorneoTvCanchas() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [actualizado, setActualizado] = useState<Date | null>(null);
+  const [pantallaCompleta, setPantallaCompleta] = useState(false);
 
   useEffect(() => {
     let cancelado = false;
@@ -37,7 +41,7 @@ export default function TorneoTvCanchas() {
       }
       try {
         const [{ data: torneos, error: errorTorneos }, { data: zonas, error: errorZonas }, { data: llaves, error: errorLlaves }, { data: inscripciones, error: errorInscripciones }, { data: jugadores, error: errorJugadores }, { data: individuales, error: errorIndividuales }] = await Promise.all([
-          supabase.from("torneos").select("id, nombre, canchas_asignadas").in("id", torneoIds),
+          supabase.from("torneos").select("id, nombre, canchas_asignadas, notas").in("id", torneoIds),
           supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds),
           supabase.from("llaves").select("id, torneo_id").in("torneo_id", torneoIds),
           supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds),
@@ -53,6 +57,7 @@ export default function TorneoTvCanchas() {
         const inscripcionesLista = (inscripciones ?? []) as any[];
         const jugadoresLista = (jugadores ?? []) as any[];
         const nombres = new Map<string, string>(torneosLista.map((torneo) => [torneo.id, torneo.nombre]));
+        const notasTorneos = new Map<string, string | null>(torneosLista.map((torneo) => [torneo.id, torneo.notas]));
         const maxCancha = torneosLista.reduce((max, torneo) => Math.max(max, ...(torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite)), 0);
         const inscripcionesMap = new Map(inscripcionesLista.map((inscripcion) => [inscripcion.id, inscripcion]));
         const jugadoresMap = new Map(jugadoresLista.map((jugador) => [jugador.id, `${jugador.apellido ?? ""}, ${jugador.nombre ?? ""}`.trim().replace(/^, |, $/g, "")]));
@@ -73,18 +78,18 @@ export default function TorneoTvCanchas() {
         const filas: PartidoTv[] = [];
         for (const partido of (partidosZonaRes.data ?? []) as any[]) {
           const torneoId = zonaTorneo.get(partido.zona_id);
-          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id) });
+          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) });
         }
         for (const partido of (partidosLlaveRes.data ?? []) as any[]) {
           const torneoId = llaveTorneo.get(partido.llave_id);
-          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id) });
+          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) });
         }
         for (const partido of (individuales ?? []) as any[]) {
           const jugadorNombre = (id: string | null, suplente?: string | null) => id ? jugadoresMap.get(id) ?? "Jugador" : suplente || "Por definir";
           const pareja1 = [jugadorNombre(partido.jugador1_id, partido.suplente1_nombre), jugadorNombre(partido.jugador2_id, partido.suplente2_nombre)].join(" / ");
           const pareja2 = [jugadorNombre(partido.jugador3_id, partido.suplente3_nombre), jugadorNombre(partido.jugador4_id, partido.suplente4_nombre)].join(" / ");
           const fechaHora = partido.fecha_programada ? `${partido.fecha_programada}T${partido.hora_programada || "00:00:00"}` : null;
-          filas.push({ id: partido.id, torneoId: partido.torneo_id, torneoNombre: nombres.get(partido.torneo_id) ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora, local: pareja1, visitante: pareja2 });
+          filas.push({ id: partido.id, torneoId: partido.torneo_id, torneoNombre: nombres.get(partido.torneo_id) ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora, local: pareja1, visitante: pareja2, fotoUrl: partido.foto_url || extractFotoFromNotas(notasTorneos.get(partido.torneo_id), partido.id) });
         }
 
         const visibles = filas.filter((partido) =>
@@ -112,7 +117,15 @@ export default function TorneoTvCanchas() {
 
   useEffect(() => {
     document.title = "Canchas en vivo | Padel ID TV";
+    const syncFullscreen = () => setPantallaCompleta(Boolean(document.fullscreenElement));
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
+
+  const alternarPantallaCompleta = () => {
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+    else document.documentElement.requestFullscreen().catch(() => {});
+  };
 
   const canchas = Array.from({ length: cantidadCanchas }, (_, index) => String(index + 1));
 
@@ -124,7 +137,12 @@ export default function TorneoTvCanchas() {
           <h1 className="text-3xl font-black sm:text-5xl">Canchas en juego</h1>
           <p className="mt-2 text-sm text-white/55">{nombresTorneos.join(" · ") || "Torneos en curso"}</p>
         </div>
-        <div className="flex items-center gap-2 text-xs text-white/55"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización automática cada 20 segundos{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` : ""}</div>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 text-xs text-white/55"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización automática cada 20 segundos{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}` : ""}</div>
+          <button type="button" onClick={alternarPantallaCompleta} className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-2 text-cyan-100 transition hover:bg-cyan-300/20" title={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"} aria-label={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}>
+            {pantallaCompleta ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
+          </button>
+        </div>
       </header>
 
       {loading && partidos.length === 0 ? (
@@ -144,9 +162,13 @@ export default function TorneoTvCanchas() {
                 <div className="flex items-center justify-between border-b border-white/10 px-5 py-4"><h2 className="flex items-center gap-2 text-lg font-black"><MapPin className="h-5 w-5 text-cyan-300" />Cancha {cancha}</h2><span className={`rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-wider ${partidosCancha.some((partido) => partido.estado === "en_juego") ? "bg-rose-400/15 text-rose-200" : "bg-white/10 text-white/55"}`}>{partidosCancha.some((partido) => partido.estado === "en_juego") ? "En juego" : "Disponible"}</span></div>
                 <div className="space-y-3 p-4">
                   {partidosCancha.length === 0 ? <p className="py-8 text-center text-sm text-white/40">Sin partidos asignados</p> : partidosCancha.slice(0, 6).map((partido) => (
-                    <div key={`${partido.torneoId}-${partido.id}`} className={`rounded-xl border p-4 ${partido.estado === "en_juego" ? "border-rose-300/40 bg-rose-400/[0.08]" : "border-white/10 bg-black/20"}`}>
-                      <div className="mb-3 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-black uppercase tracking-wider text-cyan-200">{partido.torneoNombre}</span><span className={`shrink-0 text-[10px] font-bold ${partido.estado === "en_juego" ? "text-rose-200" : "text-white/45"}`}>{partido.estado === "en_juego" ? "EN JUEGO" : partido.fechaHora ? new Date(partido.fechaHora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "PROGRAMADO"}</span></div>
-                      <p className="truncate text-sm font-bold">{partido.local}</p><p className="truncate text-sm font-bold">{partido.visitante}</p>
+                    <div key={`${partido.torneoId}-${partido.id}`} className={`relative isolate overflow-hidden rounded-xl border p-4 ${partido.estado === "en_juego" ? "border-rose-300/40 bg-rose-400/[0.08]" : "border-white/10 bg-black/20"}`}>
+                      {esUrlDeFotoSegura(partido.fotoUrl) && <>
+                        <img src={partido.fotoUrl} alt={`Foto del partido ${partido.local} contra ${partido.visitante}`} loading="lazy" className="absolute inset-0 -z-10 h-full w-full object-cover opacity-35" />
+                        <div className="absolute inset-0 -z-10 bg-gradient-to-r from-[#080b12]/90 via-[#080b12]/75 to-[#080b12]/50" />
+                      </>}
+                      <div className="relative z-10 mb-3 flex items-center justify-between gap-2"><span className="truncate text-[10px] font-black uppercase tracking-wider text-cyan-200">{partido.torneoNombre}</span><span className={`shrink-0 text-[10px] font-bold ${partido.estado === "en_juego" ? "text-rose-200" : "text-white/70"}`}>{partido.estado === "en_juego" ? "EN JUEGO" : partido.fechaHora ? new Date(partido.fechaHora).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "PROGRAMADO"}</span></div>
+                      <p className="relative z-10 truncate text-sm font-bold text-white">{partido.local}</p><p className="relative z-10 truncate text-sm font-bold text-white">{partido.visitante}</p>
                     </div>
                   ))}
                   {partidosCancha.length > 6 && <p className="text-center text-xs text-white/40">+ {partidosCancha.length - 6} partidos más</p>}
