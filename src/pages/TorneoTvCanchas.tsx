@@ -45,7 +45,7 @@ export default function TorneoTvCanchas() {
         return;
       }
       try {
-        const torneosQuery = supabase.from("torneos").select("id, nombre, canchas_asignadas, notas");
+        const torneosQuery = supabase.from("torneos").select("id, nombre, tipo, canchas_asignadas, notas").eq("tipo", "oficial");
         const { data: torneos, error: errorTorneos } = torneoIdsSolicitados.length
           ? await torneosQuery.in("id", torneoIdsSolicitados)
           : await torneosQuery.eq("club_id", tenant!.club!.id).eq("estado", "en_curso");
