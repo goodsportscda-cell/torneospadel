@@ -86,6 +86,7 @@ const App = () => (
                   <Route path="/torneo-individual/:id/tv" element={<TorneoTvView />} />
                   <Route path="/torneo/:id/tv" element={<TorneoTvRouter />} />
                   <Route path="/tv/:id" element={<TorneoTvRouter />} />
+                  <Route path="/tv/canchas" element={<TorneoTvCanchas />} />
                   <Route path="/ranking-publico" element={<RankingPublico />} />
                   <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
                   <Route path="/draft/:id" element={<DraftPublico />} />

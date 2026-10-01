@@ -79,6 +79,26 @@ export function extractFotoFromNotas(notas: string | null | undefined, matchId: 
   return match && match[1] ? match[1].trim() : null;
 }
 
+export type FotoPosition = { x: number; y: number };
+
+export function extractFotoPositionFromNotas(notas: string | null | undefined, matchId: string): FotoPosition | null {
+  if (!notas || !matchId) return null;
+  const match = notas.match(new RegExp(`\\[FOTO_POS_${matchId}:(\\d{1,3}),(\\d{1,3})\\]`));
+  if (!match) return null;
+  const x = Number(match[1]);
+  const y = Number(match[2]);
+  if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+  return { x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) };
+}
+
+export function updateFotoPositionInNotas(notas: string | null | undefined, matchId: string, position: FotoPosition): string {
+  const regex = new RegExp(`\\[FOTO_POS_${matchId}:\\d{1,3},\\d{1,3}\\]\\s*`, "g");
+  const currentNotas = (notas || "").replace(regex, "").trim();
+  const x = Math.max(0, Math.min(100, Math.round(position.x)));
+  const y = Math.max(0, Math.min(100, Math.round(position.y)));
+  return `${currentNotas} [FOTO_POS_${matchId}:${x},${y}]`.trim();
+}
+
 /**
  * Añade o remueve la etiqueta [FOTO_matchId:url] en el texto de notas del torneo.
  */

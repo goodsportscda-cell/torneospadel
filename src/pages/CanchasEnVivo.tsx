@@ -8,12 +8,14 @@ import { Activity, Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv,
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { toPng } from "html-to-image";
 import { useClubBrand } from "@/hooks/useClubBrand";
+import { useAuth } from "@/hooks/useAuth";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
-import { extractFotoFromNotas } from "@/logic/torneoStandings";
+import { extractFotoFromNotas, extractFotoPositionFromNotas, updateFotoPositionInNotas, type FotoPosition } from "@/logic/torneoStandings";
 
 type Torneo = { id: string; nombre: string; tipo?: string; estado?: string; modalidad?: string; canchas_count?: number; canchas_asignadas?: number[]; notas?: string | null };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
@@ -49,12 +51,14 @@ type Partido = {
   torneo_id?: string;
   fecha_num?: number;
   foto_url?: string | null;
+  foto_position?: FotoPosition | null;
   partido_individual_raw?: any;
 };
 
 export default function CanchasEnVivo() {
   const navigate = useNavigate();
   const clubBrand = useClubBrand();
+  const { clubActivo } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>("");
   const [cantidadCanchas, setCantidadCanchas] = useState(4);
@@ -74,6 +78,8 @@ export default function CanchasEnVivo() {
   ]);
   const [ganadorSeleccionado, setGanadorSeleccionado] = useState<string | null>(null);
   const [fotoCanchaEnVivo, setFotoCanchaEnVivo] = useState<string>("");
+  const [fotoPosition, setFotoPosition] = useState<FotoPosition>({ x: 50, y: 18 });
+  const fotoPositionRef = useRef<FotoPosition>({ x: 50, y: 18 });
   const [isUploadingFotoCancha, setIsUploadingFotoCancha] = useState(false);
   
   const [descargando, setDescargando] = useState(false);
@@ -125,7 +131,10 @@ export default function CanchasEnVivo() {
         toast.error("No hay torneos en curso para proyectar juntos");
         return;
       }
-      window.open(`/tv/canchas?torneos=${encodeURIComponent(torneoIdsEnCurso.join(","))}`, "_blank", "noopener,noreferrer");
+      const tvUrl = clubActivo?.slug
+        ? `/c/${encodeURIComponent(clubActivo.slug)}/tv/canchas`
+        : `/tv/canchas?torneos=${encodeURIComponent(torneoIdsEnCurso.join(","))}`;
+      window.open(tvUrl, "_blank", "noopener,noreferrer");
       return;
     }
 
@@ -193,6 +202,7 @@ export default function CanchasEnVivo() {
               ganador_id: p.ganador_id,
               torneo_id: tId,
               foto_url: extractFotoFromNotas(tNotas, p.id),
+              foto_position: extractFotoPositionFromNotas(tNotas, p.id),
             };
           }));
         }
@@ -220,6 +230,7 @@ export default function CanchasEnVivo() {
               ganador_id: p.ganador_id,
               torneo_id: tId,
               foto_url: extractFotoFromNotas(tNotas, p.id),
+              foto_position: extractFotoPositionFromNotas(tNotas, p.id),
             };
           }));
         }
@@ -266,6 +277,7 @@ export default function CanchasEnVivo() {
             torneo_id: p.torneo_id,
             fecha_num: p.fecha,
             foto_url: pFoto,
+            foto_position: extractFotoPositionFromNotas(tNotas, p.id),
             partido_individual_raw: p,
           };
         }));
@@ -351,7 +363,29 @@ export default function CanchasEnVivo() {
     setSets([{ local: "", visitante: "" }, { local: "", visitante: "" }, { local: "", visitante: "" }]);
     setGanadorSeleccionado(null);
     setFotoCanchaEnVivo(p.foto_url || p.partido_individual_raw?.foto_url || "");
+    const position = p.foto_position || { x: 50, y: 18 };
+    setFotoPosition(position);
+    fotoPositionRef.current = position;
     setIsUploadingFotoCancha(false);
+  };
+
+  const guardarFotoPosition = async (axis: keyof FotoPosition, value: number) => {
+    const nextPosition = { ...fotoPositionRef.current, [axis]: value };
+    fotoPositionRef.current = nextPosition;
+    setFotoPosition(nextPosition);
+    if (!partidoCargar) return;
+    const tId = partidoCargar.torneo_id || (torneoId !== "todos" ? torneoId : "");
+    if (!tId) return;
+    try {
+      const { data: tournament, error: readError } = await supabase.from("torneos").select("notas").eq("id", tId).single();
+      if (readError) throw readError;
+      const notas = updateFotoPositionInNotas(tournament?.notas, partidoCargar.id, nextPosition);
+      const { error } = await supabase.from("torneos").update({ notas }).eq("id", tId);
+      if (error) throw error;
+      toast.success("Encuadre guardado para la pantalla TV");
+    } catch (err: any) {
+      toast.error("No se pudo guardar el encuadre: " + (err?.message || ""));
+    }
   };
 
   const tieneSetCargado = useMemo(() => {
@@ -965,7 +999,23 @@ export default function CanchasEnVivo() {
                 </div>
                 {fotoCanchaEnVivo && (
                   <div className="w-full h-20 rounded-md overflow-hidden border border-border">
-                    <img src={fotoCanchaEnVivo} alt="Foto" className="w-full h-full object-cover" />
+                    <img src={fotoCanchaEnVivo} alt="Vista previa del encuadre para TV" className="w-full h-full object-cover" style={{ objectPosition: `${fotoPosition.x}% ${fotoPosition.y}%` }} />
+                  </div>
+                )}
+                {fotoCanchaEnVivo && (
+                  <div className="space-y-3 rounded-md bg-background/70 p-2.5">
+                    <div>
+                      <p className="text-[11px] font-bold">Encuadre de la foto en TV</p>
+                      <p className="text-[10px] text-muted-foreground">Mové la imagen hasta que se vean bien las caras. Se guarda para este partido.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[10px]"><Label>Horizontal</Label><span className="text-muted-foreground">{fotoPosition.x}%</span></div>
+                      <Slider aria-label="Encuadre horizontal" min={0} max={100} step={1} value={[fotoPosition.x]} onValueChange={([value]) => { const next = { ...fotoPositionRef.current, x: value }; fotoPositionRef.current = next; setFotoPosition(next); }} onValueCommit={([value]) => void guardarFotoPosition("x", value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-[10px]"><Label>Vertical</Label><span className="text-muted-foreground">{fotoPosition.y}%</span></div>
+                      <Slider aria-label="Encuadre vertical" min={0} max={100} step={1} value={[fotoPosition.y]} onValueChange={([value]) => { const next = { ...fotoPositionRef.current, y: value }; fotoPositionRef.current = next; setFotoPosition(next); }} onValueCommit={([value]) => void guardarFotoPosition("y", value)} />
+                    </div>
                   </div>
                 )}
               </div>
