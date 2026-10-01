@@ -38,6 +38,7 @@ const TorneoIndividualPublico = lazy(() => import("./pages/TorneoIndividualPubli
 const TorneoTvView = lazy(() => import("./pages/TorneoTvView.tsx"));
 const TorneoTvRouter = lazy(() => import("./pages/TorneoTvRouter.tsx"));
 const TorneoTvSelector = lazy(() => import("./pages/TorneoTvSelector.tsx"));
+  const TorneoTvCanchas = lazy(() => import("./pages/TorneoTvCanchas.tsx"));
 const SuperAdminDashboard = lazy(() => import("./pages/SuperAdminDashboard.tsx"));
 const Configuracion = lazy(() => import("./pages/Configuracion.tsx"));
 const NotFound = lazy(() => import("./pages/NotFound.tsx"));
@@ -100,6 +101,7 @@ const App = () => (
             <Route path="/torneo/:id/tv" element={<TorneoTvRouter />} />
             <Route path="/tv/:id" element={<TorneoTvRouter />} />
             <Route path="/tv" element={<TorneoTvSelector />} />
+            <Route path="/tv/canchas" element={<TorneoTvCanchas />} />
             <Route path="/ranking-publico" element={<RankingPublico />} />
             <Route path="/mi-panel" element={<Navigate to="/player/dashboard" replace />} />
             <Route path="/draft/:id" element={<DraftPublico />} />

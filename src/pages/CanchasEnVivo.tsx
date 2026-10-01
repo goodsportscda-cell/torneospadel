@@ -15,9 +15,23 @@ import { useClubBrand } from "@/hooks/useClubBrand";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas } from "@/logic/torneoStandings";
 
-type Torneo = { id: string; nombre: string; tipo?: string; estado?: string; modalidad?: string; canchas_count?: number; notas?: string | null };
+type Torneo = { id: string; nombre: string; tipo?: string; estado?: string; modalidad?: string; canchas_count?: number; canchas_asignadas?: number[]; notas?: string | null };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
+
+const PAGE_SIZE = 1000;
+
+async function cargarTodasLasFilas<T>(
+  cargarPagina: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const filas: T[] = [];
+  for (let desde = 0; ; desde += PAGE_SIZE) {
+    const { data, error } = await cargarPagina(desde, desde + PAGE_SIZE - 1);
+    if (error) throw error;
+    filas.push(...(data ?? []));
+    if (!data || data.length < PAGE_SIZE) return filas;
+  }
+}
 
 type Partido = {
   id: string;
@@ -68,7 +82,7 @@ export default function CanchasEnVivo() {
   useEffect(() => {
     supabase
       .from("torneos")
-      .select("id, nombre, tipo, estado, modalidad, canchas_count, notas")
+      .select("id, nombre, tipo, estado, modalidad, canchas_count, canchas_asignadas, notas")
       .neq("estado", "cancelado")
       .order("created_at", { ascending: false })
       .then(({ data }) => {
@@ -88,19 +102,36 @@ export default function CanchasEnVivo() {
   }, [torneos, torneoId]);
 
   useEffect(() => {
+    if (torneoId === "todos") {
+      const maxCanchaAsignada = torneos.reduce((max, torneo) => {
+        const asignadas = (torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite);
+        return Math.max(max, ...asignadas);
+      }, 0);
+      if (maxCanchaAsignada > 0) {
+        setCantidadCanchas(maxCanchaAsignada);
+      }
+      return;
+    }
+
     if (torneoActivoSeleccionado?.canchas_count) {
       setCantidadCanchas(torneoActivoSeleccionado.canchas_count);
     }
-  }, [torneoActivoSeleccionado]);
+  }, [torneoActivoSeleccionado, torneoId, torneos]);
 
-  const handleOpenTvMode = (targetTorneoId?: string) => {
-    const selectedId = targetTorneoId || (torneoId !== "todos" && torneoId ? torneoId : torneos[0]?.id);
-    if (!selectedId) {
-      toast.error("No hay torneos registrados para proyectar en TV");
+  const handleOpenTvMode = () => {
+    if (torneoId === "todos") {
+      const torneoIdsEnCurso = torneos.filter((torneo) => torneo.estado === "en_curso").map((torneo) => torneo.id);
+      if (torneoIdsEnCurso.length === 0) {
+        toast.error("No hay torneos en curso para proyectar juntos");
+        return;
+      }
+      window.open(`/tv/canchas?torneos=${encodeURIComponent(torneoIdsEnCurso.join(","))}`, "_blank", "noopener,noreferrer");
       return;
     }
-    if (!targetTorneoId && (torneoId === "todos" || !torneoId) && torneos.length > 1) {
-      setTvSelectModalOpen(true);
+
+    const selectedId = torneoId || torneos[0]?.id;
+    if (!selectedId) {
+      toast.error("No hay torneos registrados para proyectar en TV");
       return;
     }
     const selectedTorneo = torneos.find((t) => t.id === selectedId);
@@ -121,17 +152,17 @@ export default function CanchasEnVivo() {
         return;
       }
 
-      const [{ data: ins }, { data: jugs }] = await Promise.all([
-        supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds).eq("estado", "confirmada"),
+      const [ins, { data: jugs }] = await Promise.all([
+        cargarTodasLasFilas((desde, hasta) => supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds).eq("estado", "confirmada").order("id").range(desde, hasta)),
         (supabase as any).from("jugadores_publicos").select("id, nombre, apellido"),
       ]);
-      setInscripciones((ins ?? []) as Inscripcion[]);
+      setInscripciones(ins as Inscripcion[]);
       setJugadores((jugs ?? []) as Jugador[]);
 
-      const [{ data: zs }, { data: lls }, { data: pInd }] = await Promise.all([
-        supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds),
-        supabase.from("llaves").select("id, tamanio_cuadro, torneo_id").in("torneo_id", torneoIds),
-        supabase.from("partidos_individuales").select("*").in("torneo_id", torneoIds).order("fecha", { ascending: false }),
+      const [zs, lls, pInd] = await Promise.all([
+        cargarTodasLasFilas((desde, hasta) => supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds).order("id").range(desde, hasta)),
+        cargarTodasLasFilas((desde, hasta) => supabase.from("llaves").select("id, tamanio_cuadro, torneo_id").in("torneo_id", torneoIds).order("id").range(desde, hasta)),
+        cargarTodasLasFilas((desde, hasta) => supabase.from("partidos_individuales").select("*").in("torneo_id", torneoIds).order("fecha", { ascending: false }).order("id").range(desde, hasta)),
       ]);
 
       const tMap = new Map(torneos.map(t => [t.id, t.nombre]));
@@ -142,8 +173,8 @@ export default function CanchasEnVivo() {
       // 1. Partidos tradicionales por Zonas
       if (zs && zs.length > 0) {
         const zMap = new Map(zs.map(z => [z.id, { nombre: z.nombre, torneo_id: z.torneo_id }]));
-        const { data: pz } = await supabase.from("partidos_zona").select("*").in("zona_id", zs.map(z => z.id));
-        if (pz) {
+        const pz = await cargarTodasLasFilas((desde, hasta) => supabase.from("partidos_zona").select("*").in("zona_id", zs.map(z => z.id)).order("id").range(desde, hasta));
+        if (pz.length > 0) {
           partsArr = partsArr.concat(pz.map(p => {
             const zInfo = zMap.get(p.zona_id);
             const tId = zInfo?.torneo_id;
@@ -170,8 +201,8 @@ export default function CanchasEnVivo() {
       // 2. Partidos tradicionales por Llaves
       if (lls && lls.length > 0) {
         const llMap = new Map(lls.map(l => [l.id, l.torneo_id]));
-        const { data: pl } = await supabase.from("partidos_llave").select("*").in("llave_id", lls.map(l => l.id));
-        if (pl) {
+        const pl = await cargarTodasLasFilas((desde, hasta) => supabase.from("partidos_llave").select("*").in("llave_id", lls.map(l => l.id)).order("id").range(desde, hasta));
+        if (pl.length > 0) {
           partsArr = partsArr.concat(pl.map(p => {
             const tId = llMap.get(p.llave_id);
             const tNombre = tId ? tMap.get(tId) : "";
@@ -195,7 +226,7 @@ export default function CanchasEnVivo() {
       }
 
       // 3. Partidos de Torneos Semanales / Individuales / Desafíos / Liga de Parejas
-      if (pInd && pInd.length > 0) {
+      if (pInd.length > 0) {
         partsArr = partsArr.concat(pInd.map(p => {
           const tNombre = tMap.get(p.torneo_id) || "";
           const tNotas = tNotasMap.get(p.torneo_id);
