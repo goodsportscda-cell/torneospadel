@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Activity, Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink, Camera, Upload } from "lucide-react";
+import { Activity, Clock, Play, MapPin, CheckCircle2, Share2, Plus, Loader2, Tv, ExternalLink, Camera, Upload, CalendarDays } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,12 +16,21 @@ import { useClubBrand } from "@/hooks/useClubBrand";
 import { useAuth } from "@/hooks/useAuth";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, updateFotoPositionInNotas, type FotoPosition } from "@/logic/torneoStandings";
+import { CompartirPartidosDelDiaDialog, type PartidoPlacaDia } from "@/components/canchas/CompartirPartidosDelDiaDialog";
 
 type Torneo = { id: string; nombre: string; tipo?: string; estado?: string; modalidad?: string; canchas_count?: number; canchas_asignadas?: number[]; notas?: string | null };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
 
 const PAGE_SIZE = 1000;
+
+const fechaLocalISO = (fecha: Date) => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
+
+const obtenerFechaManana = () => {
+  const fecha = new Date();
+  fecha.setDate(fecha.getDate() + 1);
+  return fechaLocalISO(fecha);
+};
 
 async function cargarTodasLasFilas<T>(
   cargarPagina: (desde: number, hasta: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
@@ -63,6 +72,8 @@ export default function CanchasEnVivo() {
   const [torneoId, setTorneoId] = useState<string>("");
   const [cantidadCanchas, setCantidadCanchas] = useState(4);
   const [tvSelectModalOpen, setTvSelectModalOpen] = useState(false);
+  const [placaDiaAbierta, setPlacaDiaAbierta] = useState(false);
+  const [fechaPlacaDia, setFechaPlacaDia] = useState(obtenerFechaManana);
   
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
@@ -95,9 +106,10 @@ export default function CanchasEnVivo() {
         const torneosData = (data as Torneo[]) ?? [];
         setTorneos(torneosData);
         if (torneosData.length > 0 && !torneoId) {
-          setTorneoId(torneosData[0].id);
-          if (torneosData[0].canchas_count) {
-            setCantidadCanchas(torneosData[0].canchas_count);
+          setTorneoId("todos");
+          const maxCancha = torneosData.reduce((max, torneo) => Math.max(max, ...(torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite)), 0);
+          if (maxCancha > 0) {
+            setCantidadCanchas(maxCancha);
           }
         }
       });
@@ -330,6 +342,32 @@ export default function CanchasEnVivo() {
     // Partidos que tienen rivales definidos, no están finalizados y no están en juego
     return partidos.filter(p => p.estado !== "finalizado" && p.estado !== "en_juego" && p.pareja_local_id && p.pareja_visitante_id);
   }, [partidos]);
+
+  const partidosPlacaDia = useMemo<PartidoPlacaDia[]>(() => {
+    const torneoMap = new Map(torneos.map((torneo) => [torneo.id, torneo]));
+    return partidos
+      .filter((partido) => {
+        if (!partido.fecha_hora || !partido.torneo_id || partido.estado === "finalizado" || partido.estado === "cancelado") return false;
+        const fechaPartido = new Date(partido.fecha_hora);
+        if (Number.isNaN(fechaPartido.getTime()) || fechaLocalISO(fechaPartido) !== fechaPlacaDia) return false;
+        if (torneoId === "todos") return torneoMap.get(partido.torneo_id)?.tipo === "oficial";
+        return partido.torneo_id === torneoId;
+      })
+      .map((partido) => {
+        const fecha = partido.fecha_hora ? new Date(partido.fecha_hora) : null;
+        const torneo = partido.torneo_id ? torneoMap.get(partido.torneo_id) : null;
+        return {
+          id: `${partido.torneo_id ?? "torneo"}-${partido.id}`,
+          hora: partido.hora_display || (fecha && !Number.isNaN(fecha.getTime()) ? fecha.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : "A confirmar"),
+          cancha: partido.cancha,
+          local: parejaLabel(partido.pareja_local_id, partido),
+          visitante: parejaLabel(partido.pareja_visitante_id, partido),
+          torneo: torneo?.nombre ?? "Torneo",
+          fase: partido.faseNombre,
+        };
+      })
+      .sort((a, b) => a.hora.localeCompare(b.hora));
+  }, [partidos, fechaPlacaDia, torneoId, torneos, inscripciones, jugadores]);
 
   const canchas = Array.from({ length: cantidadCanchas }, (_, i) => (i + 1).toString());
 
@@ -685,6 +723,10 @@ export default function CanchasEnVivo() {
             {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <Share2 className="h-4 w-4" />}
             Compartir IG
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setPlacaDiaAbierta(true)} className="gap-2 text-xs h-7">
+            <CalendarDays className="h-4 w-4" />
+            Placa del día
+          </Button>
           <div className="flex items-center gap-2 border px-3 py-1 rounded-md">
             <Label className="text-xs">Canchas:</Label>
             <Input 
@@ -862,6 +904,15 @@ export default function CanchasEnVivo() {
           })}
         </div>
       )}
+
+      <CompartirPartidosDelDiaDialog
+        open={placaDiaAbierta}
+        onOpenChange={setPlacaDiaAbierta}
+        fecha={fechaPlacaDia}
+        onFechaChange={setFechaPlacaDia}
+        clubNombre={clubBrand.nombre}
+        partidos={partidosPlacaDia}
+      />
 
       {/* Modal Asignar Cancha */}
       <Dialog open={!!asignarCanchaNum} onOpenChange={(o) => !o && setAsignarCanchaNum(null)}>
