@@ -29,7 +29,7 @@ interface CompartirPartidosDelDiaDialogProps {
 
 const CANVAS_WIDTH = 540;
 const CANVAS_HEIGHT = 960;
-const PARTIDOS_POR_PLACA = 8;
+const PARTIDOS_POR_PLACA = 4;
 
 const fechaLegible = (fecha: string) => {
   if (!fecha) return "Fecha a confirmar";
@@ -47,7 +47,7 @@ const nombreCancha = (cancha: string | null) => {
 
 const PosterPartidos = forwardRef<HTMLDivElement, { pagina: PaginaPlaca; fecha: string; clubNombre: string }>(
   ({ pagina, fecha, clubNombre }, ref) => {
-    const compacto = pagina.partidos.length > 6;
+    const compacto = pagina.partidos.length >= 4;
     return (
       <div
         ref={ref}
@@ -153,7 +153,9 @@ export function CompartirPartidosDelDiaDialog({ open, onOpenChange, fecha, onFec
         if (!capturaRef.current) continue;
         const dataUrl = await toPng(capturaRef.current, { cacheBust: true, pixelRatio: 2, backgroundColor: "#080b12" });
         const link = document.createElement("a");
-        link.download = `partidos-${fecha}-cancha-${paginas[indice].cancha.toLowerCase().replace(/\s+/g, "-")}${paginas[indice].partes > 1 ? `-${paginas[indice].parte}` : ""}.png`;
+        const numeroCancha = paginas[indice].cancha.match(/\d+/)?.[0] ?? "sin-asignar";
+        const parteArchivo = paginas[indice].partes > 1 ? `-parte-${paginas[indice].parte}-de-${paginas[indice].partes}` : "";
+        link.download = `partidos-${fecha}-cancha-${numeroCancha}${parteArchivo}.png`;
         link.href = dataUrl;
         link.click();
         await new Promise((resolve) => window.setTimeout(resolve, 180));
@@ -176,7 +178,7 @@ export function CompartirPartidosDelDiaDialog({ open, onOpenChange, fecha, onFec
       <DialogContent className="max-w-4xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2"><CalendarDays className="h-5 w-5 text-primary" /> Placa de partidos del día</DialogTitle>
-          <DialogDescription>Elegí la fecha y descargá una historia por cancha. Si una cancha tiene muchos partidos, se divide en varias placas.</DialogDescription>
+          <DialogDescription>Elegí la fecha y descargá historias por cancha. Cada placa incluye hasta cuatro partidos para que toda la información entre completa y legible.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-6 md:grid-cols-[1fr_270px]">
@@ -186,7 +188,7 @@ export function CompartirPartidosDelDiaDialog({ open, onOpenChange, fecha, onFec
               <Input id="fecha-placa-partidos" type="date" value={fecha} onChange={(event) => onFechaChange(event.target.value)} />
             </div>
             <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
-              La placa separa los partidos por cancha e indica la hora, las parejas y el torneo. Se incluyen los torneos oficiales de la selección actual.
+              La placa separa los partidos por cancha e indica la hora, las parejas y el torneo. Si hay más de cuatro en una cancha, se descargan partes numeradas para incluirlos todos.
             </div>
             {paginas.length > 0 ? (
               <div className="flex items-center justify-between rounded-lg border p-3">
