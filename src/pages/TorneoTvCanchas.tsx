@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Activity, Copy, Loader2, MapPin, Maximize2, Minimize2, RefreshCw, Tv } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -19,6 +19,9 @@ type PartidoTv = {
   fotoPosition: FotoPosition;
 };
 
+type ScreenWakeLock = { release: () => Promise<void>; addEventListener: (type: string, listener: () => void) => void };
+type NavigatorWithWakeLock = Navigator & { wakeLock?: { request: (type: "screen") => Promise<ScreenWakeLock> } };
+
 const numeroCancha = (cancha: string | null) => cancha?.match(/\d+/)?.[0] ?? null;
 const esUrlDeFotoSegura = (value: string | null): value is string => Boolean(value && (/^https?:\/\//i.test(value) || /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(value)));
 
@@ -35,6 +38,8 @@ export default function TorneoTvCanchas() {
   const [actualizado, setActualizado] = useState<Date | null>(null);
   const [pantallaCompleta, setPantallaCompleta] = useState(false);
   const [paginaCanchas, setPaginaCanchas] = useState(0);
+  const [bloqueoPantallaActivo, setBloqueoPantallaActivo] = useState<boolean | null>(null);
+  const wakeLockRef = useRef<ScreenWakeLock | null>(null);
 
   useEffect(() => {
     let cancelado = false;
@@ -141,6 +146,52 @@ export default function TorneoTvCanchas() {
     return () => document.removeEventListener("fullscreenchange", syncFullscreen);
   }, []);
 
+  useEffect(() => {
+    let desmontado = false;
+    let solicitando = false;
+    const solicitarBloqueo = async () => {
+      if (desmontado || solicitando || wakeLockRef.current || document.visibilityState !== "visible") return;
+      const wakeLock = (navigator as NavigatorWithWakeLock).wakeLock;
+      if (!wakeLock) {
+        setBloqueoPantallaActivo(false);
+        return;
+      }
+      solicitando = true;
+      try {
+        const lock = await wakeLock.request("screen");
+        if (desmontado || document.visibilityState !== "visible") {
+          await lock.release().catch(() => {});
+          return;
+        }
+        wakeLockRef.current = lock;
+        setBloqueoPantallaActivo(true);
+        lock.addEventListener("release", () => {
+          if (wakeLockRef.current === lock) wakeLockRef.current = null;
+          if (!desmontado) setBloqueoPantallaActivo(false);
+        });
+      } catch {
+        if (!desmontado) setBloqueoPantallaActivo(false);
+      } finally {
+        solicitando = false;
+      }
+    };
+    const alCambiarVisibilidad = () => {
+      if (document.visibilityState === "visible") void solicitarBloqueo();
+      else setBloqueoPantallaActivo(false);
+    };
+    void solicitarBloqueo();
+    document.addEventListener("visibilitychange", alCambiarVisibilidad);
+    window.addEventListener("focus", solicitarBloqueo);
+    return () => {
+      desmontado = true;
+      document.removeEventListener("visibilitychange", alCambiarVisibilidad);
+      window.removeEventListener("focus", solicitarBloqueo);
+      const lock = wakeLockRef.current;
+      wakeLockRef.current = null;
+      if (lock) void lock.release().catch(() => {});
+    };
+  }, []);
+
   const alternarPantallaCompleta = () => {
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
     else document.documentElement.requestFullscreen().catch(() => {});
@@ -156,7 +207,7 @@ export default function TorneoTvCanchas() {
   };
 
   const canchas = Array.from({ length: cantidadCanchas }, (_, index) => String(index + 1));
-  const canchasPorPagina = 3;
+  const canchasPorPagina = 1;
   const cantidadPaginasCanchas = Math.ceil(canchas.length / canchasPorPagina);
   const canchasVisibles = canchas.slice(paginaCanchas * canchasPorPagina, (paginaCanchas + 1) * canchasPorPagina);
 
@@ -178,7 +229,11 @@ export default function TorneoTvCanchas() {
           <p className="mt-2 text-sm text-white/55">{nombresTorneos.join(" · ") || "Torneos en curso"}</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 text-xs text-white/55"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización automática cada 15 segundos{cantidadPaginasCanchas > 1 ? ` · Canchas ${paginaCanchas * canchasPorPagina + 1}-${Math.min((paginaCanchas + 1) * canchasPorPagina, canchas.length)} de ${canchas.length}` : ""}{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
+            <span className="flex items-center gap-2"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización cada 15 s{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</span>
+            {cantidadPaginasCanchas > 1 && <span className="text-cyan-200">Cancha {canchas[paginaCanchas]} · {paginaCanchas + 1}/{canchas.length} · rota cada 15 s</span>}
+            <span className={bloqueoPantallaActivo ? "text-emerald-300" : "text-amber-200"}>{bloqueoPantallaActivo ? "Pantalla activa" : bloqueoPantallaActivo === false ? "Ahorro de pantalla según TV Bro" : "Activando pantalla"}</span>
+          </div>
           <button type="button" onClick={copiarEnlace} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-2 text-xs font-bold text-white/75 transition hover:bg-white/10" title="Copiar enlace de TV"><Copy className="h-4 w-4" /><span className="hidden sm:inline">Copiar enlace</span></button>
           <button type="button" onClick={alternarPantallaCompleta} className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-2 text-cyan-100 transition hover:bg-cyan-300/20" title={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"} aria-label={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}>
             {pantallaCompleta ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
