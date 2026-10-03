@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -104,6 +104,20 @@ export function PartidoCard({
 
   const queryClient = useQueryClient();
 
+  const loadTorneoNotas = useCallback((tId: string) => queryClient.fetchQuery({
+    queryKey: ["torneo-notas", tId],
+    staleTime: 30_000,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("torneos")
+        .select("notas")
+        .eq("id", tId)
+        .maybeSingle();
+      if (error) throw error;
+      return data?.notas ?? null;
+    },
+  }), [queryClient]);
+
   useEffect(() => {
     let isMounted = true;
     const loadFotoAndTorneo = async () => {
@@ -119,16 +133,19 @@ export function PartidoCard({
 
       if (tId) {
         if (isMounted) setEffectiveTorneoId(tId);
-        const { data: t } = await supabase.from("torneos").select("notas").eq("id", tId).maybeSingle();
-        if (isMounted && t?.notas) {
-          const extracted = extractFotoFromNotas(t.notas, partidoId);
+        try {
+          const notas = await loadTorneoNotas(tId);
+          if (!isMounted || !notas) return;
+          const extracted = extractFotoFromNotas(notas, partidoId);
           if (extracted) setFotoUrl(extracted);
+        } catch (error) {
+          console.warn("No se pudo cargar la foto del partido", error);
         }
       }
     };
     loadFotoAndTorneo();
     return () => { isMounted = false; };
-  }, [partidoId, torneoId, zonaId, tabla, routeParams.id]);
+  }, [partidoId, torneoId, zonaId, tabla, routeParams.id, loadTorneoNotas]);
 
   const handleFotoUpload = async (file: File) => {
     if (!file) return;
@@ -138,7 +155,8 @@ export function PartidoCard({
       setFotoUrl(url);
       if (effectiveTorneoId) {
         const { data: tData } = await supabase.from("torneos").select("notas").eq("id", effectiveTorneoId).maybeSingle();
-        await persistPartidoPhoto(effectiveTorneoId, partidoId, url, tData?.notas);
+        const updatedNotas = await persistPartidoPhoto(effectiveTorneoId, partidoId, url, tData?.notas);
+        queryClient.setQueryData(["torneo-notas", effectiveTorneoId], updatedNotas);
         queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
         queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });
       }
@@ -392,7 +410,8 @@ export function PartidoCard({
       if (effectiveTorneoId && fotoUrl) {
         try {
           const { data: tData } = await supabase.from("torneos").select("notas").eq("id", effectiveTorneoId).maybeSingle();
-          await persistPartidoPhoto(effectiveTorneoId, partidoId, fotoUrl, tData?.notas);
+          const updatedNotas = await persistPartidoPhoto(effectiveTorneoId, partidoId, fotoUrl, tData?.notas);
+          queryClient.setQueryData(["torneo-notas", effectiveTorneoId], updatedNotas);
         } catch (photoErr) {
           console.warn("Error guardando foto en notas:", photoErr);
         }
@@ -850,7 +869,8 @@ export function PartidoCard({
                           setFotoUrl("");
                           if (effectiveTorneoId) {
                             const { data: tData } = await supabase.from("torneos").select("notas").eq("id", effectiveTorneoId).maybeSingle();
-                            await persistPartidoPhoto(effectiveTorneoId, partidoId, "", tData?.notas);
+                            const updatedNotas = await persistPartidoPhoto(effectiveTorneoId, partidoId, "", tData?.notas);
+                            queryClient.setQueryData(["torneo-notas", effectiveTorneoId], updatedNotas);
                             toast.info("Foto eliminada");
                           }
                         }}

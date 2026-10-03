@@ -9,10 +9,22 @@ import { ModeToggle } from "@/components/mode-toggle";
 import LegalLinks from "@/components/LegalLinks";
 
 type PublicClub = { id: string; nombre: string; slug: string; logo_url: string | null };
+const CLUBS_CACHE_KEY = "padel-id-public-clubs-v1";
+
+function readCachedClubs(): PublicClub[] {
+  try {
+    const cached = localStorage.getItem(CLUBS_CACHE_KEY);
+    if (!cached) return [];
+    const parsed: unknown = JSON.parse(cached);
+    return Array.isArray(parsed) ? parsed as PublicClub[] : [];
+  } catch {
+    return [];
+  }
+}
 
 export default function PublicHome() {
-  const [clubs, setClubs] = useState<PublicClub[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [clubs, setClubs] = useState<PublicClub[]>(readCachedClubs);
+  const [loading, setLoading] = useState(() => readCachedClubs().length === 0);
   const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
@@ -22,7 +34,15 @@ export default function PublicHome() {
         .select("id, nombre, slug, logo_url")
         .order("nombre");
       if (error) setLoadError(true);
-      else setClubs(data ?? []);
+      else {
+        const nextClubs = data ?? [];
+        setClubs(nextClubs);
+        try {
+          localStorage.setItem(CLUBS_CACHE_KEY, JSON.stringify(nextClubs));
+        } catch {
+          // The page still works when browser storage is unavailable.
+        }
+      }
       setLoading(false);
     };
     loadClubs();

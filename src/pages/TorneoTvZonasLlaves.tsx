@@ -230,7 +230,10 @@ export default function TorneoTvZonasLlaves() {
     };
 
     loadPhotos();
-    const timer = window.setInterval(loadPhotos, 30000);
+    // Photos change far less often than live scores (which use Realtime above).
+    // Polling every two minutes avoids repeated reads of the large notas field
+    // from each TV screen while still refreshing occasional photo changes.
+    const timer = window.setInterval(loadPhotos, 120000);
     return () => {
       cancelled = true;
       window.clearInterval(timer);

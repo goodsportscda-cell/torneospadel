@@ -100,12 +100,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setClubId(targetClub);
         
+        // Roles are enough to route the user into the app. Load club details in
+        // the background so a second network round trip does not block login.
+        setClubActivo(null);
+        setLoading(false);
         if (targetClub) {
-          const clubInfo = await fetchClubDetails(targetClub);
-          if (generation !== syncGenerationRef.current) return;
-          setClubActivo(clubInfo);
-        } else {
-          setClubActivo(null);
+          void fetchClubDetails(targetClub).then((clubInfo) => {
+            if (generation === syncGenerationRef.current) setClubActivo(clubInfo);
+          }).catch((error) => {
+            if (generation === syncGenerationRef.current) setClubActivo(null);
+            console.error("Error al cargar los datos del club:", error);
+          });
         }
       } catch (error) {
         if (generation !== syncGenerationRef.current) return;
