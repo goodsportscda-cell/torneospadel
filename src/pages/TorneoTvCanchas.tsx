@@ -40,17 +40,22 @@ export default function TorneoTvCanchas() {
   const [paginaCanchas, setPaginaCanchas] = useState(0);
   const [bloqueoPantallaActivo, setBloqueoPantallaActivo] = useState<boolean | null>(null);
   const wakeLockRef = useRef<ScreenWakeLock | null>(null);
+  const notasTorneosRef = useRef(new Map<string, string | null>());
+  const lastNotasRefreshAtRef = useRef(0);
 
   useEffect(() => {
     let cancelado = false;
+    let cargando = false;
     const cargar = async () => {
+      if (cargando) return;
       if (torneoIdsSolicitados.length === 0 && !tenant?.club?.id) {
         setError(true);
         setLoading(false);
         return;
       }
+      cargando = true;
       try {
-        const torneosQuery = supabase.from("torneos").select("id, nombre, tipo, canchas_asignadas, notas").eq("tipo", "oficial");
+        const torneosQuery = supabase.from("torneos").select("id, nombre, tipo, canchas_asignadas").eq("tipo", "oficial");
         const { data: torneos, error: errorTorneos } = torneoIdsSolicitados.length
           ? await torneosQuery.in("id", torneoIdsSolicitados)
           : await torneosQuery.eq("club_id", tenant!.club!.id).eq("estado", "en_curso");
@@ -66,20 +71,40 @@ export default function TorneoTvCanchas() {
           }
           return;
         }
-        const [{ data: zonas, error: errorZonas }, { data: llaves, error: errorLlaves }, { data: inscripciones, error: errorInscripciones }, { data: jugadores, error: errorJugadores }, { data: individuales, error: errorIndividuales }] = await Promise.all([
+        const [{ data: zonas, error: errorZonas }, { data: llaves, error: errorLlaves }, { data: inscripciones, error: errorInscripciones }, { data: individuales, error: errorIndividuales }] = await Promise.all([
           supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds),
           supabase.from("llaves").select("id, torneo_id").in("torneo_id", torneoIds),
           supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds),
-          (supabase as any).from("jugadores_publicos").select("id, nombre, apellido"),
           supabase.from("partidos_individuales").select("*").in("torneo_id", torneoIds),
         ]);
-        if (errorZonas || errorLlaves || errorInscripciones || errorJugadores || errorIndividuales) throw errorZonas || errorLlaves || errorInscripciones || errorJugadores || errorIndividuales;
+        if (errorZonas || errorLlaves || errorInscripciones || errorIndividuales) throw errorZonas || errorLlaves || errorInscripciones || errorIndividuales;
         const zonasLista = (zonas ?? []) as any[];
         const llavesLista = (llaves ?? []) as any[];
         const inscripcionesLista = (inscripciones ?? []) as any[];
+        const individualesLista = (individuales ?? []) as any[];
+        const jugadorIds = [...new Set([
+          ...inscripcionesLista.flatMap((inscripcion) => [inscripcion.jugador1_id, inscripcion.jugador2_id]),
+          ...individualesLista.flatMap((partido) => [partido.jugador1_id, partido.jugador2_id, partido.jugador3_id, partido.jugador4_id]),
+        ].filter((jugadorId): jugadorId is string => Boolean(jugadorId)))];
+        const { data: jugadores, error: errorJugadores } = jugadorIds.length
+          ? await (supabase as any).from("jugadores_publicos").select("id, nombre, apellido").in("id", jugadorIds)
+          : { data: [], error: null };
+        if (errorJugadores) throw errorJugadores;
         const jugadoresLista = (jugadores ?? []) as any[];
+
+        const notasVencidas = Date.now() - lastNotasRefreshAtRef.current >= 120000;
+        const faltanNotas = torneoIds.some((torneoId) => !notasTorneosRef.current.has(torneoId));
+        if (notasVencidas || faltanNotas) {
+          const { data: notasRows, error: errorNotas } = await supabase
+            .from("torneos")
+            .select("id, notas")
+            .in("id", torneoIds);
+          if (errorNotas) throw errorNotas;
+          notasTorneosRef.current = new Map((notasRows ?? []).map((torneo) => [torneo.id, torneo.notas]));
+          lastNotasRefreshAtRef.current = Date.now();
+        }
         const nombres = new Map<string, string>(torneosLista.map((torneo) => [torneo.id, torneo.nombre]));
-        const notasTorneos = new Map<string, string | null>(torneosLista.map((torneo) => [torneo.id, torneo.notas]));
+        const notasTorneos = notasTorneosRef.current;
         const maxCancha = torneosLista.reduce((max, torneo) => Math.max(max, ...(torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite)), 0);
         const inscripcionesMap = new Map(inscripcionesLista.map((inscripcion) => [inscripcion.id, inscripcion]));
         const jugadoresMap = new Map(jugadoresLista.map((jugador) => [jugador.id, `${jugador.apellido ?? ""}, ${jugador.nombre ?? ""}`.trim().replace(/^, |, $/g, "")]));
@@ -130,13 +155,24 @@ export default function TorneoTvCanchas() {
         console.error("No se pudieron cargar los partidos para la TV conjunta", e);
         if (!cancelado) setError(true);
       } finally {
+        cargando = false;
         if (!cancelado) setLoading(false);
       }
     };
     setLoading(true);
     cargar();
-    const interval = window.setInterval(cargar, 15000);
-    return () => { cancelado = true; window.clearInterval(interval); };
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void cargar();
+    }, 30000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void cargar();
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      cancelado = true;
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [torneoIdsSolicitados, tenant?.club?.id]);
 
   useEffect(() => {
