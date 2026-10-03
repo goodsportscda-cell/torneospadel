@@ -35,7 +35,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       setError(null);
       const { data, error } = await supabase
         .from("clubes")
-        .select("*")
+        .select("id, nombre, slug, logo_url")
         .eq("slug", clubSlug)
         .maybeSingle();
 

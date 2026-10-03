@@ -102,6 +102,17 @@ export function useClubRanking(
           .order("id")
           .range(rankingOffset, rankingOffset + step - 1);
 
+        // Limit public club rankings at the database. Tournament points belong
+        // to this club's tournaments; ascension points belong to its categories.
+        if (clubId) {
+          const scopeFilters = [
+            clubTournamentIds.size ? `torneo_id.in.(${Array.from(clubTournamentIds).join(",")})` : null,
+            categoryIds.size ? `categoria_id.in.(${Array.from(categoryIds).join(",")})` : null,
+          ].filter(Boolean);
+          if (!scopeFilters.length) break;
+          rankingQuery = rankingQuery.or(scopeFilters.join(","));
+        }
+
         if (filtroCategoria !== "todas") {
           rankingQuery = rankingQuery.eq("categoria_id", filtroCategoria);
         }
@@ -128,10 +139,16 @@ export function useClubRanking(
       }
 
       // 3. Obtener Ascensos del año para deduplicar y excluir puntos de categorías anteriores
-      const { data: ascensosData, error: ascensosError } = await supabase
-        .from("ascensos")
-        .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos")
-        .eq("anio", filtroAnio);
+      const { data: ascensosData, error: ascensosError } = clubId && categoryIds.size === 0
+        ? { data: [], error: null }
+        : await (async () => {
+          let ascensosQuery = supabase
+            .from("ascensos")
+            .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos")
+            .eq("anio", filtroAnio);
+          if (clubId) ascensosQuery = ascensosQuery.in("categoria_origen_id", Array.from(categoryIds));
+          return await ascensosQuery;
+        })();
         
       if (ascensosError) throw ascensosError;
 

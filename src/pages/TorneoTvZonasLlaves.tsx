@@ -63,6 +63,8 @@ export default function TorneoTvZonasLlaves() {
   const [partidos, setPartidos] = useState<TVPartido[]>([]);
   const [photoUrls, setPhotoUrls] = useState<Record<string, string>>({});
   const partidosRef = useRef<TVPartido[]>([]);
+  const liveRefreshTimerRef = useRef<number | null>(null);
+  const lastLiveRefreshAtRef = useRef(0);
   const [tab, setTab] = useState<"canchas" | "zonas" | "llaves">("canchas");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
@@ -181,8 +183,17 @@ export default function TorneoTvZonasLlaves() {
 
   useEffect(() => {
     loadData();
-    const timer = window.setInterval(() => loadData(true), 10000);
-    return () => window.clearInterval(timer);
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void loadData(true);
+    }, 60000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void loadData(true);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(timer);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [loadData]);
 
   const activeMatchSubscriptions = useMemo(() => partidos
@@ -200,11 +211,29 @@ export default function TorneoTvZonasLlaves() {
       channel.on(
         "postgres_changes",
         { event: "UPDATE", schema: "public", table, filter: `id=eq.${matchId}` },
-        () => loadData(true)
+        () => {
+          // Live-score rows can update repeatedly during a point. Coalesce
+          // those events so one match does not reload every tournament table
+          // for each scoreboard change.
+          if (liveRefreshTimerRef.current !== null) return;
+          const elapsed = Date.now() - lastLiveRefreshAtRef.current;
+          const delay = Math.max(0, 15000 - elapsed);
+          liveRefreshTimerRef.current = window.setTimeout(() => {
+            liveRefreshTimerRef.current = null;
+            lastLiveRefreshAtRef.current = Date.now();
+            void loadData(true);
+          }, delay);
+        }
       );
     });
     channel.subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      if (liveRefreshTimerRef.current !== null) {
+        window.clearTimeout(liveRefreshTimerRef.current);
+        liveRefreshTimerRef.current = null;
+      }
+      supabase.removeChannel(channel);
+    };
   }, [id, activeMatchSubscriptions, loadData]);
 
   useEffect(() => {
