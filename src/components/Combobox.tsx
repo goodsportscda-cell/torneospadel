@@ -18,6 +18,9 @@ export interface ComboOption {
   hint?: string;
 }
 
+const normalizeSearchText = (text: string) =>
+  text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().trim();
+
 interface ComboboxProps {
   options: ComboOption[];
   value: string;
@@ -40,10 +43,22 @@ export function Combobox({
   className,
 }: ComboboxProps) {
   const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
   const selected = options.find((o) => o.value === value);
+  const searchTerms = normalizeSearchText(search).split(/\s+/).filter(Boolean);
+  const filteredOptions = options.filter((option) => {
+    const searchableText = normalizeSearchText(`${option.label} ${option.hint ?? ""}`);
+    return searchTerms.every((term) => searchableText.includes(term));
+  });
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        setOpen(nextOpen);
+        if (!nextOpen) setSearch("");
+      }}
+    >
       <PopoverTrigger asChild>
         <Button
           variant="outline"
@@ -57,18 +72,23 @@ export function Combobox({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
-        <Command>
-          <CommandInput placeholder={searchPlaceholder} />
+        <Command shouldFilter={false}>
+          <CommandInput
+            placeholder={searchPlaceholder}
+            value={search}
+            onValueChange={setSearch}
+          />
           <CommandList>
-            <CommandEmpty>{emptyText}</CommandEmpty>
+            {filteredOptions.length === 0 && <CommandEmpty>{emptyText}</CommandEmpty>}
             <CommandGroup>
-              {options.map((option) => (
+              {filteredOptions.map((option) => (
                 <CommandItem
                   key={option.value}
                   value={`${option.label} ${option.hint ?? ""}`}
                   onSelect={() => {
                     onChange(option.value);
                     setOpen(false);
+                    setSearch("");
                   }}
                 >
                   <Check
