@@ -266,15 +266,34 @@ export default function Inscripciones() {
     if (dialogOpen && jugadores.length === 0) {
       const fetchJugadores = async () => {
         setLoadingJugadores(true);
-        const { data, error } = await supabase
-          .from("jugadores")
-          .select("*")
-          .order("apellido");
-        
-        if (error) {
-          toast.error("Error al cargar jugadores: " + error.message);
+        const pageSize = 1000;
+        const allJugadores: Jugador[] = [];
+        let offset = 0;
+        let fetchError: { message: string } | null = null;
+
+        while (true) {
+          const { data, error } = await supabase
+            .from("jugadores")
+            .select("*")
+            .order("apellido")
+            .order("nombre")
+            .range(offset, offset + pageSize - 1);
+
+          if (error) {
+            fetchError = error;
+            break;
+          }
+
+          const page = data ?? [];
+          allJugadores.push(...page);
+          if (page.length < pageSize) break;
+          offset += pageSize;
+        }
+
+        if (fetchError) {
+          toast.error("Error al cargar jugadores: " + fetchError.message);
         } else {
-          setJugadores(data ?? []);
+          setJugadores(allJugadores);
         }
         setLoadingJugadores(false);
       };
