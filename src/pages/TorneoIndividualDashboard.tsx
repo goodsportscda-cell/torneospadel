@@ -462,31 +462,46 @@ export default function TorneoIndividualDashboard() {
   const handleSaveMatchConfig = async () => {
     if (!selectedPartidoConfig) return;
     try {
-      const { error } = await (supabase as any)
+      // Save the schedule independently so an optional photo column cannot
+      // make the date and time update fail as one atomic request.
+      const { error: scheduleError } = await (supabase as any)
         .from("partidos_individuales")
         .update({
           fecha_programada: matchConfigForm.fecha_programada || null,
           hora_programada: matchConfigForm.hora_programada ? matchConfigForm.hora_programada + ":00" : null,
           cancha: matchConfigForm.cancha || "",
-          foto_url: matchConfigForm.foto_url.trim() || null,
         })
+        .eq("id", selectedPartidoConfig.id);
+      if (scheduleError) throw scheduleError;
+
+      const fotoUrl = matchConfigForm.foto_url.trim() || null;
+      const { error: fotoError } = await (supabase as any)
+        .from("partidos_individuales")
+        .update({ foto_url: fotoUrl })
         .eq("id", selectedPartidoConfig.id);
 
       // Resilient tag persistence in torneos.notas
-      if (torneo) {
+      const fotoColumnMissing = fotoError && (
+        fotoError.message?.includes("foto_url") ||
+        ["PGRST204", "PGRST205", "42703"].includes(fotoError.code)
+      );
+      if (fotoError && !fotoColumnMissing) throw fotoError;
+
+      if (torneo && fotoColumnMissing) {
         const updatedNotas = updateFotoInNotas(
           torneo.notas,
           selectedPartidoConfig.id,
-          matchConfigForm.foto_url.trim() || null
+          fotoUrl
         );
         if (updatedNotas !== (torneo.notas || "")) {
-          await (supabase as any).from("torneos").update({ notas: updatedNotas }).eq("id", id);
+          const { error: notasError } = await (supabase as any)
+            .from("torneos")
+            .update({ notas: updatedNotas })
+            .eq("id", id);
+          if (notasError) throw notasError;
         }
       }
 
-      if (error) {
-        console.warn("Columna foto_url pendiente de cache, persistido en notas:", error.message);
-      }
       toast.success("Partido programado con éxito");
       setConfigMatchDialogOpen(false);
       fetchTournamentData();
