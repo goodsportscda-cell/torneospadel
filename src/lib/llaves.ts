@@ -134,6 +134,27 @@ function llave18(): PartidoLlavePlantilla[] {
   ];
 }
 
+// Cuadro oficial APA para 19 parejas (5 partidos de octavos por los BYE,
+// luego cuartos, semifinales y final).
+function llave19(): PartidoLlavePlantilla[] {
+  return [
+    { numero: 50, ronda: "octavos", ref_local: "2°C", ref_visitante: "2°F" },
+    { numero: 51, ronda: "octavos", ref_local: "1°E", ref_visitante: "2°B" },
+    { numero: 52, ronda: "octavos", ref_local: "3°A", ref_visitante: "1°D" },
+    { numero: 54, ronda: "octavos", ref_local: "2°A", ref_visitante: "1°F" },
+    { numero: 55, ronda: "octavos", ref_local: "2°E", ref_visitante: "2°D" },
+
+    { numero: 57, ronda: "cuartos", ref_local: "1°A", ref_visitante: "G:50" },
+    { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+    { numero: 59, ronda: "cuartos", ref_local: "1°C", ref_visitante: "G:54" },
+    { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "1°B" },
+
+    { numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58" },
+    { numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60" },
+    { numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62" },
+  ];
+}
+
 // 23 parejas (2 zonas de 4 + 5 zonas de 3 = A-G) → 16 clasificados → octavos directos
 // Según manual APA/FAP (cuadro oficial de 23 parejas)
 function llave23(): PartidoLlavePlantilla[] {
@@ -558,6 +579,7 @@ const PLANTILLAS: Record<number, PartidoLlavePlantilla[]> = {
   14: llave14(),
   16: llave16(),
   18: llave18(),
+  19: llave19(),
   21: llave21(),
   23: llave23(),
   24: llave24(),

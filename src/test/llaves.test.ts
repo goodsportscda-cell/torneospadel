@@ -1,6 +1,42 @@
 import { describe, it, expect } from "vitest";
 import { obtenerPlantilla, CASOS_SOPORTADOS } from "../lib/llaves";
 
+describe("llaves - 19 parejas", () => {
+  it("uses the APA template with the correct octavos and BYE advances", () => {
+    expect(CASOS_SOPORTADOS).toContain(19);
+
+    const plantilla = obtenerPlantilla(19);
+    expect(plantilla).not.toBeNull();
+    if (!plantilla) return;
+
+    expect(plantilla.cantidad).toBe(19);
+    expect(plantilla.partidos).toHaveLength(12);
+    expect(plantilla.partidos.filter((p) => p.ronda === "octavos")).toEqual([
+      { numero: 50, ronda: "octavos", ref_local: "2°C", ref_visitante: "2°F" },
+      { numero: 51, ronda: "octavos", ref_local: "1°E", ref_visitante: "2°B" },
+      { numero: 52, ronda: "octavos", ref_local: "3°A", ref_visitante: "1°D" },
+      { numero: 54, ronda: "octavos", ref_local: "2°A", ref_visitante: "1°F" },
+      { numero: 55, ronda: "octavos", ref_local: "2°E", ref_visitante: "2°D" },
+    ]);
+
+    expect(plantilla.partidos.filter((p) => p.ronda === "cuartos")).toEqual([
+      { numero: 57, ronda: "cuartos", ref_local: "1°A", ref_visitante: "G:50" },
+      { numero: 58, ronda: "cuartos", ref_local: "G:51", ref_visitante: "G:52" },
+      { numero: 59, ronda: "cuartos", ref_local: "1°C", ref_visitante: "G:54" },
+      { numero: 60, ronda: "cuartos", ref_local: "G:55", ref_visitante: "1°B" },
+    ]);
+    expect(plantilla.partidos.find((p) => p.numero === 61)).toEqual({
+      numero: 61, ronda: "semifinal", ref_local: "G:57", ref_visitante: "G:58",
+    });
+    expect(plantilla.partidos.find((p) => p.numero === 62)).toEqual({
+      numero: 62, ronda: "semifinal", ref_local: "G:59", ref_visitante: "G:60",
+    });
+    expect(plantilla.partidos.find((p) => p.numero === 64)).toEqual({
+      numero: 64, ronda: "final", ref_local: "G:61", ref_visitante: "G:62",
+    });
+  });
+});
+
 describe("llaves - 23 parejas draw template", () => {
   it("should support 23 parejas in CASOS_SOPORTADOS", () => {
     expect(CASOS_SOPORTADOS).toContain(23);
