@@ -173,12 +173,10 @@ export default function CanchasEnVivo() {
         return;
       }
 
-      const [ins, { data: jugs }] = await Promise.all([
-        cargarTodasLasFilas((desde, hasta) => supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds).eq("estado", "confirmada").order("id").range(desde, hasta)),
-        (supabase as any).from("jugadores_publicos").select("id, nombre, apellido"),
-      ]);
+      const ins = await cargarTodasLasFilas((desde, hasta) =>
+        supabase.from("inscripciones").select("id, jugador1_id, jugador2_id").in("torneo_id", torneoIds).eq("estado", "confirmada").order("id").range(desde, hasta)
+      );
       setInscripciones(ins as Inscripcion[]);
-      setJugadores((jugs ?? []) as Jugador[]);
 
       const [zs, lls, pInd] = await Promise.all([
         cargarTodasLasFilas((desde, hasta) => supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds).order("id").range(desde, hasta)),
@@ -186,9 +184,21 @@ export default function CanchasEnVivo() {
         cargarTodasLasFilas((desde, hasta) => supabase.from("partidos_individuales").select("*").in("torneo_id", torneoIds).order("fecha", { ascending: false }).order("id").range(desde, hasta)),
       ]);
 
+      const jugadorIds = [...new Set([
+        ...ins.flatMap((inscripcion) => [inscripcion.jugador1_id, inscripcion.jugador2_id]),
+        ...pInd.flatMap((partido) => [partido.jugador1_id, partido.jugador2_id, partido.jugador3_id, partido.jugador4_id]),
+      ].filter((id): id is string => Boolean(id)))];
+      const { data: jugadoresRelevantes } = jugadorIds.length
+        // jugadores_publicos is a database view not present in the generated client types.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ? await (supabase as any).from("jugadores_publicos").select("id, nombre, apellido").in("id", jugadorIds)
+        : { data: [] as Jugador[] };
+      const jugadoresCargados = (jugadoresRelevantes ?? []) as Jugador[];
+      setJugadores(jugadoresCargados);
+
       const tMap = new Map(torneos.map(t => [t.id, t.nombre]));
       const tNotasMap = new Map(torneos.map(t => [t.id, t.notas]));
-      const jugsMap = new Map((jugs ?? []).map(j => [j.id, j]));
+      const jugsMap = new Map(jugadoresCargados.map(j => [j.id, j]));
       let partsArr: Partido[] = [];
 
       // 1. Partidos tradicionales por Zonas

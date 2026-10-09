@@ -28,7 +28,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
-type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
+type Jugador = Pick<Database["public"]["Tables"]["jugadores"]["Row"], "id" | "nombre" | "apellido">;
 
 export default function Zonas() {
   const { clubId, isAdmin, isOperador } = useAuth();
@@ -48,14 +48,18 @@ export default function Zonas() {
   const cargarDatos = useCallback(async () => {
     if (!torneoId) return;
     try {
-      const [{ data: ins }, { data: jugs }, { data: zs }] = await Promise.all([
+      const [{ data: ins }, { data: zs }] = await Promise.all([
         supabase.from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at").eq("torneo_id", torneoId).eq("estado", "confirmada"),
-        supabase.from("jugadores").select("*"),
         supabase.from("zonas").select("*").eq("torneo_id", torneoId).order("orden"),
       ]);
       setInscripciones((ins ?? []) as Inscripcion[]);
-      setJugadores((jugs ?? []) as Jugador[]);
       setZonas((zs ?? []) as Zona[]);
+
+      const jugadorIds = [...new Set((ins ?? []).flatMap((inscripcion) => [inscripcion.jugador1_id, inscripcion.jugador2_id]).filter(Boolean))];
+      const { data: jugadoresDelTorneo } = jugadorIds.length
+        ? await supabase.from("jugadores").select("id, nombre, apellido").in("id", jugadorIds)
+        : { data: [] as Jugador[] };
+      setJugadores(jugadoresDelTorneo ?? []);
 
       if (zs && zs.length > 0) {
         const ids = zs.map((z) => z.id);

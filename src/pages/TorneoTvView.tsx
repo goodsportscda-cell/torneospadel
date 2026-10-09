@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
@@ -66,6 +66,8 @@ export default function TorneoTvView() {
   const [selectedFechaNum, setSelectedFechaNum] = useState<number>(1);
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [currentTime, setCurrentTime] = useState<string>("");
+  const liveRefreshTimerRef = useRef<number | null>(null);
+  const lastLiveRefreshAtRef = useRef(0);
 
   // TV view controls
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -224,37 +226,57 @@ export default function TorneoTvView() {
     fetchData();
   }, [fetchData]);
 
-  // Polling every 8 seconds
+  // Use Realtime for prompt updates and a slower poll as a recovery fallback.
   useEffect(() => {
-    const interval = setInterval(() => {
-      fetchData(true);
-    }, 8000);
-    return () => clearInterval(interval);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") void fetchData(true);
+    }, 60000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") void fetchData(true);
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
   }, [fetchData]);
 
   // Realtime subscription
   useEffect(() => {
     if (!id) return;
+    const refreshFromRealtime = () => {
+      if (document.visibilityState !== "visible" || liveRefreshTimerRef.current !== null) return;
+      const delay = Math.max(0, 10000 - (Date.now() - lastLiveRefreshAtRef.current));
+      liveRefreshTimerRef.current = window.setTimeout(() => {
+        liveRefreshTimerRef.current = null;
+        lastLiveRefreshAtRef.current = Date.now();
+        void fetchData(true);
+      }, delay);
+    };
     const channel = supabase
       .channel(`torneo_tv_${id}`)
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partidos_individuales", filter: `torneo_id=eq.${id}` },
-        () => fetchData(true)
+        refreshFromRealtime
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "torneo_individual_fechas", filter: `torneo_id=eq.${id}` },
-        () => fetchData(true)
+        refreshFromRealtime
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "torneos", filter: `id=eq.${id}` },
-        () => fetchData(true)
+        refreshFromRealtime
       )
       .subscribe();
 
     return () => {
+      if (liveRefreshTimerRef.current !== null) {
+        window.clearTimeout(liveRefreshTimerRef.current);
+        liveRefreshTimerRef.current = null;
+      }
       supabase.removeChannel(channel);
     };
   }, [id, fetchData]);
