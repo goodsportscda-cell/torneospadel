@@ -23,6 +23,7 @@ type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
 type Jugador = { id: string; nombre: string; apellido: string };
 
 const PAGE_SIZE = 1000;
+const PLAYER_LOOKUP_BATCH_SIZE = 200;
 
 const fechaLocalISO = (fecha: Date) => `${fecha.getFullYear()}-${String(fecha.getMonth() + 1).padStart(2, "0")}-${String(fecha.getDate()).padStart(2, "0")}`;
 
@@ -188,12 +189,18 @@ export default function CanchasEnVivo() {
         ...ins.flatMap((inscripcion) => [inscripcion.jugador1_id, inscripcion.jugador2_id]),
         ...pInd.flatMap((partido) => [partido.jugador1_id, partido.jugador2_id, partido.jugador3_id, partido.jugador4_id]),
       ].filter((id): id is string => Boolean(id)))];
-      const { data: jugadoresRelevantes } = jugadorIds.length
+      const jugadoresCargados: Jugador[] = [];
+      // Keep each `in` query small: large tournament rosters can exceed URL limits.
+      for (let offset = 0; offset < jugadorIds.length; offset += PLAYER_LOOKUP_BATCH_SIZE) {
         // jugadores_publicos is a database view not present in the generated client types.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        ? await (supabase as any).from("jugadores_publicos").select("id, nombre, apellido").in("id", jugadorIds)
-        : { data: [] as Jugador[] };
-      const jugadoresCargados = (jugadoresRelevantes ?? []) as Jugador[];
+        const { data: jugadoresRelevantes, error: jugadoresError } = await (supabase as any)
+          .from("jugadores_publicos")
+          .select("id, nombre, apellido")
+          .in("id", jugadorIds.slice(offset, offset + PLAYER_LOOKUP_BATCH_SIZE));
+        if (jugadoresError) throw jugadoresError;
+        jugadoresCargados.push(...((jugadoresRelevantes ?? []) as Jugador[]));
+      }
       setJugadores(jugadoresCargados);
 
       const tMap = new Map(torneos.map(t => [t.id, t.nombre]));
