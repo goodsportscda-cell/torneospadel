@@ -54,6 +54,7 @@ type Props = {
   readOnly?: boolean;
   // Parejas de la zona para edición manual de equipos
   parejasZona?: { inscripcion_id: string; label: string }[];
+  gamesObjetivo?: 7 | 9;
 };
 
 export function PartidoCard({
@@ -77,6 +78,7 @@ export function PartidoCard({
   showProgramacion = false,
   readOnly = false,
   parejasZona,
+  gamesObjetivo,
 }: Props) {
   const routeParams = useParams<{ id: string }>();
   const [sets, setSets] = useState<SetRow[]>([]);
@@ -174,10 +176,10 @@ export function PartidoCard({
     } else {
       setSets([
         { numero_set: 1, games_local: 0, games_visitante: 0 },
-        { numero_set: 2, games_local: 0, games_visitante: 0 },
+        ...(gamesObjetivo ? [] : [{ numero_set: 2, games_local: 0, games_visitante: 0 }]),
       ]);
     }
-  }, [setsExistentes]);
+  }, [setsExistentes, gamesObjetivo]);
 
   // Sincronizar ganadorOverride cuando cambia ganadorId desde el padre (ej. al recargar)
   useEffect(() => {
@@ -316,6 +318,13 @@ export function PartidoCard({
 
   const calcularGanador = (): string | null => {
     if (!parejaLocal || !parejaVisitante) return null;
+    if (gamesObjetivo) {
+      const set = sets[0];
+      if (!set) return null;
+      if (set.games_local >= gamesObjetivo && set.games_local > set.games_visitante) return parejaLocal.inscripcion_id;
+      if (set.games_visitante >= gamesObjetivo && set.games_visitante > set.games_local) return parejaVisitante.inscripcion_id;
+      return null;
+    }
     let setsLocal = 0;
     let setsVis = 0;
     sets.forEach((s) => {
@@ -329,6 +338,13 @@ export function PartidoCard({
 
   const calcularGanadorDB = (): string | null => {
     if (!parejaLocal || !parejaVisitante) return null;
+    if (gamesObjetivo) {
+      const set = setsExistentes[0];
+      if (!set) return null;
+      if (set.games_local >= gamesObjetivo && set.games_local > set.games_visitante) return parejaLocal.inscripcion_id;
+      if (set.games_visitante >= gamesObjetivo && set.games_visitante > set.games_local) return parejaVisitante.inscripcion_id;
+      return null;
+    }
     let setsLocal = 0;
     let setsVis = 0;
     setsExistentes.forEach((s) => {
@@ -830,11 +846,11 @@ export function PartidoCard({
 
                 {sets.map((s, idx) => (
                   <div key={idx} className="flex items-center gap-2">
-                    <span className="text-xs text-muted-foreground w-8">Set {s.numero_set}</span>
+                    <span className="text-xs text-muted-foreground w-28">{gamesObjetivo ? `Set único · a ${gamesObjetivo}` : `Set ${s.numero_set}`}</span>
                     <Input
                       type="number"
                       min="0"
-                      max="9"
+                      max={gamesObjetivo ? gamesObjetivo + 1 : 9}
                       value={s.games_local}
                       onChange={(e) => updateSet(idx, "games_local", e.target.value)}
                       className="h-8 w-14 text-center"
@@ -843,12 +859,12 @@ export function PartidoCard({
                     <Input
                       type="number"
                       min="0"
-                      max="9"
+                      max={gamesObjetivo ? gamesObjetivo + 1 : 9}
                       value={s.games_visitante}
                       onChange={(e) => updateSet(idx, "games_visitante", e.target.value)}
                       className="h-8 w-14 text-center"
                     />
-                    {sets.length > 1 && (
+                    {!gamesObjetivo && sets.length > 1 && (
                       <Button variant="ghost" size="sm" className="h-8 px-2" onClick={() => removeSet(idx)}>
                         ×
                       </Button>

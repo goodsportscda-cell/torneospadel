@@ -207,7 +207,7 @@ export default function Zonas() {
         let tQuery = supabase
           .from("torneos")
           .select("*")
-          .eq("tipo", "oficial")
+          .in("tipo", ["oficial", "americano"])
           .order("fecha_inicio", { ascending: false });
         if (clubId) {
           tQuery = tQuery.eq("club_id", clubId);
@@ -282,6 +282,9 @@ export default function Zonas() {
   return (
     <div className="p-4 md:p-6 space-y-4">
       <h1 className="text-2xl font-bold">Zonas</h1>
+      {torneos.find((t) => t.id === torneoId)?.tipo === "americano" && (
+        <p className="text-sm text-muted-foreground">Americano: los partidos de zona se juegan a 7 games. La final se puede cargar desde Llaves a 9 games.</p>
+      )}
       
       <Card>
         <CardContent className="p-4">
@@ -397,6 +400,7 @@ export default function Zonas() {
                     onDeleted={() => handleBorrarZona(z.id)}
                     onUpdate={(updates) => handleUpdateZona(z.id, updates)}
                     torneoNombre={torneoNombre}
+                    gamesObjetivo={torneos.find((t) => t.id === torneoId)?.tipo === "americano" ? 7 : undefined}
                     todasLasZonas={zonas}
                     parejaDisponibilidad={parejaDisponibilidad}
                   />

@@ -79,9 +79,10 @@ type Props = {
   todasLasZonas?: Zona[];
   parejaDisponibilidad?: (id: string) => string | null;
   matchPhotoUrl?: (matchId: string) => string | undefined;
+  gamesObjetivo?: 7 | 9;
 };
 
-export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad, matchPhotoUrl }: Props) {
+export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onChanged, onDeleted, onUpdate, readOnly = false, torneoNombre = "", todasLasZonas = [], parejaDisponibilidad, matchPhotoUrl, gamesObjetivo }: Props) {
   const clubBrand = useClubBrand();
   const [isOpen, setIsOpen] = useState(false);
   const [descargando, setDescargando] = useState(false);
@@ -699,6 +700,7 @@ export function ZonaCard({ zona, torneoId, parejasDisponibles, parejaLabel, onCh
                   torneoId={torneoId || zona.torneo_id}
                   orden={p.orden}
                   tipo={p.tipo}
+                  gamesObjetivo={gamesObjetivo}
                   parejaLocal={p.pareja_local_id ? { 
                     inscripcion_id: p.pareja_local_id, 
                     posicion_siembra: p.posicion_local ?? 0,

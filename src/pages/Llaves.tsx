@@ -38,7 +38,7 @@ import { PartidoCard } from "@/components/zonas/PartidoCard";
 import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
 import { useAuth } from "@/hooks/useAuth";
 
-type Torneo = { id: string; nombre: string; multiplicador_puntos: number; numero_fecha: number | null; sede?: string | null };
+type Torneo = { id: string; nombre: string; tipo?: string; multiplicador_puntos: number; numero_fecha: number | null; sede?: string | null };
 
 type Inscripcion = {
   id: string;
@@ -113,8 +113,8 @@ export default function Llaves() {
   useEffect(() => {
     let tQuery = supabase
       .from("torneos")
-      .select("id, nombre, multiplicador_puntos, numero_fecha, sede")
-      .eq("tipo", "oficial")
+      .select("id, nombre, tipo, multiplicador_puntos, numero_fecha, sede")
+      .in("tipo", ["oficial", "americano"])
       .order("fecha_inicio", { ascending: false });
     
     if (clubId) {
@@ -841,6 +841,7 @@ export default function Llaves() {
                         orden={p.numero}
                         labelPartido={`Partido ${p.numero}`}
                         tabla="partidos_llave"
+                        gamesObjetivo={torneos.find((t) => t.id === torneoId)?.tipo === "americano" ? (p.ronda === "final" ? 9 : 7) : undefined}
                         ref_local={p.ref_local}
                         ref_visitante={p.ref_visitante}
                         parejaLocal={
