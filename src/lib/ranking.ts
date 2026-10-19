@@ -68,6 +68,20 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
     if (errT) throw errT;
     if (!torneo) throw new Error("Torneo no encontrado");
 
+    // Los americanos no forman parte del ranking oficial. También limpiamos
+    // cualquier registro previo por si el torneo se había calculado antes.
+    if (torneo.tipo !== "oficial") {
+      const { error: deleteError } = await supabase
+        .from("ranking_jugadores")
+        .delete()
+        .eq("torneo_id", torneoId);
+      if (deleteError) throw deleteError;
+      if (!skipAscensosRecalc) {
+        await recalcularTodosLosAscensos(new Date(torneo.fecha_inicio).getFullYear(), torneo.club_id);
+      }
+      return { ok: true, jugadoresConPuntos: 0 };
+    }
+
     const anio = new Date(torneo.fecha_inicio).getFullYear();
 
     // 1b. Resolver género desde la categoría si el torneo no lo tiene seteado

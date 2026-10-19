@@ -130,6 +130,7 @@ export default function DetalleJugadorDialog({
             torneo_id,
             estado,
             torneos (
+              tipo,
               nombre,
               estado,
               fecha_inicio
@@ -201,6 +202,13 @@ export default function DetalleJugadorDialog({
             } else {
               instancia = "Pendiente";
             }
+          }
+
+          // El historial puede incluir americanos, pero sus resultados no
+          // deben aparecer como puntos del ranking oficial.
+          if (torneo?.tipo !== "oficial") {
+            instancia = "—";
+            puntos = 0;
           }
 
           return {
