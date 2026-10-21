@@ -825,6 +825,7 @@ export default function TorneoTvView() {
                           src={fotoUrl}
                           alt="Foto Oficial del Partido"
                           className="w-full h-full object-cover opacity-20 filter blur-[0.5px] scale-100 group-hover:scale-105 transition-transform duration-700"
+                          style={{ objectPosition: "center 15%" }}
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/80 to-[#07070a]/40" />
                       </div>

@@ -16,7 +16,7 @@ import JugadorCompaneroStep from "@/components/inscripcion/JugadorCompaneroStep"
 import type { Database } from "@/integrations/supabase/types";
 import PublicFooter from "@/components/PublicFooter";
 import PrivacyNotice from "@/components/PrivacyNotice";
-import { puedeAnotarseEnCategoria } from "@/lib/categoriaCompatibilidad";
+import { extraerSumaCategoriaPareja, puedeAnotarseEnCategoria, puedeAnotarseParejaEnCategoria } from "@/lib/categoriaCompatibilidad";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 
@@ -150,10 +150,22 @@ export default function InscripcionPublica() {
   const categoriasIncompatibles = [
     { id: j1.jugadorId, nombre: `${j1.apellido} ${j1.nombre}`.trim() || "Jugador 1" },
     ...(torneo?.tipo === "americano_individual" ? [] : [{ id: j2.jugadorId, nombre: `${j2.apellido} ${j2.nombre}`.trim() || "Jugador 2" }]),
-  ].filter((jugador) => jugador.id
-    && categoriasJugadores[jugador.id]
-    && categoriaTorneo
-    && !puedeAnotarseEnCategoria(categoriasJugadores[jugador.id], categoriaTorneo));
+  ];
+  const parejaIncompatible = torneo?.tipo !== "americano_individual"
+    && Boolean(categoriaTorneo)
+    && !puedeAnotarseParejaEnCategoria(
+      j1.jugadorId ? categoriasJugadores[j1.jugadorId] : null,
+      j2.jugadorId ? categoriasJugadores[j2.jugadorId] : null,
+      categoriaTorneo,
+    );
+  const jugadoresIncompatibles = parejaIncompatible
+    ? categoriasIncompatibles.filter((jugador) => jugador.id && categoriasJugadores[jugador.id])
+    : extraerSumaCategoriaPareja(categoriaTorneo) !== null
+      ? []
+      : categoriasIncompatibles.filter((jugador) => jugador.id
+      && categoriasJugadores[jugador.id]
+      && categoriaTorneo
+      && !puedeAnotarseEnCategoria(categoriasJugadores[jugador.id], categoriaTorneo));
 
   const requiereRevisionCategoria = [j1, ...(torneo?.tipo === "americano_individual" ? [] : [j2])]
     .some((jugador) => !jugador.encontrado || (jugador.jugadorId && !categoriasJugadores[jugador.jugadorId]));
@@ -640,9 +652,9 @@ export default function InscripcionPublica() {
             <header>
               <h2 className="text-lg font-semibold">Revisá la inscripción</h2>
             </header>
-            {categoriasIncompatibles.length > 0 && (
+            {jugadoresIncompatibles.length > 0 && (
               <div className="rounded-md border border-destructive/40 bg-destructive/5 p-3 text-sm text-destructive" role="alert">
-                {categoriasIncompatibles.map((jugador) => (
+                {jugadoresIncompatibles.map((jugador) => (
                   <p key={jugador.id}>{jugador.nombre}: su categoría asignada ({categoriasJugadores[jugador.id!]}) no permite anotarse en {categoriaTorneo}.</p>
                 ))}
                 <p className="mt-1 font-medium">Contactá al club para revisar la categoría.</p>
@@ -725,7 +737,7 @@ export default function InscripcionPublica() {
                 <ArrowLeft className="h-4 w-4" />
                 Atrás
               </Button>
-              <Button type="button" className="flex-1" size="lg" onClick={enviar} disabled={enviando || validandoCategorias || categoriasIncompatibles.length > 0}>
+              <Button type="button" className="flex-1" size="lg" onClick={enviar} disabled={enviando || validandoCategorias || jugadoresIncompatibles.length > 0}>
                 {enviando ? (
                   <>
                     <Loader2 className="h-4 w-4 animate-spin" />

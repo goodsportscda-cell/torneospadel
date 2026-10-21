@@ -418,7 +418,7 @@ export default function CanchasEnVivo() {
     setSets([{ local: "", visitante: "" }, { local: "", visitante: "" }, { local: "", visitante: "" }]);
     setGanadorSeleccionado(null);
     setFotoCanchaEnVivo(p.foto_url || p.partido_individual_raw?.foto_url || "");
-    const position = p.foto_position || { x: 50, y: 18 };
+    const position = p.foto_position || { x: 50, y: 15 };
     setFotoPosition(position);
     fotoPositionRef.current = position;
     setIsUploadingFotoCancha(false);
@@ -1066,7 +1066,7 @@ export default function CanchasEnVivo() {
                   )}
                 </div>
                 {fotoCanchaEnVivo && (
-                  <div className="w-full h-20 rounded-md overflow-hidden border border-border">
+                  <div className="w-full h-40 rounded-md overflow-hidden border border-border bg-black/40">
                     <img src={fotoCanchaEnVivo} alt="Vista previa del encuadre para TV" className="w-full h-full object-cover" style={{ objectPosition: `${fotoPosition.x}% ${fotoPosition.y}%` }} />
                   </div>
                 )}

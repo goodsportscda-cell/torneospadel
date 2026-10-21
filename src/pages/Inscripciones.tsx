@@ -50,7 +50,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { puedeAnotarseEnCategoria } from "@/lib/categoriaCompatibilidad";
+import { extraerSumaCategoriaPareja, puedeAnotarseEnCategoria, puedeAnotarseParejaEnCategoria } from "@/lib/categoriaCompatibilidad";
 
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
@@ -376,9 +376,16 @@ export default function Inscripciones() {
         const categoriaPorJugador = new Map<string, string>(
           (categoriasJugadores ?? []).map((row: { jugador_id: string; categoria_nombre: string }) => [row.jugador_id, row.categoria_nombre]),
         );
-        const incompatibles = [form.jugador1_id, form.jugador2_id]
-          .map((id) => ({ jugador: jugadorMap.get(id), categoria: categoriaPorJugador.get(id) }))
-          .filter(({ categoria }) => categoria && !puedeAnotarseEnCategoria(categoria, categoriaTorneo));
+        const categoriasPareja = [categoriaPorJugador.get(form.jugador1_id), categoriaPorJugador.get(form.jugador2_id)];
+        const esSuma = extraerSumaCategoriaPareja(categoriaTorneo) !== null;
+        const parejaPermitida = puedeAnotarseParejaEnCategoria(categoriasPareja[0], categoriasPareja[1], categoriaTorneo);
+        const incompatibles = esSuma
+          ? parejaPermitida ? [] : [form.jugador1_id, form.jugador2_id]
+            .map((id) => ({ jugador: jugadorMap.get(id), categoria: categoriaPorJugador.get(id) }))
+            .filter(({ categoria }) => categoria)
+          : [form.jugador1_id, form.jugador2_id]
+            .map((id) => ({ jugador: jugadorMap.get(id), categoria: categoriaPorJugador.get(id) }))
+            .filter(({ categoria }) => categoria && !puedeAnotarseEnCategoria(categoria, categoriaTorneo));
 
         if (incompatibles.length > 0) {
           const nombres = incompatibles.map(({ jugador }) => jugador ? `${jugador.apellido}, ${jugador.nombre}` : "Un jugador").join(" y ");

@@ -442,11 +442,63 @@ export default function TorneoTvZonasLlaves() {
 }
 
 function MatchSpotlight({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {
-  return <div className="overflow-hidden rounded-xl border border-rose-400/25 bg-[#141018] shadow-[0_0_24px_rgba(251,113,133,0.06)]"><div className="p-4"><div className="mb-3 flex items-center justify-between"><Badge className="bg-rose-400/15 text-rose-200 hover:bg-rose-400/15"><Radio className="mr-1 h-3 w-3" />EN JUEGO</Badge><span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{match.cancha || match.fase}</span></div><div className="space-y-2"><p className="truncate text-sm font-bold">{local}</p><p className="truncate text-sm font-bold">{visitor}</p></div><div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2 text-xs text-primary"><span>{match.fase}</span><span className="font-mono font-bold">{score || "Marcador en carga"}</span></div>{match.marcadorEnVivo && <div className="mt-3"><LiveScoreSummary state={match.marcadorEnVivo} /></div>}</div>{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="max-h-64 w-full border-t border-white/10 bg-black/40 object-contain" />}</div>;
+  return (
+    <div className="overflow-hidden rounded-xl border border-rose-400/25 bg-[#141018] shadow-[0_0_24px_rgba(251,113,133,0.06)] flex flex-col justify-between">
+      <div className="p-4">
+        <div className="mb-3 flex items-center justify-between">
+          <Badge className="bg-rose-400/15 text-rose-200 hover:bg-rose-400/15">
+            <Radio className="mr-1 h-3 w-3" />EN JUEGO
+          </Badge>
+          <span className="text-[10px] font-semibold uppercase tracking-wider text-white/40">{match.cancha || match.fase}</span>
+        </div>
+        <div className="space-y-2">
+          <p className="truncate text-base font-bold">{local}</p>
+          <p className="truncate text-base font-bold text-white/80">{visitor}</p>
+        </div>
+        <div className="mt-3 flex items-center justify-between border-t border-white/10 pt-2 text-xs text-primary">
+          <span>{match.fase}</span>
+          <span className="font-mono font-bold">{score || "Marcador en carga"}</span>
+        </div>
+        {match.marcadorEnVivo && <div className="mt-3"><LiveScoreSummary state={match.marcadorEnVivo} /></div>}
+      </div>
+      {photoUrl && (
+        <div className="relative w-full h-[45vh] min-h-[260px] overflow-hidden border-t border-white/10 bg-black/40">
+          <img
+            src={photoUrl}
+            alt={`Foto del partido ${match.numero}`}
+            loading="lazy"
+            className="h-full w-full object-cover"
+            style={{ objectPosition: "center 15%" }}
+          />
+        </div>
+      )}
+    </div>
+  );
 }
 
 function MatchCompact({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {
-  return <div className="space-y-2"><p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{match.fase}</p><div className="flex items-start gap-3">{photoUrl && <img src={photoUrl} alt={`Foto del partido ${match.numero}`} loading="lazy" className="h-14 w-20 shrink-0 rounded-lg border border-white/10 bg-black/40 object-contain" />}<div className="min-w-0 flex-1"><p className="truncate text-sm font-bold">{local}</p><p className="truncate text-sm font-bold">{visitor}</p><span className="font-mono text-xs font-black text-primary">{score}</span></div></div>{match.marcadorEnVivo && <LiveScoreSummary state={match.marcadorEnVivo} compact />}</div>;
+  return (
+    <div className="space-y-3">
+      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{match.fase}</p>
+      {photoUrl && (
+        <div className="relative w-full h-[42vh] min-h-[220px] rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-lg">
+          <img
+            src={photoUrl}
+            alt={`Foto del partido ${match.numero}`}
+            loading="lazy"
+            className="h-full w-full object-cover"
+            style={{ objectPosition: "center 15%" }}
+          />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-base font-bold">{local}</p>
+        <p className="truncate text-base font-bold text-white/80">{visitor}</p>
+        <span className="font-mono text-sm font-black text-primary">{score}</span>
+      </div>
+      {match.marcadorEnVivo && <LiveScoreSummary state={match.marcadorEnVivo} compact />}
+    </div>
+  );
 }
 
 function MatchNext({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {

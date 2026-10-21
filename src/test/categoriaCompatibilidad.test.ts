@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { extraerNivelCategoria, puedeAnotarseEnCategoria } from "@/lib/categoriaCompatibilidad";
+import { extraerNivelCategoria, extraerSumaCategoriaPareja, puedeAnotarseEnCategoria, puedeAnotarseParejaEnCategoria } from "@/lib/categoriaCompatibilidad";
 
 describe("compatibilidad de categorías de inscripción", () => {
   it("extrae categorías ordinales aunque incluyan género", () => {
@@ -15,5 +15,18 @@ describe("compatibilidad de categorías de inscripción", () => {
 
   it("deja pasar categorías especiales para revisión manual", () => {
     expect(puedeAnotarseEnCategoria("6ta", "Suma 7")).toBe(true);
+  });
+
+  it("valida Suma N por la suma de categorías de la pareja", () => {
+    expect(puedeAnotarseParejaEnCategoria("4ta", "7ma", "Suma 11")).toBe(true);
+    expect(puedeAnotarseParejaEnCategoria("5ta", "6ta", "Suma 11")).toBe(true);
+    expect(puedeAnotarseParejaEnCategoria("4ta", "6ta", "Suma 11")).toBe(false);
+  });
+
+  it("reconoce las etiquetas S11 y 5ta-6ta que usa la app", () => {
+    expect(extraerSumaCategoriaPareja("S11 Cab")).toBe(11);
+    expect(extraerSumaCategoriaPareja("5ta-6ta")).toBe(11);
+    expect(puedeAnotarseParejaEnCategoria("4ta", "7ma", "5ta-6ta")).toBe(true);
+    expect(puedeAnotarseParejaEnCategoria("4ta", "6ta", "5ta-6ta")).toBe(false);
   });
 });
