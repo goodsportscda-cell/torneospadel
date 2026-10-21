@@ -7,6 +7,7 @@ import { useOptionalTenant } from "@/contexts/TenantContext";
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 type PartidoTv = {
   id: string;
@@ -40,18 +41,18 @@ const PARTIDOS_DEMO: PartidoTv[] = [
       { numero_set: 2, games_local: 4, games_visitante: 2 },
     ],
     marcadorEnVivo: {
-      sets: [
-        { p1: 6, p2: 4 },
-        { p1: 4, p2: 2 },
-      ],
+      nombres: { p1: "Belasteguín / Tapia", p2: "Galán / Lebrón" },
+      config: { modoDeuce: true, superTieBreak3erSet: true, modoSoloSuperTieBreak: false, modoSoloTieBreak: false },
+      sets: [{ p1: 6, p2: 4 }],
       games: { p1: 4, p2: 2 },
-      points: { p1: 40, p2: 30 },
-      server: 1,
-      tiebreak: false,
-      goldPoint: false,
-      matchOver: false,
+      points: { p1: 3, p2: 2 },
+      currentSet: 2,
+      server: "p1",
+      isTieBreak: false,
+      isSuperTieBreak: false,
       winner: null,
-    } as unknown as PadelState,
+      history: [],
+    },
   },
   {
     id: "demo-partido-2",
@@ -62,7 +63,7 @@ const PARTIDOS_DEMO: PartidoTv[] = [
     fechaHora: new Date(Date.now() + 40 * 60 * 1000).toISOString(),
     local: "M. Di Nenno / F. Stupaczuk",
     visitante: "P. Lima / F. Navarro",
-    fotoUrl: null,
+    fotoUrl: "/demo-partido-tv.jpg",
     fotoPosition: { x: 50, y: 15 },
     sets: [],
     marcadorEnVivo: null,
@@ -83,18 +84,18 @@ const PARTIDOS_DEMO: PartidoTv[] = [
       { numero_set: 2, games_local: 3, games_visitante: 3 },
     ],
     marcadorEnVivo: {
-      sets: [
-        { p1: 7, p2: 5 },
-        { p1: 3, p2: 3 },
-      ],
+      nombres: { p1: "Josemaría / Sánchez", p2: "Triay / Ortega" },
+      config: { modoDeuce: true, superTieBreak3erSet: true, modoSoloSuperTieBreak: false, modoSoloTieBreak: false },
+      sets: [{ p1: 7, p2: 5 }],
       games: { p1: 3, p2: 3 },
-      points: { p1: 15, p2: 40 },
-      server: 2,
-      tiebreak: false,
-      goldPoint: false,
-      matchOver: false,
+      points: { p1: 1, p2: 3 },
+      currentSet: 2,
+      server: "p2",
+      isTieBreak: false,
+      isSuperTieBreak: false,
       winner: null,
-    } as unknown as PadelState,
+      history: [],
+    },
   },
   {
     id: "demo-partido-4",
@@ -119,10 +120,11 @@ type ScreenWakeLock = { release: () => Promise<void>; addEventListener: (type: s
 type NavigatorWithWakeLock = Navigator & { wakeLock?: { request: (type: "screen") => Promise<ScreenWakeLock> } };
 
 const numeroCancha = (cancha: string | null) => cancha?.match(/\d+/)?.[0] ?? null;
-const esUrlDeFotoSegura = (value: string | null): value is string => Boolean(value && (/^https?:\/\//i.test(value) || /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(value)));
+const esUrlDeFotoSegura = (value: string | null): value is string =>
+  Boolean(value && (/^https?:\/\//i.test(value) || /^\//.test(value) || /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(value)));
 const PLAYER_LOOKUP_BATCH_SIZE = 200;
 
-export default function TorneoTvCanchas() {
+function TorneoTvCanchasContent() {
   const [searchParams] = useSearchParams();
   const idsKey = searchParams.get("torneos") ?? "";
   const torneoIdsSolicitados = useMemo(() => idsKey.split(",").filter(Boolean), [idsKey]);
@@ -739,5 +741,16 @@ export default function TorneoTvCanchas() {
         )
       )}
     </main>
+  );
+}
+
+export default function TorneoTvCanchas() {
+  return (
+    <ErrorBoundary
+      fallbackTitle="Error en Pantalla TV"
+      fallbackMessage="Ocurrió un problema inesperado al mostrar la pantalla de canchas. Podés reintentar para restablecer la vista."
+    >
+      <TorneoTvCanchasContent />
+    </ErrorBoundary>
   );
 }
