@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Activity, Clock, Copy, Loader2, MapPin, Maximize2, Minimize2, Radio, RefreshCw, Tv } from "lucide-react";
+import { Activity, Clock, Copy, Eye, Loader2, MapPin, Maximize2, Minimize2, Radio, RefreshCw, Sparkles, Tv } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, type FotoPosition } from "@/logic/torneoStandings";
 import { useOptionalTenant } from "@/contexts/TenantContext";
@@ -23,6 +23,98 @@ type PartidoTv = {
   marcadorEnVivo: PadelState | null;
 };
 
+const PARTIDOS_DEMO: PartidoTv[] = [
+  {
+    id: "demo-partido-1",
+    torneoId: "demo-torneo-1",
+    torneoNombre: "Torneo Oficial Padel ID · 5ta Caballeros",
+    cancha: "Cancha 1",
+    estado: "en_juego",
+    fechaHora: new Date(Date.now() - 35 * 60 * 1000).toISOString(),
+    local: "G. Belasteguín / F. Tapia",
+    visitante: "A. Galán / J. Lebrón",
+    fotoUrl: "/demo-partido-tv.jpg",
+    fotoPosition: { x: 50, y: 15 },
+    sets: [
+      { numero_set: 1, games_local: 6, games_visitante: 4 },
+      { numero_set: 2, games_local: 4, games_visitante: 2 },
+    ],
+    marcadorEnVivo: {
+      sets: [
+        { p1: 6, p2: 4 },
+        { p1: 4, p2: 2 },
+      ],
+      games: { p1: 4, p2: 2 },
+      points: { p1: 40, p2: 30 },
+      server: 1,
+      tiebreak: false,
+      goldPoint: false,
+      matchOver: false,
+      winner: null,
+    } as unknown as PadelState,
+  },
+  {
+    id: "demo-partido-2",
+    torneoId: "demo-torneo-1",
+    torneoNombre: "Torneo Oficial Padel ID · 5ta Caballeros",
+    cancha: "Cancha 1",
+    estado: "programado",
+    fechaHora: new Date(Date.now() + 40 * 60 * 1000).toISOString(),
+    local: "M. Di Nenno / F. Stupaczuk",
+    visitante: "P. Lima / F. Navarro",
+    fotoUrl: null,
+    fotoPosition: { x: 50, y: 15 },
+    sets: [],
+    marcadorEnVivo: null,
+  },
+  {
+    id: "demo-partido-3",
+    torneoId: "demo-torneo-1",
+    torneoNombre: "Torneo Oficial Padel ID · 6ta Damas",
+    cancha: "Cancha 2",
+    estado: "en_juego",
+    fechaHora: new Date(Date.now() - 20 * 60 * 1000).toISOString(),
+    local: "P. Josemaría / A. Sánchez",
+    visitante: "G. Triay / M. Ortega",
+    fotoUrl: "/demo-partido-tv.jpg",
+    fotoPosition: { x: 50, y: 15 },
+    sets: [
+      { numero_set: 1, games_local: 7, games_visitante: 5 },
+      { numero_set: 2, games_local: 3, games_visitante: 3 },
+    ],
+    marcadorEnVivo: {
+      sets: [
+        { p1: 7, p2: 5 },
+        { p1: 3, p2: 3 },
+      ],
+      games: { p1: 3, p2: 3 },
+      points: { p1: 15, p2: 40 },
+      server: 2,
+      tiebreak: false,
+      goldPoint: false,
+      matchOver: false,
+      winner: null,
+    } as unknown as PadelState,
+  },
+  {
+    id: "demo-partido-4",
+    torneoId: "demo-torneo-1",
+    torneoNombre: "Torneo Oficial Padel ID · 7ma Mixto",
+    cancha: "Cancha 3",
+    estado: "finalizado",
+    fechaHora: new Date(Date.now() - 90 * 60 * 1000).toISOString(),
+    local: "C. Gutiérrez / D. Sanyo",
+    visitante: "L. Campagnolo / J. Garrido",
+    fotoUrl: "/demo-partido-tv.jpg",
+    fotoPosition: { x: 50, y: 15 },
+    sets: [
+      { numero_set: 1, games_local: 6, games_visitante: 3 },
+      { numero_set: 2, games_local: 6, games_visitante: 4 },
+    ],
+    marcadorEnVivo: null,
+  },
+];
+
 type ScreenWakeLock = { release: () => Promise<void>; addEventListener: (type: string, listener: () => void) => void };
 type NavigatorWithWakeLock = Navigator & { wakeLock?: { request: (type: "screen") => Promise<ScreenWakeLock> } };
 
@@ -43,6 +135,7 @@ export default function TorneoTvCanchas() {
   const [actualizado, setActualizado] = useState<Date | null>(null);
   const [pantallaCompleta, setPantallaCompleta] = useState(false);
   const [paginaCanchas, setPaginaCanchas] = useState(0);
+  const [modoDemo, setModoDemo] = useState<boolean>(() => searchParams.get("demo") === "1" || searchParams.get("preview") === "1");
   const [bloqueoPantallaActivo, setBloqueoPantallaActivo] = useState<boolean | null>(null);
   const wakeLockRef = useRef<ScreenWakeLock | null>(null);
   const notasTorneosRef = useRef(new Map<string, string | null>());
@@ -271,9 +364,12 @@ export default function TorneoTvCanchas() {
     }
   };
 
-  const canchas = Array.from({ length: cantidadCanchas }, (_, index) => String(index + 1));
+  const partidosAMostrar = modoDemo ? PARTIDOS_DEMO : partidos;
+  const nombresTorneosAMostrar = modoDemo ? ["Torneo Apertura 2026 · Padel ID Broadcast (Previsualización)"] : nombresTorneos;
+  const cantidadCanchasAMostrar = modoDemo ? 3 : cantidadCanchas;
+  const canchas = Array.from({ length: cantidadCanchasAMostrar }, (_, index) => String(index + 1));
   const canchasPorPagina = 1;
-  const resultadosFinales = partidos.filter((partido) => partido.estado === "finalizado").sort((a, b) => new Date(b.fechaHora ?? 0).getTime() - new Date(a.fechaHora ?? 0).getTime());
+  const resultadosFinales = partidosAMostrar.filter((partido) => partido.estado === "finalizado").sort((a, b) => new Date(b.fechaHora ?? 0).getTime() - new Date(a.fechaHora ?? 0).getTime());
   const resultadosPorPagina = 6;
   const cantidadPaginasResultados = Math.ceil(resultadosFinales.length / resultadosPorPagina);
   const cantidadPantallas = canchas.length + cantidadPaginasResultados;
@@ -299,14 +395,31 @@ export default function TorneoTvCanchas() {
         <div>
           <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300"><Tv className="h-4 w-4" /> Padel ID · En vivo</div>
           <h1 className="text-3xl font-black sm:text-5xl">Canchas en juego</h1>
-          <p className="mt-2 text-sm text-white/55">{nombresTorneos.join(" · ") || "Torneos en curso"}</p>
+          <p className="mt-2 text-sm text-white/55">{nombresTorneosAMostrar.join(" · ") || "Torneos en curso"}</p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
             <span className="flex items-center gap-2"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización cada 15 s{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</span>
             {cantidadPantallas > 1 && <span className="text-cyan-200">{esPantallaResultados ? `Resultados · ${paginaResultados + 1}/${cantidadPaginasResultados}` : `Cancha ${canchas[paginaCanchas]}`} · pantalla {paginaCanchas + 1}/${cantidadPantallas} · rota cada 15 s</span>}
             <span className={bloqueoPantallaActivo ? "text-emerald-300" : "text-amber-200"}>{bloqueoPantallaActivo ? "Pantalla activa" : bloqueoPantallaActivo === false ? "Ahorro de pantalla según TV Bro" : "Activando pantalla"}</span>
           </div>
+
+          {/* Botón de Modo Previsualización (Demo) */}
+          <button
+            type="button"
+            onClick={() => setModoDemo((prev) => !prev)}
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition-all shadow-md ${
+              modoDemo
+                ? "bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.4)]"
+                : "border border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
+            }`}
+            title={modoDemo ? "Salir del modo previsualización" : "Activar previsualización con datos y fotos de prueba"}
+          >
+            <Eye className="h-4 w-4" />
+            <span className="hidden sm:inline">{modoDemo ? "Salir de Demo" : "Previsualización"}</span>
+            <span className="sm:hidden">{modoDemo ? "Demo" : "Previa"}</span>
+          </button>
+
           <button type="button" onClick={copiarEnlace} className="flex items-center gap-1.5 rounded-lg border border-white/15 bg-white/5 px-2.5 py-2 text-xs font-bold text-white/75 transition hover:bg-white/10" title="Copiar enlace de TV"><Copy className="h-4 w-4" /><span className="hidden sm:inline">Copiar enlace</span></button>
           <button type="button" onClick={alternarPantallaCompleta} className="rounded-lg border border-cyan-300/30 bg-cyan-300/10 p-2 text-cyan-100 transition hover:bg-cyan-300/20" title={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"} aria-label={pantallaCompleta ? "Salir de pantalla completa" : "Pantalla completa"}>
             {pantallaCompleta ? <Minimize2 className="h-4 w-4" /> : <Maximize2 className="h-4 w-4" />}
@@ -314,10 +427,69 @@ export default function TorneoTvCanchas() {
         </div>
       </header>
 
-      {loading && partidos.length === 0 ? (
+      {/* Banner de Modo Previsualización */}
+      {modoDemo && (
+        <div className="mx-auto mb-6 flex w-full flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-400/40 bg-gradient-to-r from-amber-500/15 via-purple-600/15 to-cyan-500/15 p-3.5 sm:p-4 text-amber-200 shadow-[0_0_25px_rgba(251,191,36,0.15)] animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/20 border border-amber-400/40 text-amber-300 shrink-0">
+              <Sparkles className="h-5 w-5 animate-pulse" />
+            </div>
+            <div>
+              <p className="text-xs sm:text-sm font-extrabold text-amber-100 flex items-center gap-2">
+                <span>Modo Previsualización Activo</span>
+                <span className="rounded bg-amber-400/20 px-2 py-0.5 text-[10px] font-mono text-amber-300 border border-amber-400/30">DATOS DE PRUEBA</span>
+              </p>
+              <p className="text-[11px] text-amber-200/80 mt-0.5">
+                Mostrando partido de prueba "EN JUEGO" con foto ampliada al 45% de la pantalla, encuadre superior y tanteador LED en vivo.
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setModoDemo(false)}
+            className="rounded-lg bg-amber-400 px-3.5 py-1.5 text-xs font-black text-slate-950 hover:bg-amber-300 transition shadow"
+          >
+            Volver a modo normal
+          </button>
+        </div>
+      )}
+
+      {!modoDemo && loading && partidos.length === 0 ? (
         <div className="flex min-h-[50vh] items-center justify-center text-white/60"><Loader2 className="mr-3 h-5 w-5 animate-spin text-cyan-300" />Cargando partidos…</div>
-      ) : error ? (
-        <div className="mx-auto flex min-h-[40vh] max-w-xl flex-col items-center justify-center text-center"><RefreshCw className="mb-4 h-8 w-8 text-rose-300" /><h2 className="text-xl font-bold">No pudimos cargar los partidos</h2><p className="mt-2 text-sm text-white/55">Revisá la conexión y volvé a intentar.</p><button className="mt-5 rounded-lg bg-white/10 px-4 py-2 text-sm font-bold" onClick={() => window.location.reload()}>Reintentar</button></div>
+      ) : !modoDemo && error ? (
+        <div className="mx-auto flex min-h-[40vh] max-w-xl flex-col items-center justify-center text-center p-6">
+          <RefreshCw className="mb-4 h-8 w-8 text-rose-300" />
+          <h2 className="text-xl font-bold">No hay torneos en curso para proyectar</h2>
+          <p className="mt-2 text-sm text-white/55">Como actualmente no tenés torneos en juego, podés activar el Modo Previsualización para ver el nuevo diseño con fotos en 45vh y marcadores.</p>
+          <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
+            <button
+              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-5 py-2.5 text-sm font-black text-white shadow-[0_0_20px_rgba(6,182,212,0.4)] hover:scale-105 transition"
+              onClick={() => setModoDemo(true)}
+            >
+              <Eye className="h-4 w-4" />
+              Activar Modo Previsualización (Demo)
+            </button>
+            <button className="rounded-lg bg-white/10 px-4 py-2.5 text-sm font-bold hover:bg-white/15 transition" onClick={() => window.location.reload()}>
+              Reintentar
+            </button>
+          </div>
+        </div>
+      ) : !modoDemo && partidos.length === 0 ? (
+        <div className="mx-auto flex min-h-[45vh] max-w-xl flex-col items-center justify-center text-center p-8 rounded-2xl border border-dashed border-cyan-500/30 bg-cyan-950/20 shadow-2xl">
+          <Tv className="h-12 w-12 text-cyan-400/60 mb-3 animate-pulse" />
+          <h2 className="text-xl font-black text-white">Pantalla TV lista (Sin partidos activos)</h2>
+          <p className="mt-2 text-sm text-white/60 max-w-md">
+            No hay partidos en juego en este momento. Activá el <strong>Modo Previsualización</strong> para probar el diseño completo en tu televisor con un partido de muestra, fotos y tanteador LED.
+          </p>
+          <button
+            type="button"
+            onClick={() => setModoDemo(true)}
+            className="mt-6 flex items-center gap-2 rounded-xl bg-gradient-to-r from-cyan-500 to-purple-600 px-5 py-3 text-sm font-black text-white shadow-[0_0_25px_rgba(6,182,212,0.4)] hover:scale-105 transition-transform"
+          >
+            <Eye className="h-4 w-4" />
+            Activar Modo Previsualización (Demo)
+          </button>
+        </div>
       ) : (
         esPantallaResultados ? (
           <section className="mx-auto w-full" aria-label="Resultados de partidos finalizados">
@@ -341,7 +513,7 @@ export default function TorneoTvCanchas() {
           aria-label="Partidos agrupados por cancha"
         >
           {canchasVisibles.map((cancha) => {
-            const partidosCancha = partidos
+            const partidosCancha = partidosAMostrar
               .filter((partido) => numeroCancha(partido.cancha) === cancha)
               .sort((a, b) => {
                 if (a.estado === "en_juego" && b.estado !== "en_juego") return -1;
