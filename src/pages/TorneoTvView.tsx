@@ -556,7 +556,7 @@ export default function TorneoTvView() {
   // Current fecha matches
   const partidosDeFecha = useMemo(() => {
     return partidos
-      .filter((p) => p.fecha === selectedFechaNum)
+      .filter((p) => p.fecha === selectedFechaNum && p.estado !== "finalizado")
       .sort((a, b) => {
         const cA = parseInt(a.cancha.replace(/\D/g, "") || "99", 10);
         const cB = parseInt(b.cancha.replace(/\D/g, "") || "99", 10);
@@ -1183,3 +1183,4 @@ export default function TorneoTvView() {
     </div>
   );
 }
+
