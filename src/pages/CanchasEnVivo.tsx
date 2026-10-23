@@ -315,7 +315,12 @@ export default function CanchasEnVivo() {
         }));
       }
 
-      setPartidos(partsArr);
+      const torneosCerradosIds = new Set(
+        torneos
+          .filter((torneo) => torneo.estado === "finalizado" || torneo.estado === "cancelado")
+          .map((torneo) => torneo.id),
+      );
+      setPartidos(partsArr.filter((partido) => !partido.torneo_id || !torneosCerradosIds.has(partido.torneo_id)));
     } catch (e) {
       console.error("Error al cargar", e);
     } finally {
