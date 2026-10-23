@@ -120,6 +120,18 @@ type ScreenWakeLock = { release: () => Promise<void>; addEventListener: (type: s
 type NavigatorWithWakeLock = Navigator & { wakeLock?: { request: (type: "screen") => Promise<ScreenWakeLock> } };
 
 const numeroCancha = (cancha: string | null) => cancha?.match(/\d+/)?.[0] ?? null;
+const esFechaDeHoyEnArgentina = (fechaHora: string | null) => {
+  if (!fechaHora) return false;
+  const fechaPartido = new Date(fechaHora);
+  if (Number.isNaN(fechaPartido.getTime())) return false;
+  const formatoFecha = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Argentina/Buenos_Aires",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  return formatoFecha.format(fechaPartido) === formatoFecha.format(new Date());
+};
 const esUrlDeFotoSegura = (value: string | null): value is string =>
   Boolean(value && (/^https?:\/\//i.test(value) || /^\//.test(value) || /^data:image\/(jpeg|jpg|png|webp);base64,/i.test(value)));
 const PLAYER_LOOKUP_BATCH_SIZE = 200;
@@ -371,7 +383,9 @@ function TorneoTvCanchasContent() {
   const cantidadCanchasAMostrar = modoDemo ? 3 : cantidadCanchas;
   const canchas = Array.from({ length: cantidadCanchasAMostrar }, (_, index) => String(index + 1));
   const canchasPorPagina = 1;
-  const resultadosFinales = partidosAMostrar.filter((partido) => partido.estado === "finalizado").sort((a, b) => new Date(b.fechaHora ?? 0).getTime() - new Date(a.fechaHora ?? 0).getTime());
+  const resultadosFinales = partidosAMostrar
+    .filter((partido) => partido.estado === "finalizado" && partido.sets.length > 0)
+    .sort((a, b) => new Date(b.fechaHora ?? 0).getTime() - new Date(a.fechaHora ?? 0).getTime());
   const resultadosPorPagina = 6;
   const cantidadPaginasResultados = Math.ceil(resultadosFinales.length / resultadosPorPagina);
   const cantidadPantallas = canchas.length + cantidadPaginasResultados;
@@ -516,7 +530,11 @@ function TorneoTvCanchasContent() {
         >
           {canchasVisibles.map((cancha) => {
             const partidosCancha = partidosAMostrar
-              .filter((partido) => numeroCancha(partido.cancha) === cancha)
+              .filter((partido) =>
+                numeroCancha(partido.cancha) === cancha &&
+                (partido.estado === "en_juego" ||
+                  ((partido.estado === "programado" || partido.estado === "pendiente") && esFechaDeHoyEnArgentina(partido.fechaHora))),
+              )
               .sort((a, b) => {
                 if (a.estado === "en_juego" && b.estado !== "en_juego") return -1;
                 if (b.estado === "en_juego" && a.estado !== "en_juego") return 1;
@@ -754,3 +772,4 @@ export default function TorneoTvCanchas() {
     </ErrorBoundary>
   );
 }
+
