@@ -65,6 +65,9 @@ type Partido = {
   partido_individual_raw?: any;
 };
 
+const partidoFinalizado = (partido: Partido) =>
+  partido.estado.trim().toLocaleLowerCase("es") === "finalizado" || Boolean(partido.ganador_id);
+
 export default function CanchasEnVivo() {
   const navigate = useNavigate();
   const clubBrand = useClubBrand();
@@ -352,12 +355,12 @@ export default function CanchasEnVivo() {
   };
 
   const partidosActivos = useMemo(() => {
-    return partidos.filter(p => p.estado === "en_juego" || p.estado === "programado" || (p.estado === "pendiente" && p.cancha));
+    return partidos.filter(p => !partidoFinalizado(p) && (p.estado === "en_juego" || p.estado === "programado" || (p.estado === "pendiente" && p.cancha)));
   }, [partidos]);
 
   const partidosLibres = useMemo(() => {
     // Partidos que tienen rivales definidos, no están finalizados y no están en juego
-    return partidos.filter(p => p.estado !== "finalizado" && p.estado !== "en_juego" && p.pareja_local_id && p.pareja_visitante_id);
+    return partidos.filter(p => !partidoFinalizado(p) && p.estado !== "en_juego" && p.pareja_local_id && p.pareja_visitante_id);
   }, [partidos]);
 
   const partidosPlacaDia = useMemo<PartidoPlacaDia[]>(() => {
@@ -1214,4 +1217,5 @@ export default function CanchasEnVivo() {
     </div>
   );
 }
+
 
