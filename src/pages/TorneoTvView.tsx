@@ -556,13 +556,13 @@ export default function TorneoTvView() {
   // Current fecha matches
   const partidosDeFecha = useMemo(() => {
     return partidos
-      .filter((p) => p.fecha === selectedFechaNum && p.estado !== "finalizado")
+      .filter((p) => p.fecha === selectedFechaNum && (torneo?.estado !== "finalizado" || p.estado !== "finalizado"))
       .sort((a, b) => {
         const cA = parseInt(a.cancha.replace(/\D/g, "") || "99", 10);
         const cB = parseInt(b.cancha.replace(/\D/g, "") || "99", 10);
         return cA - cB;
       });
-  }, [partidos, selectedFechaNum]);
+  }, [partidos, selectedFechaNum, torneo?.estado]);
 
   // Grid sizing based on court count
   const courtGridClass = useMemo(() => {
