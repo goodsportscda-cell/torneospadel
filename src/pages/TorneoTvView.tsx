@@ -161,12 +161,20 @@ export default function TorneoTvView() {
       ]);
 
       if (tRes.data) setTorneo(tRes.data);
+      const partidosRows = mRes.data ?? [];
       if (fRes.data) {
         setFechas(fRes.data);
-        // Default to latest published or active fecha on initial load
+        // Prioritize the latest date with matches assigned to courts for the TV view.
         if (!silent) {
+          const fechasConPartidosEnCancha = [...new Set(
+            partidosRows
+              .filter((partido: any) => partido.cancha?.trim())
+              .map((partido: any) => partido.fecha),
+          )].sort((a, b) => b - a);
           const published = fRes.data.filter((f) => f.publicado);
-          if (published.length > 0) {
+          if (fechasConPartidosEnCancha.length > 0) {
+            setSelectedFechaNum(fechasConPartidosEnCancha[0]);
+          } else if (published.length > 0) {
             setSelectedFechaNum(published[published.length - 1].fecha);
           } else if (fRes.data.length > 0) {
             setSelectedFechaNum(fRes.data[0].fecha);
@@ -175,7 +183,6 @@ export default function TorneoTvView() {
       }
       const jugadoresRows = jRes.data ?? [];
       const parejasRows = pRes.data ?? [];
-      const partidosRows = mRes.data ?? [];
       const playerIds = new Set<string>();
       jugadoresRows.forEach((row: any) => playerIds.add(row.jugador_id));
       parejasRows.forEach((row: any) => {
@@ -280,6 +287,19 @@ export default function TorneoTvView() {
       supabase.removeChannel(channel);
     };
   }, [id, fetchData]);
+
+  useEffect(() => {
+    if (torneo?.estado === "finalizado") return;
+    const fechasConPartidosEnCancha = partidos
+      .filter((partido) => Boolean(partido.cancha?.trim()))
+      .map((partido) => partido.fecha)
+      .filter((fecha): fecha is number => typeof fecha === "number")
+      .sort((a, b) => b - a);
+    const fechaMasRecienteConCancha = fechasConPartidosEnCancha[0];
+    if (fechaMasRecienteConCancha !== undefined && fechaMasRecienteConCancha !== selectedFechaNum) {
+      setSelectedFechaNum(fechaMasRecienteConCancha);
+    }
+  }, [partidos, selectedFechaNum, torneo?.estado]);
 
   // Format helpers
   const isLigaParejas = useMemo(() => isLigaParejasTournament(torneo), [torneo]);
