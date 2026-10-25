@@ -4,6 +4,7 @@ import { partidoEsVisibleEnTvCanchas, TIPOS_TORNEO_TV } from "@/lib/torneoTvTipo
 describe("tipos de torneo disponibles en TV conjunta", () => {
   it("incluye torneos oficiales y americanos individuales", () => {
     expect(TIPOS_TORNEO_TV).toContain("oficial");
+    expect(TIPOS_TORNEO_TV).toContain("americano");
     expect(TIPOS_TORNEO_TV).toContain("americano_individual");
   });
 

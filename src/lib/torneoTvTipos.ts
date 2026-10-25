@@ -1,4 +1,4 @@
-export const TIPOS_TORNEO_TV = ["oficial", "americano_individual"] as const;
+export const TIPOS_TORNEO_TV = ["oficial", "americano", "americano_individual"] as const;
 
 export function partidoEsVisibleEnTvCanchas(partido: {
   cancha: string | null;
