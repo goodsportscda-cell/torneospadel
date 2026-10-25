@@ -4,6 +4,7 @@ import { Activity, Clock, Copy, Eye, Loader2, MapPin, Maximize2, Minimize2, Radi
 import { supabase } from "@/integrations/supabase/client";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, type FotoPosition } from "@/logic/torneoStandings";
 import { useOptionalTenant } from "@/contexts/TenantContext";
+import { TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
@@ -167,7 +168,10 @@ function TorneoTvCanchasContent() {
       }
       cargando = true;
       try {
-        const torneosQuery = supabase.from("torneos").select("id, nombre, tipo, canchas_asignadas").eq("tipo", "oficial");
+        const torneosQuery = supabase
+          .from("torneos")
+          .select("id, nombre, tipo, canchas_asignadas")
+          .in("tipo", [...TIPOS_TORNEO_TV]);
         const { data: torneos, error: errorTorneos } = torneoIdsSolicitados.length
           ? await torneosQuery.in("id", torneoIdsSolicitados)
           : await torneosQuery.eq("club_id", tenant!.club!.id).eq("estado", "en_curso");
