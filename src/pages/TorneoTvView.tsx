@@ -38,6 +38,7 @@ import {
   extractFotoFromNotas,
 } from "@/logic/torneoStandings";
 import { calcularPuntosFechaIndividual } from "@/lib/individualTorneoPuntos";
+import { seleccionarFechaTv } from "@/lib/torneoTvFecha";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"];
@@ -164,21 +165,15 @@ export default function TorneoTvView() {
       const partidosRows = mRes.data ?? [];
       if (fRes.data) {
         setFechas(fRes.data);
-        // Prioritize the latest date with matches assigned to courts for the TV view.
         if (!silent) {
-          const fechasConPartidosEnCancha = [...new Set(
-            partidosRows
-              .filter((partido: any) => partido.cancha?.trim())
-              .map((partido: any) => partido.fecha),
-          )].sort((a, b) => b - a);
-          const published = fRes.data.filter((f) => f.publicado);
-          if (fechasConPartidosEnCancha.length > 0) {
-            setSelectedFechaNum(fechasConPartidosEnCancha[0]);
-          } else if (published.length > 0) {
-            setSelectedFechaNum(published[published.length - 1].fecha);
-          } else if (fRes.data.length > 0) {
-            setSelectedFechaNum(fRes.data[0].fecha);
-          }
+          setSelectedFechaNum(
+            seleccionarFechaTv(
+              partidosRows,
+              fRes.data,
+              selectedFechaNum,
+              tRes.data?.estado === "finalizado",
+            ),
+          );
         }
       }
       const jugadoresRows = jRes.data ?? [];
@@ -226,7 +221,7 @@ export default function TorneoTvView() {
     } finally {
       if (!silent) setLoading(false);
     }
-  }, [id]);
+  }, [id, selectedFechaNum]);
 
   // Initial load
   useEffect(() => {
@@ -287,19 +282,6 @@ export default function TorneoTvView() {
       supabase.removeChannel(channel);
     };
   }, [id, fetchData]);
-
-  useEffect(() => {
-    if (torneo?.estado === "finalizado") return;
-    const fechasConPartidosEnCancha = partidos
-      .filter((partido) => Boolean(partido.cancha?.trim()))
-      .map((partido) => partido.fecha)
-      .filter((fecha): fecha is number => typeof fecha === "number")
-      .sort((a, b) => b - a);
-    const fechaMasRecienteConCancha = fechasConPartidosEnCancha[0];
-    if (fechaMasRecienteConCancha !== undefined && fechaMasRecienteConCancha !== selectedFechaNum) {
-      setSelectedFechaNum(fechaMasRecienteConCancha);
-    }
-  }, [partidos, selectedFechaNum, torneo?.estado]);
 
   // Format helpers
   const isLigaParejas = useMemo(() => isLigaParejasTournament(torneo), [torneo]);
