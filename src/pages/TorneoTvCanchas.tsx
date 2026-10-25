@@ -4,7 +4,7 @@ import { Activity, Clock, Copy, Eye, Loader2, MapPin, Maximize2, Minimize2, Radi
 import { supabase } from "@/integrations/supabase/client";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, type FotoPosition } from "@/logic/torneoStandings";
 import { useOptionalTenant } from "@/contexts/TenantContext";
-import { TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
+import { partidoEsVisibleEnTvCanchas, TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
@@ -13,6 +13,7 @@ import ErrorBoundary from "@/components/ErrorBoundary";
 type PartidoTv = {
   id: string;
   torneoId: string;
+  torneoTipo?: string;
   torneoNombre: string;
   cancha: string | null;
   estado: string;
@@ -277,7 +278,7 @@ function TorneoTvCanchasContent() {
           const pareja1 = [jugadorNombre(partido.jugador1_id, partido.suplente1_nombre), jugadorNombre(partido.jugador2_id, partido.suplente2_nombre)].join(" / ");
           const pareja2 = [jugadorNombre(partido.jugador3_id, partido.suplente3_nombre), jugadorNombre(partido.jugador4_id, partido.suplente4_nombre)].join(" / ");
           const fechaHora = partido.fecha_programada ? `${partido.fecha_programada}T${partido.hora_programada || "00:00:00"}` : null;
-          filas.push({ id: partido.id, torneoId: partido.torneo_id, torneoNombre: nombres.get(partido.torneo_id) ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora, local: pareja1, visitante: pareja2, fotoUrl: partido.foto_url || extractFotoFromNotas(notasTorneos.get(partido.torneo_id), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(partido.torneo_id), partido.id) ?? { x: 50, y: 16 }, sets: setsIndividuales.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
+          filas.push({ id: partido.id, torneoId: partido.torneo_id, torneoTipo: "americano_individual", torneoNombre: nombres.get(partido.torneo_id) ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora, local: pareja1, visitante: pareja2, fotoUrl: partido.foto_url || extractFotoFromNotas(notasTorneos.get(partido.torneo_id), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(partido.torneo_id), partido.id) ?? { x: 50, y: 16 }, sets: setsIndividuales.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
         }
 
         const visibles = filas.filter((partido) =>
@@ -534,11 +535,7 @@ function TorneoTvCanchasContent() {
         >
           {canchasVisibles.map((cancha) => {
             const partidosCancha = partidosAMostrar
-              .filter((partido) =>
-                numeroCancha(partido.cancha) === cancha &&
-                (partido.estado === "en_juego" ||
-                  ((partido.estado === "programado" || partido.estado === "pendiente") && esFechaDeHoyEnArgentina(partido.fechaHora))),
-              )
+              .filter((partido) => partidoEsVisibleEnTvCanchas(partido, cancha, numeroCancha, esFechaDeHoyEnArgentina))
               .sort((a, b) => {
                 if (a.estado === "en_juego" && b.estado !== "en_juego") return -1;
                 if (b.estado === "en_juego" && a.estado !== "en_juego") return 1;
