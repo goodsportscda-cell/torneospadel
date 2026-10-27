@@ -571,6 +571,7 @@ export type Database = {
           inscripcion_id: string | null
           instancia: string
           jugador_id: string
+          master_status: string | null
           puntos: number
           torneo_id: string | null
         }
@@ -583,6 +584,7 @@ export type Database = {
           inscripcion_id?: string | null
           instancia: string
           jugador_id: string
+          master_status?: string | null
           puntos?: number
           torneo_id?: string | null
         }
@@ -595,6 +597,7 @@ export type Database = {
           inscripcion_id?: string | null
           instancia?: string
           jugador_id?: string
+          master_status?: string | null
           puntos?: number
           torneo_id?: string | null
         }

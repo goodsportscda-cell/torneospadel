@@ -10,6 +10,380 @@ export type Instancia =
   | "treintaidosavos"
   | "zona";
 
+export type MasterStatus =
+  | "auto"
+  | "clasificado_manual"
+  | "ascendido_habilitado"
+  | "baja_master";
+
+export type EstadoMasterTipo =
+  | "clasificando"
+  | "suplente"
+  | "faltan_torneos"
+  | "baja";
+
+export const MASTER_STATUS_LABELS: Record<MasterStatus, string> = {
+  auto: "Auto",
+  ascendido_habilitado: "Ascendido (Habilitar)",
+  clasificado_manual: "Forzar Clasificado",
+  baja_master: "Baja / No Juega",
+};
+
+export const TORNEOS_REQUERIDOS_MASTER = 4;
+export const TORNEOS_TOTALES_ANIO = 7;
+export const CUPO_MASTER_PURA = 16;
+export const CUPO_MASTER_SUMA = 8;
+
+export function isCategoriaSuma(nombreCategoria: string | null | undefined): boolean {
+  if (!nombreCategoria) return false;
+  const n = nombreCategoria.toLowerCase().trim();
+  return n.includes("suma 8") || n.includes("suma 7") || n.startsWith("suma");
+}
+
+export function getCupoDefaultCategoria(nombreCategoria: string | null | undefined): number {
+  return isCategoriaSuma(nombreCategoria) ? CUPO_MASTER_SUMA : CUPO_MASTER_PURA;
+}
+
+export function normalizeMasterStatus(val: string | null | undefined): MasterStatus {
+  if (
+    val === "clasificado_manual" ||
+    val === "ascendido_habilitado" ||
+    val === "baja_master"
+  ) {
+    return val;
+  }
+  return "auto";
+}
+
+export async function actualizarMasterStatusJugador(params: {
+  jugadorId: string;
+  categoriaId: string;
+  anio: number;
+  status: MasterStatus;
+}): Promise<{ ok: boolean; error?: string }> {
+  const { jugadorId, categoriaId, anio, status } = params;
+  const { error } = await (supabase as any)
+    .from("ranking_jugadores")
+    .update({ master_status: status })
+    .eq("jugador_id", jugadorId)
+    .eq("categoria_id", categoriaId)
+    .eq("anio", anio);
+
+  if (error) {
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+export type CategoriaBasica = {
+  id: string;
+  nombre: string;
+  genero: string;
+};
+
+export type AscensoBasico = {
+  jugador_id: string;
+  categoria_origen_id: string;
+  categoria_destino_id: string;
+  created_at?: string;
+  fecha?: string;
+  notas?: string | null;
+  puntos_transferidos?: number;
+};
+
+export type RankingRawRow = {
+  jugador_id: string;
+  puntos: number;
+  torneo_id: string | null;
+  categoria_id: string | null;
+  genero?: string | null;
+  anio?: number;
+  instancia: string;
+  master_status?: string | null;
+};
+
+/**
+ * Construye estructuras auxiliares para saber:
+ * - Qué jugadores ascendieron DESDE una categoría (para excluirlos de su categoría vieja)
+ * - Cuántos torneos jugó cada jugador en cada categoría y cuántos suma desde su categoría origen por ascenso
+ *   (cuidando de NUNCA mezclar torneos de categorías Suma 8 / Suma 7 con categorías puras).
+ * - El master_status efectivo por (jugador_id, categoria_id).
+ */
+export function construirContextoAscensosYTorneos(params: {
+  categorias: CategoriaBasica[];
+  ascensos: AscensoBasico[];
+  rankingRows: RankingRawRow[];
+}) {
+  const { categorias, ascensos, rankingRows } = params;
+  const categoriasMap = new Map<string, CategoriaBasica>();
+  categorias.forEach((c) => categoriasMap.set(c.id, c));
+
+  // Deduplicar ascensos por jugador_origen_destino
+  const ascensosDeduplicados = new Map<string, AscensoBasico>();
+  (ascensos || []).forEach((a) => {
+    const key = `${a.jugador_id}_${a.categoria_origen_id}_${a.categoria_destino_id}`;
+    const existing = ascensosDeduplicados.get(key);
+    const tNew = a.created_at || a.fecha ? new Date(a.created_at || a.fecha!).getTime() : 0;
+    const tOld =
+      existing && (existing.created_at || existing.fecha)
+        ? new Date(existing.created_at || existing.fecha!).getTime()
+        : 0;
+    if (!existing || tNew >= tOld) {
+      ascensosDeduplicados.set(key, a);
+    }
+  });
+
+  // 1. Jugadores que ascendieron DESDE una categoría (para excluirlos de esa categoría origen)
+  const ascendidosDesde = new Map<string, Set<string>>();
+  // 2. Mapa directo jugador_id -> categoria_destino_id -> Set<categoria_origen_id>
+  const origenesDirectos = new Map<string, Map<string, Set<string>>>();
+
+  ascensosDeduplicados.forEach((a) => {
+    if (!ascendidosDesde.has(a.categoria_origen_id)) {
+      ascendidosDesde.set(a.categoria_origen_id, new Set());
+    }
+    ascendidosDesde.get(a.categoria_origen_id)!.add(a.jugador_id);
+
+    const catOrig = categoriasMap.get(a.categoria_origen_id);
+    const catDest = categoriasMap.get(a.categoria_destino_id);
+    // Solo encadenar categorías puras entre sí (nunca Suma 8 / Suma 7)
+    if (!isCategoriaSuma(catOrig?.nombre) && !isCategoriaSuma(catDest?.nombre)) {
+      if (!origenesDirectos.has(a.jugador_id)) {
+        origenesDirectos.set(a.jugador_id, new Map());
+      }
+      const destMap = origenesDirectos.get(a.jugador_id)!;
+      if (!destMap.has(a.categoria_destino_id)) {
+        destMap.set(a.categoria_destino_id, new Set());
+      }
+      destMap.get(a.categoria_destino_id)!.add(a.categoria_origen_id);
+    }
+  });
+
+  // Resolver orígenes transitivos (por si un jugador subió dos veces en el año: 8va -> 7ma -> 6ta)
+  const obtenerCategoriasOrigen = (jugadorId: string, catDestinoId: string): Set<string> => {
+    const result = new Set<string>();
+    const destMap = origenesDirectos.get(jugadorId);
+    if (!destMap) return result;
+    const queue = Array.from(destMap.get(catDestinoId) ?? []);
+    while (queue.length > 0) {
+      const curr = queue.shift()!;
+      if (!result.has(curr) && curr !== catDestinoId) {
+        result.add(curr);
+        const prevs = destMap.get(curr);
+        if (prevs) {
+          prevs.forEach((p) => {
+            if (!result.has(p)) queue.push(p);
+          });
+        }
+      }
+    }
+    return result;
+  };
+
+  // 3. Mapear torneos jugados por (jugador_id, categoria_id), instancias de ascenso y master_status
+  const torneosPorJugYCat = new Map<string, Map<string, Set<string>>>();
+  const tieneInstanciaAscenso = new Map<string, Set<string>>();
+  const masterStatusPorJugYCat = new Map<string, Map<string, MasterStatus>>();
+
+  (rankingRows || []).forEach((r) => {
+    if (!r.categoria_id) return;
+
+    // Registrar master_status por (jugador_id, categoria_id)
+    const st = normalizeMasterStatus(r.master_status);
+    if (!masterStatusPorJugYCat.has(r.jugador_id)) {
+      masterStatusPorJugYCat.set(r.jugador_id, new Map());
+    }
+    const stMap = masterStatusPorJugYCat.get(r.jugador_id)!;
+    const currentSt = stMap.get(r.categoria_id) ?? "auto";
+    if (st !== "auto" || !stMap.has(r.categoria_id)) {
+      stMap.set(r.categoria_id, st !== "auto" ? st : currentSt);
+    }
+
+    if (isAscenso(r.instancia)) {
+      if (!tieneInstanciaAscenso.has(r.jugador_id)) {
+        tieneInstanciaAscenso.set(r.jugador_id, new Set());
+      }
+      tieneInstanciaAscenso.get(r.jugador_id)!.add(r.categoria_id);
+    } else if (r.torneo_id) {
+      if (!torneosPorJugYCat.has(r.jugador_id)) {
+        torneosPorJugYCat.set(r.jugador_id, new Map());
+      }
+      const catMap = torneosPorJugYCat.get(r.jugador_id)!;
+      if (!catMap.has(r.categoria_id)) {
+        catMap.set(r.categoria_id, new Set());
+      }
+      catMap.get(r.categoria_id)!.add(r.torneo_id);
+    }
+  });
+
+  /**
+   * Calcula para un jugador en una categoría específica:
+   * - torneos_en_categoria (jugados en esa categoria_id)
+   * - torneos_categoria_anterior (jugados en su categoria_origen_id si ascendió / instancia='ascenso' / ascendido_habilitado, excluyendo Suma 8)
+   * - torneos_jugados (suma total válida para el Master en esa categoría)
+   * - master_status y es_ascendido
+   */
+  const obtenerMetricasMasterJugador = (jugadorId: string, categoriaId: string | null) => {
+    if (!categoriaId) {
+      return {
+        master_status: "auto" as MasterStatus,
+        es_ascendido: false,
+        torneos_en_categoria: 0,
+        torneos_categoria_anterior: 0,
+        torneos_jugados: 0,
+      };
+    }
+
+    const targetCat = categoriasMap.get(categoriaId);
+    const directSet = torneosPorJugYCat.get(jugadorId)?.get(categoriaId) ?? new Set<string>();
+    const status = masterStatusPorJugYCat.get(jugadorId)?.get(categoriaId) ?? "auto";
+
+    const origenesTabla = obtenerCategoriasOrigen(jugadorId, categoriaId);
+    const hasInstanciaAsc = tieneInstanciaAscenso.get(jugadorId)?.has(categoriaId) ?? false;
+    const hasStatusAsc = status === "ascendido_habilitado";
+
+    const esAscendido =
+      !isCategoriaSuma(targetCat?.nombre) &&
+      (origenesTabla.size > 0 || hasInstanciaAsc || hasStatusAsc);
+
+    const prevTorneosSet = new Set<string>();
+
+    if (esAscendido && targetCat && !isCategoriaSuma(targetCat.nombre)) {
+      // 1) Sumar torneos de las categorías de origen registradas en tabla ascensos
+      origenesTabla.forEach((origCatId) => {
+        const origCat = categoriasMap.get(origCatId);
+        if (!isCategoriaSuma(origCat?.nombre)) {
+          const origTorneos = torneosPorJugYCat.get(jugadorId)?.get(origCatId);
+          origTorneos?.forEach((tId) => {
+            if (!directSet.has(tId)) prevTorneosSet.add(tId);
+          });
+        }
+      });
+
+      // 2) Si tiene instancia='ascenso' o master_status='ascendido_habilitado' pero no tenía fila en ascensos para esta categoría,
+      // buscar torneos en otra categoría PURA del mismo género (nunca Suma 8 / Suma 7)
+      if (prevTorneosSet.size === 0 && (hasInstanciaAsc || hasStatusAsc)) {
+        const todasCatsJugador = torneosPorJugYCat.get(jugadorId);
+        todasCatsJugador?.forEach((tSet, otherCatId) => {
+          if (otherCatId === categoriaId) return;
+          const otherCat = categoriasMap.get(otherCatId);
+          if (
+            otherCat &&
+            otherCat.genero === targetCat.genero &&
+            !isCategoriaSuma(otherCat.nombre)
+          ) {
+            tSet.forEach((tId) => {
+              if (!directSet.has(tId)) prevTorneosSet.add(tId);
+            });
+          }
+        });
+      }
+    }
+
+    const torneos_en_categoria = directSet.size;
+    const torneos_categoria_anterior = prevTorneosSet.size;
+    return {
+      master_status: status,
+      es_ascendido: esAscendido,
+      torneos_en_categoria,
+      torneos_categoria_anterior,
+      torneos_jugados: torneos_en_categoria + torneos_categoria_anterior,
+    };
+  };
+
+  return {
+    ascensosDeduplicados,
+    ascendidosDesde,
+    obtenerMetricasMasterJugador,
+  };
+}
+
+/**
+ * Aplica las reglas de clasificación al Master (Top 16 en Puras, Top 8 en Suma 8,
+ * mínimo 4 torneos o clasificado_manual, excluyendo baja_master) sobre una lista
+ * ya ordenada por puntos reales de mayor a menor, sin alterar el orden del Ranking General.
+ */
+export function aplicarReglasMaster<
+  T extends {
+    torneos_jugados: number;
+    master_status?: MasterStatus;
+  }
+>(
+  rows: T[],
+  cupoCategoria: number
+): (T & {
+  master_status: MasterStatus;
+  elegible_master: boolean;
+  clasifica_master: boolean;
+  es_suplente_master: boolean;
+  posicion_master: number | null;
+  orden_suplente: number | null;
+  estado_master_tipo: EstadoMasterTipo;
+})[] {
+  let elegiblesCount = 0;
+  let suplentesCount = 0;
+
+  return rows.map((r) => {
+    const status = normalizeMasterStatus(r.master_status);
+
+    if (status === "baja_master") {
+      return {
+        ...r,
+        master_status: status,
+        elegible_master: false,
+        clasifica_master: false,
+        es_suplente_master: false,
+        posicion_master: null,
+        orden_suplente: null,
+        estado_master_tipo: "baja" as EstadoMasterTipo,
+      };
+    }
+
+    const elegible =
+      status === "clasificado_manual" || r.torneos_jugados >= TORNEOS_REQUERIDOS_MASTER;
+
+    if (elegible) {
+      elegiblesCount += 1;
+      const posMaster = elegiblesCount;
+      if (posMaster <= cupoCategoria) {
+        return {
+          ...r,
+          master_status: status,
+          elegible_master: true,
+          clasifica_master: true,
+          es_suplente_master: false,
+          posicion_master: posMaster,
+          orden_suplente: null,
+          estado_master_tipo: "clasificando" as EstadoMasterTipo,
+        };
+      } else {
+        suplentesCount += 1;
+        return {
+          ...r,
+          master_status: status,
+          elegible_master: true,
+          clasifica_master: false,
+          es_suplente_master: true,
+          posicion_master: posMaster,
+          orden_suplente: suplentesCount,
+          estado_master_tipo: "suplente" as EstadoMasterTipo,
+        };
+      }
+    }
+
+    return {
+      ...r,
+      master_status: status,
+      elegible_master: false,
+      clasifica_master: false,
+      es_suplente_master: false,
+      posicion_master: null,
+      orden_suplente: null,
+      estado_master_tipo: "faltan_torneos" as EstadoMasterTipo,
+    };
+  });
+}
+
 export const INSTANCIA_LABEL: Record<Instancia, string> = {
   campeon: "Campeón",
   subcampeon: "Subcampeón",
@@ -105,7 +479,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
       .eq("club_id", torneo.club_id);
     if (errP) throw errP;
     const puntosMap = new Map<string, number>();
-    (puntosCfg ?? []).forEach((p) => puntosMap.set(p.instancia, p.puntos));
+    (puntosCfg ?? []).forEach((p: any) => puntosMap.set(p.instancia, p.puntos));
 
     // 3. Inscripciones del torneo (parejas) con jugadores
     const { data: inscripciones, error: errI } = await supabase
@@ -200,7 +574,23 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
       }
     });
 
-    // 5. Borrar puntos previos del torneo
+    // 5. Preservar master_status previo de los jugadores en esta categoría y año antes de borrar
+    const statusPrevioMap = new Map<string, MasterStatus>();
+    if (torneo.categoria_id) {
+      const { data: prevRows } = await (supabase as any)
+        .from("ranking_jugadores")
+        .select("jugador_id, master_status")
+        .eq("anio", anio)
+        .eq("categoria_id", torneo.categoria_id);
+      (prevRows ?? []).forEach((r: any) => {
+        const st = normalizeMasterStatus(r.master_status);
+        if (st !== "auto") {
+          statusPrevioMap.set(r.jugador_id, st);
+        }
+      });
+    }
+
+    // Borrar puntos previos del torneo
     await supabase.from("ranking_jugadores").delete().eq("torneo_id", torneoId);
 
     // 6. Insertar puntos por jugador
@@ -213,6 +603,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
       anio: number;
       categoria_id: string | null;
       genero: string | null;
+      master_status?: MasterStatus;
     }[] = [];
 
     for (const [inscId, instancia] of inscripcionInstancia.entries()) {
@@ -221,6 +612,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
       const puntosBase = puntosMap.get(instancia) ?? 0;
       const puntos = Math.round(puntosBase * multiplicador);
       jugadores.forEach((jugadorId) => {
+        const stPrev = statusPrevioMap.get(jugadorId);
         filas.push({
           jugador_id: jugadorId,
           torneo_id: torneoId,
@@ -230,6 +622,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
           anio,
           categoria_id: torneo.categoria_id,
           genero: generoTorneo,
+          ...(stPrev ? { master_status: stPrev } : {}),
         });
       });
     }
@@ -238,12 +631,19 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
       const { error: errIns } = await supabase
         .from("ranking_jugadores")
         .insert(filas);
-      if (errIns) throw errIns;
+      if (errIns) {
+        // Fallback si la columna master_status aún no fue corrida en la base
+        const filasSinStatus = filas.map(({ master_status: _ms, ...rest }) => rest);
+        const { error: errRetry } = await supabase
+          .from("ranking_jugadores")
+          .insert(filasSinStatus);
+        if (errRetry) throw errRetry;
+      }
     }
 
     // Recalcular todos los ascensos del año para mantener puntos transferidos consistentes
     if (!skipAscensosRecalc) {
-      await recalcularTodosLosAscensos(anio);
+      await recalcularTodosLosAscensos(anio, torneo.club_id);
     }
 
     return { ok: true, jugadoresConPuntos: filas.length };
@@ -342,7 +742,6 @@ export async function recalcularTodosLosAscensos(anio: number, clubId?: string |
     console.error("Error en recalcularTodosLosAscensos:", err);
   }
 }
-
 
 function instanciaPeso(i: Instancia): number {
   const orden: Instancia[] = [
