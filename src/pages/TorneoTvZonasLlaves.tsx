@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useClubBrand } from "@/hooks/useClubBrand";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
@@ -13,6 +13,7 @@ import { CalendarClock, Check, Clock3, Copy, Maximize2, Minimize2, Radio, Refres
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
+import { getResponsiveCourtGridClass, isCourtActive, normalizeActiveCourtIds } from "@/lib/activeCourts";
 
 type Torneo = {
   id: string;
@@ -25,6 +26,7 @@ type Torneo = {
   sede: string | null;
   club_id: string | null;
   canchas_count: number | null;
+  canchas_asignadas?: number[] | null;
 };
 type JugadorPublico = { id: string; nombre: string; apellido: string };
 type Inscripcion = { id: string; jugador1_id: string | null; jugador2_id: string | null };
@@ -55,6 +57,8 @@ const fmtFecha = (value: string | null) => value
 
 export default function TorneoTvZonasLlaves() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const canchasKey = searchParams.get("canchas") ?? "";
   const [torneo, setTorneo] = useState<Torneo | null>(null);
   const { nombre: nombreClub, logoUrl } = useClubBrand(torneo?.club_id);
   const [zonas, setZonas] = useState<Zona[]>([]);
@@ -78,7 +82,7 @@ export default function TorneoTvZonasLlaves() {
     try {
       const { data: tournament, error: tournamentError } = await (supabase as any)
         .from("torneos")
-        .select("id, nombre, tipo, estado, categoria_libre, numero_fecha, fecha_inicio, sede, club_id, canchas_count")
+        .select("id, nombre, tipo, estado, categoria_libre, numero_fecha, fecha_inicio, sede, club_id, canchas_count, canchas_asignadas")
         .eq("id", id)
         .maybeSingle();
       if (tournamentError || !tournament) throw tournamentError ?? new Error("No encontramos ese torneo.");
@@ -196,36 +200,61 @@ export default function TorneoTvZonasLlaves() {
     };
   }, [loadData]);
 
+  const activeCourtIds = useMemo(() => {
+    if (canchasKey) return normalizeActiveCourtIds(canchasKey, [1, 2, 3]);
+    const fallbackCount = Math.max(1, Math.min(torneo?.canchas_count || 3, 6));
+    const fallback = Array.from({ length: fallbackCount }, (_, index) => index + 1);
+    return normalizeActiveCourtIds(torneo?.canchas_asignadas, fallback);
+  }, [canchasKey, torneo?.canchas_asignadas, torneo?.canchas_count]);
+
   const activeMatchSubscriptions = useMemo(() => partidos
-    .filter((match) => match.estado === "en_juego")
+    .filter((match) => match.estado === "en_juego" && isCourtActive(match.cancha, activeCourtIds))
     .map((match) => `${match.origen}:${match.id}`)
     .sort()
-    .join(","), [partidos]);
+    .join(","), [partidos, activeCourtIds]);
 
   useEffect(() => {
-    if (!id || !activeMatchSubscriptions) return;
-    const channel = supabase.channel(`tv_live_matches_${id}`);
-    activeMatchSubscriptions.split(",").forEach((entry) => {
-      const [origin, matchId] = entry.split(":");
-      const table = origin === "zona" ? "partidos_zona" : "partidos_llave";
-      channel.on(
+    if (!id) return;
+    const channel = supabase
+      .channel(`tv_live_matches_${id}`)
+      .on(
         "postgres_changes",
-        { event: "UPDATE", schema: "public", table, filter: `id=eq.${matchId}` },
-        () => {
-          // Live-score rows can update repeatedly during a point. Coalesce
-          // those events so one match does not reload every tournament table
-          // for each scoreboard change.
-          if (liveRefreshTimerRef.current !== null) return;
-          const elapsed = Date.now() - lastLiveRefreshAtRef.current;
-          const delay = Math.max(0, 15000 - elapsed);
-          liveRefreshTimerRef.current = window.setTimeout(() => {
-            liveRefreshTimerRef.current = null;
-            lastLiveRefreshAtRef.current = Date.now();
-            void loadData(true);
-          }, delay);
-        }
+        { event: "UPDATE", schema: "public", table: "torneos", filter: `id=eq.${id}` },
+        (payload) => {
+          const updated = payload.new as Torneo;
+          if (!updated) return;
+          setTorneo((prev) =>
+            prev
+              ? {
+                ...prev,
+                canchas_asignadas: updated.canchas_asignadas ?? prev.canchas_asignadas,
+                canchas_count: updated.canchas_count ?? prev.canchas_count,
+                estado: updated.estado ?? prev.estado,
+              }
+              : prev,
+          );
+        },
       );
-    });
+    if (activeMatchSubscriptions) {
+      activeMatchSubscriptions.split(",").forEach((entry) => {
+        const [origin, matchId] = entry.split(":");
+        const table = origin === "zona" ? "partidos_zona" : "partidos_llave";
+        channel.on(
+          "postgres_changes",
+          { event: "UPDATE", schema: "public", table, filter: `id=eq.${matchId}` },
+          () => {
+            if (liveRefreshTimerRef.current !== null) return;
+            const elapsed = Date.now() - lastLiveRefreshAtRef.current;
+            const delay = Math.max(0, 15000 - elapsed);
+            liveRefreshTimerRef.current = window.setTimeout(() => {
+              liveRefreshTimerRef.current = null;
+              lastLiveRefreshAtRef.current = Date.now();
+              void loadData(true);
+            }, delay);
+          }
+        );
+      });
+    }
     channel.subscribe();
     return () => {
       if (liveRefreshTimerRef.current !== null) {
@@ -300,9 +329,17 @@ export default function TorneoTvZonasLlaves() {
     return reference.replace(/_/g, " ");
   }, [playerMap, registrationMap]);
 
-  const courtCount = Math.max(1, Math.min(torneo?.canchas_count || 4, 12));
-  const courts = Array.from({ length: courtCount }, (_, index) => String(index + 1));
-  const assignedMatches = useMemo(() => partidos.filter((match) => match.cancha && ["en_juego", "programado", "pendiente"].includes(match.estado)), [partidos]);
+  const courts = useMemo(() => activeCourtIds.map(String), [activeCourtIds]);
+  const assignedMatches = useMemo(
+    () =>
+      partidos.filter(
+        (match) =>
+          match.cancha &&
+          ["en_juego", "programado", "pendiente"].includes(match.estado) &&
+          isCourtActive(match.cancha, activeCourtIds),
+      ),
+    [partidos, activeCourtIds],
+  );
   const liveMatches = useMemo(() => assignedMatches.filter((match) => match.estado === "en_juego"), [assignedMatches]);
   partidosRef.current = partidos;
   const courtMatches = useCallback((court: string) => assignedMatches
@@ -332,8 +369,8 @@ export default function TorneoTvZonasLlaves() {
   }, [partidos]);
 
   const toggleFullscreen = () => {
-    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => {});
-    else document.exitFullscreen().catch(() => {});
+    if (!document.fullscreenElement) document.documentElement.requestFullscreen().catch(() => { });
+    else document.exitFullscreen().catch(() => { });
   };
   const copyLink = async () => {
     try {
@@ -404,14 +441,19 @@ export default function TorneoTvZonasLlaves() {
               {liveMatches.length > 0 && (
                 <section className="mb-6">
                   <div className="mb-3 flex items-center gap-2 text-rose-300"><Radio className="h-4 w-4" /><h2 className="text-xs font-black uppercase tracking-[0.18em]">En juego ahora</h2></div>
-                  <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className={`grid gap-3 ${getResponsiveCourtGridClass(liveMatches.length, "tv-zonas")}`}>
                     {liveMatches.map((match) => <MatchSpotlight key={match.id} match={match} local={matchLabel(match.parejaLocalId, match.refLocal)} visitor={matchLabel(match.parejaVisitanteId, match.refVisitante)} score={matchScore(match)} photoUrl={photoUrls[match.id]} />)}
                   </div>
                 </section>
               )}
               <section>
-                <div className="mb-3 flex items-center justify-between gap-2"><h2 className="text-xs font-black uppercase tracking-[0.18em] text-white/65">Canchas del complejo</h2><Badge variant="outline" className="border-white/10 text-white/50">{courtCount} canchas</Badge></div>
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-xs font-black uppercase tracking-[0.18em] text-white/65">Canchas activas del torneo</h2>
+                  <Badge variant="outline" className="border-white/10 text-white/50 font-mono">
+                    {courts.length} activa{courts.length === 1 ? "" : "s"} ({courts.map((c) => `C${c}`).join(", ")})
+                  </Badge>
+                </div>
+                <div className={`grid gap-3 ${getResponsiveCourtGridClass(courts.length, "tv-zonas")}`}>
                   {courts.map((court) => {
                     const matches = courtMatches(court);
                     const current = matches.find((match) => match.estado === "en_juego");
@@ -430,9 +472,9 @@ export default function TorneoTvZonasLlaves() {
             </>
           )}
 
-          {tab === "zonas" && (zonas.length ? <div className="grid gap-4 lg:grid-cols-2">{zonas.map((zone) => <ZonaCard key={zone.id} zona={zone} torneoId={id} parejasDisponibles={[]} parejaLabel={(registrationId) => matchLabel(registrationId, null)} onChanged={() => {}} onDeleted={() => {}} readOnly torneoNombre={torneo.nombre} matchPhotoUrl={(matchId) => photoUrls[matchId]} />)}</div> : <EmptyState label="Las zonas todavía no están publicadas." />)}
+          {tab === "zonas" && (zonas.length ? <div className="grid gap-4 lg:grid-cols-2">{zonas.map((zone) => <ZonaCard key={zone.id} zona={zone} torneoId={id} parejasDisponibles={[]} parejaLabel={(registrationId) => matchLabel(registrationId, null)} onChanged={() => { }} onDeleted={() => { }} readOnly torneoNombre={torneo.nombre} matchPhotoUrl={(matchId) => photoUrls[matchId]} />)}</div> : <EmptyState label="Las zonas todavía no están publicadas." />)}
 
-              {tab === "llaves" && (rounds.length ? <div className="flex gap-4 overflow-x-auto pb-5">{rounds.map(([round, roundMatches]) => <section key={round} className="w-[300px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4"><h2 className="mb-4 border-b border-white/10 pb-3 text-center text-xs font-black uppercase tracking-[0.16em] text-primary">{round}</h2><div className="space-y-3">{[...roundMatches].sort((a, b) => a.numero - b.numero).map((match) => <div key={match.id} className="space-y-2">{photoUrls[match.id] && <img src={photoUrls[match.id]} alt={`Foto del partido ${match.numero}`} loading="lazy" className="max-h-40 w-full rounded-lg border border-white/10 bg-black/40 object-contain" />}<PartidoCard partidoId={match.id} torneoId={id ?? ""} orden={match.numero} labelPartido={`Partido ${match.numero}`} tabla="partidos_llave" parejaLocal={match.parejaLocalId ? { inscripcion_id: match.parejaLocalId, posicion_siembra: 0, label: matchLabel(match.parejaLocalId, null) } : match.refLocal ? { inscripcion_id: "", posicion_siembra: 0, label: matchLabel(null, match.refLocal) } : null} parejaVisitante={match.parejaVisitanteId ? { inscripcion_id: match.parejaVisitanteId, posicion_siembra: 0, label: matchLabel(match.parejaVisitanteId, null) } : match.refVisitante ? { inscripcion_id: "", posicion_siembra: 0, label: matchLabel(null, match.refVisitante) } : null} estado={match.estado as any} ganadorId={match.ganadorId} setsExistentes={match.sets as any[]} onUpdated={() => {}} fechaHora={match.fechaHora} cancha={match.cancha} showProgramacion readOnly /></div>)}</div></section>)}</div> : <EmptyState label="El cuadro todavía no está publicado." />)}
+          {tab === "llaves" && (rounds.length ? <div className="flex gap-4 overflow-x-auto pb-5">{rounds.map(([round, roundMatches]) => <section key={round} className="w-[300px] shrink-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4"><h2 className="mb-4 border-b border-white/10 pb-3 text-center text-xs font-black uppercase tracking-[0.16em] text-primary">{round}</h2><div className="space-y-3">{[...roundMatches].sort((a, b) => a.numero - b.numero).map((match) => <div key={match.id} className="space-y-2">{photoUrls[match.id] && <img src={photoUrls[match.id]} alt={`Foto del partido ${match.numero}`} loading="lazy" className="max-h-40 w-full rounded-lg border border-white/10 bg-black/40 object-contain" />}<PartidoCard partidoId={match.id} torneoId={id ?? ""} orden={match.numero} labelPartido={`Partido ${match.numero}`} tabla="partidos_llave" parejaLocal={match.parejaLocalId ? { inscripcion_id: match.parejaLocalId, posicion_siembra: 0, label: matchLabel(match.parejaLocalId, null) } : match.refLocal ? { inscripcion_id: "", posicion_siembra: 0, label: matchLabel(null, match.refLocal) } : null} parejaVisitante={match.parejaVisitanteId ? { inscripcion_id: match.parejaVisitanteId, posicion_siembra: 0, label: matchLabel(match.parejaVisitanteId, null) } : match.refVisitante ? { inscripcion_id: "", posicion_siembra: 0, label: matchLabel(null, match.refVisitante) } : null} estado={match.estado as any} ganadorId={match.ganadorId} setsExistentes={match.sets as any[]} onUpdated={() => { }} fechaHora={match.fechaHora} cancha={match.cancha} showProgramacion readOnly /></div>)}</div></section>)}</div> : <EmptyState label="El cuadro todavía no está publicado." />)}
         </main>
 
         <footer className="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 pt-3 text-[10px] text-white/35"><span>Padel ID · Torneos y rankings</span><span>Esta pantalla es pública y de solo lectura</span></footer>

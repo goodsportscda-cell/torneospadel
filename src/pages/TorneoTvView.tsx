@@ -1,8 +1,14 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
-import { useParams, Link } from "react-router-dom";
+import { useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
+import {
+  extractCourtNumber,
+  getResponsiveCourtGridClass,
+  isCourtActive,
+  normalizeActiveCourtIds,
+} from "@/lib/activeCourts";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -56,6 +62,8 @@ type TorneoFecha = Database["public"]["Tables"]["torneo_individual_fechas"]["Row
 
 export default function TorneoTvView() {
   const { id } = useParams<{ id: string }>();
+  const [searchParams] = useSearchParams();
+  const canchasKey = searchParams.get("canchas") ?? "";
 
   // Main state
   const [torneo, setTorneo] = useState<Torneo | null>(null);
@@ -69,6 +77,18 @@ export default function TorneoTvView() {
   const [currentTime, setCurrentTime] = useState<string>("");
   const liveRefreshTimerRef = useRef<number | null>(null);
   const lastLiveRefreshAtRef = useRef(0);
+  const activeCourtIdsRef = useRef<number[]>([1, 2, 3]);
+
+  const activeCourtIds = useMemo(() => {
+    if (canchasKey) return normalizeActiveCourtIds(canchasKey, [1, 2, 3]);
+    const fallbackCount = Math.max(1, Math.min(torneo?.canchas_count || 3, 6));
+    const fallback = Array.from({ length: fallbackCount }, (_, index) => index + 1);
+    return normalizeActiveCourtIds(torneo?.canchas_asignadas, fallback);
+  }, [canchasKey, torneo?.canchas_asignadas, torneo?.canchas_count]);
+
+  useEffect(() => {
+    activeCourtIdsRef.current = activeCourtIds;
+  }, [activeCourtIds]);
 
   // TV view controls
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -129,9 +149,9 @@ export default function TorneoTvView() {
 
   const toggleFullscreen = () => {
     if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen().catch(() => {});
+      document.documentElement.requestFullscreen().catch(() => { });
     } else {
-      document.exitFullscreen().catch(() => {});
+      document.exitFullscreen().catch(() => { });
     }
   };
 
@@ -192,9 +212,9 @@ export default function TorneoTvView() {
 
       const { data: publicPlayers } = playerIds.size > 0
         ? await (supabase as any)
-            .from("jugadores_publicos")
-            .select("id, nombre, apellido, club, categoria_id, genero")
-            .in("id", [...playerIds])
+          .from("jugadores_publicos")
+          .select("id, nombre, apellido, club, categoria_id, genero")
+          .in("id", [...playerIds])
         : { data: [] };
       const playerMap = new Map((publicPlayers ?? []).map((player: any) => [player.id, player]));
 
@@ -260,7 +280,13 @@ export default function TorneoTvView() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "partidos_individuales", filter: `torneo_id=eq.${id}` },
-        refreshFromRealtime
+        (payload) => {
+          const cancha = (payload.new as any)?.cancha ?? (payload.old as any)?.cancha;
+          if (cancha && extractCourtNumber(cancha) !== null && !isCourtActive(cancha, activeCourtIdsRef.current)) {
+            return;
+          }
+          refreshFromRealtime();
+        }
       )
       .on(
         "postgres_changes",
@@ -270,7 +296,23 @@ export default function TorneoTvView() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "torneos", filter: `id=eq.${id}` },
-        refreshFromRealtime
+        (payload) => {
+          const updated = payload.new as Torneo | undefined;
+          if (updated) {
+            setTorneo((prev) =>
+              prev
+                ? {
+                  ...prev,
+                  canchas_asignadas: updated.canchas_asignadas ?? prev.canchas_asignadas,
+                  canchas_count: updated.canchas_count ?? prev.canchas_count,
+                  estado: updated.estado ?? prev.estado,
+                  notas: updated.notas ?? prev.notas,
+                }
+                : prev,
+            );
+          }
+          refreshFromRealtime();
+        }
       )
       .subscribe();
 
@@ -555,27 +597,28 @@ export default function TorneoTvView() {
     return applyManualPositions(list, defaultSorter);
   }, [torneo, parejas, partidos, fechas, isLigaParejas, esPuntosPorSet, jugadoresInscriptos]);
 
-  // Current fecha matches
+  // Current fecha matches (filtered to active courts)
   const partidosDeFecha = useMemo(() => {
     return partidos
-      .filter((p) => p.fecha === selectedFechaNum && (torneo?.estado !== "finalizado" || p.estado !== "finalizado"))
+      .filter((p) => {
+        if (p.fecha !== selectedFechaNum) return false;
+        if (torneo?.estado === "finalizado" && p.estado === "finalizado") return false;
+        const courtNum = extractCourtNumber(p.cancha);
+        if (courtNum !== null && !isCourtActive(p.cancha, activeCourtIds)) return false;
+        return true;
+      })
       .sort((a, b) => {
-        const cA = parseInt(a.cancha.replace(/\D/g, "") || "99", 10);
-        const cB = parseInt(b.cancha.replace(/\D/g, "") || "99", 10);
+        const cA = extractCourtNumber(a.cancha) ?? 99;
+        const cB = extractCourtNumber(b.cancha) ?? 99;
         return cA - cB;
       });
-  }, [partidos, selectedFechaNum, torneo?.estado]);
+  }, [partidos, selectedFechaNum, torneo?.estado, activeCourtIds]);
 
-  // Grid sizing based on court count
+  // Grid sizing based on active court count
   const courtGridClass = useMemo(() => {
-    const count = partidosDeFecha.length || 3;
-    if (count === 1) return "grid-cols-1 max-w-4xl mx-auto";
-    if (count === 2) return "grid-cols-1 md:grid-cols-2";
-    if (count === 3) return "grid-cols-1 md:grid-cols-3";
-    if (count === 4) return "grid-cols-1 sm:grid-cols-2 md:grid-rows-2";
-    if (count <= 6) return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 md:grid-rows-2";
-    return "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3";
-  }, [partidosDeFecha.length]);
+    const count = partidosDeFecha.length || activeCourtIds.length || 3;
+    return getResponsiveCourtGridClass(count, "tv-desafio", { withSidebar: showSidebar });
+  }, [partidosDeFecha.length, activeCourtIds.length, showSidebar]);
 
   return (
     <div className="w-full min-h-screen h-auto md:h-screen overflow-x-hidden md:overflow-hidden bg-[#07070a] text-white flex flex-col font-sans select-none relative">
@@ -628,6 +671,9 @@ export default function TorneoTvView() {
                   {torneo?.modalidad === "parejas" ? "Desafío Parejas" : "Americano Individual"}
                 </Badge>
               )}
+              <Badge className="bg-[#00f5d4]/15 text-[#00f5d4] border border-[#00f5d4]/30 text-[9px] font-mono hidden md:inline-flex">
+                Canchas: {activeCourtIds.map((c) => `C${c}`).join(", ")}
+              </Badge>
             </div>
             <p className="text-[10px] sm:text-[11px] text-neutral-400 font-medium truncate">
               {torneo?.sede || "Complejo Deportivo"} · {torneo?.categoria_libre || "Categoría Libre"}
@@ -682,9 +728,8 @@ export default function TorneoTvView() {
             size="sm"
             variant="outline"
             onClick={() => setShowSidebar((prev) => !prev)}
-            className={`hidden md:flex h-9 px-2.5 text-xs font-bold border-white/10 ${
-              showSidebar ? "bg-white/10 text-white" : "bg-transparent text-neutral-400 hover:text-white"
-            }`}
+            className={`hidden md:flex h-9 px-2.5 text-xs font-bold border-white/10 ${showSidebar ? "bg-white/10 text-white" : "bg-transparent text-neutral-400 hover:text-white"
+              }`}
             title="Mostrar / Ocultar Tabla de Posiciones (Tecla S)"
           >
             <Trophy className="h-3.5 w-3.5 mr-1 text-amber-400" />
@@ -719,11 +764,10 @@ export default function TorneoTvView() {
         <button
           type="button"
           onClick={() => setMobileTab("canchas")}
-          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 transition-all ${
-            mobileTab === "canchas"
+          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 transition-all ${mobileTab === "canchas"
               ? "bg-[#00f5d4]/20 text-[#00f5d4] border border-[#00f5d4]/40 shadow-[0_0_12px_rgba(0,245,212,0.25)]"
               : "text-neutral-400 hover:text-white bg-white/5"
-          }`}
+            }`}
         >
           <LayoutGrid className="h-3.5 w-3.5" />
           <span>Canchas en Vivo ({partidosDeFecha.length})</span>
@@ -731,11 +775,10 @@ export default function TorneoTvView() {
         <button
           type="button"
           onClick={() => setMobileTab("posiciones")}
-          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 transition-all ${
-            mobileTab === "posiciones"
+          className={`flex-1 py-2 px-3 text-xs font-black rounded-xl flex items-center justify-center gap-2 transition-all ${mobileTab === "posiciones"
               ? "bg-amber-400/20 text-amber-400 border border-amber-400/40 shadow-[0_0_12px_rgba(251,191,36,0.25)]"
               : "text-neutral-400 hover:text-white bg-white/5"
-          }`}
+            }`}
         >
           <Trophy className="h-3.5 w-3.5" />
           <span>Tabla Posiciones</span>
@@ -808,17 +851,16 @@ export default function TorneoTvView() {
                 return (
                   <div
                     key={partido.id}
-                    className={`rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between shadow-2xl backdrop-blur-xl min-h-[230px] md:min-h-0 ${
-                      isPlaying
+                    className={`rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between shadow-2xl backdrop-blur-xl min-h-[230px] md:min-h-0 ${isPlaying
                         ? "border-[#00f5d4]/60 bg-gradient-to-b from-[#0a1219]/90 to-[#070b0f]/95 shadow-[0_0_35px_rgba(0,245,212,0.18)] ring-1 ring-[#00f5d4]/40"
                         : hasWinner
-                        ? "border-white/10 bg-gradient-to-b from-neutral-900/85 to-[#09090e]/95"
-                        : "border-white/10 bg-neutral-900/70"
-                    }`}
+                          ? "border-white/10 bg-gradient-to-b from-neutral-900/85 to-[#09090e]/95"
+                          : "border-white/10 bg-neutral-900/70"
+                      }`}
                   >
                     {/* Background Multimedia Backdrop (Photo Overlay with Glassmorphism) */}
                     {fotoUrl && (
-                      <div 
+                      <div
                         className="absolute inset-0 z-0 overflow-hidden cursor-pointer group"
                         onClick={() => setPreviewPhoto(fotoUrl)}
                         title="Clic para ver foto del partido en tamaño completo"
@@ -887,13 +929,12 @@ export default function TorneoTvView() {
                     <div className="relative z-10 p-4 md:p-5 flex-1 flex flex-col justify-center space-y-3">
                       {/* PAREJA A */}
                       <div
-                        className={`p-3 rounded-xl border transition-all ${
-                          hasWinner && p1Won
+                        className={`p-3 rounded-xl border transition-all ${hasWinner && p1Won
                             ? "bg-[#00f5d4]/10 border-[#00f5d4]/40 shadow-[0_0_20px_rgba(0,245,212,0.1)]"
                             : hasWinner
-                            ? "bg-white/[0.02] border-transparent opacity-60"
-                            : "bg-white/[0.04] border-white/5"
-                        }`}
+                              ? "bg-white/[0.02] border-transparent opacity-60"
+                              : "bg-white/[0.04] border-white/5"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -933,13 +974,12 @@ export default function TorneoTvView() {
 
                       {/* PAREJA B */}
                       <div
-                        className={`p-3 rounded-xl border transition-all ${
-                          hasWinner && p2Won
+                        className={`p-3 rounded-xl border transition-all ${hasWinner && p2Won
                             ? "bg-[#00f5d4]/10 border-[#00f5d4]/40 shadow-[0_0_20px_rgba(0,245,212,0.1)]"
                             : hasWinner
-                            ? "bg-white/[0.02] border-transparent opacity-60"
-                            : "bg-white/[0.04] border-white/5"
-                        }`}
+                              ? "bg-white/[0.02] border-transparent opacity-60"
+                              : "bg-white/[0.04] border-white/5"
+                          }`}
                       >
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
@@ -1035,13 +1075,12 @@ export default function TorneoTvView() {
 
         {/* SIDEBAR / LEADERBOARD: LIVE STANDINGS TICKER */}
         {(showSidebar || mobileTab === "posiciones") && (
-          <aside className={`flex-col bg-neutral-900/80 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl ${
-            mobileTab === "posiciones"
+          <aside className={`flex-col bg-neutral-900/80 border border-white/10 rounded-2xl backdrop-blur-xl overflow-hidden shadow-2xl ${mobileTab === "posiciones"
               ? "flex md:hidden w-full min-h-[400px] mb-8"
               : showSidebar
-              ? "hidden md:flex w-72 lg:w-80 h-full shrink-0"
-              : "hidden"
-          }`}>
+                ? "hidden md:flex w-72 lg:w-80 h-full shrink-0"
+                : "hidden"
+            }`}>
             {/* Sidebar Header */}
             <div className="p-3.5 border-b border-white/10 bg-black/30 flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -1083,28 +1122,26 @@ export default function TorneoTvView() {
                   return (
                     <div
                       key={s.pareja_id || s.jugador_id}
-                      className={`px-3.5 py-2.5 flex items-center justify-between transition-colors ${
-                        idx === 0
+                      className={`px-3.5 py-2.5 flex items-center justify-between transition-colors ${idx === 0
                           ? "bg-amber-400/[0.07]"
                           : idx === 1
-                          ? "bg-slate-400/[0.04]"
-                          : idx === 2
-                          ? "bg-amber-700/[0.05]"
-                          : "hover:bg-white/[0.02]"
-                      }`}
+                            ? "bg-slate-400/[0.04]"
+                            : idx === 2
+                              ? "bg-amber-700/[0.05]"
+                              : "hover:bg-white/[0.02]"
+                        }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
                         {/* Position Badge */}
                         <div
-                          className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center font-mono shrink-0 ${
-                            idx === 0
+                          className={`w-6 h-6 rounded-lg font-black text-xs flex items-center justify-center font-mono shrink-0 ${idx === 0
                               ? "bg-amber-400 text-neutral-950 shadow-[0_0_10px_rgba(251,191,36,0.6)]"
                               : idx === 1
-                              ? "bg-slate-300 text-neutral-950"
-                              : idx === 2
-                              ? "bg-amber-700 text-white"
-                              : "bg-white/10 text-neutral-300"
-                          }`}
+                                ? "bg-slate-300 text-neutral-950"
+                                : idx === 2
+                                  ? "bg-amber-700 text-white"
+                                  : "bg-white/10 text-neutral-300"
+                            }`}
                         >
                           {idx + 1}
                         </div>

@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import { getResponsiveCourtGridClass, isCourtActive, normalizeActiveCourtIds } from "@/lib/activeCourts";
 
 type PartidoTv = {
   id: string;
@@ -141,11 +142,14 @@ const PLAYER_LOOKUP_BATCH_SIZE = 200;
 function TorneoTvCanchasContent() {
   const [searchParams] = useSearchParams();
   const idsKey = searchParams.get("torneos") ?? "";
+  const canchasKey = searchParams.get("canchas") ?? "";
   const torneoIdsSolicitados = useMemo(() => idsKey.split(",").filter(Boolean), [idsKey]);
   const tenant = useOptionalTenant();
   const [nombresTorneos, setNombresTorneos] = useState<string[]>([]);
   const [partidos, setPartidos] = useState<PartidoTv[]>([]);
-  const [cantidadCanchas, setCantidadCanchas] = useState(3);
+  const [activeCourtIds, setActiveCourtIds] = useState<number[]>(() =>
+    canchasKey ? normalizeActiveCourtIds(canchasKey, [1, 2, 3]) : [1, 2, 3],
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [actualizado, setActualizado] = useState<Date | null>(null);
@@ -156,6 +160,12 @@ function TorneoTvCanchasContent() {
   const wakeLockRef = useRef<ScreenWakeLock | null>(null);
   const notasTorneosRef = useRef(new Map<string, string | null>());
   const lastNotasRefreshAtRef = useRef(0);
+  const activeCourtIdsRef = useRef<number[]>(activeCourtIds);
+  const activeTorneoIdsRef = useRef<string[]>([]);
+
+  useEffect(() => {
+    activeCourtIdsRef.current = activeCourtIds;
+  }, [activeCourtIds]);
 
   useEffect(() => {
     let cancelado = false;
@@ -171,7 +181,7 @@ function TorneoTvCanchasContent() {
       try {
         const torneosQuery = supabase
           .from("torneos")
-          .select("id, nombre, tipo, canchas_asignadas")
+          .select("id, nombre, tipo, canchas_asignadas, canchas_count")
           .in("tipo", [...TIPOS_TORNEO_TV]);
         const { data: torneos, error: errorTorneos } = torneoIdsSolicitados.length
           ? await torneosQuery.in("id", torneoIdsSolicitados)
@@ -179,6 +189,7 @@ function TorneoTvCanchasContent() {
         if (errorTorneos) throw errorTorneos;
         const torneosLista = (torneos ?? []) as any[];
         const torneoIds = torneosLista.map((torneo) => torneo.id as string);
+        activeTorneoIdsRef.current = torneoIds;
         if (torneoIds.length === 0) {
           if (!cancelado) {
             setNombresTorneos([]);
@@ -188,6 +199,19 @@ function TorneoTvCanchasContent() {
           }
           return;
         }
+
+        const unionAsignadas = torneosLista.flatMap((torneo) =>
+          Array.isArray(torneo.canchas_asignadas) && torneo.canchas_asignadas.length > 0
+            ? torneo.canchas_asignadas
+            : torneo.canchas_count
+            ? Array.from({ length: Math.min(6, Math.max(1, Number(torneo.canchas_count))) }, (_, i) => i + 1)
+            : [],
+        );
+        const configuredCourtIds = canchasKey
+          ? normalizeActiveCourtIds(canchasKey, [1, 2, 3])
+          : normalizeActiveCourtIds(unionAsignadas, [1, 2, 3]);
+        activeCourtIdsRef.current = configuredCourtIds;
+
         const [{ data: zonas, error: errorZonas }, { data: llaves, error: errorLlaves }, { data: inscripciones, error: errorInscripciones }, { data: individuales, error: errorIndividuales }] = await Promise.all([
           supabase.from("zonas").select("id, nombre, torneo_id").in("torneo_id", torneoIds),
           supabase.from("llaves").select("id, torneo_id").in("torneo_id", torneoIds),
@@ -198,7 +222,9 @@ function TorneoTvCanchasContent() {
         const zonasLista = (zonas ?? []) as any[];
         const llavesLista = (llaves ?? []) as any[];
         const inscripcionesLista = (inscripciones ?? []) as any[];
-        const individualesLista = (individuales ?? []) as any[];
+        const individualesLista = ((individuales ?? []) as any[]).filter(
+          (partido) => partido.estado === "finalizado" || isCourtActive(partido.cancha, configuredCourtIds),
+        );
         const jugadorIds = [...new Set([
           ...inscripcionesLista.flatMap((inscripcion) => [inscripcion.jugador1_id, inscripcion.jugador2_id]),
           ...individualesLista.flatMap((partido) => [partido.jugador1_id, partido.jugador2_id, partido.jugador3_id, partido.jugador4_id]),
@@ -226,7 +252,6 @@ function TorneoTvCanchasContent() {
         }
         const nombres = new Map<string, string>(torneosLista.map((torneo) => [torneo.id, torneo.nombre]));
         const notasTorneos = notasTorneosRef.current;
-        const maxCancha = torneosLista.reduce((max, torneo) => Math.max(max, ...(torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite)), 0);
         const inscripcionesMap = new Map(inscripcionesLista.map((inscripcion) => [inscripcion.id, inscripcion]));
         const jugadoresMap = new Map(jugadoresLista.map((jugador) => [jugador.id, `${jugador.apellido ?? ""}, ${jugador.nombre ?? ""}`.trim().replace(/^, |, $/g, "")]));
         const nombrePareja = (inscripcionId: string | null) => {
@@ -243,12 +268,16 @@ function TorneoTvCanchasContent() {
         ]);
         if (partidosZonaRes.error || partidosLlaveRes.error) throw partidosZonaRes.error || partidosLlaveRes.error;
 
-        const partidosZona = (partidosZonaRes.data ?? []) as any[];
-        const partidosLlave = (partidosLlaveRes.data ?? []) as any[];
+        const partidosZona = ((partidosZonaRes.data ?? []) as any[]).filter(
+          (partido) => partido.estado === "finalizado" || isCourtActive(partido.cancha, configuredCourtIds),
+        );
+        const partidosLlave = ((partidosLlaveRes.data ?? []) as any[]).filter(
+          (partido) => partido.estado === "finalizado" || isCourtActive(partido.cancha, configuredCourtIds),
+        );
         const [setsZonaRes, setsLlaveRes, setsIndividualesRes] = await Promise.all([
           partidosZona.length ? supabase.from("sets_partido").select("partido_id, numero_set, games_local, games_visitante").in("partido_id", partidosZona.map((partido) => partido.id)) : Promise.resolve({ data: [], error: null }),
           partidosLlave.length ? supabase.from("sets_partido").select("partido_llave_id, numero_set, games_local, games_visitante").in("partido_llave_id", partidosLlave.map((partido) => partido.id)) : Promise.resolve({ data: [], error: null }),
-          individuales?.length ? supabase.from("sets_partido_individual").select("partido_individual_id, numero_set, games_pareja1, games_pareja2").in("partido_individual_id", (individuales as any[]).map((partido) => partido.id)) : Promise.resolve({ data: [], error: null }),
+          individualesLista.length ? supabase.from("sets_partido_individual").select("partido_individual_id, numero_set, games_pareja1, games_pareja2").in("partido_individual_id", individualesLista.map((partido) => partido.id)) : Promise.resolve({ data: [], error: null }),
         ]);
         if (setsZonaRes.error || setsLlaveRes.error || setsIndividualesRes.error) throw setsZonaRes.error || setsLlaveRes.error || setsIndividualesRes.error;
         const setsPorPartido = new Map<string, PartidoTv["sets"]>();
@@ -273,7 +302,7 @@ function TorneoTvCanchasContent() {
           const torneoId = llaveTorneo.get(partido.llave_id);
           filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) ?? { x: 50, y: 16 }, sets: setsPorPartido.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
         }
-        for (const partido of (individuales ?? []) as any[]) {
+        for (const partido of individualesLista) {
           const jugadorNombre = (id: string | null, suplente?: string | null) => id ? jugadoresMap.get(id) ?? "Jugador" : suplente || "Por definir";
           const pareja1 = [jugadorNombre(partido.jugador1_id, partido.suplente1_nombre), jugadorNombre(partido.jugador2_id, partido.suplente2_nombre)].join(" / ");
           const pareja2 = [jugadorNombre(partido.jugador3_id, partido.suplente3_nombre), jugadorNombre(partido.jugador4_id, partido.suplente4_nombre)].join(" / ");
@@ -281,14 +310,15 @@ function TorneoTvCanchasContent() {
           filas.push({ id: partido.id, torneoId: partido.torneo_id, torneoTipo: "americano_individual", torneoNombre: nombres.get(partido.torneo_id) ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora, local: pareja1, visitante: pareja2, fotoUrl: partido.foto_url || extractFotoFromNotas(notasTorneos.get(partido.torneo_id), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(partido.torneo_id), partido.id) ?? { x: 50, y: 16 }, sets: setsIndividuales.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
         }
 
-        const visibles = filas.filter((partido) =>
-          partido.estado === "finalizado" || ((partido.estado === "en_juego" || partido.estado === "programado" || (partido.estado === "pendiente" && partido.cancha)) && partido.cancha),
+        const visibles = filas.filter(
+          (partido) =>
+            partido.estado === "finalizado" ||
+            ((partido.estado === "en_juego" || partido.estado === "programado" || (partido.estado === "pendiente" && partido.cancha)) &&
+              isCourtActive(partido.cancha, configuredCourtIds)),
         );
         if (cancelado) return;
         setNombresTorneos(torneosLista.map((torneo) => torneo.nombre));
-        // El club trabaja con tres canchas aunque los torneos activos solo tengan
-        // partidos asignados a dos por el momento; la TV debe conservar las tres columnas.
-        setCantidadCanchas(Math.max(3, maxCancha, ...visibles.map((partido) => Number(numeroCancha(partido.cancha) ?? 0))));
+        setActiveCourtIds(configuredCourtIds);
         setPartidos(visibles);
         setActualizado(new Date());
         setError(false);
@@ -302,6 +332,48 @@ function TorneoTvCanchasContent() {
     };
     setLoading(true);
     cargar();
+
+    const realtimeChannel = supabase
+      .channel("tv-canchas-active-courts-sync")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "torneos" },
+        (payload) => {
+          const updatedId = (payload.new as any)?.id;
+          if (!updatedId || !activeTorneoIdsRef.current.includes(updatedId)) return;
+          lastNotasRefreshAtRef.current = 0;
+          void cargar();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "partidos_zona" },
+        (payload) => {
+          const cancha = (payload.new as any)?.cancha ?? (payload.old as any)?.cancha;
+          if (!isCourtActive(cancha, activeCourtIdsRef.current)) return;
+          void cargar();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "partidos_llave" },
+        (payload) => {
+          const cancha = (payload.new as any)?.cancha ?? (payload.old as any)?.cancha;
+          if (!isCourtActive(cancha, activeCourtIdsRef.current)) return;
+          void cargar();
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "partidos_individuales" },
+        (payload) => {
+          const cancha = (payload.new as any)?.cancha ?? (payload.old as any)?.cancha;
+          if (!isCourtActive(cancha, activeCourtIdsRef.current)) return;
+          void cargar();
+        },
+      )
+      .subscribe();
+
     const interval = window.setInterval(() => {
       if (document.visibilityState === "visible") void cargar();
     }, 30000);
@@ -313,8 +385,9 @@ function TorneoTvCanchasContent() {
       cancelado = true;
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", onVisibilityChange);
+      void supabase.removeChannel(realtimeChannel);
     };
-  }, [torneoIdsSolicitados, tenant?.club?.id]);
+  }, [torneoIdsSolicitados, canchasKey, tenant?.club?.id]);
 
   useEffect(() => {
     document.title = "Canchas en vivo | Padel ID TV";
@@ -385,18 +458,23 @@ function TorneoTvCanchasContent() {
 
   const partidosAMostrar = modoDemo ? PARTIDOS_DEMO : partidos;
   const nombresTorneosAMostrar = modoDemo ? ["Torneo Apertura 2026 · Padel ID Broadcast (Previsualización)"] : nombresTorneos;
-  const cantidadCanchasAMostrar = modoDemo ? 3 : cantidadCanchas;
-  const canchas = Array.from({ length: cantidadCanchasAMostrar }, (_, index) => String(index + 1));
-  const canchasPorPagina = 1;
+  const canchas = useMemo(
+    () => (modoDemo ? [1, 2, 3] : activeCourtIds).map(String),
+    [modoDemo, activeCourtIds],
+  );
+  const canchasPorPagina = Math.max(1, Math.min(canchas.length, 6));
+  const cantidadPaginasCanchas = Math.max(1, Math.ceil(canchas.length / canchasPorPagina));
   const resultadosFinales = partidosAMostrar
     .filter((partido) => partido.estado === "finalizado" && partido.sets.length > 0)
     .sort((a, b) => new Date(b.fechaHora ?? 0).getTime() - new Date(a.fechaHora ?? 0).getTime());
   const resultadosPorPagina = 6;
   const cantidadPaginasResultados = Math.ceil(resultadosFinales.length / resultadosPorPagina);
-  const cantidadPantallas = canchas.length + cantidadPaginasResultados;
-  const esPantallaResultados = paginaCanchas >= canchas.length;
-  const paginaResultados = paginaCanchas - canchas.length;
-  const canchasVisibles = esPantallaResultados ? [] : canchas.slice(paginaCanchas * canchasPorPagina, (paginaCanchas + 1) * canchasPorPagina);
+  const cantidadPantallas = cantidadPaginasCanchas + cantidadPaginasResultados;
+  const esPantallaResultados = paginaCanchas >= cantidadPaginasCanchas;
+  const paginaResultados = paginaCanchas - cantidadPaginasCanchas;
+  const canchasVisibles = esPantallaResultados
+    ? []
+    : canchas.slice(paginaCanchas * canchasPorPagina, (paginaCanchas + 1) * canchasPorPagina);
   const resultadosVisibles = esPantallaResultados
     ? resultadosFinales.slice(paginaResultados * resultadosPorPagina, (paginaResultados + 1) * resultadosPorPagina)
     : [];
@@ -414,14 +492,19 @@ function TorneoTvCanchasContent() {
     <main className="min-h-screen bg-[#080b12] p-5 text-white sm:p-8">
       <header className="mx-auto mb-7 flex w-full flex-wrap items-end justify-between gap-4 border-b border-white/10 pb-5">
         <div>
-          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300"><Tv className="h-4 w-4" /> Padel ID · En vivo</div>
+          <div className="mb-2 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.22em] text-cyan-300">
+            <Tv className="h-4 w-4" /> Padel ID · En vivo
+            <span className="rounded-full border border-cyan-400/30 bg-cyan-400/10 px-2.5 py-0.5 text-[10px] font-mono tracking-normal text-cyan-200">
+              Canchas activas: {canchas.join(", ")}
+            </span>
+          </div>
           <h1 className="text-3xl font-black sm:text-5xl">Canchas en juego</h1>
           <p className="mt-2 text-sm text-white/55">{nombresTorneosAMostrar.join(" · ") || "Torneos en curso"}</p>
         </div>
         <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-white/55">
-            <span className="flex items-center gap-2"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Actualización cada 15 s{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</span>
-            {cantidadPantallas > 1 && <span className="text-cyan-200">{esPantallaResultados ? `Resultados · ${paginaResultados + 1}/${cantidadPaginasResultados}` : `Cancha ${canchas[paginaCanchas]}`} · pantalla {paginaCanchas + 1}/${cantidadPantallas} · rota cada 15 s</span>}
+            <span className="flex items-center gap-2"><Activity className="h-4 w-4 animate-pulse text-rose-400" /> Tiempo real{actualizado ? ` · ${actualizado.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", second: "2-digit" })}` : ""}</span>
+            {cantidadPantallas > 1 && <span className="text-cyan-200">{esPantallaResultados ? `Resultados · ${paginaResultados + 1}/${cantidadPaginasResultados}` : `Canchas ${canchasVisibles.join(", ")}`} · pantalla {paginaCanchas + 1}/${cantidadPantallas} · rota cada 15 s</span>}
             <span className={bloqueoPantallaActivo ? "text-emerald-300" : "text-amber-200"}>{bloqueoPantallaActivo ? "Pantalla activa" : bloqueoPantallaActivo === false ? "Ahorro de pantalla según TV Bro" : "Activando pantalla"}</span>
           </div>
 
@@ -529,8 +612,7 @@ function TorneoTvCanchasContent() {
           </section>
         ) : (
         <section
-          className="mx-auto grid w-full items-start gap-4"
-          style={{ gridTemplateColumns: `repeat(${canchasPorPagina}, minmax(0, 1fr))` }}
+          className={`grid ${getResponsiveCourtGridClass(canchasVisibles.length, "tv-canchas")} items-start gap-4`}
           aria-label="Partidos agrupados por cancha"
         >
           {canchasVisibles.map((cancha) => {

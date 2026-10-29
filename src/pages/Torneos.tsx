@@ -136,13 +136,13 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
         const res = await calcularRankingTorneo(t.id, true);
         if (res.ok) successCount++;
       }
-      
+
       // Hacer el recálculo de ascensos UNA SOLA VEZ al final para todos
       if (torneosFecha.length > 0) {
         const anio = new Date(torneosFecha[0].fecha_inicio).getFullYear();
         await recalcularTodosLosAscensos(anio, clubId);
       }
-      
+
       toast.success(`Ranking recalculado para ${successCount} torneos de la fecha ${fecha}`);
       queryClient.invalidateQueries({ queryKey: ["ranking"] });
     } finally {
@@ -188,7 +188,7 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
             fechas.map(f => {
               const torneosFecha = torneos.filter(t => t.numero_fecha === f);
               const publicados = torneosFecha.some(t => t.ranking_publicado);
-              
+
               return (
                 <div key={f} className="flex items-center justify-between p-3 border rounded-md">
                   <div>
@@ -199,9 +199,9 @@ function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: 
                     <Button size="sm" variant="outline" disabled={loadingRecalcularFecha === f || loadingPublicarFecha === f} onClick={() => handleRecalcularFecha(f)}>
                       {loadingRecalcularFecha === f ? "Cargando..." : "Recalcular Ranking"}
                     </Button>
-                    <Button 
-                      size="sm" 
-                      variant={publicados ? "default" : "outline"} 
+                    <Button
+                      size="sm"
+                      variant={publicados ? "default" : "outline"}
                       disabled={loadingPublicarFecha === f}
                       onClick={() => handleTogglePublicar(f, publicados)}
                       className={publicados ? "bg-green-600 hover:bg-green-700 text-white" : "text-muted-foreground"}
@@ -233,7 +233,7 @@ export default function Torneos() {
     setLoading(true);
     let torneosQuery = supabase.from("torneos").select("*").order("fecha_inicio", { ascending: false });
     let categoriasQuery = supabase.from("categorias").select("*").eq("activa", true).order("orden");
-    
+
     if (clubId) {
       torneosQuery = torneosQuery.eq("club_id", clubId);
       categoriasQuery = categoriasQuery.eq("club_id", clubId);
@@ -287,7 +287,11 @@ export default function Torneos() {
         ? "liga_parejas"
         : (t.modalidad ?? "individual"),
       datos_bancarios: t.datos_bancarios ?? "",
-      canchas_asignadas: t.canchas_asignadas ?? [1, 2, 3],
+      canchas_asignadas: Array.isArray(t.canchas_asignadas) && t.canchas_asignadas.length > 0
+        ? [...t.canchas_asignadas].map(Number).sort((a, b) => a - b)
+        : t.canchas_count
+          ? Array.from({ length: Math.min(6, Math.max(1, Number(t.canchas_count))) }, (_, i) => i + 1)
+          : [1, 2, 3],
     });
     setDialogOpen(true);
   };
@@ -305,8 +309,8 @@ export default function Torneos() {
       toast.error("Seleccioná una categoría para el torneo oficial");
       return;
     }
-    if (form.tipo === "oficial" && form.canchas_asignadas.length === 0) {
-      toast.error("Seleccioná al menos una cancha para el torneo oficial");
+    if (form.canchas_asignadas.length === 0) {
+      toast.error("Seleccioná al menos una cancha activa para el torneo");
       return;
     }
     if ((form.tipo === "americano" || form.tipo === "americano_individual") && !form.categoria_libre.trim()) {
@@ -374,7 +378,7 @@ export default function Torneos() {
       numero_fecha: form.numero_fecha ? Number(form.numero_fecha) : null,
       multiplicador_puntos: form.multiplicador_puntos ? Number(form.multiplicador_puntos) : 1,
       cupo_maximo: form.cupo_maximo ? Number(form.cupo_maximo) : null,
-      canchas_count: form.tipo === "americano_individual" ? Number(form.canchas_count) : null,
+      canchas_count: form.tipo === "americano_individual" ? Number(form.canchas_count) : form.canchas_asignadas.length,
       costo_fecha_jugador: form.tipo === "americano_individual" ? Number(form.costo_fecha_jugador) : null,
       costo_fecha_cancha: form.tipo === "americano_individual" ? Number(form.costo_fecha_cancha) : null,
       porcentaje_premios: form.tipo === "americano_individual" ? Number(form.porcentaje_premios) : null,
@@ -385,7 +389,7 @@ export default function Torneos() {
       modalidad: form.tipo === "americano_individual" ? (form.modalidad === "liga_parejas" ? "parejas" : (form.modalidad || "individual")) : null,
       datos_bancarios: form.datos_bancarios || null,
       club_id: clubId, // Se asigna automáticamente al club del admin
-      canchas_asignadas: form.canchas_asignadas,
+      canchas_asignadas: [...form.canchas_asignadas].sort((a, b) => a - b),
       canchas_disponibles: form.tipo === "oficial" ? form.canchas_asignadas.length : null,
       ...(form.estado === "finalizado" ? { ranking_publicado: true } : {}),
     };
@@ -450,7 +454,7 @@ export default function Torneos() {
 
   const handleCopiarLinkInscripcion = async (t: any) => {
     // Si hay error con el slug, usamos el ID para asegurar que funcione
-    const identificador = t.id; 
+    const identificador = t.id;
     const url = `${SHARE_INSCRIPCION_URL}/${identificador}`;
     try {
       await navigator.clipboard.writeText(url);
@@ -506,6 +510,19 @@ export default function Torneos() {
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <MapPin className="h-3.5 w-3.5" />
             <span className="truncate">{t.sede}</span>
+          </div>
+        )}
+        {Array.isArray(t.canchas_asignadas) && t.canchas_asignadas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-1 pt-0.5">
+            <span className="text-xs text-muted-foreground">Canchas activas:</span>
+            {[...t.canchas_asignadas]
+              .map(Number)
+              .sort((a, b) => a - b)
+              .map((num) => (
+                <Badge key={num} variant="outline" className="text-[10px] px-1.5 py-0 font-mono">
+                  C{num}
+                </Badge>
+              ))}
           </div>
         )}
 
@@ -628,381 +645,395 @@ export default function Torneos() {
           <GestionFechasDialog torneos={torneos} fetchAll={fetchAll} />
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
-            <Button onClick={openCreate}>
-              <Plus className="h-4 w-4" />
-              Nuevo torneo
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editing ? "Editar torneo" : "Nuevo torneo"}</DialogTitle>
-              <DialogDescription>
-                Completá los datos del torneo. Los campos marcados son obligatorios.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-3 py-2">
-              <div className="grid gap-1.5">
-                <Label htmlFor="nombre">Nombre *</Label>
-                <Input
-                  id="nombre"
-                  value={form.nombre}
-                  onChange={(e) => setForm({ ...form, nombre: e.target.value })}
-                  placeholder="Ej: Torneo de Otoño 2026"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
+              <Button onClick={openCreate}>
+                <Plus className="h-4 w-4" />
+                Nuevo torneo
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>{editing ? "Editar torneo" : "Nuevo torneo"}</DialogTitle>
+                <DialogDescription>
+                  Completá los datos del torneo. Los campos marcados son obligatorios.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-3 py-2">
                 <div className="grid gap-1.5">
-                  <Label>Tipo *</Label>
-                  <Select
-                    value={form.tipo}
-                    onValueChange={(v: TipoTorneo) =>
-                      setForm({ ...form, tipo: v, categoria_id: "", categoria_libre: "" })
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="oficial">Oficial</SelectItem>
-                      <SelectItem value="americano">Americano</SelectItem>
-                      <SelectItem value="americano_individual">Americano Individual (Crown)</SelectItem>
-                    </SelectContent>
-                  </Select>
+                  <Label htmlFor="nombre">Nombre *</Label>
+                  <Input
+                    id="nombre"
+                    value={form.nombre}
+                    onChange={(e) => setForm({ ...form, nombre: e.target.value })}
+                    placeholder="Ej: Torneo de Otoño 2026"
+                  />
                 </div>
-                <div className="grid gap-1.5">
-                  <Label>Estado *</Label>
-                  <Select
-                    value={form.estado}
-                    onValueChange={(v: EstadoTorneo) => setForm({ ...form, estado: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {ESTADO_TORNEO_ORDEN.map((e) => (
-                        <SelectItem key={e} value={e}>
-                          {ESTADO_LABELS[e]}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label>Tipo *</Label>
+                    <Select
+                      value={form.tipo}
+                      onValueChange={(v: TipoTorneo) =>
+                        setForm({ ...form, tipo: v, categoria_id: "", categoria_libre: "" })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="oficial">Oficial</SelectItem>
+                        <SelectItem value="americano">Americano</SelectItem>
+                        <SelectItem value="americano_individual">Americano Individual (Crown)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label>Estado *</Label>
+                    <Select
+                      value={form.estado}
+                      onValueChange={(v: EstadoTorneo) => setForm({ ...form, estado: v })}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ESTADO_TORNEO_ORDEN.map((e) => (
+                          <SelectItem key={e} value={e}>
+                            {ESTADO_LABELS[e]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
-              </div>
 
-              {form.tipo === "oficial" ? (
-                <div className="grid gap-3">
-                <div className="grid gap-1.5">
-                  <Label>Categoría *</Label>
-                  <Select
-                    value={form.categoria_id}
-                    onValueChange={(v) => setForm({ ...form, categoria_id: v })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Elegir categoría" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {categorias.map((c) => (
-                        <SelectItem key={c.id} value={c.id}>
-                          {c.genero === "caballeros" ? "Caballeros" : c.genero === "damas" ? "Damas" : "Mixto"} — {c.nombre}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <CanchasAsignadasField
-                  value={form.canchas_asignadas}
-                  onChange={(canchas_asignadas) => setForm({ ...form, canchas_asignadas })}
-                />
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
+                {form.tipo === "oficial" ? (
+                  <div className="grid gap-3">
                     <div className="grid gap-1.5">
-                      <Label htmlFor="cat-libre">Categoría *</Label>
-                      <Input
-                        id="cat-libre"
-                        value={form.categoria_libre}
-                        onChange={(e) => setForm({ ...form, categoria_libre: e.target.value })}
-                        placeholder="Ej: 4ta-5ta"
-                      />
-                    </div>
-                    <div className="grid gap-1.5">
-                      <Label>Género</Label>
+                      <Label>Categoría *</Label>
                       <Select
-                        value={form.genero}
-                        onValueChange={(v: Genero) => setForm({ ...form, genero: v })}
+                        value={form.categoria_id}
+                        onValueChange={(v) => setForm({ ...form, categoria_id: v })}
                       >
                         <SelectTrigger>
-                          <SelectValue placeholder="Opcional" />
+                          <SelectValue placeholder="Elegir categoría" />
                         </SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="caballeros">Caballeros</SelectItem>
-                          <SelectItem value="damas">Damas</SelectItem>
-                          <SelectItem value="mixto">Mixto</SelectItem>
+                          {categorias.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.genero === "caballeros" ? "Caballeros" : c.genero === "damas" ? "Damas" : "Mixto"} — {c.nombre}
+                            </SelectItem>
+                          ))}
                         </SelectContent>
                       </Select>
                     </div>
+                    <CanchasAsignadasField
+                      value={form.canchas_asignadas}
+                      onChange={(canchas_asignadas) => setForm({ ...form, canchas_asignadas })}
+                    />
                   </div>
-
-                  {form.tipo === "americano_individual" && (
-                    <div className="border p-3 rounded-md space-y-3 bg-muted/20">
-                      <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Desafío</h4>
-                      
-                      <div className="grid grid-cols-3 gap-3">
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="modalidad">Modalidad *</Label>
-                          <Select
-                            value={form.modalidad || "individual"}
-                            onValueChange={(v) => {
-                              if (v === "liga_parejas") {
-                                setForm({ ...form, modalidad: v, desafio_semanas: "11", canchas_count: "3" });
-                              } else if (v === "parejas") {
-                                setForm({ ...form, modalidad: v, desafio_semanas: "8", canchas_count: "3" });
-                              } else {
-                                setForm({ ...form, modalidad: v });
-                              }
-                            }}
-                          >
-                            <SelectTrigger id="modalidad">
-                              <SelectValue placeholder="Modalidad" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="individual">Individual</SelectItem>
-                              <SelectItem value="parejas">Parejas (8 Semanas)</SelectItem>
-                              <SelectItem value="liga_parejas">Liga de Parejas (11 Semanas - Super Day)</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="semanas">Semanas *</Label>
-                          <Input
-                            id="semanas"
-                            type="number"
-                            min="7"
-                            value={form.desafio_semanas}
-                            onChange={(e) => setForm({ ...form, desafio_semanas: e.target.value })}
-                            placeholder="Mínimo 7"
-                          />
-                        </div>
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="canchas-count">Canchas *</Label>
-                          <Input
-                            id="canchas-count"
-                            type="number"
-                            min="1"
-                            value={form.canchas_count}
-                            onChange={(e) => setForm({ ...form, canchas_count: e.target.value })}
-                            placeholder="Ej: 3"
-                          />
-                          <span className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
-                            {form.canchas_count ? ((form.modalidad === 'parejas' || form.modalidad === 'liga_parejas') ? `${Number(form.canchas_count) * 2} parejas` : `${Number(form.canchas_count) * 4} jugadores`) : ""}
-                          </span>
-                        </div>
+                ) : (
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="grid gap-1.5">
+                        <Label htmlFor="cat-libre">Categoría *</Label>
+                        <Input
+                          id="cat-libre"
+                          value={form.categoria_libre}
+                          onChange={(e) => setForm({ ...form, categoria_libre: e.target.value })}
+                          placeholder="Ej: 4ta-5ta"
+                        />
                       </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="costo-jugador">Costo por fecha/jugador *</Label>
-                          <Input
-                            id="costo-jugador"
-                            type="number"
-                            min="0"
-                            value={form.costo_fecha_jugador}
-                            onChange={(e) => setForm({ ...form, costo_fecha_jugador: e.target.value })}
-                            placeholder="Ej: 10000"
-                          />
-                        </div>
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="costo-cancha">Costo alquiler/cancha/fecha *</Label>
-                          <Input
-                            id="costo-cancha"
-                            type="number"
-                            min="0"
-                            value={form.costo_fecha_cancha}
-                            onChange={(e) => setForm({ ...form, costo_fecha_cancha: e.target.value })}
-                            placeholder="Ej: 22000"
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="porc-premios">% para Premios *</Label>
-                          <Input
-                            id="porc-premios"
-                            type="number"
-                            min="0"
-                            max="100"
-                            value={form.porcentaje_premios}
-                            onChange={(e) => setForm({ ...form, porcentaje_premios: e.target.value })}
-                            placeholder="Ej: 60"
-                          />
-                        </div>
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="sponsors">Ingresos Sponsors</Label>
-                          <Input
-                            id="sponsors"
-                            type="number"
-                            value={form.ingresos_sponsors}
-                            onChange={(e) => setForm({ ...form, ingresos_sponsors: e.target.value })}
-                          />
-                        </div>
-                      </div>
-
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="trofeos">Gastos Trofeos</Label>
-                          <Input
-                            id="trofeos"
-                            type="number"
-                            value={form.gastos_trofeos}
-                            onChange={(e) => setForm({ ...form, gastos_trofeos: e.target.value })}
-                          />
-                        </div>
-                        <div className="grid gap-1.5">
-                          <Label htmlFor="regalos">Gastos Regalos / Extras</Label>
-                          <Input
-                            id="regalos"
-                            type="number"
-                            value={form.gastos_regalos}
-                            onChange={(e) => setForm({ ...form, gastos_regalos: e.target.value })}
-                          />
-                        </div>
+                      <div className="grid gap-1.5">
+                        <Label>Género</Label>
+                        <Select
+                          value={form.genero}
+                          onValueChange={(v: Genero) => setForm({ ...form, genero: v })}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Opcional" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="caballeros">Caballeros</SelectItem>
+                            <SelectItem value="damas">Damas</SelectItem>
+                            <SelectItem value="mixto">Mixto</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
 
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="fi">Fecha inicio *</Label>
-                  <Input
-                    id="fi"
-                    type="date"
-                    value={form.fecha_inicio}
-                    onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="ff">Fecha fin</Label>
-                  <Input
-                    id="ff"
-                    type="date"
-                    value={form.fecha_fin}
-                    onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="sede">Sede</Label>
-                <Input
-                  id="sede"
-                  value={form.sede}
-                  onChange={(e) => setForm({ ...form, sede: e.target.value })}
-                  placeholder="Club / dirección"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="grid gap-1.5">
-                  <Label htmlFor="costo">Costo inscripción</Label>
-                  <Input
-                    id="costo"
-                    type="number"
-                    inputMode="decimal"
-                    value={form.costo_inscripcion}
-                    onChange={(e) => setForm({ ...form, costo_inscripcion: e.target.value })}
-                    placeholder="0"
-                  />
-                </div>
-                <div className="grid gap-1.5">
-                  <Label htmlFor="premios">Premios</Label>
-                  <Input
-                    id="premios"
-                    value={form.premios}
-                    onChange={(e) => setForm({ ...form, premios: e.target.value })}
-                    placeholder="Ej: $50.000 + trofeos"
-                  />
-                </div>
-              </div>
+                    <CanchasAsignadasField
+                      value={form.canchas_asignadas}
+                      onChange={(canchas_asignadas) =>
+                        setForm({
+                          ...form,
+                          canchas_asignadas,
+                          canchas_count:
+                            form.tipo === "americano_individual" && canchas_asignadas.length > 0
+                              ? String(canchas_asignadas.length)
+                              : form.canchas_count,
+                        })
+                      }
+                    />
 
-              {form.tipo !== "americano_individual" && (
-                <div className="grid gap-1.5 border p-3 rounded-md bg-muted/20">
-                  <Label htmlFor="datos_bancarios">Datos Bancarios para Inscripciones (Opcional)</Label>
-                  <Input
-                    id="datos_bancarios"
-                    value={form.datos_bancarios}
-                    onChange={(e) => setForm({ ...form, datos_bancarios: e.target.value })}
-                    placeholder="Ej: ALIAS.CLUB / CBU: 123... / Titular: Complejo"
-                  />
-                  <p className="text-[10px] text-muted-foreground">
-                    Si completas esto, los jugadores podrán subir su comprobante de transferencia al inscribirse.
-                  </p>
-                </div>
-              )}
+                    {form.tipo === "americano_individual" && (
+                      <div className="border p-3 rounded-md space-y-3 bg-muted/20">
+                        <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Desafío</h4>
 
-              <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-3 gap-3">
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="modalidad">Modalidad *</Label>
+                            <Select
+                              value={form.modalidad || "individual"}
+                              onValueChange={(v) => {
+                                if (v === "liga_parejas") {
+                                  setForm({ ...form, modalidad: v, desafio_semanas: "11", canchas_count: "3" });
+                                } else if (v === "parejas") {
+                                  setForm({ ...form, modalidad: v, desafio_semanas: "8", canchas_count: "3" });
+                                } else {
+                                  setForm({ ...form, modalidad: v });
+                                }
+                              }}
+                            >
+                              <SelectTrigger id="modalidad">
+                                <SelectValue placeholder="Modalidad" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="individual">Individual</SelectItem>
+                                <SelectItem value="parejas">Parejas (8 Semanas)</SelectItem>
+                                <SelectItem value="liga_parejas">Liga de Parejas (11 Semanas - Super Day)</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="semanas">Semanas *</Label>
+                            <Input
+                              id="semanas"
+                              type="number"
+                              min="7"
+                              value={form.desafio_semanas}
+                              onChange={(e) => setForm({ ...form, desafio_semanas: e.target.value })}
+                              placeholder="Mínimo 7"
+                            />
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="canchas-count">Canchas *</Label>
+                            <Input
+                              id="canchas-count"
+                              type="number"
+                              min="1"
+                              value={form.canchas_count}
+                              onChange={(e) => setForm({ ...form, canchas_count: e.target.value })}
+                              placeholder="Ej: 3"
+                            />
+                            <span className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
+                              {form.canchas_count ? ((form.modalidad === 'parejas' || form.modalidad === 'liga_parejas') ? `${Number(form.canchas_count) * 2} parejas` : `${Number(form.canchas_count) * 4} jugadores`) : ""}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="costo-jugador">Costo por fecha/jugador *</Label>
+                            <Input
+                              id="costo-jugador"
+                              type="number"
+                              min="0"
+                              value={form.costo_fecha_jugador}
+                              onChange={(e) => setForm({ ...form, costo_fecha_jugador: e.target.value })}
+                              placeholder="Ej: 10000"
+                            />
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="costo-cancha">Costo alquiler/cancha/fecha *</Label>
+                            <Input
+                              id="costo-cancha"
+                              type="number"
+                              min="0"
+                              value={form.costo_fecha_cancha}
+                              onChange={(e) => setForm({ ...form, costo_fecha_cancha: e.target.value })}
+                              placeholder="Ej: 22000"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="porc-premios">% para Premios *</Label>
+                            <Input
+                              id="porc-premios"
+                              type="number"
+                              min="0"
+                              max="100"
+                              value={form.porcentaje_premios}
+                              onChange={(e) => setForm({ ...form, porcentaje_premios: e.target.value })}
+                              placeholder="Ej: 60"
+                            />
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="sponsors">Ingresos Sponsors</Label>
+                            <Input
+                              id="sponsors"
+                              type="number"
+                              value={form.ingresos_sponsors}
+                              onChange={(e) => setForm({ ...form, ingresos_sponsors: e.target.value })}
+                            />
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="trofeos">Gastos Trofeos</Label>
+                            <Input
+                              id="trofeos"
+                              type="number"
+                              value={form.gastos_trofeos}
+                              onChange={(e) => setForm({ ...form, gastos_trofeos: e.target.value })}
+                            />
+                          </div>
+                          <div className="grid gap-1.5">
+                            <Label htmlFor="regalos">Gastos Regalos / Extras</Label>
+                            <Input
+                              id="regalos"
+                              type="number"
+                              value={form.gastos_regalos}
+                              onChange={(e) => setForm({ ...form, gastos_regalos: e.target.value })}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="fi">Fecha inicio *</Label>
+                    <Input
+                      id="fi"
+                      type="date"
+                      value={form.fecha_inicio}
+                      onChange={(e) => setForm({ ...form, fecha_inicio: e.target.value })}
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="ff">Fecha fin</Label>
+                    <Input
+                      id="ff"
+                      type="date"
+                      value={form.fecha_fin}
+                      onChange={(e) => setForm({ ...form, fecha_fin: e.target.value })}
+                    />
+                  </div>
+                </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="nfecha">N° de fecha (1-7)</Label>
+                  <Label htmlFor="sede">Sede</Label>
                   <Input
-                    id="nfecha"
+                    id="sede"
+                    value={form.sede}
+                    onChange={(e) => setForm({ ...form, sede: e.target.value })}
+                    placeholder="Club / dirección"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="costo">Costo inscripción</Label>
+                    <Input
+                      id="costo"
+                      type="number"
+                      inputMode="decimal"
+                      value={form.costo_inscripcion}
+                      onChange={(e) => setForm({ ...form, costo_inscripcion: e.target.value })}
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="premios">Premios</Label>
+                    <Input
+                      id="premios"
+                      value={form.premios}
+                      onChange={(e) => setForm({ ...form, premios: e.target.value })}
+                      placeholder="Ej: $50.000 + trofeos"
+                    />
+                  </div>
+                </div>
+
+                {form.tipo !== "americano_individual" && (
+                  <div className="grid gap-1.5 border p-3 rounded-md bg-muted/20">
+                    <Label htmlFor="datos_bancarios">Datos Bancarios para Inscripciones (Opcional)</Label>
+                    <Input
+                      id="datos_bancarios"
+                      value={form.datos_bancarios}
+                      onChange={(e) => setForm({ ...form, datos_bancarios: e.target.value })}
+                      placeholder="Ej: ALIAS.CLUB / CBU: 123... / Titular: Complejo"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Si completas esto, los jugadores podrán subir su comprobante de transferencia al inscribirse.
+                    </p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="nfecha">N° de fecha (1-7)</Label>
+                    <Input
+                      id="nfecha"
+                      type="number"
+                      min="1"
+                      max="7"
+                      value={form.numero_fecha}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        const mult = v === "4" ? "2" : (form.multiplicador_puntos === "2" && form.numero_fecha === "4") ? "1" : form.multiplicador_puntos;
+                        setForm({ ...form, numero_fecha: v, multiplicador_puntos: mult });
+                      }}
+                      placeholder="Ej: 1, 2, 3..."
+                    />
+                  </div>
+                  <div className="grid gap-1.5">
+                    <Label htmlFor="mult">Multiplicador puntos</Label>
+                    <Input
+                      id="mult"
+                      type="number"
+                      step="0.5"
+                      min="0.5"
+                      value={form.multiplicador_puntos}
+                      onChange={(e) => setForm({ ...form, multiplicador_puntos: e.target.value })}
+                      placeholder="1"
+                    />
+                  </div>
+                </div>
+                <div className="grid gap-1.5">
+                  <Label htmlFor="cupo">Cupo máximo (opcional)</Label>
+                  <Input
+                    id="cupo"
                     type="number"
                     min="1"
-                    max="7"
-                    value={form.numero_fecha}
-                    onChange={(e) => {
-                      const v = e.target.value;
-                      const mult = v === "4" ? "2" : (form.multiplicador_puntos === "2" && form.numero_fecha === "4") ? "1" : form.multiplicador_puntos;
-                      setForm({ ...form, numero_fecha: v, multiplicador_puntos: mult });
-                    }}
-                    placeholder="Ej: 1, 2, 3..."
+                    value={form.cupo_maximo}
+                    onChange={(e) => setForm({ ...form, cupo_maximo: e.target.value })}
+                    placeholder="Ej: 16. Vacío = sin límite"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Las inscripciones públicas que superen el cupo quedan en lista de espera.
+                  </p>
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="mult">Multiplicador puntos</Label>
-                  <Input
-                    id="mult"
-                    type="number"
-                    step="0.5"
-                    min="0.5"
-                    value={form.multiplicador_puntos}
-                    onChange={(e) => setForm({ ...form, multiplicador_puntos: e.target.value })}
-                    placeholder="1"
+                  <Label htmlFor="notas">Notas</Label>
+                  <Textarea
+                    id="notas"
+                    value={form.notas}
+                    onChange={(e) => setForm({ ...form, notas: e.target.value })}
+                    rows={2}
                   />
                 </div>
               </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="cupo">Cupo máximo (opcional)</Label>
-                <Input
-                  id="cupo"
-                  type="number"
-                  min="1"
-                  value={form.cupo_maximo}
-                  onChange={(e) => setForm({ ...form, cupo_maximo: e.target.value })}
-                  placeholder="Ej: 16. Vacío = sin límite"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Las inscripciones públicas que superen el cupo quedan en lista de espera.
-                </p>
-              </div>
-              <div className="grid gap-1.5">
-                <Label htmlFor="notas">Notas</Label>
-                <Textarea
-                  id="notas"
-                  value={form.notas}
-                  onChange={(e) => setForm({ ...form, notas: e.target.value })}
-                  rows={2}
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={handleSave}>{editing ? "Guardar cambios" : "Crear torneo"}</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button onClick={handleSave}>{editing ? "Guardar cambios" : "Crear torneo"}</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
       </div>
 

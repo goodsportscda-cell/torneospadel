@@ -17,6 +17,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, updateFotoPositionInNotas, type FotoPosition } from "@/logic/torneoStandings";
 import { CompartirPartidosDelDiaDialog, type PartidoPlacaDia } from "@/components/canchas/CompartirPartidosDelDiaDialog";
+import { COMPLEX_COURT_IDS, getResponsiveCourtGridClass, normalizeActiveCourtIds } from "@/lib/activeCourts";
 
 type Torneo = { id: string; nombre: string; tipo?: string; estado?: string; modalidad?: string; canchas_count?: number; canchas_asignadas?: number[]; notas?: string | null };
 type Inscripcion = { id: string; jugador1_id: string; jugador2_id: string };
@@ -71,10 +72,11 @@ const partidoFinalizado = (partido: Partido) =>
 export default function CanchasEnVivo() {
   const navigate = useNavigate();
   const clubBrand = useClubBrand();
-  const { clubActivo } = useAuth();
+  const { clubActivo, clubId } = useAuth();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [torneoId, setTorneoId] = useState<string>("");
-  const [cantidadCanchas, setCantidadCanchas] = useState(4);
+  const [activeCourtIds, setActiveCourtIds] = useState<number[]>([...COMPLEX_COURT_IDS]);
+  const [savingCourts, setSavingCourts] = useState(false);
   const [tvSelectModalOpen, setTvSelectModalOpen] = useState(false);
   const [placaDiaAbierta, setPlacaDiaAbierta] = useState(false);
   const [fechaPlacaDia, setFechaPlacaDia] = useState(obtenerFechaManana);
@@ -101,23 +103,53 @@ export default function CanchasEnVivo() {
   const flyerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    supabase
+    let query = supabase
       .from("torneos")
       .select("id, nombre, tipo, estado, modalidad, canchas_count, canchas_asignadas, notas")
       .neq("estado", "cancelado")
-      .order("created_at", { ascending: false })
-      .then(({ data }) => {
-        const torneosData = (data as Torneo[]) ?? [];
-        setTorneos(torneosData);
-        if (torneosData.length > 0 && !torneoId) {
-          setTorneoId("todos");
-          const maxCancha = torneosData.reduce((max, torneo) => Math.max(max, ...(torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite)), 0);
-          if (maxCancha > 0) {
-            setCantidadCanchas(maxCancha);
-          }
-        }
-      });
-  }, []);
+      .order("created_at", { ascending: false });
+
+    if (clubId) {
+      query = query.eq("club_id", clubId);
+    }
+
+    query.then(({ data }) => {
+      const torneosData = (data as Torneo[]) ?? [];
+      setTorneos(torneosData);
+      if (torneosData.length > 0 && !torneoId) {
+        setTorneoId("todos");
+      }
+    });
+
+    const channel = supabase
+      .channel("canchas-vivo-torneos-sync")
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "torneos" },
+        (payload) => {
+          const updated = payload.new as Torneo;
+          if (!updated?.id) return;
+          setTorneos((prev) =>
+            prev.map((t) =>
+              t.id === updated.id
+                ? {
+                    ...t,
+                    canchas_asignadas: updated.canchas_asignadas ?? t.canchas_asignadas,
+                    canchas_count: updated.canchas_count ?? t.canchas_count,
+                    estado: updated.estado ?? t.estado,
+                    notas: updated.notas ?? t.notas,
+                  }
+                : t,
+            ),
+          );
+        },
+      )
+      .subscribe();
+
+    return () => {
+      void supabase.removeChannel(channel);
+    };
+  }, [clubId]);
 
   const torneoActivoSeleccionado = useMemo(() => {
     return torneos.find(t => t.id === torneoId);
@@ -125,22 +157,87 @@ export default function CanchasEnVivo() {
 
   useEffect(() => {
     if (torneoId === "todos") {
-      const maxCanchaAsignada = torneos.reduce((max, torneo) => {
-        const asignadas = (torneo.canchas_asignadas ?? []).map(Number).filter(Number.isFinite);
-        return Math.max(max, ...asignadas);
-      }, 0);
-      if (maxCanchaAsignada > 0) {
-        setCantidadCanchas(maxCanchaAsignada);
-      }
+      const enCurso = torneos.filter((t) => t.estado === "en_curso");
+      const sourceTorneos = enCurso.length > 0 ? enCurso : torneos;
+      const unionAsignadas = sourceTorneos.flatMap((t) =>
+        Array.isArray(t.canchas_asignadas) && t.canchas_asignadas.length > 0
+          ? t.canchas_asignadas
+          : t.canchas_count
+          ? Array.from({ length: Math.min(6, Math.max(1, Number(t.canchas_count))) }, (_, i) => i + 1)
+          : [],
+      );
+      setActiveCourtIds(normalizeActiveCourtIds(unionAsignadas, [...COMPLEX_COURT_IDS]));
       return;
     }
 
-    if (torneoActivoSeleccionado?.canchas_count) {
-      setCantidadCanchas(torneoActivoSeleccionado.canchas_count);
+    if (torneoActivoSeleccionado) {
+      const fallback = torneoActivoSeleccionado.canchas_count
+        ? Array.from(
+            { length: Math.min(6, Math.max(1, Number(torneoActivoSeleccionado.canchas_count))) },
+            (_, i) => i + 1,
+          )
+        : [...COMPLEX_COURT_IDS];
+      setActiveCourtIds(
+        normalizeActiveCourtIds(torneoActivoSeleccionado.canchas_asignadas, fallback),
+      );
     }
   }, [torneoActivoSeleccionado, torneoId, torneos]);
 
+  const handleUpdateActiveCourts = async (nextIdsRaw: number[]) => {
+    const nextIds = Array.from(new Set(nextIdsRaw)).sort((a, b) => a - b);
+    if (nextIds.length === 0) {
+      toast.error("Seleccioná al menos 1 cancha activa");
+      return;
+    }
+
+    setActiveCourtIds(nextIds);
+
+    const targetIds =
+      torneoId === "todos"
+        ? (torneos.filter((t) => t.estado === "en_curso").map((t) => t.id).length > 0
+            ? torneos.filter((t) => t.estado === "en_curso").map((t) => t.id)
+            : torneos.map((t) => t.id))
+        : [torneoId];
+
+    if (targetIds.length === 0) return;
+
+    setTorneos((prev) =>
+      prev.map((t) =>
+        targetIds.includes(t.id)
+          ? { ...t, canchas_asignadas: nextIds, canchas_count: nextIds.length }
+          : t,
+      ),
+    );
+
+    setSavingCourts(true);
+    try {
+      const { error } = await supabase
+        .from("torneos")
+        .update({
+          canchas_asignadas: nextIds,
+          canchas_count: nextIds.length,
+        })
+        .in("id", targetIds);
+
+      if (error) throw error;
+      toast.success(`Canchas activas actualizadas: ${nextIds.map((c) => `C${c}`).join(", ")}`);
+    } catch (err: any) {
+      toast.error("No se pudo guardar la configuración de canchas: " + (err?.message || ""));
+    } finally {
+      setSavingCourts(false);
+    }
+  };
+
+  const toggleActiveCourt = (courtId: number) => {
+    const exists = activeCourtIds.includes(courtId);
+    const next = exists
+      ? activeCourtIds.filter((id) => id !== courtId)
+      : [...activeCourtIds, courtId];
+    void handleUpdateActiveCourts(next);
+  };
+
   const handleOpenTvMode = () => {
+    const canchasParam = activeCourtIds.join(",");
     if (torneoId === "todos") {
       const torneoIdsEnCurso = torneos.filter((torneo) => torneo.estado === "en_curso").map((torneo) => torneo.id);
       if (torneoIdsEnCurso.length === 0) {
@@ -148,8 +245,8 @@ export default function CanchasEnVivo() {
         return;
       }
       const tvUrl = clubActivo?.slug
-        ? `/c/${encodeURIComponent(clubActivo.slug)}/tv/canchas`
-        : `/tv/canchas?torneos=${encodeURIComponent(torneoIdsEnCurso.join(","))}`;
+        ? `/c/${encodeURIComponent(clubActivo.slug)}/tv/canchas?canchas=${encodeURIComponent(canchasParam)}`
+        : `/tv/canchas?torneos=${encodeURIComponent(torneoIdsEnCurso.join(","))}&canchas=${encodeURIComponent(canchasParam)}`;
       window.open(tvUrl, "_blank", "noopener,noreferrer");
       return;
     }
@@ -160,10 +257,10 @@ export default function CanchasEnVivo() {
       return;
     }
     const selectedTorneo = torneos.find((t) => t.id === selectedId);
-    const tvPath = selectedTorneo?.tipo === "americano_individual"
+    const baseTvPath = selectedTorneo?.tipo === "americano_individual"
       ? `/torneo-individual/${selectedId}/tv`
       : `/torneo/${selectedId}/tv`;
-    window.open(tvPath, "_blank", "noopener,noreferrer");
+    window.open(`${baseTvPath}?canchas=${encodeURIComponent(canchasParam)}`, "_blank", "noopener,noreferrer");
   };
 
   const cargarDatos = async () => {
@@ -394,7 +491,10 @@ export default function CanchasEnVivo() {
       .sort((a, b) => a.hora.localeCompare(b.hora));
   }, [partidos, fechaPlacaDia, torneoId, torneos, inscripciones, jugadores]);
 
-  const canchas = Array.from({ length: cantidadCanchas }, (_, i) => (i + 1).toString());
+  const canchas = useMemo(
+    () => [...activeCourtIds].sort((a, b) => a - b).map(String),
+    [activeCourtIds],
+  );
 
   const handleAsignarCancha = async (partidoId: string, cancha: string) => {
     const p = partidos.find(x => x.id === partidoId);
@@ -752,16 +852,6 @@ export default function CanchasEnVivo() {
             <CalendarDays className="h-4 w-4" />
             Placa del día
           </Button>
-          <div className="flex items-center gap-2 border px-3 py-1 rounded-md">
-            <Label className="text-xs">Canchas:</Label>
-            <Input 
-              type="number" 
-              className="w-14 h-7 text-xs" 
-              value={cantidadCanchas} 
-              onChange={e => setCantidadCanchas(Number(e.target.value) || 1)} 
-              min={1} max={20} 
-            />
-          </div>
           <Select value={torneoId} onValueChange={setTorneoId}>
             <SelectTrigger className="w-[200px] h-9">
               <SelectValue placeholder="Seleccioná un torneo" />
@@ -773,6 +863,84 @@ export default function CanchasEnVivo() {
               ))}
             </SelectContent>
           </Select>
+        </div>
+      </div>
+
+      {/* Selector de Canchas Activas para el Torneo / Sesión en Vivo */}
+      <div className="rounded-xl border bg-card/60 p-3.5 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+        <div className="space-y-0.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Label className="text-xs font-bold uppercase tracking-wider text-foreground flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 text-primary" />
+              Canchas activas para el torneo
+            </Label>
+            <Badge variant="secondary" className="text-[10px] font-mono">
+              {activeCourtIds.length} activa{activeCourtIds.length === 1 ? "" : "s"} ({activeCourtIds.map((c) => `C${c}`).join(", ")})
+            </Badge>
+            {savingCourts && (
+              <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                <Loader2 className="h-3 w-3 animate-spin" /> Guardando...
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Seleccioná las canchas habilitadas. Se actualiza al instante en esta vista y en el Modo Pantalla TV.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5">
+          {COMPLEX_COURT_IDS.map((courtNum) => {
+            const isSelected = activeCourtIds.includes(courtNum);
+            return (
+              <button
+                key={courtNum}
+                type="button"
+                onClick={() => toggleActiveCourt(courtNum)}
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                  isSelected
+                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                    : "border-border bg-background/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                }`}
+              >
+                <span
+                  className={`h-2 w-2 rounded-full ${
+                    isSelected ? "bg-primary-foreground" : "bg-muted-foreground/40"
+                  }`}
+                />
+                Cancha {courtNum}
+              </button>
+            );
+          })}
+          <div className="h-5 w-[1px] bg-border mx-1 hidden sm:block" />
+          <div className="flex items-center gap-1">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-[10px] font-semibold"
+              onClick={() => void handleUpdateActiveCourts([1, 2, 3])}
+            >
+              1 a 3
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-[10px] font-semibold"
+              onClick={() => void handleUpdateActiveCourts([4, 5, 6])}
+            >
+              4 a 6
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="h-7 px-2 text-[10px] font-semibold"
+              onClick={() => void handleUpdateActiveCourts([...COMPLEX_COURT_IDS])}
+            >
+              Todas (1-6)
+            </Button>
+          </div>
         </div>
       </div>
 
@@ -822,7 +990,7 @@ export default function CanchasEnVivo() {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+        <div className={`grid ${getResponsiveCourtGridClass(canchas.length, "admin")} gap-4 items-start`}>
           {canchas.map(numeroCancha => {
             const partidosEnCancha = partidosActivos.filter(p => {
               const cNum = parseCanchaNum(p.cancha);
