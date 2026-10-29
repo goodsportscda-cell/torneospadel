@@ -5,7 +5,6 @@ import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
 import {
   extractCourtNumber,
-  getResponsiveCourtGridClass,
   isCourtActive,
   normalizeActiveCourtIds,
 } from "@/lib/activeCourts";
@@ -614,11 +613,21 @@ export default function TorneoTvView() {
       });
   }, [partidos, selectedFechaNum, torneo?.estado, activeCourtIds]);
 
-  // Grid sizing based on active court count
-  const courtGridClass = useMemo(() => {
-    const count = partidosDeFecha.length || activeCourtIds.length || 3;
-    return getResponsiveCourtGridClass(count, "tv-desafio", { withSidebar: showSidebar });
-  }, [partidosDeFecha.length, activeCourtIds.length, showSidebar]);
+  const [courtSlideIndex, setCourtSlideIndex] = useState(0);
+
+  useEffect(() => {
+    setCourtSlideIndex((prev) => (partidosDeFecha.length > 0 ? prev % partidosDeFecha.length : 0));
+  }, [partidosDeFecha.length, selectedFechaNum]);
+
+  useEffect(() => {
+    if (partidosDeFecha.length <= 1) return;
+    const idInterval = window.setInterval(() => {
+      setCourtSlideIndex((prev) => (prev + 1) % partidosDeFecha.length);
+    }, 12000);
+    return () => window.clearInterval(idInterval);
+  }, [partidosDeFecha.length]);
+
+  const partidoVisible = partidosDeFecha[courtSlideIndex] ?? partidosDeFecha[0] ?? null;
 
   return (
     <div className="w-full min-h-screen h-auto md:h-screen overflow-x-hidden md:overflow-hidden bg-[#07070a] text-white flex flex-col font-sans select-none relative">
@@ -805,256 +814,298 @@ export default function TorneoTvView() {
               </p>
             </div>
           ) : (
-            <div className={`grid ${courtGridClass} gap-3 md:gap-4 h-full flex-1 min-h-0`}>
-              {partidosDeFecha.map((partido, index) => {
-                const hasWinner = partido.estado === "finalizado";
-                const isPlaying = partido.estado === "en_juego" || (!hasWinner && (partido.sets?.length ?? 0) > 0);
-                const isPending = partido.estado === "pendiente" && (partido.sets?.length ?? 0) === 0;
-
-                // Photo resolution (column or notes tag)
-                const fotoUrl =
-                  partido.foto_url ||
-                  (partido as any).imagen_url ||
-                  extractFotoFromNotas(torneo?.notas, partido.id);
-
-                // WO resolution
-                const woTeam = extractWOFromNotas(torneo?.notas, partido.id);
-
-                // Score analysis
-                const setsP1 = partido.sets_pareja1 ?? 0;
-                const setsP2 = partido.sets_pareja2 ?? 0;
-                const p1Won = setsP1 > setsP2;
-                const p2Won = setsP2 > setsP1;
-
-                // Court label / Subtitle
-                let courtSubtitle = "";
-                if (isLigaParejas && selectedFechaNum === 11) {
-                  if (partido.cancha.includes("Cancha 1")) courtSubtitle = "🏆 GRAN FINAL (1° vs 2°)";
-                  else if (partido.cancha.includes("Cancha 2")) courtSubtitle = "🥉 DUELO POR EL PODIO (3° vs 4°)";
-                  else courtSubtitle = "⚡ DUELO POR LA PERMANENCIA (5° vs 6°)";
-                } else if (partido.cancha.includes("Élite")) {
-                  courtSubtitle = "CANCHA ÉLITE";
-                } else if (partido.cancha.includes("Desafío")) {
-                  courtSubtitle = "CANCHA DESAFÍO";
-                } else if (partido.cancha.includes("Base")) {
-                  courtSubtitle = "CANCHA BASE";
-                }
-
-                // Couple names
-                const p1Nombre = partido.jugador1
-                  ? `${partido.jugador1.apellido} / ${partido.jugador2?.apellido || ""}`
-                  : "Pareja A";
-                const p2Nombre = partido.jugador3
-                  ? `${partido.jugador3.apellido} / ${partido.jugador4?.apellido || ""}`
-                  : "Pareja B";
-
-                return (
-                  <div
-                    key={partido.id}
-                    className={`rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between shadow-2xl backdrop-blur-xl min-h-[230px] md:min-h-0 ${isPlaying
-                        ? "border-[#00f5d4]/60 bg-gradient-to-b from-[#0a1219]/90 to-[#070b0f]/95 shadow-[0_0_35px_rgba(0,245,212,0.18)] ring-1 ring-[#00f5d4]/40"
-                        : hasWinner
-                          ? "border-white/10 bg-gradient-to-b from-neutral-900/85 to-[#09090e]/95"
-                          : "border-white/10 bg-neutral-900/70"
-                      }`}
-                  >
-                    {/* Background Multimedia Backdrop (Photo Overlay with Glassmorphism) */}
-                    {fotoUrl && (
-                      <div
-                        className="absolute inset-0 z-0 overflow-hidden cursor-pointer group"
-                        onClick={() => setPreviewPhoto(fotoUrl)}
-                        title="Clic para ver foto del partido en tamaño completo"
-                      >
-                        <img
-                          src={fotoUrl}
-                          alt="Foto Oficial del Partido"
-                          className="w-full h-full object-cover opacity-20 filter blur-[0.5px] scale-100 group-hover:scale-105 transition-transform duration-700"
-                          style={{ objectPosition: "center 15%" }}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/80 to-[#07070a]/40" />
-                      </div>
-                    )}
-
-                    {/* CARD HEADER */}
-                    <div className="relative z-10 px-4 py-2.5 border-b border-white/10 flex items-center justify-between bg-black/30 backdrop-blur-md">
-                      <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1.5">
-                          <span className="w-2 h-2 rounded-full bg-[#00f5d4] shadow-[0_0_8px_#00f5d4]" />
-                          <span className="font-black text-xs md:text-sm tracking-widest uppercase text-white">
-                            {partido.cancha.replace(/:\s*.*$/, "")}
-                          </span>
-                        </div>
-                        {courtSubtitle && (
-                          <span className="text-[10px] font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2 py-0.5 rounded-full tracking-wider">
-                            {courtSubtitle}
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        {fotoUrl && (
-                          <button
-                            type="button"
-                            onClick={() => setPreviewPhoto(fotoUrl)}
-                            className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-[#00f5d4]/15 hover:bg-[#00f5d4]/30 border border-[#00f5d4]/40 text-[#00f5d4] transition-all text-[10px] md:text-[11px] font-black shadow-[0_0_12px_rgba(0,245,212,0.25)] cursor-pointer"
-                            title="Ver Foto Oficial del Partido (Estilo Competencia)"
-                          >
-                            <Camera className="h-3 w-3 md:h-3.5 md:w-3.5" />
-                            <span>FOTO</span>
-                          </button>
-                        )}
-
-                        {woTeam ? (
-                          <Badge variant="destructive" className="text-[9px] font-black uppercase px-2 py-0.5 tracking-wider">
-                            W.O. P{woTeam}
-                          </Badge>
-                        ) : isPlaying ? (
-                          <Badge className="bg-[#00f5d4] text-[#07070a] text-[10px] font-black uppercase px-2 py-0.5 tracking-widest animate-pulse border-none shadow-[0_0_12px_rgba(0,245,212,0.8)] flex items-center gap-1">
-                            <Radio className="h-3 w-3 animate-spin" /> EN VIVO
-                          </Badge>
-                        ) : hasWinner ? (
-                          <Badge className="bg-white/10 text-neutral-300 border border-white/20 text-[9px] font-extrabold uppercase px-2 py-0.5 tracking-wider">
-                            FINALIZADO
-                          </Badge>
-                        ) : (
-                          <span className="text-[10px] font-mono text-neutral-400 flex items-center gap-1 bg-white/5 px-2 py-0.5 rounded border border-white/5">
-                            <Clock className="h-2.5 w-2.5" />
-                            {partido.hora_programada ? partido.hora_programada.substring(0, 5) : "Por Jugar"}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-
-                    {/* CARD BODY: TEAMS AND MATCHUP */}
-                    <div className="relative z-10 p-4 md:p-5 flex-1 flex flex-col justify-center space-y-3">
-                      {/* PAREJA A */}
-                      <div
-                        className={`p-3 rounded-xl border transition-all ${hasWinner && p1Won
-                            ? "bg-[#00f5d4]/10 border-[#00f5d4]/40 shadow-[0_0_20px_rgba(0,245,212,0.1)]"
-                            : hasWinner
-                              ? "bg-white/[0.02] border-transparent opacity-60"
-                              : "bg-white/[0.04] border-white/5"
+            <div className="flex flex-col gap-3 h-full flex-1 min-h-0">
+              {partidosDeFecha.length > 1 && (
+                <div className="flex items-center justify-between gap-2 shrink-0 px-1">
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {partidosDeFecha.map((pItem, idx) => {
+                      const isCurrent = idx === (courtSlideIndex % partidosDeFecha.length);
+                      const label = pItem.cancha.replace(/:\s*.*$/, "");
+                      return (
+                        <button
+                          key={pItem.id}
+                          type="button"
+                          onClick={() => setCourtSlideIndex(idx)}
+                          className={`px-3 py-1 rounded-full text-xs font-black uppercase tracking-wider border transition-all ${
+                            isCurrent
+                              ? "bg-[#00f5d4] text-[#07070a] border-[#00f5d4] shadow-[0_0_15px_rgba(0,245,212,0.5)] scale-105"
+                              : "bg-white/5 text-neutral-400 border-white/10 hover:text-white"
                           }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-black text-neutral-500 uppercase tracking-widest">
-                              PAREJA A
-                            </span>
-                            {hasWinner && p1Won && (
-                              <span className="text-[9px] font-black text-[#00f5d4] uppercase flex items-center gap-1">
-                                <Award className="h-3 w-3" /> GANADORES
-                              </span>
-                            )}
-                          </div>
-                          <span className="font-mono text-xs font-bold text-neutral-400">
-                            {setsP1} {setsP1 === 1 ? "SET" : "SETS"}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex items-baseline justify-between">
-                          <h2 className="text-base md:text-lg lg:text-xl font-black tracking-tight text-white uppercase truncate">
-                            {p1Nombre}
-                          </h2>
-                        </div>
-                        {(partido.suplente1_nombre || partido.suplente2_nombre) && (
-                          <div className="text-[10px] text-amber-400/90 font-medium mt-0.5">
-                            Suplente: {[partido.suplente1_nombre, partido.suplente2_nombre].filter(Boolean).join(", ")}
-                          </div>
-                        )}
-                      </div>
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="text-[11px] text-neutral-400 font-mono">
+                    Rotación automática · {(courtSlideIndex % partidosDeFecha.length) + 1}/{partidosDeFecha.length}
+                  </span>
+                </div>
+              )}
 
-                      {/* VS NEON SEPARATOR */}
-                      <div className="flex items-center justify-center gap-3">
-                        <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent flex-1" />
-                        <span className="text-[10px] font-black tracking-widest text-[#00f5d4] px-2 py-0.5 rounded-full bg-[#00f5d4]/10 border border-[#00f5d4]/20 shadow-[0_0_10px_rgba(0,245,212,0.2)]">
-                          VS
-                        </span>
-                        <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent flex-1" />
-                      </div>
+              <div className="grid grid-cols-1 gap-3 md:gap-4 h-full flex-1 min-h-0">
+                {(partidoVisible ? [partidoVisible] : []).map((partido) => {
+                  const hasWinner = partido.estado === "finalizado";
+                  const isPlaying = partido.estado === "en_juego" || (!hasWinner && (partido.sets?.length ?? 0) > 0);
 
-                      {/* PAREJA B */}
-                      <div
-                        className={`p-3 rounded-xl border transition-all ${hasWinner && p2Won
-                            ? "bg-[#00f5d4]/10 border-[#00f5d4]/40 shadow-[0_0_20px_rgba(0,245,212,0.1)]"
-                            : hasWinner
-                              ? "bg-white/[0.02] border-transparent opacity-60"
-                              : "bg-white/[0.04] border-white/5"
-                          }`}
-                      >
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[9px] font-black text-neutral-500 uppercase tracking-widest">
-                              PAREJA B
-                            </span>
-                            {hasWinner && p2Won && (
-                              <span className="text-[9px] font-black text-[#00f5d4] uppercase flex items-center gap-1">
-                                <Award className="h-3 w-3" /> GANADORES
-                              </span>
-                            )}
-                          </div>
-                          <span className="font-mono text-xs font-bold text-neutral-400">
-                            {setsP2} {setsP2 === 1 ? "SET" : "SETS"}
-                          </span>
-                        </div>
-                        <div className="mt-1 flex items-baseline justify-between">
-                          <h2 className="text-base md:text-lg lg:text-xl font-black tracking-tight text-white uppercase truncate">
-                            {p2Nombre}
-                          </h2>
-                        </div>
-                        {(partido.suplente3_nombre || partido.suplente4_nombre) && (
-                          <div className="text-[10px] text-amber-400/90 font-medium mt-0.5">
-                            Suplente: {[partido.suplente3_nombre, partido.suplente4_nombre].filter(Boolean).join(", ")}
-                          </div>
-                        )}
-                      </div>
-                    </div>
+                  // Photo resolution (column or notes tag)
+                  const fotoUrl =
+                    partido.foto_url ||
+                    (partido as any).imagen_url ||
+                    extractFotoFromNotas(torneo?.notas, partido.id);
 
-                    {partido.marcador_en_vivo && (
-                      <div className="relative z-10 mx-3 mb-3">
-                        <LiveScoreSummary state={partido.marcador_en_vivo as unknown as PadelState} compact />
-                      </div>
-                    )}
+                  // WO resolution
+                  const woTeam = extractWOFromNotas(torneo?.notas, partido.id);
 
-                    {/* CARD FOOTER: LED SCOREBOARD */}
-                    <div className="relative z-10 bg-black/40 border-t border-white/10 px-4 py-3 flex items-center justify-between">
-                      {partido.sets && partido.sets.length > 0 ? (
-                        <div className="w-full flex items-center justify-around gap-2">
-                          {partido.sets.map((s) => {
-                            const p1WonSet = (s.games_pareja1 ?? 0) > (s.games_pareja2 ?? 0);
-                            const p2WonSet = (s.games_pareja2 ?? 0) > (s.games_pareja1 ?? 0);
+                  // Score analysis
+                  const setsP1 = partido.sets_pareja1 ?? 0;
+                  const setsP2 = partido.sets_pareja2 ?? 0;
+                  const p1Won = setsP1 > setsP2;
+                  const p2Won = setsP2 > setsP1;
 
-                            return (
-                              <div
-                                key={s.id}
-                                className="flex-1 flex flex-col items-center bg-white/[0.04] border border-white/10 rounded-lg py-1 px-2"
-                              >
-                                <span className="text-[9px] font-bold text-neutral-400 uppercase tracking-widest">
-                                  {s.numero_set === 3 ? "STB" : `SET ${s.numero_set}`}
-                                </span>
-                                <div className="flex items-center gap-2 font-mono text-lg md:text-xl font-black tracking-wider mt-0.5">
-                                  <span className={p1WonSet ? "text-[#00f5d4] drop-shadow-[0_0_8px_#00f5d4]" : "text-neutral-400"}>
-                                    {s.games_pareja1}
-                                  </span>
-                                  <span className="text-neutral-600 text-sm">-</span>
-                                  <span className={p2WonSet ? "text-[#00f5d4] drop-shadow-[0_0_8px_#00f5d4]" : "text-neutral-400"}>
-                                    {s.games_pareja2}
-                                  </span>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      ) : (
-                        <div className="w-full text-center py-1">
-                          <span className="text-xs text-neutral-500 font-mono tracking-widest uppercase">
-                            EN ESPERA DE INICIO
-                          </span>
+                  // Court label / Subtitle
+                  let courtSubtitle = "";
+                  if (isLigaParejas && selectedFechaNum === 11) {
+                    if (partido.cancha.includes("Cancha 1")) courtSubtitle = "🏆 GRAN FINAL (1° vs 2°)";
+                    else if (partido.cancha.includes("Cancha 2")) courtSubtitle = "🥉 DUELO POR EL PODIO (3° vs 4°)";
+                    else courtSubtitle = "⚡ DUELO POR LA PERMANENCIA (5° vs 6°)";
+                  } else if (partido.cancha.includes("Élite")) {
+                    courtSubtitle = "CANCHA ÉLITE";
+                  } else if (partido.cancha.includes("Desafío")) {
+                    courtSubtitle = "CANCHA DESAFÍO";
+                  } else if (partido.cancha.includes("Base")) {
+                    courtSubtitle = "CANCHA BASE";
+                  }
+
+                  // Couple names
+                  const p1Nombre = partido.jugador1
+                    ? `${partido.jugador1.apellido} / ${partido.jugador2?.apellido || ""}`
+                    : "Pareja A";
+                  const p2Nombre = partido.jugador3
+                    ? `${partido.jugador3.apellido} / ${partido.jugador4?.apellido || ""}`
+                    : "Pareja B";
+
+                  return (
+                    <div
+                      key={partido.id}
+                      className={`rounded-2xl border transition-all relative overflow-hidden flex flex-col justify-between shadow-2xl backdrop-blur-xl min-h-[300px] md:min-h-0 h-full ${isPlaying
+                          ? "border-[#00f5d4]/60 bg-gradient-to-b from-[#0a1219]/90 to-[#070b0f]/95 shadow-[0_0_35px_rgba(0,245,212,0.18)] ring-1 ring-[#00f5d4]/40"
+                          : hasWinner
+                            ? "border-white/10 bg-gradient-to-b from-neutral-900/85 to-[#09090e]/95"
+                            : "border-white/10 bg-neutral-900/70"
+                        }`}
+                    >
+                      {/* Background Multimedia Backdrop (Photo Overlay with Glassmorphism) */}
+                      {fotoUrl && (
+                        <div
+                          className="absolute inset-0 z-0 overflow-hidden cursor-pointer group"
+                          onClick={() => setPreviewPhoto(fotoUrl)}
+                          title="Clic para ver foto del partido en tamaño completo"
+                        >
+                          <img
+                            src={fotoUrl}
+                            alt="Foto Oficial del Partido"
+                            className="w-full h-full object-cover opacity-20 filter blur-[0.5px] scale-100 group-hover:scale-105 transition-transform duration-700"
+                            style={{ objectPosition: "center 15%" }}
+                          />
+                          <div className="absolute inset-0 bg-gradient-to-t from-[#07070a] via-[#07070a]/80 to-[#07070a]/40" />
                         </div>
                       )}
+
+                      {/* CARD HEADER */}
+                      <div className="relative z-10 px-5 py-3 border-b border-white/10 flex items-center justify-between bg-black/30 backdrop-blur-md">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center gap-2">
+                            <span className="w-2.5 h-2.5 rounded-full bg-[#00f5d4] shadow-[0_0_8px_#00f5d4]" />
+                            <span className="font-black text-base md:text-lg lg:text-xl tracking-widest uppercase text-white">
+                              {partido.cancha.replace(/:\s*.*$/, "")}
+                            </span>
+                          </div>
+                          {courtSubtitle && (
+                            <span className="text-xs font-extrabold text-amber-400 bg-amber-400/10 border border-amber-400/30 px-2.5 py-0.5 rounded-full tracking-wider">
+                              {courtSubtitle}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          {fotoUrl && (
+                            <button
+                              type="button"
+                              onClick={() => setPreviewPhoto(fotoUrl)}
+                              className="flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#00f5d4]/15 hover:bg-[#00f5d4]/30 border border-[#00f5d4]/40 text-[#00f5d4] transition-all text-xs font-black shadow-[0_0_12px_rgba(0,245,212,0.25)] cursor-pointer"
+                              title="Ver Foto Oficial del Partido (Estilo Competencia)"
+                            >
+                              <Camera className="h-3.5 w-3.5" />
+                              <span>FOTO</span>
+                            </button>
+                          )}
+
+                          {woTeam ? (
+                            <Badge variant="destructive" className="text-xs font-black uppercase px-2.5 py-1 tracking-wider">
+                              W.O. P{woTeam}
+                            </Badge>
+                          ) : isPlaying ? (
+                            <Badge className="bg-[#00f5d4] text-[#07070a] text-xs font-black uppercase px-3 py-1 tracking-widest animate-pulse border-none shadow-[0_0_12px_rgba(0,245,212,0.8)] flex items-center gap-1.5">
+                              <Radio className="h-3.5 w-3.5 animate-spin" /> EN VIVO
+                            </Badge>
+                          ) : hasWinner ? (
+                            <Badge className="bg-white/10 text-neutral-300 border border-white/20 text-xs font-extrabold uppercase px-2.5 py-1 tracking-wider">
+                              FINALIZADO
+                            </Badge>
+                          ) : (
+                            <span className="text-xs font-mono text-neutral-400 flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded border border-white/5">
+                              <Clock className="h-3.5 w-3.5" />
+                              {partido.hora_programada ? partido.hora_programada.substring(0, 5) : "Por Jugar"}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* CARD BODY: TEAMS AND MATCHUP */}
+                      <div className="relative z-10 p-5 md:p-6 flex-1 flex flex-col justify-center space-y-4">
+                        {fotoUrl && (
+                          <div
+                            className="w-full h-[32vh] rounded-xl overflow-hidden bg-black/50 border border-white/10 cursor-pointer shrink-0"
+                            onClick={() => setPreviewPhoto(fotoUrl)}
+                          >
+                            <img
+                              src={fotoUrl}
+                              alt="Foto Oficial del Partido"
+                              className="w-full h-full object-cover object-top"
+                            />
+                          </div>
+                        )}
+
+                        {/* PAREJA A */}
+                        <div
+                          className={`p-4 rounded-xl border transition-all ${hasWinner && p1Won
+                              ? "bg-[#00f5d4]/10 border-[#00f5d4]/40 shadow-[0_0_20px_rgba(0,245,212,0.1)]"
+                              : hasWinner
+                                ? "bg-white/[0.02] border-transparent opacity-60"
+                                : "bg-white/[0.04] border-white/5"
+                            }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-neutral-400 uppercase tracking-widest">
+                                PAREJA A
+                              </span>
+                              {hasWinner && p1Won && (
+                                <span className="text-xs font-black text-[#00f5d4] uppercase flex items-center gap-1">
+                                  <Award className="h-4 w-4" /> GANADORES
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono text-sm md:text-base font-bold text-neutral-300">
+                              {setsP1} {setsP1 === 1 ? "SET" : "SETS"}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex items-baseline justify-between">
+                            <h2 className="text-xl md:text-2xl lg:text-3xl font-black tracking-tight text-white uppercase truncate">
+                              {p1Nombre}
+                            </h2>
+                          </div>
+                          {(partido.suplente1_nombre || partido.suplente2_nombre) && (
+                            <div className="text-xs text-amber-400/90 font-medium mt-1">
+                              Suplente: {[partido.suplente1_nombre, partido.suplente2_nombre].filter(Boolean).join(", ")}
+                            </div>
+                          )}
+                        </div>
+
+                        {/* VS NEON SEPARATOR */}
+                        <div className="flex items-center justify-center gap-3">
+                          <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent flex-1" />
+                          <span className="text-xs font-black tracking-widest text-[#00f5d4] px-3 py-1 rounded-full bg-[#00f5d4]/10 border border-[#00f5d4]/20 shadow-[0_0_10px_rgba(0,245,212,0.2)]">
+                            VS
+                          </span>
+                          <div className="h-[1px] bg-gradient-to-r from-transparent via-white/20 to-transparent flex-1" />
+                        </div>
+
+                        {/* PAREJA B */}
+                        <div
+                          className={`p-4 rounded-xl border transition-all ${hasWinner && p2Won
+                              ? "bg-[#00f5d4]/10 border-[#00f5d4]/40 shadow-[0_0_20px_rgba(0,245,212,0.1)]"
+                              : hasWinner
+                                ? "bg-white/[0.02] border-transparent opacity-60"
+                                : "bg-white/[0.04] border-white/5"
+                            }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-black text-neutral-400 uppercase tracking-widest">
+                                PAREJA B
+                              </span>
+                              {hasWinner && p2Won && (
+                                <span className="text-xs font-black text-[#00f5d4] uppercase flex items-center gap-1">
+                                  <Award className="h-4 w-4" /> GANADORES
+                                </span>
+                              )}
+                            </div>
+                            <span className="font-mono text-sm md:text-base font-bold text-neutral-300">
+                              {setsP2} {setsP2 === 1 ? "SET" : "SETS"}
+                            </span>
+                          </div>
+                          <div className="mt-1.5 flex items-baseline justify-between">
+                            <h2 className="text-xl md:text-2xl lg:text-3xl font-black tracking-tight text-white uppercase truncate">
+                              {p2Nombre}
+                            </h2>
+                          </div>
+                          {(partido.suplente3_nombre || partido.suplente4_nombre) && (
+                            <div className="text-xs text-amber-400/90 font-medium mt-1">
+                              Suplente: {[partido.suplente3_nombre, partido.suplente4_nombre].filter(Boolean).join(", ")}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      {partido.marcador_en_vivo && (
+                        <div className="relative z-10 mx-5 mb-4">
+                          <LiveScoreSummary state={partido.marcador_en_vivo as unknown as PadelState} />
+                        </div>
+                      )}
+
+                      {/* CARD FOOTER: LED SCOREBOARD */}
+                      <div className="relative z-10 bg-black/40 border-t border-white/10 px-5 py-4 flex items-center justify-between">
+                        {partido.sets && partido.sets.length > 0 ? (
+                          <div className="w-full flex items-center justify-around gap-3">
+                            {partido.sets.map((s) => {
+                              const p1WonSet = (s.games_pareja1 ?? 0) > (s.games_pareja2 ?? 0);
+                              const p2WonSet = (s.games_pareja2 ?? 0) > (s.games_pareja1 ?? 0);
+
+                              return (
+                                <div
+                                  key={s.id}
+                                  className="flex-1 flex flex-col items-center bg-white/[0.04] border border-white/10 rounded-xl py-2 px-3"
+                                >
+                                  <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
+                                    {s.numero_set === 3 ? "STB" : `SET ${s.numero_set}`}
+                                  </span>
+                                  <div className="flex items-center gap-3 font-mono text-2xl md:text-3xl font-black tracking-wider mt-1">
+                                    <span className={p1WonSet ? "text-[#00f5d4] drop-shadow-[0_0_8px_#00f5d4]" : "text-neutral-400"}>
+                                      {s.games_pareja1}
+                                    </span>
+                                    <span className="text-neutral-600 text-base">-</span>
+                                    <span className={p2WonSet ? "text-[#00f5d4] drop-shadow-[0_0_8px_#00f5d4]" : "text-neutral-400"}>
+                                      {s.games_pareja2}
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <div className="w-full text-center py-1">
+                            <span className="text-sm text-neutral-500 font-mono tracking-widest uppercase">
+                              EN ESPERA DE INICIO
+                            </span>
+                          </div>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })}
+              </div>
             </div>
           )}
 

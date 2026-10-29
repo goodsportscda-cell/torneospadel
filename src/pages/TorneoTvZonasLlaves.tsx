@@ -13,7 +13,7 @@ import { CalendarClock, Check, Clock3, Copy, Maximize2, Minimize2, Radio, Refres
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
-import { getResponsiveCourtGridClass, isCourtActive, normalizeActiveCourtIds } from "@/lib/activeCourts";
+import { isCourtActive, normalizeActiveCourtIds } from "@/lib/activeCourts";
 
 type Torneo = {
   id: string;
@@ -330,6 +330,18 @@ export default function TorneoTvZonasLlaves() {
   }, [playerMap, registrationMap]);
 
   const courts = useMemo(() => activeCourtIds.map(String), [activeCourtIds]);
+  const [courtSlideIndex, setCourtSlideIndex] = useState(0);
+
+  useEffect(() => {
+    setCourtSlideIndex((prev) => prev % Math.max(1, courts.length));
+    if (courts.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setCourtSlideIndex((prev) => (prev + 1) % courts.length);
+    }, 12000);
+    return () => window.clearInterval(timer);
+  }, [courts.length]);
+
+  const currentCourt = courts[courtSlideIndex % Math.max(1, courts.length)] ?? courts[0] ?? "1";
   const assignedMatches = useMemo(
     () =>
       partidos.filter(
@@ -438,35 +450,107 @@ export default function TorneoTvZonasLlaves() {
         <main className="flex-1 py-5">
           {tab === "canchas" && (
             <>
-              {liveMatches.length > 0 && (
-                <section className="mb-6">
-                  <div className="mb-3 flex items-center gap-2 text-rose-300"><Radio className="h-4 w-4" /><h2 className="text-xs font-black uppercase tracking-[0.18em]">En juego ahora</h2></div>
-                  <div className={`grid gap-3 ${getResponsiveCourtGridClass(liveMatches.length, "tv-zonas")}`}>
-                    {liveMatches.map((match) => <MatchSpotlight key={match.id} match={match} local={matchLabel(match.parejaLocalId, match.refLocal)} visitor={matchLabel(match.parejaVisitanteId, match.refVisitante)} score={matchScore(match)} photoUrl={photoUrls[match.id]} />)}
+              <section className="w-full">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <h2 className="text-sm sm:text-base font-black uppercase tracking-[0.18em] text-white">
+                      Cancha {currentCourt} en pantalla
+                    </h2>
+                    <Badge variant="outline" className="border-white/15 text-white/65 font-mono">
+                      {courts.length > 1
+                        ? `Cancha ${currentCourt} (${(courtSlideIndex % courts.length) + 1}/${courts.length}) · rota cada 12 s`
+                        : `Cancha ${currentCourt} fija`}
+                    </Badge>
                   </div>
-                </section>
-              )}
-              <section>
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <h2 className="text-xs font-black uppercase tracking-[0.18em] text-white/65">Canchas activas del torneo</h2>
-                  <Badge variant="outline" className="border-white/10 text-white/50 font-mono">
-                    {courts.length} activa{courts.length === 1 ? "" : "s"} ({courts.map((c) => `C${c}`).join(", ")})
-                  </Badge>
+                  {courts.length > 1 && (
+                    <div className="flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.03] p-1">
+                      {courts.map((courtNum, idx) => {
+                        const isActiveSlide = idx === courtSlideIndex % courts.length;
+                        return (
+                          <button
+                            key={courtNum}
+                            type="button"
+                            onClick={() => setCourtSlideIndex(idx)}
+                            className={`rounded-lg px-3 py-1 text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              isActiveSlide
+                                ? "bg-primary text-slate-950 shadow-[0_0_15px_rgba(0,245,212,0.35)]"
+                                : "text-white/55 hover:bg-white/10 hover:text-white"
+                            }`}
+                          >
+                            Cancha {courtNum}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
-                <div className={`grid gap-3 ${getResponsiveCourtGridClass(courts.length, "tv-zonas")}`}>
-                  {courts.map((court) => {
-                    const matches = courtMatches(court);
-                    const current = matches.find((match) => match.estado === "en_juego");
-                    const next = matches.filter((match) => match !== current).slice(0, 2);
-                    return (
-                      <section key={court} className={`min-h-[230px] rounded-2xl border p-4 ${current ? "border-rose-400/35 bg-gradient-to-b from-rose-500/[0.10] to-white/[0.025]" : "border-white/10 bg-white/[0.035]"}`}>
-                        <div className="mb-4 flex items-center justify-between"><h3 className="text-sm font-black uppercase tracking-widest">Cancha {court}</h3>{current ? <Badge className="bg-rose-400/15 text-rose-200 hover:bg-rose-400/15"><Radio className="mr-1 h-3 w-3" />EN JUEGO</Badge> : <span className="text-[10px] text-white/35">PADEL ID LIVE</span>}</div>
-                        {current ? <MatchCompact match={current} local={matchLabel(current.parejaLocalId, current.refLocal)} visitor={matchLabel(current.parejaVisitanteId, current.refVisitante)} score={matchScore(current)} photoUrl={photoUrls[current.id]} /> : null}
-                        {next.length > 0 ? <div className={`${current ? "mt-4 border-t border-white/10 pt-3" : ""}`}><p className="mb-2 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-primary"><CalendarClock className="h-3 w-3" />{current ? "A continuación" : "Próximo partido"}</p><div className="space-y-3">{next.map((match) => <MatchNext key={match.id} match={match} local={matchLabel(match.parejaLocalId, match.refLocal)} visitor={matchLabel(match.parejaVisitanteId, match.refVisitante)} score={matchScore(match)} photoUrl={photoUrls[match.id]} />)}</div></div> : !current ? <div className="flex h-32 flex-col items-center justify-center text-center text-white/35"><Clock3 className="mb-2 h-5 w-5" /><p className="text-xs">Sin partido asignado</p></div> : null}
-                      </section>
-                    );
-                  })}
-                </div>
+
+                {(() => {
+                  const matches = courtMatches(currentCourt);
+                  const current = matches.find((match) => match.estado === "en_juego");
+                  const next = matches.filter((match) => match !== current).slice(0, 3);
+                  return (
+                    <section
+                      key={currentCourt}
+                      className={`w-full rounded-2xl border p-5 sm:p-6 shadow-2xl ${
+                        current
+                          ? "border-rose-400/40 bg-gradient-to-b from-rose-500/[0.12] via-[#0d131f] to-white/[0.025]"
+                          : "border-white/10 bg-white/[0.035]"
+                      }`}
+                    >
+                      <div className="mb-4 flex items-center justify-between border-b border-white/10 pb-3">
+                        <h3 className="text-xl sm:text-2xl font-black uppercase tracking-widest">
+                          Cancha {currentCourt}
+                        </h3>
+                        {current ? (
+                          <Badge className="bg-rose-500/20 text-rose-200 border border-rose-400/40 px-3 py-1 text-xs font-black">
+                            <Radio className="mr-1.5 h-3.5 w-3.5 animate-pulse" />
+                            EN JUEGO
+                          </Badge>
+                        ) : (
+                          <span className="text-xs font-bold uppercase tracking-wider text-white/45">
+                            {next.length > 0 ? "Próximos partidos" : "Disponible"}
+                          </span>
+                        )}
+                      </div>
+                      {current ? (
+                        <MatchCompact
+                          match={current}
+                          local={matchLabel(current.parejaLocalId, current.refLocal)}
+                          visitor={matchLabel(current.parejaVisitanteId, current.refVisitante)}
+                          score={matchScore(current)}
+                          photoUrl={photoUrls[current.id]}
+                        />
+                      ) : null}
+                      {next.length > 0 ? (
+                        <div className={`${current ? "mt-5 border-t border-white/10 pt-4" : ""}`}>
+                          <p className="mb-3 flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-primary">
+                            <CalendarClock className="h-3.5 w-3.5" />
+                            {current ? `A continuación en Cancha ${currentCourt}` : "Próximo partido"}
+                          </p>
+                          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                            {next.map((match) => (
+                              <MatchNext
+                                key={match.id}
+                                match={match}
+                                local={matchLabel(match.parejaLocalId, match.refLocal)}
+                                visitor={matchLabel(match.parejaVisitanteId, match.refVisitante)}
+                                score={matchScore(match)}
+                                photoUrl={photoUrls[match.id]}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ) : !current ? (
+                        <div className="flex min-h-[38vh] flex-col items-center justify-center text-center text-white/40">
+                          <Clock3 className="mb-3 h-8 w-8 text-primary/40" />
+                          <p className="text-base font-bold text-white/60">Cancha {currentCourt} disponible</p>
+                          <p className="text-xs text-white/40 mt-1">Sin partido asignado por el momento</p>
+                        </div>
+                      ) : null}
+                    </section>
+                  );
+                })()}
               </section>
               {unassignedMatches.length > 0 && <section className="mt-6 rounded-2xl border border-amber-300/20 bg-amber-200/[0.04] p-4"><h2 className="mb-3 text-xs font-black uppercase tracking-[0.15em] text-amber-100">Pendientes de cancha</h2><div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{unassignedMatches.slice(0, 6).map((match) => <MatchNext key={match.id} match={match} local={matchLabel(match.parejaLocalId, match.refLocal)} visitor={matchLabel(match.parejaVisitanteId, match.refVisitante)} score={matchScore(match)} photoUrl={photoUrls[match.id]} />)}</div></section>}
             </>
@@ -520,10 +604,10 @@ function MatchSpotlight({ match, local, visitor, score, photoUrl }: { match: TVP
 
 function MatchCompact({ match, local, visitor, score, photoUrl }: { match: TVPartido; local: string; visitor: string; score: string; photoUrl?: string }) {
   return (
-    <div className="space-y-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-rose-200">{match.fase}</p>
+    <div className="space-y-4">
+      <p className="text-xs font-bold uppercase tracking-wider text-rose-200">{match.fase}</p>
       {photoUrl && (
-        <div className="relative w-full h-[42vh] min-h-[220px] rounded-xl overflow-hidden border border-white/10 bg-black/40 shadow-lg">
+        <div className="relative w-full h-[45vh] min-h-[300px] max-h-[560px] rounded-xl overflow-hidden border border-white/15 bg-black/50 shadow-2xl">
           <img
             src={photoUrl}
             alt={`Foto del partido ${match.numero}`}
@@ -533,12 +617,35 @@ function MatchCompact({ match, local, visitor, score, photoUrl }: { match: TVPar
           />
         </div>
       )}
-      <div className="min-w-0 flex-1">
-        <p className="truncate text-base font-bold">{local}</p>
-        <p className="truncate text-base font-bold text-white/80">{visitor}</p>
-        <span className="font-mono text-sm font-black text-primary">{score}</span>
+      <div className="grid grid-cols-1 md:grid-cols-[1fr,auto,1fr] items-center gap-4 py-2">
+        <div className="rounded-xl bg-white/[0.04] border border-white/10 p-4 text-center md:text-left">
+          <span className="text-[10px] font-black uppercase tracking-widest text-primary/80 block mb-1">
+            Pareja Local
+          </span>
+          <h4 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight">
+            {local}
+          </h4>
+        </div>
+        <div className="flex flex-col items-center justify-center px-2">
+          <span className="text-xs font-black tracking-widest text-primary px-3 py-1 rounded-full bg-primary/10 border border-primary/30 mb-2">
+            VS
+          </span>
+          {score && (
+            <span className="font-mono text-xl sm:text-2xl font-black text-primary bg-black/50 px-4 py-1.5 rounded-lg border border-primary/25">
+              {score}
+            </span>
+          )}
+        </div>
+        <div className="rounded-xl bg-white/[0.04] border border-white/10 p-4 text-center md:text-right">
+          <span className="text-[10px] font-black uppercase tracking-widest text-primary/80 block mb-1">
+            Pareja Visitante
+          </span>
+          <h4 className="text-xl sm:text-2xl lg:text-3xl font-black text-white tracking-tight">
+            {visitor}
+          </h4>
+        </div>
       </div>
-      {match.marcadorEnVivo && <LiveScoreSummary state={match.marcadorEnVivo} compact />}
+      {match.marcadorEnVivo && <LiveScoreSummary state={match.marcadorEnVivo} />}
     </div>
   );
 }
