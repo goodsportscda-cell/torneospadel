@@ -10,7 +10,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import { ZonaCard, type Zona } from "@/components/zonas/ZonaCard";
 import { PartidoCard } from "@/components/zonas/PartidoCard";
 import { TablaPosiciones } from "@/components/zonas/TablaPosiciones";
-import { calcularTabla, type PartidoConSets } from "@/lib/zonas";
+import { calcularTabla, formatParejaLabel, type PartidoConSets } from "@/lib/zonas";
 import { NOMBRE_RONDA, ORDEN_RONDA, parseRef, type RondaLlave } from "@/lib/llaves";
 import type { Database } from "@/integrations/supabase/types";
 import { CompartirLlaveDialog } from "@/components/llaves/CompartirLlaveDialog";
@@ -161,13 +161,23 @@ export default function TorneoPublico() {
 
   const jugadorMap = useMemo(() => new Map(jugadores.map(j => [j.id, j])), [jugadores]);
 
+  const inscripcionesConJugadores = useMemo(
+    () =>
+      inscripciones.map((i) => ({
+        ...i,
+        jugador1: i.jugador1 ?? jugadorMap.get(i.jugador1_id) ?? null,
+        jugador2: i.jugador2 ?? jugadorMap.get(i.jugador2_id) ?? null,
+      })),
+    [inscripciones, jugadorMap],
+  );
+
   const parejaLabel = (id: string | null) => {
-    if (!id) return "— por definir —";
+    if (!id) return "A confirmar";
     const i = inscripciones.find(x => x.id === id);
-    if (!i) return "?";
-    const n1 = jugadorMap.get(i.jugador1_id)?.apellido ?? "?";
-    const n2 = jugadorMap.get(i.jugador2_id)?.apellido ?? "?";
-    return `${n1} / ${n2}`;
+    if (!i) return "A confirmar";
+    const j1 = jugadorMap.get(i.jugador1_id);
+    const j2 = jugadorMap.get(i.jugador2_id);
+    return formatParejaLabel(j1?.apellido || j1?.nombre, j2?.apellido || j2?.nombre, "A confirmar");
   };
   const formatRefLabel = useCallback((ref: string | null) => {
     if (!ref) return "— por definir —";
@@ -491,7 +501,7 @@ export default function TorneoPublico() {
         categoriaNombre={categoriaNombre}
         partidos={partidosLlave}
         setsLlave={setsLlave}
-        inscripciones={inscripciones}
+        inscripciones={inscripcionesConJugadores}
       />
     </div>
   );

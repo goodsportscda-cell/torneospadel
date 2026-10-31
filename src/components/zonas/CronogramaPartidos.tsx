@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { CalendarClock, MapPin, Trophy, Edit2, Wand2 } from "lucide-react";
 import { toast } from "sonner";
+import { formatParejaLabel } from "@/lib/zonas";
 
 type Props = {
   torneoId: string;
@@ -167,12 +168,12 @@ export function CronogramaPartidos({ torneoId, inscripciones, jugadorMap }: Prop
   const zonaMap = useMemo(() => new Map(zonas.map((z) => [z.id, z.nombre])), [zonas]);
 
   const parejaLabel = (inscripcionId: string | null): string => {
-    if (!inscripcionId) return "— por definir —";
+    if (!inscripcionId) return "A confirmar";
     const ins = inscripciones.find((i) => i.id === inscripcionId);
-    if (!ins) return "—";
+    if (!ins) return "A confirmar";
     const j1 = jugadorMap.get(ins.jugador1_id);
     const j2 = jugadorMap.get(ins.jugador2_id);
-    return `${j1?.apellido ?? "?"} / ${j2?.apellido ?? "?"}`;
+    return formatParejaLabel(j1?.apellido || j1?.nombre, j2?.apellido || j2?.nombre, "A confirmar");
   };
 
   // Only show matches with fecha_hora

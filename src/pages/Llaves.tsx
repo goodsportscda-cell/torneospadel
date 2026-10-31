@@ -23,7 +23,7 @@ import {
 import { Trophy, Trash2, Sparkles, AlertCircle, Share2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
-import { calcularTabla, type PartidoConSets } from "@/lib/zonas";
+import { calcularTabla, formatParejaLabel, type PartidoConSets } from "@/lib/zonas";
 import { useQuery } from "@tanstack/react-query";
 import {
   obtenerPlantilla,
@@ -261,12 +261,12 @@ export default function Llaves() {
 
   const parejaLabel = useCallback(
     (id: string | null) => {
-      if (!id) return "— por definir —";
+      if (!id) return "A confirmar";
       const i = inscripciones.find((x) => x.id === id);
-      if (!i) return "?";
-      const j1 = i.jugador1 ? `${i.jugador1.apellido}` : "?";
-      const j2 = i.jugador2 ? `${i.jugador2.apellido}` : "?";
-      return `${j1} / ${j2}`;
+      if (!i) return "A confirmar";
+      const j1 = i.jugador1?.apellido || i.jugador1?.nombre || "";
+      const j2 = i.jugador2?.apellido || i.jugador2?.nombre || "";
+      return formatParejaLabel(j1, j2, "A confirmar");
     },
     [inscripciones],
   );

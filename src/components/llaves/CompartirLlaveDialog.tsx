@@ -24,11 +24,11 @@ import {
   Image as ImageIcon,
   Sparkles,
   Check,
-  X,
-  Share2
+  Share2,
 } from "lucide-react";
 import { PadelIdLogo } from "@/components/PadelIdLogo";
 import { parseRef, NOMBRE_RONDA, ORDEN_RONDA, type RondaLlave } from "@/lib/llaves";
+import { formatParejaLabel, sanitizeParejaLabel } from "@/lib/zonas";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { useClubBrand } from "@/hooks/useClubBrand";
@@ -79,18 +79,18 @@ export function CompartirLlaveDialog({
   // Mapea inscripcion_id a label de parejas
   const getParejaName = (id: string | null, ref: string | null) => {
     if (!id) {
-      if (!ref) return "— por definir —";
+      if (!ref) return "A confirmar";
       const parsed = parseRef(ref);
       if (parsed.tipo === "clasificado") return `${parsed.posicion}° Zona ${parsed.zona}`;
       if (parsed.tipo === "ganador") return `Ganador P${parsed.numeroPartido}`;
-      if (parsed.tipo === "manual") return parsed.label;
+      if (parsed.tipo === "manual") return sanitizeParejaLabel(parsed.label, "A confirmar");
       return `(${ref})`;
     }
     const ins = inscripciones.find((x) => x.id === id);
-    if (!ins) return "?";
-    const j1 = ins.jugador1?.apellido || ins.jugador1?.nombre || "?";
-    const j2 = ins.jugador2?.apellido || ins.jugador2?.nombre || "?";
-    return `${j1} / ${j2}`;
+    if (!ins) return "A confirmar";
+    const j1 = ins.jugador1?.apellido || ins.jugador1?.nombre || "";
+    const j2 = ins.jugador2?.apellido || ins.jugador2?.nombre || "";
+    return formatParejaLabel(j1, j2, "A confirmar");
   };
 
   // Agrupar y ordenar partidos por ronda
@@ -116,11 +116,11 @@ export function CompartirLlaveDialog({
       return rondasDisponibles[0]?.ronda || "final";
     }
     // Si hay más de 3 rondas (ej. octavos, cuartos, semis, final), mostrar desde cuartos por defecto
-    const indexCuartos = rondasDisponibles.findIndex(r => r.ronda === "cuartos");
+    const indexCuartos = rondasDisponibles.findIndex((r) => r.ronda === "cuartos");
     if (indexCuartos !== -1) {
       return "cuartos";
     }
-    const indexSemis = rondasDisponibles.findIndex(r => r.ronda === "semifinal");
+    const indexSemis = rondasDisponibles.findIndex((r) => r.ronda === "semifinal");
     if (indexSemis !== -1) {
       return "semifinal";
     }
@@ -149,10 +149,10 @@ export function CompartirLlaveDialog({
   const themeStyles = {
     "cyber-neon": {
       background: "linear-gradient(135deg, #240046 0%, #0f1016 50%, #10002b 100%)",
-      titleColor: "#e0aaff", // emerald-400
+      titleColor: "#e0aaff",
       accentBgColor: "rgba(157, 78, 221, 0.4)",
       accentBorderColor: "rgba(255, 10, 84, 0.3)",
-      accentTextColor: "#a7f3d0", // emerald-300
+      accentTextColor: "#a7f3d0",
       cardStyle: {
         backgroundColor: "rgba(9, 21, 18, 0.9)",
         borderColor: "rgba(6, 95, 70, 0.4)",
@@ -173,17 +173,18 @@ export function CompartirLlaveDialog({
       textColorMuted: "rgba(224, 170, 255, 0.6)",
       lineColor: "#7b2cbf33",
       championCardStyle: {
-        background: "linear-gradient(135deg, rgba(36, 0, 70, 0.8) 0%, rgba(157, 78, 221, 0.4) 50%, rgba(36, 0, 70, 0.8) 100%)",
+        background:
+          "linear-gradient(135deg, rgba(36, 0, 70, 0.8) 0%, rgba(157, 78, 221, 0.4) 50%, rgba(36, 0, 70, 0.8) 100%)",
         borderColor: "#e0aaff",
       },
       watermarkColor: "rgba(224, 170, 255, 0.4)",
     },
     "dark-sport": {
       background: "linear-gradient(135deg, #0a0a0f 0%, #16161a 60%, #0a0a0f 100%)",
-      titleColor: "#ff0a54", // amber-400
+      titleColor: "#ff0a54",
       accentBgColor: "rgba(255, 10, 84, 0.2)",
       accentBorderColor: "rgba(255, 10, 84, 0.4)",
-      accentTextColor: "#ff8fa3", // amber-300
+      accentTextColor: "#ff8fa3",
       cardStyle: {
         backgroundColor: "rgba(22, 22, 26, 0.95)",
         borderColor: "#3a0ca3",
@@ -205,17 +206,18 @@ export function CompartirLlaveDialog({
       textColorMuted: "rgba(168, 162, 158, 0.7)",
       lineColor: "#f59e0b2a",
       championCardStyle: {
-        background: "linear-gradient(135deg, rgba(120, 53, 4, 0.7) 0%, rgba(28, 25, 23, 0.9) 60%, rgba(120, 53, 4, 0.7) 100%)",
+        background:
+          "linear-gradient(135deg, rgba(120, 53, 4, 0.7) 0%, rgba(28, 25, 23, 0.9) 60%, rgba(120, 53, 4, 0.7) 100%)",
         borderColor: "#fbbf24",
       },
       watermarkColor: "rgba(245, 158, 11, 0.4)",
     },
     "cyber-cyan": {
       background: "linear-gradient(135deg, #0f172a 0%, #020617 50%, #0f172a 100%)",
-      titleColor: "#22d3ee", // cyan-400
+      titleColor: "#22d3ee",
       accentBgColor: "rgba(8, 47, 73, 0.4)",
       accentBorderColor: "rgba(6, 182, 212, 0.2)",
-      accentTextColor: "#67e8f9", // cyan-300
+      accentTextColor: "#67e8f9",
       cardStyle: {
         backgroundColor: "rgba(11, 19, 41, 0.95)",
         borderColor: "#0f172a",
@@ -237,7 +239,8 @@ export function CompartirLlaveDialog({
       textColorMuted: "rgba(34, 211, 238, 0.5)",
       lineColor: "#06b6d433",
       championCardStyle: {
-        background: "linear-gradient(135deg, rgba(8, 47, 73, 0.8) 0%, rgba(15, 23, 42, 0.9) 60%, rgba(8, 47, 73, 0.8) 100%)",
+        background:
+          "linear-gradient(135deg, rgba(8, 47, 73, 0.8) 0%, rgba(15, 23, 42, 0.9) 60%, rgba(8, 47, 73, 0.8) 100%)",
         borderColor: "#22d3ee",
       },
       watermarkColor: "rgba(6, 182, 212, 0.4)",
@@ -252,19 +255,18 @@ export function CompartirLlaveDialog({
     setExporting(true);
 
     const toastId = toast.loading(
-      action === "download" ? "Generando imagen..." : "Copiando al portapapeles..."
+      action === "download" ? "Generando imagen..." : "Copiando al portapapeles...",
     );
 
     try {
       await (document as any).fonts?.ready;
 
-      // Utilizamos html-to-image para mejor soporte de fuentes tipográficas
       const dataUrl = await toPng(captureRef.current, {
         cacheBust: true,
-        pixelRatio: 2, // Calidad 2x para redes sociales
+        pixelRatio: 2,
         style: {
-          transform: 'scale(1)',
-        }
+          transform: "scale(1)",
+        },
       });
 
       if (action === "download") {
@@ -292,16 +294,17 @@ export function CompartirLlaveDialog({
             setTimeout(() => setCopied(false), 2000);
           } catch (err) {
             console.error("Clipboard write failed: ", err);
-            // Fallback si el navegador bloquea la API del portapapeles
             const tempInput = document.createElement("input");
             tempInput.value = dataUrl;
             document.body.appendChild(tempInput);
             tempInput.select();
             document.execCommand("copy");
             document.body.removeChild(tempInput);
-            toast.error("Tu navegador no soporta copiado directo de imágenes. Descargala en su lugar.", { id: toastId });
+            toast.error("Tu navegador no soporta copiado directo de imágenes. Descargala en su lugar.", {
+              id: toastId,
+            });
           }
-        } catch (err) {
+        } catch {
           toast.error("Error al procesar la imagen", { id: toastId });
         }
       }
@@ -320,19 +323,34 @@ export function CompartirLlaveDialog({
     let weekday = d.toLocaleString("es-AR", { weekday: "short" }).replace(".", "");
     weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     const time = d.toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit" });
-    return `${weekday} ${time} hs`;
+    const hasAmPm = /[ap]\.?\s*m\.?/i.test(time);
+    return hasAmPm ? `${weekday} ${time}` : `${weekday} ${time} hs`;
   };
 
-  const formatCancha = (c: string) => {
-    const t = c.trim();
-    return t.toLowerCase().includes('cancha') ? t : `Cancha ${t}`;
+  const resolveMatchCancha = (p: any): string | null => {
+    const candidates = [p?.cancha, p?.court_name, p?.court_number];
+    for (const raw of candidates) {
+      if (raw === null || raw === undefined) continue;
+      const t = String(raw).trim();
+      if (!t) continue;
+      if (/^cancha$/i.test(t) && p?.court_number !== undefined && p?.court_number !== null) {
+        return `Cancha ${String(p.court_number).trim()}`;
+      }
+      return /^cancha\b/i.test(t) ? t.replace(/^cancha\s*/i, "Cancha ") : `Cancha ${t}`;
+    }
+    return null;
+  };
+
+  const getPlayerFontSize = (text: string) => {
+    const len = text.trim().length;
+    if (len > 18) return "13.5px";
+    if (len > 14) return "15px";
+    return "16px";
   };
 
   // Renderizar la estructura del Cuadro (reutilizada para el canvas off-screen y la vista previa)
-  const renderBracketContent = (isExportSize: boolean) => {
+  const renderBracketContent = (_isExportSize: boolean) => {
     const isSquare = ratio === "square";
-
-    // Altura fija del contenedor según ratio
     const containerHeight = isSquare ? "1080px" : "1920px";
 
     return (
@@ -341,7 +359,7 @@ export function CompartirLlaveDialog({
           width: "1080px",
           height: containerHeight,
           background: currentThemePreset.background,
-          padding: "54px 44px",
+          padding: "48px 40px",
         }}
         className="flex flex-col justify-between font-sans text-white select-none relative overflow-hidden"
       >
@@ -387,7 +405,7 @@ export function CompartirLlaveDialog({
           <div>
             <div className="flex items-center gap-2.5 mb-1.5">
               <span
-                style={{ letterSpacing: '0.2em' }}
+                style={{ letterSpacing: "0.2em" }}
                 className="text-xs uppercase font-extrabold px-3 py-1.5 rounded bg-white/5 border border-white/10 text-white/80"
               >
                 {torneo?.tipo === "oficial" ? "Torneo Oficial" : "Torneo Especial"}
@@ -398,7 +416,7 @@ export function CompartirLlaveDialog({
                     backgroundColor: currentThemePreset.accentBgColor,
                     borderColor: currentThemePreset.accentBorderColor,
                     color: currentThemePreset.titleColor,
-                    letterSpacing: '0.1em',
+                    letterSpacing: "0.1em",
                   }}
                   className="text-xs uppercase font-extrabold px-3 py-1 rounded border"
                 >
@@ -429,62 +447,86 @@ export function CompartirLlaveDialog({
           <div className="flex items-center gap-3.5 bg-white/5 border border-white/10 rounded-2xl p-3.5 pr-5">
             <PadelIdLogo size={52} />
             <div className="text-left">
-              <p className="text-lg font-black leading-none text-white tracking-tight">Padel <span className="text-primary">ID</span></p>
-              <p style={{ fontSize: '10px' }} className="text-white/40 uppercase tracking-widest font-extrabold mt-1.5">{clubBrand.nombre}</p>
+              <p className="text-lg font-black leading-none text-white tracking-tight">
+                Padel <span className="text-primary">ID</span>
+              </p>
+              <p
+                style={{ fontSize: "10px" }}
+                className="text-white/40 uppercase tracking-widest font-extrabold mt-1.5"
+              >
+                {clubBrand.nombre}
+              </p>
             </div>
           </div>
         </div>
 
         {/* BRACKET COLUMNS GRID */}
-        <div className="flex-1 flex flex-row items-stretch justify-between gap-6 py-8 z-10 overflow-hidden">
+        <div className="flex-1 flex flex-row items-stretch justify-between gap-5 py-8 z-10 overflow-hidden">
           {rondasFiltradas.map(({ ronda, partidos: rondaPartidos }) => (
-            <div key={ronda} style={{ minWidth: '200px' }} className="flex flex-col flex-1 justify-between h-full">
+            <div
+              key={ronda}
+              style={{ minWidth: "215px" }}
+              className="flex flex-col flex-1 justify-between h-full min-w-0"
+            >
               {/* Encabezado de la Ronda */}
               <div className="text-center pb-2 border-b border-white/5 mb-4">
-                <span style={{ color: currentThemePreset.titleColor }} className="text-base font-extrabold tracking-widest uppercase">
+                <span
+                  style={{ color: currentThemePreset.titleColor }}
+                  className="text-base font-extrabold tracking-widest uppercase"
+                >
                   {NOMBRE_RONDA[ronda]}
                 </span>
-                <p className="text-xs text-white/40 font-semibold mt-1">{rondaPartidos.length} {rondaPartidos.length === 1 ? 'partido' : 'partidos'}</p>
+                <p className="text-xs text-white/40 font-semibold mt-1">
+                  {rondaPartidos.length} {rondaPartidos.length === 1 ? "partido" : "partidos"}
+                </p>
               </div>
 
               {/* Contenedor Vertical de Partidos */}
-              <div className="flex-1 flex flex-col justify-around py-4">
+              <div className="flex-1 flex flex-col justify-around py-3 gap-3">
                 {rondaPartidos.map((p) => {
                   const localWinner = p.ganador_id && p.ganador_id === p.pareja_local_id;
                   const visiWinner = p.ganador_id && p.ganador_id === p.pareja_visitante_id;
                   const sets = setsLlave[p.id] ?? [];
                   const isFinished = p.estado === "finalizado";
+                  const canchaTexto = resolveMatchCancha(p);
 
                   return (
                     <div
                       key={p.id}
                       style={{
-                        padding: '16px 12px',
-                        ...(p.ganador_id ? currentThemePreset.highlightCardStyle : currentThemePreset.cardStyle)
+                        padding: "18px 16px",
+                        ...(p.ganador_id ? currentThemePreset.highlightCardStyle : currentThemePreset.cardStyle),
                       }}
-                      className="rounded-xl space-y-3 border shadow-lg"
+                      className="rounded-xl space-y-3.5 border shadow-lg"
                     >
                       {/* Info del Partido (Programación) */}
-                      {showSchedule && (p.fecha_hora || p.cancha) && !isFinished && (
-                        <div style={{ paddingBottom: '6px' }} className="flex items-center justify-between text-xs font-bold text-white/50 border-b border-white/5">
-                          <span className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-primary/80 shrink-0" />
-                            {p.fecha_hora ? formatFechaHora(p.fecha_hora) : "Pendiente"}
+                      {showSchedule && (p.fecha_hora || canchaTexto) && !isFinished && (
+                        <div
+                          style={{ paddingBottom: "8px" }}
+                          className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs font-bold text-white/75 border-b border-white/10"
+                        >
+                          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+                            <Calendar className="h-3.5 w-3.5 text-primary/90 shrink-0" />
+                            <span>{p.fecha_hora ? formatFechaHora(p.fecha_hora) : "Pendiente"}</span>
                           </span>
-                          {p.cancha && (
-                            <span style={{ maxWidth: '110px' }} className="flex items-center gap-1.5 truncate">
-                              <MapPin className="h-3.5 w-3.5 text-primary/80 shrink-0" />
-                              {formatCancha(p.cancha)}
+                          {canchaTexto && (
+                            <span className="inline-flex items-center gap-1 whitespace-nowrap shrink-0 text-white/95">
+                              <span className="text-white/40">·</span>
+                              <MapPin className="h-3.5 w-3.5 text-primary/90 shrink-0" />
+                              <span>{canchaTexto}</span>
                             </span>
                           )}
                         </div>
                       )}
 
                       {/* Parejas y Scores */}
-                      <div className="space-y-2.5">
+                      <div className="space-y-3">
                         {/* Pareja Local Row */}
-                        <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
-                          <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
+                        <div
+                          style={{ display: "table", width: "100%", tableLayout: "fixed", minHeight: "46px" }}
+                          className="py-1.5 border-b border-white/10 pb-2.5"
+                        >
+                          <div style={{ display: "table-cell", verticalAlign: "middle" }} className="text-left pr-2">
                             <div
                               className={`flex items-center gap-2 min-w-0 ${isFinished
                                   ? localWinner
@@ -496,28 +538,69 @@ export function CompartirLlaveDialog({
                               {localWinner && (
                                 <Trophy
                                   className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse"
-                                  style={{ display: 'inline-block', verticalAlign: 'middle' }}
+                                  style={{ display: "inline-block", verticalAlign: "middle" }}
                                 />
                               )}
-                              <div style={{ display: 'block', textAlign: 'left', lineHeight: '1.2' }} className="min-w-0 flex-1">
+                              <div
+                                style={{ display: "block", textAlign: "left", lineHeight: "1.35" }}
+                                className="min-w-0 flex-1"
+                              >
                                 {(() => {
                                   const name = getParejaName(p.pareja_local_id, p.ref_local);
-                                  const parts = name.split(" / ");
+                                  const parts = name
+                                    .split(" / ")
+                                    .map((part) => part.trim())
+                                    .filter(Boolean);
                                   if (parts.length === 2) {
                                     return (
-                                      <>
-                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <div className="space-y-0.5">
+                                        <span
+                                          style={{
+                                            fontFamily: "system-ui, -apple-system, sans-serif",
+                                            fontSize: getPlayerFontSize(parts[0]),
+                                            fontWeight: 700,
+                                            lineHeight: "1.3",
+                                            display: "block",
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                          }}
+                                        >
                                           {parts[0]}
                                         </span>
-                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+                                        <span
+                                          style={{
+                                            fontFamily: "system-ui, -apple-system, sans-serif",
+                                            fontSize: getPlayerFontSize(parts[1]),
+                                            fontWeight: 600,
+                                            lineHeight: "1.3",
+                                            display: "block",
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            opacity: 0.88,
+                                          }}
+                                        >
                                           {parts[1]}
                                         </span>
-                                      </>
+                                      </div>
                                     );
                                   }
+                                  const singleName = parts[0] || name;
                                   return (
-                                    <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {name}
+                                    <span
+                                      style={{
+                                        fontFamily: "system-ui, -apple-system, sans-serif",
+                                        fontSize: getPlayerFontSize(singleName),
+                                        fontWeight: 700,
+                                        lineHeight: "1.35",
+                                        display: "block",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                      }}
+                                    >
+                                      {singleName}
                                     </span>
                                   );
                                 })()}
@@ -527,21 +610,28 @@ export function CompartirLlaveDialog({
 
                           {/* Sets Local */}
                           {showScores && sets.length > 0 && (
-                            <div style={{ display: 'table-cell', verticalAlign: 'middle', width: `${sets.length * 36}px`, textAlign: 'right' }}>
+                            <div
+                              style={{
+                                display: "table-cell",
+                                verticalAlign: "middle",
+                                width: `${sets.length * 36}px`,
+                                textAlign: "right",
+                              }}
+                            >
                               <div className="flex gap-1 justify-end shrink-0 font-mono select-none">
                                 {sets.map((s, idx) => (
                                   <span
                                     key={idx}
                                     style={{
-                                      width: '32px',
-                                      height: '32px',
-                                      fontSize: '15px',
-                                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                                      width: "32px",
+                                      height: "32px",
+                                      fontSize: "15px",
+                                      fontFamily: "system-ui, -apple-system, sans-serif",
                                       ...(s.games_local > s.games_visitante
                                         ? currentThemePreset.scoreWinStyle
-                                        : currentThemePreset.scoreLoseStyle)
+                                        : currentThemePreset.scoreLoseStyle),
                                     }}
-                                    className="flex items-center justify-center rounded font-medium"
+                                    className="flex items-center justify-center rounded font-bold"
                                   >
                                     {s.games_local}
                                   </span>
@@ -552,8 +642,11 @@ export function CompartirLlaveDialog({
                         </div>
 
                         {/* Pareja Visitante Row */}
-                        <div style={{ display: 'table', width: '100%', tableLayout: 'fixed', minHeight: '38px' }} className="py-1">
-                          <div style={{ display: 'table-cell', verticalAlign: 'middle' }} className="text-left">
+                        <div
+                          style={{ display: "table", width: "100%", tableLayout: "fixed", minHeight: "46px" }}
+                          className="py-1"
+                        >
+                          <div style={{ display: "table-cell", verticalAlign: "middle" }} className="text-left pr-2">
                             <div
                               className={`flex items-center gap-2 min-w-0 ${isFinished
                                   ? visiWinner
@@ -565,28 +658,69 @@ export function CompartirLlaveDialog({
                               {visiWinner && (
                                 <Trophy
                                   className="h-4.5 w-4.5 text-amber-400 shrink-0 animate-pulse"
-                                  style={{ display: 'inline-block', verticalAlign: 'middle' }}
+                                  style={{ display: "inline-block", verticalAlign: "middle" }}
                                 />
                               )}
-                              <div style={{ display: 'block', textAlign: 'left', lineHeight: '1.2' }} className="min-w-0 flex-1">
+                              <div
+                                style={{ display: "block", textAlign: "left", lineHeight: "1.35" }}
+                                className="min-w-0 flex-1"
+                              >
                                 {(() => {
                                   const name = getParejaName(p.pareja_visitante_id, p.ref_visitante);
-                                  const parts = name.split(" / ");
+                                  const parts = name
+                                    .split(" / ")
+                                    .map((part) => part.trim())
+                                    .filter(Boolean);
                                   if (parts.length === 2) {
                                     return (
-                                      <>
-                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      <div className="space-y-0.5">
+                                        <span
+                                          style={{
+                                            fontFamily: "system-ui, -apple-system, sans-serif",
+                                            fontSize: getPlayerFontSize(parts[0]),
+                                            fontWeight: 700,
+                                            lineHeight: "1.3",
+                                            display: "block",
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                          }}
+                                        >
                                           {parts[0]}
                                         </span>
-                                        <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', opacity: 0.75 }}>
+                                        <span
+                                          style={{
+                                            fontFamily: "system-ui, -apple-system, sans-serif",
+                                            fontSize: getPlayerFontSize(parts[1]),
+                                            fontWeight: 600,
+                                            lineHeight: "1.3",
+                                            display: "block",
+                                            whiteSpace: "nowrap",
+                                            overflow: "hidden",
+                                            textOverflow: "ellipsis",
+                                            opacity: 0.88,
+                                          }}
+                                        >
                                           {parts[1]}
                                         </span>
-                                      </>
+                                      </div>
                                     );
                                   }
+                                  const singleName = parts[0] || name;
                                   return (
-                                    <span style={{ fontFamily: 'system-ui, -apple-system, sans-serif', fontSize: '12px', fontWeight: '500', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                      {name}
+                                    <span
+                                      style={{
+                                        fontFamily: "system-ui, -apple-system, sans-serif",
+                                        fontSize: getPlayerFontSize(singleName),
+                                        fontWeight: 700,
+                                        lineHeight: "1.35",
+                                        display: "block",
+                                        whiteSpace: "nowrap",
+                                        overflow: "hidden",
+                                        textOverflow: "ellipsis",
+                                      }}
+                                    >
+                                      {singleName}
                                     </span>
                                   );
                                 })()}
@@ -596,21 +730,28 @@ export function CompartirLlaveDialog({
 
                           {/* Sets Visitante */}
                           {showScores && sets.length > 0 && (
-                            <div style={{ display: 'table-cell', verticalAlign: 'middle', width: `${sets.length * 36}px`, textAlign: 'right' }}>
+                            <div
+                              style={{
+                                display: "table-cell",
+                                verticalAlign: "middle",
+                                width: `${sets.length * 36}px`,
+                                textAlign: "right",
+                              }}
+                            >
                               <div className="flex gap-1 justify-end shrink-0 font-mono select-none">
                                 {sets.map((s, idx) => (
                                   <span
                                     key={idx}
                                     style={{
-                                      width: '32px',
-                                      height: '32px',
-                                      fontSize: '15px',
-                                      fontFamily: 'system-ui, -apple-system, sans-serif',
+                                      width: "32px",
+                                      height: "32px",
+                                      fontSize: "15px",
+                                      fontFamily: "system-ui, -apple-system, sans-serif",
                                       ...(s.games_visitante > s.games_local
                                         ? currentThemePreset.scoreWinStyle
-                                        : currentThemePreset.scoreLoseStyle)
+                                        : currentThemePreset.scoreLoseStyle),
                                     }}
-                                    className="flex items-center justify-center rounded font-medium"
+                                    className="flex items-center justify-center rounded font-bold"
                                   >
                                     {s.games_visitante}
                                   </span>
@@ -629,7 +770,7 @@ export function CompartirLlaveDialog({
 
           {/* Columna especial de Campeón (Si está la final seleccionada) */}
           {minRonda !== "final" && (
-            <div style={{ width: '220px' }} className="flex flex-col justify-center items-center h-full">
+            <div style={{ width: "205px" }} className="flex flex-col justify-center items-center h-full shrink-0">
               <div className="text-center pb-2 mb-4">
                 <span className="text-base font-extrabold tracking-widest uppercase text-amber-400">
                   Campeón 🏆
@@ -637,7 +778,7 @@ export function CompartirLlaveDialog({
                 <p className="text-xs text-white/40 font-semibold mt-1">Finalizado</p>
               </div>
 
-              <div className="flex-1 flex items-center justify-center">
+              <div className="flex-1 flex items-center justify-center w-full">
                 {campeonInfo ? (
                   <div
                     style={{
@@ -690,7 +831,6 @@ export function CompartirLlaveDialog({
   return (
     <Dialog open={isOpen} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl p-5 overflow-hidden flex flex-col md:grid md:grid-cols-12 gap-5 max-h-[90vh]">
-
         {/* Lado Izquierdo: Configuración (4 columnas en md) */}
         <div className="md:col-span-5 flex flex-col justify-between space-y-5 pr-2 md:border-r border-muted md:h-full">
           <div className="space-y-4">
@@ -708,7 +848,9 @@ export function CompartirLlaveDialog({
             <div className="space-y-3.5 pt-2">
               {/* Selector de Relación de Aspecto */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Formato (Redes)</label>
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Formato (Redes)
+                </label>
                 <div className="grid grid-cols-2 gap-2">
                   <Button
                     type="button"
@@ -735,7 +877,9 @@ export function CompartirLlaveDialog({
 
               {/* Selector de Tema */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Tema de Color</label>
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Tema de Color
+                </label>
                 <Select value={theme} onValueChange={(val: ThemePreset) => setTheme(val)}>
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue />
@@ -750,11 +894,10 @@ export function CompartirLlaveDialog({
 
               {/* Selector de Ronda Mínima */}
               <div className="space-y-1.5">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Instancia Inicial</label>
-                <Select
-                  value={minRonda}
-                  onValueChange={(val: RondaLlave) => setMinRonda(val)}
-                >
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+                  Instancia Inicial
+                </label>
+                <Select value={minRonda} onValueChange={(val: RondaLlave) => setMinRonda(val)}>
                   <SelectTrigger className="h-9 text-xs">
                     <SelectValue />
                   </SelectTrigger>
@@ -770,7 +913,9 @@ export function CompartirLlaveDialog({
 
               {/* Opciones de Visualización */}
               <div className="space-y-2 pt-2 border-t">
-                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">Detalles a mostrar</label>
+                <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider block mb-1">
+                  Detalles a mostrar
+                </label>
 
                 <div className="flex items-center space-x-2">
                   <Checkbox
@@ -866,7 +1011,6 @@ export function CompartirLlaveDialog({
             {renderBracketContent(true)}
           </div>
         </div>
-
       </DialogContent>
     </Dialog>
   );

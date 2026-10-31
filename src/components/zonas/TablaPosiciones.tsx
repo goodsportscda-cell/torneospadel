@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ChevronUp, ChevronDown, RotateCcw } from "lucide-react";
-import type { StatsPareja } from "@/lib/zonas";
+import { sanitizeParejaLabel, type StatsPareja } from "@/lib/zonas";
 
 type Props = {
   tabla: StatsPareja[];
@@ -151,7 +151,7 @@ export function TablaPosiciones({ tabla, parejaLabel, clasifican, zonaId, readOn
                       </div>
                     </td>
                   )}
-                  <td className={`p-4 align-middle truncate max-w-[200px] ${readOnly ? 'text-white font-semibold' : ''}`}>{parejaLabel(s.inscripcion_id)}</td>
+                  <td className={`p-4 align-middle truncate max-w-[220px] ${readOnly ? 'text-white font-semibold' : ''}`}>{sanitizeParejaLabel(parejaLabel(s.inscripcion_id), "A confirmar")}</td>
                   <td className={`p-4 align-middle text-center ${readOnly ? 'text-white/90 font-medium' : ''}`}>{s.pj}</td>
                   <td className={`p-4 align-middle text-center ${readOnly ? 'text-white/90 font-medium' : ''}`}>{s.pg}</td>
                   <td className={`p-4 align-middle text-center ${readOnly ? 'text-white/90 font-medium' : ''}`}>{s.pp}</td>

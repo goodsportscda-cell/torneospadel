@@ -17,6 +17,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas } from "@/logic/torneoStandings";
+import { sanitizeParejaLabel } from "@/lib/zonas";
 
 type Pareja = {
   inscripcion_id: string;
@@ -245,13 +246,16 @@ export function PartidoCard({
     let weekday = d.toLocaleString("es-AR", { weekday: "short" }).replace(".", "");
     weekday = weekday.charAt(0).toUpperCase() + weekday.slice(1);
     const time = d.toLocaleString("es-AR", { hour: "2-digit", minute: "2-digit" });
-    fechaHoraLabel = `${weekday} ${time} hs`;
+    const hasAmPm = /[ap]\.?\s*m\.?/i.test(time);
+    fechaHoraLabel = hasAmPm ? `${weekday} ${time}` : `${weekday} ${time} hs`;
   }
 
   let canchaLabel = null;
   if (cancha) {
-    const t = cancha.trim();
-    canchaLabel = t.toLowerCase().includes('cancha') ? t : `Cancha ${t}`;
+    const t = String(cancha).trim();
+    if (t) {
+      canchaLabel = /^cancha\b/i.test(t) ? t.replace(/^cancha\s*/i, "Cancha ") : `Cancha ${t}`;
+    }
   }
 
   const abrirEditorEquipos = () => {
@@ -618,17 +622,17 @@ export function PartidoCard({
           </div>
         )}
 
-        {showProgramacion && (fechaHoraLabel || cancha) && (
-          <div className="flex items-center gap-3 text-xs text-muted-foreground -mt-1">
+        {showProgramacion && (fechaHoraLabel || canchaLabel) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground -mt-1">
             {fechaHoraLabel && (
-              <span className="inline-flex items-center gap-1">
-                <CalendarClock className="h-3 w-3" />
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <CalendarClock className="h-3 w-3 shrink-0" />
                 {fechaHoraLabel}
               </span>
             )}
             {canchaLabel && (
-              <span className="inline-flex items-center gap-1">
-                <MapPin className="h-3 w-3" />
+              <span className="inline-flex items-center gap-1 whitespace-nowrap">
+                <MapPin className="h-3 w-3 shrink-0" />
                 {canchaLabel}
               </span>
             )}
@@ -636,7 +640,7 @@ export function PartidoCard({
         )}
 
         <div className="flex items-center justify-between gap-4 py-1.5">
-          <div className="flex-1 min-w-0 space-y-2">
+          <div className="flex-1 min-w-0 space-y-2.5">
             {/* Pareja Local Row */}
             <div className="flex items-center justify-between gap-2">
               <div
@@ -651,7 +655,9 @@ export function PartidoCard({
                       {ref_local}
                     </span>
                   )}
-                  <span className="truncate">{parejaLocal?.label ?? "— por definir —"}</span>
+                  <span className="truncate">
+                    {parejaLocal ? sanitizeParejaLabel(parejaLocal.label, "A confirmar") : "A confirmar"}
+                  </span>
                 </span>
               </div>
 
@@ -691,7 +697,9 @@ export function PartidoCard({
                       {ref_visitante}
                     </span>
                   )}
-                  <span className="truncate">{parejaVisitante?.label ?? "— por definir —"}</span>
+                  <span className="truncate">
+                    {parejaVisitante ? sanitizeParejaLabel(parejaVisitante.label, "A confirmar") : "A confirmar"}
+                  </span>
                 </span>
               </div>
 

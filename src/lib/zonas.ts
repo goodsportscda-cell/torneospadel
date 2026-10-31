@@ -28,6 +28,84 @@ export function nombreZona(indice: number): string {
   return String.fromCharCode(65 + primero) + String.fromCharCode(65 + segundo);
 }
 
+const PLACEHOLDER_TOKENS = new Set([
+  "?",
+  "-",
+  "—",
+  "–",
+  "tbd",
+  "a definir",
+  "por definir",
+  "— por definir —",
+  "a confirmar",
+  "jugador pendiente",
+  "pareja pendiente",
+  "null",
+  "undefined",
+  "bye",
+]);
+
+export function cleanPlayerSurname(value?: string | null): string {
+  if (!value) return "";
+  const cleaned = String(value)
+    .replace(/^[\s/]+|[\s/]+$/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!cleaned) return "";
+  if (PLACEHOLDER_TOKENS.has(cleaned.toLowerCase())) return "";
+  return cleaned;
+}
+
+/**
+ * Formatea los apellidos/nombres de una pareja evitando barras sueltas (`/VECCHIO`, `GODOY/`, `/`).
+ * - Si están ambos jugadores: `APELLIDO1 / APELLIDO2`
+ * - Si hay un solo jugador: `APELLIDO1` (sin barra)
+ * - Si no hay ninguno: `fallback` (por defecto `"A confirmar"`)
+ */
+export function formatParejaLabel(
+  jugador1?: string | null,
+  jugador2?: string | null,
+  fallback = "A confirmar",
+  separator = " / ",
+): string {
+  const rawCombined = [jugador1 ?? "", jugador2 ?? ""].join("/");
+  const parts = rawCombined
+    .split("/")
+    .map((part) => cleanPlayerSurname(part))
+    .filter(Boolean);
+
+  if (parts.length === 0) return fallback;
+  if (parts.length === 1) return parts[0];
+  return `${parts[0]}${separator}${parts[1]}`;
+}
+
+/**
+ * Limpia un label de pareja ya construido que pudiera contener barras flotantes o placeholders.
+ */
+export function sanitizeParejaLabel(
+  rawLabel?: string | null,
+  fallback = "A confirmar",
+  separator = " / ",
+): string {
+  if (!rawLabel) return fallback;
+  const trimmed = String(rawLabel).trim();
+  if (!trimmed) return fallback;
+  if (PLACEHOLDER_TOKENS.has(trimmed.toLowerCase())) return fallback;
+
+  if (trimmed.includes("/")) {
+    const parts = trimmed
+      .split("/")
+      .map((part) => cleanPlayerSurname(part))
+      .filter(Boolean);
+    if (parts.length === 0) return fallback;
+    if (parts.length === 1) return parts[0];
+    return `${parts[0]}${separator}${parts[1]}`;
+  }
+
+  const single = cleanPlayerSurname(trimmed);
+  return single || fallback;
+}
+
 // Genera el fixture de una zona según su tamaño
 // Zona de 3 → 1v2, 2v3, 1v3 (todos vs todos, clasifican 2)
 // Zona de 4 → 1v4, 2v3, ganador vs ganador, perdedor vs perdedor (clasifican 3)

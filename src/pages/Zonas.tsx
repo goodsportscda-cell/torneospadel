@@ -20,7 +20,7 @@ import {
 import { ZonaCard, type Zona } from "@/components/zonas/ZonaCard";
 import { PanelDisponibles } from "@/components/zonas/PanelDisponibles";
 import { CronogramaPartidos } from "@/components/zonas/CronogramaPartidos";
-import { calcularDistribucionZonas, nombreZona } from "@/lib/zonas";
+import { calcularDistribucionZonas, formatParejaLabel, nombreZona } from "@/lib/zonas";
 import type { Database } from "@/integrations/supabase/types";
 import { GenerarZonasAutoDialog } from "@/components/zonas/GenerarZonasAutoDialog";
 import { CompartirTodasZonasDialog } from "@/components/zonas/CompartirTodasZonasDialog";
@@ -246,10 +246,10 @@ export default function Zonas() {
 
   const parejaLabel = useCallback((inscripcionId: string): string => {
     const ins = inscripciones.find((i) => i.id === inscripcionId);
-    if (!ins) return "—";
+    if (!ins) return "A confirmar";
     const j1 = jugadorMap.get(ins.jugador1_id);
     const j2 = jugadorMap.get(ins.jugador2_id);
-    return `${j1?.apellido || "?"} / ${j2?.apellido || "?"}`;
+    return formatParejaLabel(j1?.apellido || j1?.nombre, j2?.apellido || j2?.nombre, "A confirmar");
   }, [inscripciones, jugadorMap]);
 
   const parejaDisponibilidad = useCallback((inscripcionId: string): string | null => {

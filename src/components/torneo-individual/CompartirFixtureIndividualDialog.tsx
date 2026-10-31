@@ -20,6 +20,7 @@ import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { formatParejaLabel } from "@/lib/zonas";
 
 interface CompartirFixtureIndividualDialogProps {
   isOpen: boolean;
@@ -93,9 +94,9 @@ export function CompartirFixtureIndividualDialog({
   };
 
   const getPartnerName = (j1: any, j2: any) => {
-    const n1 = j1 ? `${j1.nombre} ${j1.apellido}` : "?";
-    const n2 = j2 ? `${j2.nombre} ${j2.apellido}` : "?";
-    return `${n1} / ${n2}`;
+    const n1 = j1 ? `${j1.nombre ?? ""} ${j1.apellido ?? ""}`.trim() : "";
+    const n2 = j2 ? `${j2.nombre ?? ""} ${j2.apellido ?? ""}`.trim() : "";
+    return formatParejaLabel(n1, n2, "A confirmar");
   };
 
   const getMatchDateText = (p: any) => {

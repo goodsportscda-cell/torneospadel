@@ -21,6 +21,7 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
 import { supabase } from "@/integrations/supabase/client";
+import { formatParejaLabel, sanitizeParejaLabel } from "@/lib/zonas";
 import { Zona } from "./ZonaCard";
 
 interface ParejaInfo {
@@ -81,35 +82,53 @@ export function CompartirTodasZonasDialog({
       try {
         const [
           { data: inscripciones },
-          { data: jugadores },
           { data: zonasParejas },
           { data: partidosZona },
         ] = await Promise.all([
-          supabase.from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at").eq("torneo_id", torneoId).eq("estado", "confirmada"),
-          supabase.from("jugadores").select("*"),
+          supabase
+            .from("inscripciones")
+            .select("id, torneo_id, jugador1_id, jugador2_id, estado, fecha_inscripcion, created_at")
+            .eq("torneo_id", torneoId)
+            .eq("estado", "confirmada"),
           supabase.from("zonas_parejas").select("*, zonas!inner(torneo_id)").eq("zonas.torneo_id", torneoId),
           supabase.from("partidos_zona").select("*, zonas!inner(torneo_id)").eq("zonas.torneo_id", torneoId).order("orden"),
         ]);
 
+        const jugadorIds = [
+          ...new Set(
+            (inscripciones ?? [])
+              .flatMap((ins) => [ins.jugador1_id, ins.jugador2_id])
+              .filter(Boolean),
+          ),
+        ] as string[];
+
+        const { data: jugadores } = jugadorIds.length
+          ? await supabase.from("jugadores").select("id, nombre, apellido").in("id", jugadorIds)
+          : { data: [] as { id: string; nombre: string; apellido: string }[] };
+
+        const jugadorMap = new Map((jugadores ?? []).map((j) => [j.id, j]));
+
         const getParejaLabel = (insId: string) => {
-          if (!inscripciones || !jugadores) return "TBD";
-          const ins = inscripciones.find(i => i.id === insId);
-          if (!ins) return "TBD";
-          const j1 = jugadores.find(j => j.id === ins.jugador1_id)?.apellido || "";
-          const j2 = jugadores.find(j => j.id === ins.jugador2_id)?.apellido || "";
-          return `${j1}/${j2}`.toUpperCase();
+          if (!inscripciones) return "A CONFIRMAR";
+          const ins = inscripciones.find((i) => i.id === insId);
+          if (!ins) return "A CONFIRMAR";
+          const j1Obj = ins.jugador1_id ? jugadorMap.get(ins.jugador1_id) : undefined;
+          const j2Obj = ins.jugador2_id ? jugadorMap.get(ins.jugador2_id) : undefined;
+          const j1 = j1Obj?.apellido || j1Obj?.nombre || "";
+          const j2 = j2Obj?.apellido || j2Obj?.nombre || "";
+          return formatParejaLabel(j1, j2, "A confirmar", " / ").toUpperCase();
         };
 
         const groups: ZonaGroup[] = zonas.map(z => {
           const partidosDeZona = (partidosZona || []).filter(p => p.zona_id === z.id);
-          const parejasDeZona = (zonasParejas || []).filter(zp => zp.zona_id === z.id);
 
           const partidosDisplay: PartidoDisplay[] = partidosDeZona.map(p => {
+            const rawCancha = p.cancha ?? (p as any).court_name ?? (p as any).court_number ?? null;
             return {
               id: p.id,
               orden: p.orden,
               fechaHora: p.fecha_hora,
-              cancha: p.cancha,
+              cancha: rawCancha !== null && rawCancha !== undefined ? String(rawCancha).trim() || null : null,
               parejaLocal: p.pareja_local_id ? {
                 inscripcion_id: p.pareja_local_id,
                 posicion_siembra: p.posicion_local ?? 0,
@@ -178,6 +197,28 @@ export function CompartirTodasZonasDialog({
     } catch {
       return "Fecha inválida";
     }
+  };
+
+  const formatCourtBadge = (cancha: string | null) => {
+    if (!cancha) return null;
+    const trimmed = cancha.trim();
+    if (!trimmed) return null;
+    return /^cancha\b/i.test(trimmed) ? trimmed : `Cancha ${trimmed}`;
+  };
+
+  const isThreeColSquare = ratio === "square" && currentZones.length > 4;
+
+  const getParejaFontSize = (label: string) => {
+    const len = label.length;
+    if (isThreeColSquare) {
+      if (len > 20) return "11px";
+      if (len > 15) return "12px";
+      return "13px";
+    }
+    if (len > 22) return "12px";
+    if (len > 17) return "13px";
+    if (len > 13) return "14px";
+    return "15px";
   };
 
   const zonesPerPage = 6;
@@ -364,9 +405,9 @@ export function CompartirTodasZonasDialog({
                       </div>
                     </div>
 
-                    <div className={`flex-1 grid gap-x-8 gap-y-6 ${ratio === "story" ? "grid-cols-2 content-start" : "grid-cols-2 lg:grid-cols-3 content-start"} overflow-hidden`}>
+                    <div className={`flex-1 grid gap-x-8 gap-y-6 ${ratio === "story" || currentZones.length <= 4 ? "grid-cols-2 content-start" : "grid-cols-3 content-start"} overflow-hidden`}>
                       {currentZones.map((zg) => (
-                        <div key={zg.zona.id} className="flex flex-col gap-3">
+                        <div key={zg.zona.id} className="flex flex-col gap-3 min-w-0">
                           <h2 
                             className="text-2xl font-black italic border-b-2 pb-1"
                             style={{ borderColor: currentTheme.titleColor, color: currentTheme.titleColor }}
@@ -376,49 +417,69 @@ export function CompartirTodasZonasDialog({
                           {zg.partidos.length === 0 ? (
                             <p className="text-sm" style={{ color: currentTheme.textColorMuted }}>Sin partidos</p>
                           ) : (
-                            zg.partidos.map((p) => (
-                              <div
-                                key={p.id}
-                                className="rounded-xl border flex flex-col p-3 shadow-lg"
-                                style={{
-                                  backgroundColor: currentTheme.cardStyle.backgroundColor,
-                                  borderColor: currentTheme.cardStyle.borderColor,
-                                }}
-                              >
-                                <div className="flex justify-between items-center mb-2 pb-2 border-b border-white/5">
-                                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: currentTheme.textColorMuted }}>
-                                    {getMatchDateText(p)}
-                                  </span>
-                                  {p.cancha && (
-                                    <span 
-                                      className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap"
+                            zg.partidos.map((p) => {
+                              const localLabel = sanitizeParejaLabel(p.parejaLocal?.label, "A confirmar").toUpperCase();
+                              const visitanteLabel = sanitizeParejaLabel(p.parejaVisitante?.label, "A confirmar").toUpperCase();
+                              const courtBadge = formatCourtBadge(p.cancha);
+
+                              return (
+                                <div
+                                  key={p.id}
+                                  className="rounded-xl border flex flex-col p-3 shadow-lg min-w-0"
+                                  style={{
+                                    backgroundColor: currentTheme.cardStyle.backgroundColor,
+                                    borderColor: currentTheme.cardStyle.borderColor,
+                                  }}
+                                >
+                                  <div className="flex flex-wrap justify-between items-center gap-1.5 mb-2 pb-2 border-b border-white/5">
+                                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: currentTheme.textColorMuted }}>
+                                      {getMatchDateText(p)}
+                                    </span>
+                                    {courtBadge && (
+                                      <span 
+                                        className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shrink-0"
+                                        style={{ backgroundColor: currentTheme.vsColor, color: "white" }}
+                                      >
+                                        {courtBadge}
+                                      </span>
+                                    )}
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-between gap-2 min-w-0">
+                                    <div className="flex-1 min-w-0 text-center overflow-hidden px-0.5">
+                                      <p
+                                        className="font-bold leading-snug text-ellipsis overflow-hidden"
+                                        style={{
+                                          fontSize: getParejaFontSize(localLabel),
+                                          textWrap: "balance" as any,
+                                          wordBreak: "break-word",
+                                        }}
+                                      >
+                                        {localLabel}
+                                      </p>
+                                    </div>
+                                    <div 
+                                      className="px-2 py-0.5 rounded text-[10px] font-black italic shrink-0"
                                       style={{ backgroundColor: currentTheme.vsColor, color: "white" }}
                                     >
-                                      {p.cancha}
-                                    </span>
-                                  )}
-                                </div>
-                                
-                                <div className="flex items-center justify-between gap-2">
-                                  <div className="flex-1 text-center">
-                                    <p className="font-bold text-base leading-tight truncate">
-                                      {p.parejaLocal ? p.parejaLocal.label : "A definir"}
-                                    </p>
-                                  </div>
-                                  <div 
-                                    className="px-2 py-0.5 rounded text-[10px] font-black italic"
-                                    style={{ backgroundColor: currentTheme.vsColor, color: "white" }}
-                                  >
-                                    VS
-                                  </div>
-                                  <div className="flex-1 text-center">
-                                    <p className="font-bold text-base leading-tight truncate">
-                                      {p.parejaVisitante ? p.parejaVisitante.label : "A definir"}
-                                    </p>
+                                      VS
+                                    </div>
+                                    <div className="flex-1 min-w-0 text-center overflow-hidden px-0.5">
+                                      <p
+                                        className="font-bold leading-snug text-ellipsis overflow-hidden"
+                                        style={{
+                                          fontSize: getParejaFontSize(visitanteLabel),
+                                          textWrap: "balance" as any,
+                                          wordBreak: "break-word",
+                                        }}
+                                      >
+                                        {visitanteLabel}
+                                      </p>
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       ))}

@@ -20,6 +20,7 @@ import { toPng } from "html-to-image";
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { es } from "date-fns/locale";
+import { sanitizeParejaLabel } from "@/lib/zonas";
 
 interface ParejaInfo {
   inscripcion_id: string;
@@ -221,34 +222,49 @@ export function CompartirFixtureZonaDialog({
                 <div className="h-[1px] flex-1" style={{ backgroundColor: currentTheme.cardStyle.borderColor }}></div>
               </div>
 
-              {partidos.map((p, pIdx) => {
+              {partidos.map((p) => {
                 const dateText = getMatchDateText(p);
+                const localLabel = sanitizeParejaLabel(p.parejaLocal?.label, "A confirmar").toUpperCase();
+                const visitanteLabel = sanitizeParejaLabel(p.parejaVisitante?.label, "A confirmar").toUpperCase();
+                const rawCancha = p.cancha?.trim();
+                const courtBadge = rawCancha
+                  ? /^cancha\b/i.test(rawCancha)
+                    ? rawCancha
+                    : `Cancha ${rawCancha}`
+                  : null;
 
                 return (
                   <div 
                     key={p.id}
-                    className="flex flex-col rounded-lg border p-3"
+                    className="flex flex-col rounded-lg border p-3.5"
                     style={{ 
                       backgroundColor: currentTheme.cardStyle.backgroundColor,
                       borderColor: currentTheme.cardStyle.borderColor
                     }}
                   >
-                    {p.cancha && (
-                      <div className="text-[9px] text-center mb-2 font-bold uppercase tracking-wider" style={{ color: currentTheme.titleColor }}>
-                        {p.cancha}
+                    {courtBadge && (
+                      <div className="text-[10px] text-center mb-2 font-extrabold uppercase tracking-wider" style={{ color: currentTheme.titleColor }}>
+                        {courtBadge}
                       </div>
                     )}
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-2 min-w-0">
                       {/* Pareja 1 */}
-                      <div className="flex-1 flex justify-end">
-                        <span className="text-[11px] font-bold text-right leading-tight max-w-[140px] uppercase">
-                          {p.parejaLocal ? p.parejaLocal.label : "Por Definir"}
+                      <div className="flex-1 min-w-0 flex justify-end overflow-hidden">
+                        <span
+                          className="font-bold text-right leading-snug uppercase text-ellipsis overflow-hidden"
+                          style={{
+                            fontSize: localLabel.length > 18 ? "11.5px" : "13px",
+                            textWrap: "balance" as any,
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {localLabel}
                         </span>
                       </div>
 
                       {/* Info Central (VS y Fecha) */}
                       <div 
-                        className="mx-3 rounded-full flex flex-col items-center justify-center px-4 py-1.5 w-[100px] text-center shrink-0"
+                        className="mx-2 rounded-full flex flex-col items-center justify-center px-3 py-1.5 min-w-[96px] text-center shrink-0"
                         style={{ backgroundColor: currentTheme.vsColor }}
                       >
                         <span className="text-[9px] font-bold text-black uppercase mb-0.5 whitespace-nowrap" style={{ textShadow: "0px 1px 2px rgba(255,255,255,0.3)" }}>
@@ -260,9 +276,16 @@ export function CompartirFixtureZonaDialog({
                       </div>
 
                       {/* Pareja 2 */}
-                      <div className="flex-1 flex justify-start">
-                        <span className="text-[11px] font-bold text-left leading-tight max-w-[140px] uppercase">
-                          {p.parejaVisitante ? p.parejaVisitante.label : "Por Definir"}
+                      <div className="flex-1 min-w-0 flex justify-start overflow-hidden">
+                        <span
+                          className="font-bold text-left leading-snug uppercase text-ellipsis overflow-hidden"
+                          style={{
+                            fontSize: visitanteLabel.length > 18 ? "11.5px" : "13px",
+                            textWrap: "balance" as any,
+                            wordBreak: "break-word",
+                          }}
+                        >
+                          {visitanteLabel}
                         </span>
                       </div>
                     </div>

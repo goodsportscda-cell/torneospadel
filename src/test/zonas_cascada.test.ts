@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { generarFixture, calcularTabla, type PartidoConSets } from "../lib/zonas";
+import {
+  generarFixture,
+  calcularTabla,
+  formatParejaLabel,
+  sanitizeParejaLabel,
+  type PartidoConSets,
+} from "../lib/zonas";
 
 describe("Zonas de 4 - Cascada y Clasificación", () => {
   it("debe generar el fixture correcto para zona de 4", () => {
@@ -127,5 +133,21 @@ describe("Zonas de 4 - Cascada y Clasificación", () => {
     expect(tabla[1].inscripcion_id).toBe("p4"); // 2° Perdedor del partido de ganadores
     expect(tabla[2].inscripcion_id).toBe("p1"); // 3° Ganador del partido de perdedores
     expect(tabla[3].inscripcion_id).toBe("p3"); // 4° Perdedor del partido de perdedores
+  });
+
+  it("debe formatear nombres de parejas sin barras sueltas cuando faltan datos", () => {
+    expect(formatParejaLabel("  AGÜERO ", " SANTILLAN  ")).toBe("AGÜERO / SANTILLAN");
+    expect(formatParejaLabel("", "VECCHIO")).toBe("VECCHIO");
+    expect(formatParejaLabel("GODOY", "")).toBe("GODOY");
+    expect(formatParejaLabel("?", "VECCHIO")).toBe("VECCHIO");
+    expect(formatParejaLabel("", "")).toBe("A confirmar");
+    expect(formatParejaLabel(null, undefined, "-")).toBe("-");
+
+    expect(sanitizeParejaLabel("/VECCHIO")).toBe("VECCHIO");
+    expect(sanitizeParejaLabel("GODOY/")).toBe("GODOY");
+    expect(sanitizeParejaLabel("/")).toBe("A confirmar");
+    expect(sanitizeParejaLabel(" / ")).toBe("A confirmar");
+    expect(sanitizeParejaLabel("? / ?")).toBe("A confirmar");
+    expect(sanitizeParejaLabel("  RIVAROLA / FERNÁNDEZ  ")).toBe("RIVAROLA / FERNÁNDEZ");
   });
 });
