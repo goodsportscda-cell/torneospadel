@@ -69,6 +69,9 @@ import {
   getSuperDayMatchups,
   extractFotoFromNotas,
   updateFotoInNotas,
+  filterActiveTorneoJugadores,
+  resolveTorneoCourtsCount,
+  isPuntosPorSetTournament,
 } from "@/logic/torneoStandings";
 
 
@@ -339,10 +342,19 @@ export default function TorneoIndividualDashboard() {
 
       setTorneo(tRes);
 
+      const activeInscriptos = filterActiveTorneoJugadores((tjRes as TorneoJugador[]) ?? []);
       const semanas = tRes.desafio_semanas ?? 8;
       const costoPorJugador = tRes.costo_fecha_jugador ?? 10000;
       const costoPorCancha = tRes.costo_fecha_cancha ?? 22000;
-      const totalCanchas = tRes.canchas_count ?? 3;
+      const totalCanchas = resolveTorneoCourtsCount(tRes, activeInscriptos.length, (tpRes ?? []).length);
+      if (isAdmin && tRes.canchas_count !== totalCanchas) {
+        (supabase as any)
+          .from("torneos")
+          .update({ canchas_count: totalCanchas })
+          .eq("id", id)
+          .then(() => {});
+        tRes.canchas_count = totalCanchas;
+      }
       const totalJugadoresProyectados = totalCanchas * 4;
       const ingresosSponsors = Number(tRes.ingresos_sponsors) || 0;
       const gastosTrofeos = Number(tRes.gastos_trofeos) || 0;
@@ -355,12 +367,10 @@ export default function TorneoIndividualDashboard() {
       const parsed = parsePremiosString(tRes.premios);
       const totalCash = Math.round((ganProj * pctPremios) / 100);
       const isLiga = isLigaParejasTournament(tRes);
-      const isPuntosPorSet = Boolean(
-        !isLiga && (
-          (tRes as any)?.sistema_puntuacion === "puntos_por_set" ||
-          tRes?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-          tRes?.canchas_count === 2
-        )
+      const isPuntosPorSet = isPuntosPorSetTournament(
+        tRes,
+        (tRes as any)?.sistema_puntuacion,
+        activeInscriptos.length
       );
 
       const extractedSubtitulo = (tRes as any)?.subtitulo_fase || 
@@ -384,7 +394,7 @@ export default function TorneoIndividualDashboard() {
         ocultar_reglamento: Boolean(tRes.notas?.includes("[OCULTAR_REGLAMENTO]")),
       });
 
-      setJugadoresInscriptos((tjRes as TorneoJugador[]) ?? []);
+      setJugadoresInscriptos(activeInscriptos);
       setTodosJugadores(jRes ?? []);
 
       // Map fechas with fallback to notas
@@ -457,6 +467,27 @@ export default function TorneoIndividualDashboard() {
   useEffect(() => {
     fetchTournamentData();
   }, [fetchTournamentData]);
+
+  // Auto-generación de Fecha 8 corregida para Semanal Desafio 7D (12 jugadoras, 3 canchas fijas)
+  const [autoFixedF8, setAutoFixedF8] = useState(false);
+  useEffect(() => {
+    if (
+      !loading &&
+      isAdmin &&
+      !autoFixedF8 &&
+      id === "1a7f0618-f3aa-4b2f-90a8-e9887ca4a3a6" &&
+      torneo &&
+      jugadoresInscriptos.length >= 12
+    ) {
+      const f7 = fechas.find((f) => f.fecha === 7);
+      const f8Matches = partidos.filter((p) => p.fecha === 8);
+      if (f7?.estado === "completada" && f8Matches.length !== 3) {
+        setAutoFixedF8(true);
+        setSelectedFechaNum(8);
+        handleGenerarFechaRegular(8);
+      }
+    }
+  }, [loading, isAdmin, autoFixedF8, id, torneo, jugadoresInscriptos.length, fechas, partidos]);
 
   // Match config save
   const handleSaveMatchConfig = async () => {
@@ -542,15 +573,13 @@ export default function TorneoIndividualDashboard() {
   // General ranking / standings calculation logic
   const computedStandings = useMemo(() => {
     if (!torneo) return [];
-    const countCanchas = torneo.canchas_count ?? 3;
+    const activeInscriptos = filterActiveTorneoJugadores(jugadoresInscriptos);
+    const countCanchas = resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length);
     const isLigaParejas = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
-    const esPuntosPorSet = Boolean(
-      !isLigaParejas && (
-        settingsForm.sistema_puntuacion === "puntos_por_set" ||
-        (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-        torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-        torneo?.canchas_count === 2
-      )
+    const esPuntosPorSet = isPuntosPorSetTournament(
+      torneo,
+      settingsForm.sistema_puntuacion,
+      activeInscriptos.length
     );
 
     if (torneo.modalidad === "parejas" || isLigaParejas) {
@@ -814,7 +843,7 @@ export default function TorneoIndividualDashboard() {
     }
 
     const standingsMap = new Map<string, LocalPlayerStanding>();
-    jugadoresInscriptos.forEach((tj) => {
+    activeInscriptos.forEach((tj) => {
       if (tj.jugador) {
         let initialPts = Number((tj as any).puntos_iniciales) || 0;
         if (!initialPts && torneo?.notas) {
@@ -2178,10 +2207,11 @@ export default function TorneoIndividualDashboard() {
   };
 
 
-  // Matchmaking engine: Weeks 2-6 (Ascensos/Descensos + Ranking order) and Week 7 (Semifinales)
+  // Matchmaking engine: Weeks 2-8 (Fase Regular) and Weeks 9-10 (Playoffs / Definición)
   const handleGenerarFechaRegular = async (fechaNum: number) => {
     if (!id || !torneo) return;
-    const courtsCount = torneo.canchas_count ?? 3;
+    const activeInscriptos = filterActiveTorneoJugadores(jugadoresInscriptos);
+    const courtsCount = resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length);
 
     if (torneo.modalidad === "parejas" && courtsCount !== 3) {
       toast.error("La modalidad de parejas fijas requiere exactamente 3 canchas.");
@@ -2260,6 +2290,14 @@ export default function TorneoIndividualDashboard() {
         .single();
 
       if (fErr) throw fErr;
+
+      // Limpiar cualquier partido pendiente previo de esta misma fecha para evitar duplicados o 4ª cancha residual
+      await (supabase as any)
+        .from("partidos_individuales")
+        .delete()
+        .eq("torneo_id", id)
+        .eq("fecha", fechaNum)
+        .eq("estado", "pendiente");
 
       const matchPromises = [];
 
@@ -2391,7 +2429,10 @@ export default function TorneoIndividualDashboard() {
             })
           );
         }
-      } else if (settingsForm.sistema_puntuacion === "puntos_por_set" && courtsCount === 2) {
+      } else if (
+        isPuntosPorSetTournament(torneo, settingsForm.sistema_puntuacion, activeInscriptos.length) &&
+        courtsCount === 2
+      ) {
         // Intelligent Americano Logic (Date by Date)
         const pastMatches = partidos
           .filter((p) => p.fecha < fechaNum && p.estado === "finalizado")
@@ -2402,7 +2443,7 @@ export default function TorneoIndividualDashboard() {
             jugador4_id: p.jugador4_id,
           }));
         
-        const playersIds = jugadoresInscriptos.map((j) => j.jugador_id);
+        const playersIds = activeInscriptos.slice(0, 8).map((j) => j.jugador_id);
         
         try {
           const { matches, score } = generateIntelligentAmericanoMatches(playersIds, pastMatches);
@@ -2429,15 +2470,139 @@ export default function TorneoIndividualDashboard() {
           throw new Error("No se pudo calcular una fecha válida sin repetir parejas: " + err.message);
         }
       } else {
-        // Individual logic - Ascensos, Descensos y Playoffs según Reglamento Oficial Crown Pádel
-        const prevMatches = partidos.filter((p) => p.fecha === fechaNum - 1);
-        
-        // Standings ordenados por ranking general
-        const standingsMap = new Map(standings.map((s) => [s.jugador_id, s]));
-        const sortedAllPlayers = [...standings].sort((a, b) => {
+        // ==========================================
+        // DESAFÍO SEMANAL INDIVIDUAL CROWN PÁDEL
+        // Límite estricto: 12 jugadoras activas = 3 canchas en simultáneo (3 partidos por fecha)
+        // Nunca se asigna una 4ª cancha.
+        // ==========================================
+        const fixedCourts = Math.min(3, courtsCount);
+        const maxActivePlayers = fixedCourts * 4;
+
+        // Calcular el ranking acumulado estrictamente hasta la Fecha anterior (fecha < fechaNum)
+        // solo entre las jugadoras activas deduplicadas.
+        const accMap = new Map<
+          string,
+          {
+            jugador_id: string;
+            nombre: string;
+            apellido: string;
+            posicion_manual: number | null;
+            puntos: number;
+            setsGanados: number;
+            setsPerdidos: number;
+            gamesGanados: number;
+            gamesPerdidos: number;
+            difSets: number;
+            difGames: number;
+          }
+        >();
+
+        activeInscriptos.slice(0, maxActivePlayers).forEach((tj) => {
+          let initialPts = Number((tj as any).puntos_iniciales) || 0;
+          if (!initialPts && torneo?.notas) {
+            const matchTag = torneo.notas.match(
+              new RegExp(`\\[PUNTOS_INICIALES_${tj.jugador_id}:(\\d+(?:\\.\\d+)?)\\]`)
+            );
+            if (matchTag && matchTag[1]) {
+              initialPts = Number(matchTag[1]);
+            }
+          }
+          const manualPos =
+            typeof (tj as any).posicion_manual === "number" && (tj as any).posicion_manual > 0
+              ? (tj as any).posicion_manual
+              : extractPosicionManualFromNotas(torneo?.notas, tj.jugador_id);
+
+          accMap.set(tj.jugador_id, {
+            jugador_id: tj.jugador_id,
+            nombre: tj.jugador?.nombre || "",
+            apellido: tj.jugador?.apellido || "",
+            posicion_manual: manualPos,
+            puntos: initialPts,
+            setsGanados: 0,
+            setsPerdidos: 0,
+            gamesGanados: 0,
+            gamesPerdidos: 0,
+            difSets: 0,
+            difGames: 0,
+          });
+        });
+
+        const prevFinalizedMatches = partidos
+          .filter((p) => p.estado === "finalizado" && (p.fecha || 0) < fechaNum)
+          .sort((a, b) => (a.fecha || 0) - (b.fecha || 0));
+
+        const absenceCountMap = new Map<string, number>();
+
+        prevFinalizedMatches.forEach((p) => {
+          const canchaNumMatch = p.cancha.match(/\d+/);
+          const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
+
+          let ptsWinner = fixedCourts - courtIndex + 2;
+          let ptsLoser = 1;
+
+          if (p.fecha === 9) {
+            ptsWinner = 4;
+            ptsLoser = 1;
+          } else if (p.fecha === 10) {
+            ptsWinner = 6;
+            ptsLoser = 2;
+          }
+
+          let gamesP1 = 0;
+          let gamesP2 = 0;
+          p.sets?.forEach((s) => {
+            gamesP1 += s.games_pareja1;
+            gamesP2 += s.games_pareja2;
+          });
+
+          const p1Won = p.sets_pareja1 > p.sets_pareja2;
+
+          const award = (
+            jugId: string | null,
+            isWinner: boolean,
+            wasAbsent: boolean,
+            gOwn: number,
+            gOpp: number,
+            sOwn: number,
+            sOpp: number
+          ) => {
+            if (!jugId) return;
+            const st = accMap.get(jugId);
+            if (!st) return;
+
+            if (wasAbsent) {
+              const nextAbs = (absenceCountMap.get(jugId) || 0) + 1;
+              absenceCountMap.set(jugId, nextAbs);
+              if (nextAbs > 2) {
+                st.setsPerdidos += 2;
+                st.gamesPerdidos += 12;
+                return;
+              }
+            }
+            st.puntos += isWinner ? ptsWinner : ptsLoser;
+            st.setsGanados += sOwn;
+            st.setsPerdidos += sOpp;
+            st.gamesGanados += gOwn;
+            st.gamesPerdidos += gOpp;
+          };
+
+          award(p.jugador1_id, p1Won, !!p.suplente1_nombre, gamesP1, gamesP2, p.sets_pareja1, p.sets_pareja2);
+          award(p.jugador2_id, p1Won, !!p.suplente2_nombre, gamesP1, gamesP2, p.sets_pareja1, p.sets_pareja2);
+          award(p.jugador3_id, !p1Won, !!p.suplente3_nombre, gamesP2, gamesP1, p.sets_pareja2, p.sets_pareja1);
+          award(p.jugador4_id, !p1Won, !!p.suplente4_nombre, gamesP2, gamesP1, p.sets_pareja2, p.sets_pareja1);
+        });
+
+        const accList = Array.from(accMap.values()).map((s) => ({
+          ...s,
+          difSets: s.setsGanados - s.setsPerdidos,
+          difGames: s.gamesGanados - s.gamesPerdidos,
+        }));
+
+        const sortedAllPlayers = applyManualPositions(accList, (a, b) => {
           if (b.puntos !== a.puntos) return b.puntos - a.puntos;
           if (b.difSets !== a.difSets) return (b.difSets || 0) - (a.difSets || 0);
-          return b.difGames - a.difGames;
+          if (b.difGames !== a.difGames) return b.difGames - a.difGames;
+          return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
         });
 
         if (fechaNum === 9 && (torneo.desafio_semanas ?? 8) >= 9) {
@@ -2445,7 +2610,7 @@ export default function TorneoIndividualDashboard() {
           // SEMANA 9: CRUCES CLASIFICATORIOS Y ASIGNACIÓN DE BONUS
           // Al término de la Fecha 8 se consolida la tabla general acumulada (1º al 12º)
           // ==========================================
-          for (let c = 1; c <= courtsCount; c++) {
+          for (let c = 1; c <= fixedCourts; c++) {
             const offset = (c - 1) * 4;
             const courtPlayers = sortedAllPlayers.slice(offset, offset + 4).map((s) => s.jugador_id);
             if (courtPlayers.length < 4) {
@@ -2482,7 +2647,7 @@ export default function TorneoIndividualDashboard() {
           // SEMANA 10: GRAN DEFINICIÓN POR TABLA VIVA
           // Las canchas se reconfiguran con la tabla actualizada tras la Semana 9
           // ==========================================
-          for (let c = 1; c <= courtsCount; c++) {
+          for (let c = 1; c <= fixedCourts; c++) {
             const offset = (c - 1) * 4;
             const courtPlayers = sortedAllPlayers.slice(offset, offset + 4).map((s) => s.jugador_id);
             if (courtPlayers.length < 4) {
@@ -2516,68 +2681,20 @@ export default function TorneoIndividualDashboard() {
           }
         } else {
           // ==========================================
-          // SEMANAS 2 A 8 (Fase Regular: Ascensos y Descensos)
+          // SEMANAS 2 A 8 (Fase Regular Crown Pádel):
+          // Distribución en los 3 grupos de nivel según el ranking acumulado hasta la fecha anterior:
+          // - Cancha 1: Élite (Puestos 1º al 4º) -> [1º + 4º] vs [2º + 3º]
+          // - Cancha 2: Desafío (Puestos 5º al 8º) -> [5º + 8º] vs [6º + 7º]
+          // - Cancha 3: Base (Puestos 9º al 12º) -> [9º + 12º] vs [10º + 11º]
           // ==========================================
-          // Helper para obtener ganadores/perdedores de una cancha (1-indexed)
-          const getCourtResult = (cNum: number) => {
-            const m = prevMatches.find((p) => p.cancha.includes(`Cancha ${cNum}`));
-            if (!m) return null;
-            const p1Won = m.sets_pareja1 > m.sets_pareja2;
-            if (p1Won) {
-              return {
-                winner: [m.jugador1_id, m.jugador2_id],
-                loser: [m.jugador3_id, m.jugador4_id],
-              };
-            } else {
-              return {
-                winner: [m.jugador3_id, m.jugador4_id],
-                loser: [m.jugador1_id, m.jugador2_id],
-              };
-            }
-          };
-
-          for (let c = 1; c <= courtsCount; c++) {
-            let courtPlayerIds: string[] = [];
-
-            if (c === 1) {
-              // Cancha 1: Ganadores C1 + Ganadores C2
-              const res1 = getCourtResult(1);
-              const res2 = getCourtResult(2);
-              if (res1) courtPlayerIds.push(...res1.winner);
-              if (res2) courtPlayerIds.push(...res2.winner);
-            } else if (c === courtsCount) {
-              // Cancha Última: Perdedores C_prev + Perdedores C_current
-              const resPrev = getCourtResult(c - 1);
-              const resCurr = getCourtResult(c);
-              if (resPrev) courtPlayerIds.push(...resPrev.loser);
-              if (resCurr) courtPlayerIds.push(...resCurr.loser);
-            } else {
-              // Canchas Intermedias: Perdedores C_prev + Ganadores C_next
-              const resPrev = getCourtResult(c - 1);
-              const resNext = getCourtResult(c + 1);
-              if (resPrev) courtPlayerIds.push(...resPrev.loser);
-              if (resNext) courtPlayerIds.push(...resNext.winner);
+          for (let c = 1; c <= fixedCourts; c++) {
+            const offset = (c - 1) * 4;
+            const courtPlayerIds = sortedAllPlayers.slice(offset, offset + 4).map((s) => s.jugador_id);
+            if (courtPlayerIds.length < 4) {
+              throw new Error(`No hay suficientes jugadoras activas en el ranking para armar la Cancha ${c} en la Fecha ${fechaNum}.`);
             }
 
-            // Fallback: If for some reason we don't have exactly 4 players (e.g. missing prev match), 
-            // we fallback to general standings for this specific court
-            if (courtPlayerIds.length !== 4) {
-              const sortedIds = sortedAllPlayers.map((s) => s.jugador_id);
-              const offset = (c - 1) * 4;
-              courtPlayerIds = sortedIds.slice(offset, offset + 4);
-            } else {
-              // Sort the 4 players by their overall standings
-              courtPlayerIds.sort((a, b) => {
-                const standA = standingsMap.get(a);
-                const standB = standingsMap.get(b);
-                if (!standA || !standB) return 0;
-                if (standB.puntos !== standA.puntos) return standB.puntos - standA.puntos;
-                if (standB.difSets !== standA.difSets) return (standB.difSets || 0) - (standA.difSets || 0);
-                return standB.difGames - standA.difGames;
-              });
-            }
-
-            // Según Reglamento Oficial Sección 2:
+            // Según Reglamento Oficial Crown Pádel:
             // Equidad de Cruces Semanales: (Mejor + Peor) vs (Dos Intermedios): [1º + 4º] vs [2º + 3º]
             const j1 = courtPlayerIds[0];
             const j2 = courtPlayerIds[3];

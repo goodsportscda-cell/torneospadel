@@ -41,6 +41,9 @@ import {
   extractPosicionManualFromNotas,
   extractPodioFinalFromNotas,
   extractFotoFromNotas,
+  filterActiveTorneoJugadores,
+  resolveTorneoCourtsCount,
+  isPuntosPorSetTournament,
 } from "@/logic/torneoStandings";
 import { calcularPuntosFechaIndividual } from "@/lib/individualTorneoPuntos";
 import { seleccionarFechaTv } from "@/lib/torneoTvFecha";
@@ -325,15 +328,20 @@ export default function TorneoTvView() {
   }, [id, fetchData]);
 
   // Format helpers
+  const activeInscriptos = useMemo(
+    () => filterActiveTorneoJugadores(jugadoresInscriptos),
+    [jugadoresInscriptos]
+  );
   const isLigaParejas = useMemo(() => isLigaParejasTournament(torneo), [torneo]);
-  const esPuntosPorSet = Boolean(
-    torneo?.notas?.includes("[SISTEMA:puntos_por_set]") || torneo?.canchas_count === 2
+  const esPuntosPorSet = useMemo(
+    () => isPuntosPorSetTournament(torneo, (torneo as any)?.sistema_puntuacion, activeInscriptos.length),
+    [torneo, activeInscriptos.length]
   );
 
   // Standings computation
   const standings = useMemo((): any[] => {
     if (!torneo) return [];
-    const countCanchas = torneo.canchas_count ?? 3;
+    const countCanchas = resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length);
 
     if (torneo.modalidad === "parejas") {
       const standingsMap = new Map<string, any>();
@@ -490,7 +498,7 @@ export default function TorneoTvView() {
 
     // Individual Americano
     const standingsMap = new Map<string, any>();
-    jugadoresInscriptos.forEach((tj) => {
+    activeInscriptos.forEach((tj) => {
       if (tj.jugador) {
         let initialPts = Number((tj as any).puntos_iniciales) || 0;
         if (!initialPts && torneo?.notas) {

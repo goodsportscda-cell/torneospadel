@@ -41,6 +41,9 @@ import {
   isLigaParejasTournament,
   extractWOFromNotas,
   compareLigaParejasStandings,
+  filterActiveTorneoJugadores,
+  resolveTorneoCourtsCount,
+  isPuntosPorSetTournament,
 } from "@/logic/torneoStandings";
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
@@ -311,11 +314,15 @@ export default function TorneoIndividualPublico() {
 
   const isLigaParejas = useMemo(() => isLigaParejasTournament(torneo), [torneo]);
 
-  const esPuntosPorSet = useMemo(() => Boolean(
-    (torneo as any)?.sistema_puntuacion === "puntos_por_set" ||
-    torneo?.notas?.includes("[SISTEMA:puntos_por_set]") ||
-    torneo?.canchas_count === 2
-  ), [torneo]);
+  const activeInscriptos = useMemo(
+    () => filterActiveTorneoJugadores(jugadoresInscriptos),
+    [jugadoresInscriptos]
+  );
+
+  const esPuntosPorSet = useMemo(
+    () => isPuntosPorSetTournament(torneo, (torneo as any)?.sistema_puntuacion, activeInscriptos.length),
+    [torneo, activeInscriptos.length]
+  );
 
   const currentFechaObj = useMemo(() => {
     return fechas.find((f) => f.fecha === selectedFechaNum);
@@ -355,7 +362,7 @@ export default function TorneoIndividualPublico() {
   // Standing Ranking calculation
   const computedStandings = useMemo((): any[] => {
     if (!torneo) return [];
-    const countCanchas = torneo.canchas_count ?? 3;
+    const countCanchas = resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length);
 
     if (torneo.modalidad === "parejas") {
       const standingsMap = new Map<string, any>();
@@ -589,7 +596,7 @@ export default function TorneoIndividualPublico() {
     }
 
     const standingsMap = new Map<string, PlayerStanding>();
-    jugadoresInscriptos.forEach((tj) => {
+    activeInscriptos.forEach((tj) => {
       if (tj.jugador) {
         let initialPts = Number((tj as any).puntos_iniciales) || 0;
         if (!initialPts && torneo?.notas) {

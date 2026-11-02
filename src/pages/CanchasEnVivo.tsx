@@ -80,16 +80,16 @@ export default function CanchasEnVivo() {
   const [tvSelectModalOpen, setTvSelectModalOpen] = useState(false);
   const [placaDiaAbierta, setPlacaDiaAbierta] = useState(false);
   const [fechaPlacaDia, setFechaPlacaDia] = useState(obtenerFechaManana);
-  
+
   const [inscripciones, setInscripciones] = useState<Inscripcion[]>([]);
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
   const [partidos, setPartidos] = useState<Partido[]>([]);
   const [loading, setLoading] = useState(true);
-  
+
   // Modales
   const [asignarCanchaNum, setAsignarCanchaNum] = useState<string | null>(null);
   const [partidoCargar, setPartidoCargar] = useState<Partido | null>(null);
-  
+
   const [sets, setSets] = useState<{ local: string; visitante: string }[]>([
     { local: "", visitante: "" }, { local: "", visitante: "" }, { local: "", visitante: "" }
   ]);
@@ -98,7 +98,7 @@ export default function CanchasEnVivo() {
   const [fotoPosition, setFotoPosition] = useState<FotoPosition>({ x: 50, y: 18 });
   const fotoPositionRef = useRef<FotoPosition>({ x: 50, y: 18 });
   const [isUploadingFotoCancha, setIsUploadingFotoCancha] = useState(false);
-  
+
   const [descargando, setDescargando] = useState(false);
   const flyerRef = useRef<HTMLDivElement>(null);
 
@@ -133,12 +133,12 @@ export default function CanchasEnVivo() {
             prev.map((t) =>
               t.id === updated.id
                 ? {
-                    ...t,
-                    canchas_asignadas: updated.canchas_asignadas ?? t.canchas_asignadas,
-                    canchas_count: updated.canchas_count ?? t.canchas_count,
-                    estado: updated.estado ?? t.estado,
-                    notas: updated.notas ?? t.notas,
-                  }
+                  ...t,
+                  canchas_asignadas: updated.canchas_asignadas ?? t.canchas_asignadas,
+                  canchas_count: updated.canchas_count ?? t.canchas_count,
+                  estado: updated.estado ?? t.estado,
+                  notas: updated.notas ?? t.notas,
+                }
                 : t,
             ),
           );
@@ -163,8 +163,8 @@ export default function CanchasEnVivo() {
         Array.isArray(t.canchas_asignadas) && t.canchas_asignadas.length > 0
           ? t.canchas_asignadas
           : t.canchas_count
-          ? Array.from({ length: Math.min(6, Math.max(1, Number(t.canchas_count))) }, (_, i) => i + 1)
-          : [],
+            ? Array.from({ length: Math.min(6, Math.max(1, Number(t.canchas_count))) }, (_, i) => i + 1)
+            : [],
       );
       setActiveCourtIds(normalizeActiveCourtIds(unionAsignadas, [...COMPLEX_COURT_IDS]));
       return;
@@ -173,9 +173,9 @@ export default function CanchasEnVivo() {
     if (torneoActivoSeleccionado) {
       const fallback = torneoActivoSeleccionado.canchas_count
         ? Array.from(
-            { length: Math.min(6, Math.max(1, Number(torneoActivoSeleccionado.canchas_count))) },
-            (_, i) => i + 1,
-          )
+          { length: Math.min(6, Math.max(1, Number(torneoActivoSeleccionado.canchas_count))) },
+          (_, i) => i + 1,
+        )
         : [...COMPLEX_COURT_IDS];
       setActiveCourtIds(
         normalizeActiveCourtIds(torneoActivoSeleccionado.canchas_asignadas, fallback),
@@ -195,8 +195,8 @@ export default function CanchasEnVivo() {
     const targetIds =
       torneoId === "todos"
         ? (torneos.filter((t) => t.estado === "en_curso").map((t) => t.id).length > 0
-            ? torneos.filter((t) => t.estado === "en_curso").map((t) => t.id)
-            : torneos.map((t) => t.id))
+          ? torneos.filter((t) => t.estado === "en_curso").map((t) => t.id)
+          : torneos.map((t) => t.id))
         : [torneoId];
 
     if (targetIds.length === 0) return;
@@ -204,7 +204,7 @@ export default function CanchasEnVivo() {
     setTorneos((prev) =>
       prev.map((t) =>
         targetIds.includes(t.id)
-          ? { ...t, canchas_asignadas: nextIds, canchas_count: nextIds.length }
+          ? { ...t, canchas_asignadas: nextIds }
           : t,
       ),
     );
@@ -215,7 +215,6 @@ export default function CanchasEnVivo() {
         .from("torneos")
         .update({
           canchas_asignadas: nextIds,
-          canchas_count: nextIds.length,
         })
         .in("id", targetIds);
 
@@ -383,8 +382,8 @@ export default function CanchasEnVivo() {
 
           let fechaHoraStr = null;
           if (p.fecha_programada) {
-            fechaHoraStr = p.hora_programada 
-              ? `${p.fecha_programada}T${p.hora_programada}` 
+            fechaHoraStr = p.hora_programada
+              ? `${p.fecha_programada}T${p.hora_programada}`
               : `${p.fecha_programada}T00:00:00`;
           }
 
@@ -445,7 +444,7 @@ export default function CanchasEnVivo() {
     }
     const found = partidos.find(p => p.pareja_local_id === pIdOrInsId || p.pareja_visitante_id === pIdOrInsId);
     if (found && found.origen === "individual") {
-      return pIdOrInsId === found.pareja_local_id 
+      return pIdOrInsId === found.pareja_local_id
         ? (found.pareja_local_label || "Pareja 1")
         : (found.pareja_visitante_label || "Pareja 2");
     }
@@ -499,7 +498,7 @@ export default function CanchasEnVivo() {
   const handleAsignarCancha = async (partidoId: string, cancha: string) => {
     const p = partidos.find(x => x.id === partidoId);
     if (!p) return;
-    
+
     const toastId = toast.loading("Asignando...");
     try {
       if (p.origen === "individual") {
@@ -574,7 +573,7 @@ export default function CanchasEnVivo() {
   const guardarResultadoParcial = async () => {
     if (!partidoCargar) return;
     const toastId = toast.loading("Guardando resultado parcial...");
-    
+
     try {
       if (partidoCargar.origen === "individual") {
         await supabase
@@ -602,7 +601,7 @@ export default function CanchasEnVivo() {
       } else {
         const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
         await supabase.from("sets_partido").delete().eq(partidoCargar.origen === "zona" ? "partido_id" : "partido_llave_id", partidoCargar.id);
-        
+
         const inserts = sets
           .map((s, i) => ({
             numero_set: i + 1,
@@ -643,7 +642,7 @@ export default function CanchasEnVivo() {
     const ganadorFinal = ganadorSeleccionado || ganadorSegunSets;
     if (!partidoCargar || !ganadorFinal) return;
     const toastId = toast.loading("Guardando...");
-    
+
     try {
       if (partidoCargar.origen === "individual") {
         await supabase
@@ -680,7 +679,7 @@ export default function CanchasEnVivo() {
           .eq("id", partidoCargar.id);
       } else {
         const tabla = partidoCargar.origen === "zona" ? "partidos_zona" : "partidos_llave";
-        
+
         const inserts = sets
           .map((s, i) => ({
             numero_set: i + 1,
@@ -795,7 +794,7 @@ export default function CanchasEnVivo() {
       });
       const blob = await (await fetch(dataUrl)).blob();
       const file = new File([blob], `Canchas-En-Vivo.png`, { type: "image/png" });
-      
+
       if (navigator.share && navigator.canShare({ files: [file] })) {
         await navigator.share({
           title: "Torre de Control",
@@ -841,7 +840,7 @@ export default function CanchasEnVivo() {
           </Button>
 
           <Button variant="outline" size="sm" onClick={descargarImagen} disabled={descargando} className="gap-2 text-xs h-7">
-            {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>}
+            {descargando ? <Loader2 className="h-4 w-4 animate-spin" /> : <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lucide lucide-download"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" /><polyline points="7 10 12 15 17 10" /><line x1="12" x2="12" y1="15" y2="3" /></svg>}
             Descargar
           </Button>
           <Button variant="outline" size="sm" onClick={compartirImagen} disabled={descargando} className="gap-2 text-xs h-7">
@@ -896,16 +895,14 @@ export default function CanchasEnVivo() {
                 key={courtNum}
                 type="button"
                 onClick={() => toggleActiveCourt(courtNum)}
-                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                  isSelected
+                className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${isSelected
                     ? "border-primary bg-primary text-primary-foreground shadow-sm"
                     : "border-border bg-background/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
-                }`}
+                  }`}
               >
                 <span
-                  className={`h-2 w-2 rounded-full ${
-                    isSelected ? "bg-primary-foreground" : "bg-muted-foreground/40"
-                  }`}
+                  className={`h-2 w-2 rounded-full ${isSelected ? "bg-primary-foreground" : "bg-muted-foreground/40"
+                    }`}
                 />
                 Cancha {courtNum}
               </button>
@@ -1014,7 +1011,7 @@ export default function CanchasEnVivo() {
                     <Badge variant="outline" className="text-muted-foreground">Libre</Badge>
                   )}
                 </CardHeader>
-                
+
                 <CardContent className="p-0 flex-1 bg-card flex flex-col">
                   {enJuego ? (
                     <div className="p-4 space-y-4 border-b-4 border-b-destructive/10 flex-1">
@@ -1068,7 +1065,7 @@ export default function CanchasEnVivo() {
                           <div key={p.id} className="text-xs border p-2 rounded bg-background shadow-sm space-y-1.5">
                             <div className="flex justify-between items-center mb-1">
                               <span className="font-bold text-[10px] text-primary bg-primary/10 px-1.5 rounded">
-                                {p.hora_display || (p.fecha_hora ? new Date(p.fecha_hora).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'}) : 'Sin hora')}
+                                {p.hora_display || (p.fecha_hora ? new Date(p.fecha_hora).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : 'Sin hora')}
                               </span>
                               <span className="text-[9px] text-muted-foreground uppercase font-bold">
                                 {p.faseNombre}
@@ -1143,7 +1140,7 @@ export default function CanchasEnVivo() {
           {partidoCargar && (
             <div className="space-y-6 mt-4">
               <div className="grid grid-cols-[1fr_auto_1fr] gap-2 items-center">
-                <Button 
+                <Button
                   variant={(ganadorSeleccionado || ganadorSegunSets) === partidoCargar.pareja_local_id ? "default" : "outline"}
                   className="h-auto py-2 flex flex-col gap-1"
                   onClick={() => setGanadorSeleccionado(partidoCargar.pareja_local_id)}
@@ -1152,7 +1149,7 @@ export default function CanchasEnVivo() {
                   <span className="text-xs whitespace-normal line-clamp-2">{parejaLabel(partidoCargar.pareja_local_id, partidoCargar)}</span>
                 </Button>
                 <span className="text-muted-foreground text-xs font-bold px-2">VS</span>
-                <Button 
+                <Button
                   variant={(ganadorSeleccionado || ganadorSegunSets) === partidoCargar.pareja_visitante_id ? "default" : "outline"}
                   className="h-auto py-2 flex flex-col gap-1"
                   onClick={() => setGanadorSeleccionado(partidoCargar.pareja_visitante_id)}
@@ -1167,12 +1164,12 @@ export default function CanchasEnVivo() {
                 {[0, 1, 2].map((i) => (
                   <div key={i} className="flex items-center gap-2">
                     <span className="text-xs font-bold w-12 text-muted-foreground">Set {i + 1}</span>
-                    <Input 
+                    <Input
                       type="number" min="0" max="7" className="w-16 h-8 text-center" placeholder="0"
                       value={sets[i].local} onChange={e => { const n = [...sets]; n[i].local = e.target.value; setSets(n); }}
                     />
                     <span className="text-muted-foreground">-</span>
-                    <Input 
+                    <Input
                       type="number" min="0" max="7" className="w-16 h-8 text-center" placeholder="0"
                       value={sets[i].visitante} onChange={e => { const n = [...sets]; n[i].visitante = e.target.value; setSets(n); }}
                     />
@@ -1313,8 +1310,8 @@ export default function CanchasEnVivo() {
                     {t.modalidad === "liga_parejas"
                       ? "🏆 Liga de Parejas (11 Semanas)"
                       : t.modalidad === "parejas"
-                      ? "Desafío Parejas"
-                      : "Americano Individual / Torneo"}
+                        ? "Desafío Parejas"
+                        : "Americano Individual / Torneo"}
                   </p>
                 </div>
                 <div className="flex items-center gap-1.5 text-xs text-[#00f5d4] font-bold opacity-80 group-hover:opacity-100 shrink-0 ml-2">
@@ -1338,7 +1335,7 @@ export default function CanchasEnVivo() {
       </Dialog>
 
       {/* Contenedor oculto para exportar a Flyer IG (Relación de aspecto 9:16 aprox) */}
-      <div 
+      <div
         ref={flyerRef}
         className="fixed top-0 left-0 opacity-[0.0001] pointer-events-none w-[540px] h-[960px] bg-slate-900 text-slate-50 flex flex-col p-8 z-[-100]"
       >

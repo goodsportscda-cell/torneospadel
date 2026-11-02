@@ -437,3 +437,91 @@ export function getSuperDayMatchups(
   ];
 }
 
+const INACTIVE_PLAYER_STATES = new Set([
+  "inactivo",
+  "inactiva",
+  "baja",
+  "eliminado",
+  "eliminada",
+  "reemplazado",
+  "reemplazada",
+]);
+
+/**
+ * Filtra únicamente jugadoras/es activos y elimina cualquier duplicado por `jugador_id`.
+ */
+export function filterActiveTorneoJugadores<
+  T extends { jugador_id?: string | null; estado?: string | null; activo?: boolean | null }
+>(inscriptos: T[] | null | undefined): T[] {
+  if (!Array.isArray(inscriptos)) return [];
+  const seen = new Set<string>();
+  const result: T[] = [];
+
+  for (const item of inscriptos) {
+    const jId = item?.jugador_id?.trim();
+    if (!jId || seen.has(jId)) continue;
+    if (item.activo === false) continue;
+    const estadoNorm = (item.estado || "").trim().toLowerCase();
+    if (estadoNorm && INACTIVE_PLAYER_STATES.has(estadoNorm)) continue;
+    seen.add(jId);
+    result.push(item);
+  }
+
+  return result;
+}
+
+/**
+ * Determina la cantidad fija de canchas del torneo (máximo 3 canchas = 12 jugadoras / 3 partidos por fecha).
+ * Nunca permite asignar una 4ª cancha en Desafíos Semanales Crown Pádel.
+ */
+export function resolveTorneoCourtsCount(
+  torneo: any,
+  activePlayersCount?: number,
+  parejasCount?: number
+): number {
+  if (!torneo) return 3;
+  if (torneo.modalidad === "parejas" || isLigaParejasTournament(torneo) || (parejasCount ?? 0) >= 6) {
+    return 3;
+  }
+  if (typeof activePlayersCount === "number" && activePlayersCount > 0) {
+    if (activePlayersCount >= 12) return 3;
+    if (activePlayersCount <= 8 && Number(torneo.canchas_disponibles) !== 3 && Number(torneo.canchas_count) === 2) {
+      return 2;
+    }
+    if (activePlayersCount === 8 && Number(torneo.canchas_disponibles) === 2) {
+      return 2;
+    }
+  }
+  if (Number(torneo.canchas_disponibles) === 3) {
+    return 3;
+  }
+  const raw = Number(torneo.canchas_count ?? torneo.canchas_disponibles ?? 3);
+  if (isNaN(raw) || raw < 2) return 3;
+  return Math.min(3, raw);
+}
+
+/**
+ * Determina si el torneo utiliza el sistema de puntos por set (Americano 2 canchas / 8 jugadores)
+ * evitando falsos positivos cuando `canchas_count` fue modificado por la vista de TV en torneos de 12 jugadoras.
+ */
+export function isPuntosPorSetTournament(
+  torneo: any,
+  sistemaPuntuacion?: string | null,
+  activePlayersCount?: number
+): boolean {
+  if (!torneo) return false;
+  if (isLigaParejasTournament(torneo, sistemaPuntuacion)) return false;
+  if (
+    sistemaPuntuacion === "puntos_por_set" ||
+    torneo?.sistema_puntuacion === "puntos_por_set" ||
+    torneo?.notas?.includes("[SISTEMA:puntos_por_set]")
+  ) {
+    return true;
+  }
+  if ((activePlayersCount ?? 0) >= 12 || Number(torneo?.canchas_disponibles) === 3) {
+    return false;
+  }
+  return Number(torneo?.canchas_count) === 2;
+}
+
+
