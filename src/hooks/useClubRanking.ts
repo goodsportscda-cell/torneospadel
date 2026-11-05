@@ -157,11 +157,11 @@ export function useClubRanking(
         }
       }
 
-      // Filtrar torneos ocultos (no publicados y no finalizados)
+      // Filtrar torneos cuyo ranking aún no fue publicado por el Admin
       const validAllRankingRows = allRankingData.filter((r) => {
         if (isAscenso(r.instancia)) return true;
         const tInfo = r.torneo_id ? torneosMap.get(r.torneo_id) : undefined;
-        if (tInfo && tInfo.ranking_publicado === false && tInfo.estado !== "finalizado") {
+        if (tInfo && tInfo.ranking_publicado === false) {
           return false;
         }
         return true;

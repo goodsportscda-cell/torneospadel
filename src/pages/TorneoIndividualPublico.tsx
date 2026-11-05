@@ -916,7 +916,7 @@ export default function TorneoIndividualPublico() {
         </div>
 
         {/* Champions Banner */}
-        {championsInfo && (
+        {championsInfo && torneo?.ranking_publicado !== false && (
           <Card className="overflow-hidden border-indigo-500/20 bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-indigo-500/10 shadow-lg backdrop-blur-sm">
             <CardContent className="p-6">
               <div className="flex flex-col md:flex-row items-center justify-between gap-6">
@@ -1047,18 +1047,32 @@ export default function TorneoIndividualPublico() {
                           : "Las posiciones determinan la distribución de canchas para la siguiente semana (Ascensos/Descensos)."}
                       </CardDescription>
                     </div>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => setShareRankingOpen(true)}
-                      className="h-8 gap-1.5 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-xs shrink-0"
-                    >
-                      <Share2 className="h-3.5 w-3.5" />
-                      Placa para Redes
-                    </Button>
+                    {torneo?.ranking_publicado !== false && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setShareRankingOpen(true)}
+                        className="h-8 gap-1.5 border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-xs shrink-0"
+                      >
+                        <Share2 className="h-3.5 w-3.5" />
+                        Placa para Redes
+                      </Button>
+                    )}
                   </div>
                 </CardHeader>
                 <CardContent className="p-0 sm:p-6 overflow-x-auto">
+                  {torneo?.ranking_publicado === false ? (
+                    <div className="p-8 text-center space-y-2">
+                      <Trophy className="h-8 w-8 text-amber-500 mx-auto opacity-80" />
+                      <p className="font-semibold text-sm text-foreground">
+                        Ranking en revisión por la organización
+                      </p>
+                      <p className="text-xs text-muted-foreground max-w-md mx-auto">
+                        Estamos verificando los resultados finales del torneo. La tabla de
+                        posiciones estará disponible públicamente en breve.
+                      </p>
+                    </div>
+                  ) : (
                   <Table className="text-xs min-w-[500px]">
                     <TableHeader>
                       <TableRow>
@@ -1219,6 +1233,7 @@ export default function TorneoIndividualPublico() {
                       )}
                     </TableBody>
                   </Table>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

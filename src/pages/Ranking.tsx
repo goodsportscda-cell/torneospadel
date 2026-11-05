@@ -35,6 +35,9 @@ import {
   Medal,
   Star,
   Eye,
+  EyeOff,
+  Globe,
+  ExternalLink,
   ArrowUpCircle,
   Trash2,
   Share2,
@@ -94,6 +97,20 @@ type DetalleTorneo = {
   puntos: number;
   multiplicador: number;
   puntos_base: number;
+  ranking_publicado?: boolean | null;
+};
+
+type TorneoVisibilidadItem = {
+  id: string;
+  nombre: string;
+  fecha_inicio: string;
+  numero_fecha: number | null;
+  categoria_id: string | null;
+  categoria_nombre: string;
+  genero: string | null;
+  estado: string;
+  ranking_publicado: boolean;
+  jugadores_count: number;
 };
 
 type Ascenso = {
@@ -135,15 +152,24 @@ export default function Ranking() {
   const [placaOpen, setPlacaOpen] = useState(false);
   const [updatingStatusId, setUpdatingStatusId] = useState<string | null>(null);
 
-  const copiarEnlacePublico = async () => {
-    if (!clubId) return toast.error("Elegí un club antes de compartir el ranking.");
+  const [torneosVisibilidad, setTorneosVisibilidad] = useState<TorneoVisibilidadItem[]>([]);
+  const [visibilidadOpen, setVisibilidadOpen] = useState(false);
+  const [updatingVisibilidad, setUpdatingVisibilidad] = useState(false);
+
+  const obtenerUrlRankingPublico = async (): Promise<string | null> => {
+    if (!clubId) {
+      toast.error("Elegí un club antes de ver o compartir el ranking.");
+      return null;
+    }
     const { data: club, error } = await supabase
       .from("clubes")
       .select("slug")
       .eq("id", clubId)
       .maybeSingle();
-    if (error || !club)
-      return toast.error("No se pudo identificar el club para compartir el ranking.");
+    if (error || !club) {
+      toast.error("No se pudo identificar el club para el ranking público.");
+      return null;
+    }
     const params = new URLSearchParams();
     if (filtroAnio !== new Date().getFullYear()) {
       params.set("anio", String(filtroAnio));
@@ -162,11 +188,22 @@ export default function Ranking() {
       club.slug === "goodsports"
         ? "/ranking-publico"
         : `/c/${club.slug}/ranking-publico`;
-    const url = `${window.location.origin}${ruta}${queryString ? "?" + queryString : ""}`;
+    return `${window.location.origin}${ruta}${queryString ? "?" + queryString : ""}`;
+  };
+
+  const copiarEnlacePublico = async () => {
+    const url = await obtenerUrlRankingPublico();
+    if (!url) return;
     navigator.clipboard.writeText(url);
     setCopiado(true);
     toast.success("¡Enlace del ranking público copiado! Listo para compartir en WhatsApp.");
     setTimeout(() => setCopiado(false), 2000);
+  };
+
+  const abrirVistaPublica = async () => {
+    const url = await obtenerUrlRankingPublico();
+    if (!url) return;
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const [exportingMaster, setExportingMaster] = useState(false);
@@ -617,9 +654,15 @@ export default function Ranking() {
     if (!clubId) return;
     const [{ data: clubCategories }, { data: clubTournaments }] = await Promise.all([
       supabase.from("categorias").select("id, nombre, genero").eq("club_id", clubId),
-      supabase.from("torneos").select("id").eq("club_id", clubId),
+      supabase
+        .from("torneos")
+        .select(
+          "id, nombre, fecha_inicio, numero_fecha, categoria_id, genero, estado, ranking_publicado, tipo"
+        )
+        .eq("club_id", clubId),
     ]);
     const categoriasClub = (clubCategories ?? []) as Categoria[];
+    const catById = new Map(categoriasClub.map((c) => [c.id, c]));
     const categoryIds = new Set(categoriasClub.map((category) => category.id));
     const tournamentIds = new Set(
       (clubTournaments ?? []).map((tournament) => tournament.id)
@@ -669,6 +712,48 @@ export default function Ranking() {
         ? categoryIds.has(row.categoria_id)
         : Boolean(row.torneo_id && tournamentIds.has(row.torneo_id))
     );
+
+    // Contar jugadores con puntos por torneo en este año y armar la lista de visibilidad pública
+    const countPorTorneo = new Map<string, number>();
+    allClubRankingData.forEach((row) => {
+      if (!isAscenso(row.instancia) && row.torneo_id) {
+        countPorTorneo.set(row.torneo_id, (countPorTorneo.get(row.torneo_id) ?? 0) + 1);
+      }
+    });
+
+    const visList: TorneoVisibilidadItem[] = ((clubTournaments ?? []) as any[])
+      .filter((t) => {
+        if (t.tipo && t.tipo !== "oficial") return false;
+        const anioT = t.fecha_inicio ? new Date(t.fecha_inicio).getFullYear() : filtroAnio;
+        if (anioT !== filtroAnio && !countPorTorneo.has(t.id)) return false;
+        return t.estado === "finalizado" || countPorTorneo.has(t.id);
+      })
+      .map((t) => {
+        const cat = t.categoria_id ? catById.get(t.categoria_id) : undefined;
+        return {
+          id: t.id,
+          nombre: t.nombre,
+          fecha_inicio: t.fecha_inicio,
+          numero_fecha: t.numero_fecha ?? null,
+          categoria_id: t.categoria_id ?? null,
+          categoria_nombre: cat ? cat.nombre : "General",
+          genero: t.genero ?? cat?.genero ?? null,
+          estado: t.estado,
+          ranking_publicado: t.ranking_publicado !== false,
+          jugadores_count: countPorTorneo.get(t.id) ?? 0,
+        };
+      })
+      .sort((a, b) => {
+        const nfA = a.numero_fecha ?? 0;
+        const nfB = b.numero_fecha ?? 0;
+        if (nfB !== nfA) return nfB - nfA;
+        if (a.fecha_inicio !== b.fecha_inicio) {
+          return (b.fecha_inicio || "").localeCompare(a.fecha_inicio || "");
+        }
+        return a.nombre.localeCompare(b.nombre);
+      });
+
+    setTorneosVisibilidad(visList);
 
     // Cargar todos los ascensos del año para deduplicar y calcular exclusión + torneos previos
     const { data: ascensosAllData } = await supabase
@@ -947,6 +1032,59 @@ export default function Ranking() {
     [rows]
   );
 
+  const torneosOcultos = useMemo(
+    () => torneosVisibilidad.filter((t) => !t.ranking_publicado),
+    [torneosVisibilidad]
+  );
+
+  const handleTogglePublicarTorneo = async (torneoId: string, publicar: boolean) => {
+    setUpdatingVisibilidad(true);
+    const { error } = await supabase
+      .from("torneos")
+      .update({ ranking_publicado: publicar })
+      .eq("id", torneoId);
+    setUpdatingVisibilidad(false);
+
+    if (error) {
+      toast.error("Error al actualizar visibilidad: " + error.message);
+      return;
+    }
+
+    setTorneosVisibilidad((prev) =>
+      prev.map((t) => (t.id === torneoId ? { ...t, ranking_publicado: publicar } : t))
+    );
+    toast.success(
+      publicar
+        ? "Torneo publicado. Sus puntos ya son visibles para los jugadores en el Ranking Público."
+        : "Torneo ocultado del Ranking Público (modo revisión para Admin)."
+    );
+  };
+
+  const handlePublicarLoteTorneos = async (torneoIds: string[], publicar: boolean) => {
+    if (torneoIds.length === 0) return;
+    setUpdatingVisibilidad(true);
+    const { error } = await supabase
+      .from("torneos")
+      .update({ ranking_publicado: publicar })
+      .in("id", torneoIds);
+    setUpdatingVisibilidad(false);
+
+    if (error) {
+      toast.error("Error al actualizar visibilidad: " + error.message);
+      return;
+    }
+
+    const idsSet = new Set(torneoIds);
+    setTorneosVisibilidad((prev) =>
+      prev.map((t) => (idsSet.has(t.id) ? { ...t, ranking_publicado: publicar } : t))
+    );
+    toast.success(
+      publicar
+        ? `¡Listo! ${torneoIds.length} torneo(s) publicado(s) en el Ranking Público.`
+        : `${torneoIds.length} torneo(s) puesto(s) en modo oculto / revisión.`
+    );
+  };
+
   const handleAbrirPlaca = () => {
     if (filtroCategoria === "todas") {
       if (categorias.length > 0) {
@@ -1074,11 +1212,12 @@ export default function Ranking() {
         fecha_inicio: string | null;
         numero_fecha: number | null;
         multiplicador_puntos: number | null;
+        ranking_publicado: boolean | null;
       }> = [];
       if (torneoIds.length > 0) {
         const { data: tData } = await supabase
           .from("torneos")
-          .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos")
+          .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos, ranking_publicado")
           .in("id", torneoIds)
           .eq("club_id", clubId);
         if (tData) torneos = tData;
@@ -1103,6 +1242,7 @@ export default function Ranking() {
           puntos: r.puntos,
           multiplicador: mult,
           puntos_base: puntosBaseMap.get(r.instancia) ?? 0,
+          ranking_publicado: t?.ranking_publicado ?? true,
         };
       });
       detalle.sort((a, b) => (a.fecha < b.fecha ? 1 : -1));
@@ -1146,9 +1286,9 @@ export default function Ranking() {
     const { data: catsJ } =
       catIds.length > 0
         ? await (supabase as any)
-            .from("categorias_jugadores")
-            .select("id, nombre")
-            .in("id", catIds)
+          .from("categorias_jugadores")
+          .select("id, nombre")
+          .in("id", catIds)
         : { data: [] };
     const catMap = new Map(((catsJ as any[]) ?? []).map((c) => [c.id, c.nombre]));
     setAscensoJugadores(
@@ -1425,6 +1565,38 @@ export default function Ranking() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button
+            variant={torneosOcultos.length > 0 ? "default" : "outline"}
+            size="sm"
+            onClick={() => setVisibilidadOpen(true)}
+            className={
+              torneosOcultos.length > 0
+                ? "gap-1.5 font-bold bg-amber-600 hover:bg-amber-700 text-white border-none"
+                : "gap-1.5 font-semibold"
+            }
+          >
+            {torneosOcultos.length > 0 ? (
+              <>
+                <EyeOff className="h-4 w-4" />
+                Publicar Ranking ({torneosOcultos.length} en revisión)
+              </>
+            ) : (
+              <>
+                <Eye className="h-4 w-4 text-emerald-500" />
+                Visibilidad Pública
+              </>
+            )}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={abrirVistaPublica}
+            className="gap-1.5"
+            title="Abrir el Ranking Público como lo ven los jugadores"
+          >
+            <ExternalLink className="h-4 w-4" />
+            Ver Ranking Público
+          </Button>
+          <Button
             variant="default"
             size="sm"
             onClick={handleAbrirPlaca}
@@ -1502,6 +1674,64 @@ export default function Ranking() {
         </div>
       </div>
 
+      {torneosOcultos.length > 0 && (
+        <Card className="border-amber-500/40 bg-amber-500/10">
+          <CardContent className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-sm text-amber-700 dark:text-amber-300">
+                <EyeOff className="h-4 w-4 shrink-0" />
+                <span>
+                  Modo Revisión Admin: Hay {torneosOcultos.length} torneo(s) cerrado(s) ocultos para
+                  los jugadores
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                En esta tabla de Admin ya estás viendo los puntos sumados para chequear todo. Los
+                jugadores <strong>no ven estos puntos</strong> en el Ranking Público ni en su Perfil
+                hasta que los publiques.
+              </p>
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {torneosOcultos.map((t) => (
+                  <Badge
+                    key={t.id}
+                    variant="outline"
+                    className="text-[11px] bg-background/80 border-amber-500/40 text-amber-700 dark:text-amber-300"
+                  >
+                    {t.nombre}
+                    {t.numero_fecha ? ` · Fecha ${t.numero_fecha}` : ""} ({t.categoria_nombre})
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0 flex-wrap">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setVisibilidadOpen(true)}
+                className="gap-1.5 text-xs"
+              >
+                <Settings className="h-3.5 w-3.5" />
+                Elegir por torneo
+              </Button>
+              <Button
+                size="sm"
+                disabled={updatingVisibilidad}
+                onClick={() =>
+                  handlePublicarLoteTorneos(
+                    torneosOcultos.map((t) => t.id),
+                    true
+                  )
+                }
+                className="gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+              >
+                <Eye className="h-3.5 w-3.5" />
+                Publicar en Ranking Público
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Toggle de Vista: Ranking General vs Clasificados al Master */}
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div className="inline-flex p-1 rounded-xl bg-muted border">
@@ -1578,8 +1808,8 @@ export default function Ranking() {
                     {c.genero === "caballeros"
                       ? "Cab."
                       : c.genero === "damas"
-                      ? "Dam."
-                      : "Mix."}{" "}
+                        ? "Dam."
+                        : "Mix."}{" "}
                     {c.nombre}
                   </SelectItem>
                 ))}
@@ -1741,8 +1971,8 @@ export default function Ranking() {
                               {r.jugador_categoria_genero === "caballeros"
                                 ? "Cab."
                                 : r.jugador_categoria_genero === "damas"
-                                ? "Dam."
-                                : "Mix."}{" "}
+                                  ? "Dam."
+                                  : "Mix."}{" "}
                               {r.jugador_categoria_nombre}
                             </Badge>
                           ) : (
@@ -1753,11 +1983,10 @@ export default function Ranking() {
                           <div className="inline-flex flex-col items-center">
                             <Badge
                               variant="outline"
-                              className={`font-mono ${
-                                r.torneos_jugados >= TORNEOS_REQUERIDOS_MASTER
+                              className={`font-mono ${r.torneos_jugados >= TORNEOS_REQUERIDOS_MASTER
                                   ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5"
                                   : ""
-                              }`}
+                                }`}
                             >
                               {r.torneos_jugados}/{TORNEOS_TOTALES_ANIO}
                             </Badge>
@@ -1979,6 +2208,154 @@ export default function Ranking() {
         </div>
       )}
 
+      <Dialog open={visibilidadOpen} onOpenChange={setVisibilidadOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Globe className="h-5 w-5 text-primary" />
+              Visibilidad de Torneos en el Ranking Público ({filtroAnio})
+            </DialogTitle>
+            <DialogDescription>
+              Cuando cerrás un torneo, sus puntos se calculan acá en el panel de Admin para que los
+              revises tranquilo, pero quedan <strong>ocultos para los jugadores</strong> hasta que
+              los publiques. Podés publicar u ocultar cualquier torneo en cualquier momento.
+            </DialogDescription>
+          </DialogHeader>
+
+          {torneosVisibilidad.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-6 text-center">
+              No hay torneos cerrados o con puntos calculados en {filtroAnio}.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between gap-2 flex-wrap rounded-lg border bg-muted/30 p-3">
+                <div className="text-xs text-muted-foreground">
+                  <span className="font-semibold text-foreground">
+                    {torneosVisibilidad.filter((t) => t.ranking_publicado).length}
+                  </span>{" "}
+                  publicado(s) ·{" "}
+                  <span className="font-semibold text-amber-600 dark:text-amber-400">
+                    {torneosOcultos.length}
+                  </span>{" "}
+                  oculto(s) en revisión
+                </div>
+                <div className="flex items-center gap-2">
+                  {torneosOcultos.length > 0 && (
+                    <Button
+                      size="sm"
+                      disabled={updatingVisibilidad}
+                      onClick={() =>
+                        handlePublicarLoteTorneos(
+                          torneosOcultos.map((t) => t.id),
+                          true
+                        )
+                      }
+                      className="h-8 gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                    >
+                      <Eye className="h-3.5 w-3.5" />
+                      Publicar Todos ({torneosOcultos.length})
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={abrirVistaPublica}
+                    className="h-8 gap-1.5 text-xs"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    Abrir Ranking Público
+                  </Button>
+                </div>
+              </div>
+
+              <div className="space-y-2 max-h-[55vh] overflow-y-auto pr-1">
+                {torneosVisibilidad.map((t) => {
+                  const generoLabel =
+                    t.genero === "caballeros"
+                      ? "Caballeros"
+                      : t.genero === "damas"
+                        ? "Damas"
+                        : t.genero === "mixto"
+                          ? "Mixto"
+                          : "";
+                  return (
+                    <div
+                      key={t.id}
+                      className={`flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors ${t.ranking_publicado
+                          ? "bg-background"
+                          : "border-amber-500/40 bg-amber-500/5"
+                        }`}
+                    >
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-semibold text-sm truncate">{t.nombre}</span>
+                          {t.numero_fecha && (
+                            <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                              Fecha {t.numero_fecha}
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="text-[10px] h-5 px-1.5">
+                            {generoLabel ? `${generoLabel} · ` : ""}
+                            {t.categoria_nombre}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+                          {t.fecha_inicio && (
+                            <span>
+                              {new Date(t.fecha_inicio).toLocaleDateString("es-AR")}
+                            </span>
+                          )}
+                          <span>· {t.jugadores_count} registros de puntos</span>
+                          {t.ranking_publicado ? (
+                            <span className="text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
+                              · <Eye className="h-3 w-3" /> Visible para jugadores
+                            </span>
+                          ) : (
+                            <span className="text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">
+                              · <EyeOff className="h-3 w-3" /> Oculto (solo Admin)
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="shrink-0">
+                        {t.ranking_publicado ? (
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={updatingVisibilidad}
+                            onClick={() => handleTogglePublicarTorneo(t.id, false)}
+                            className="h-8 gap-1.5 text-xs"
+                          >
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                            Ocultar
+                          </Button>
+                        ) : (
+                          <Button
+                            size="sm"
+                            disabled={updatingVisibilidad}
+                            onClick={() => handleTogglePublicarTorneo(t.id, true)}
+                            className="h-8 gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                          >
+                            <Eye className="h-3.5 w-3.5" />
+                            Publicar
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVisibilidadOpen(false)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={detalleOpen} onOpenChange={setDetalleOpen}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
@@ -2006,7 +2383,18 @@ export default function Ranking() {
                   className="flex items-start justify-between gap-3 rounded-md border p-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm truncate">{d.torneo_nombre}</div>
+                    <div className="font-medium text-sm flex items-center gap-2 flex-wrap">
+                      <span className="truncate">{d.torneo_nombre}</span>
+                      {d.ranking_publicado === false && (
+                        <Badge
+                          variant="outline"
+                          className="h-4 px-1.5 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10 gap-1"
+                        >
+                          <EyeOff className="h-2.5 w-2.5" />
+                          Oculto al público
+                        </Badge>
+                      )}
+                    </div>
                     <div className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap mt-0.5">
                       {d.fecha && <span>{new Date(d.fecha).toLocaleDateString()}</span>}
                       {d.numero_fecha && (
@@ -2145,8 +2533,8 @@ export default function Ranking() {
                           {c.genero === "caballeros"
                             ? "Cab."
                             : c.genero === "damas"
-                            ? "Dam."
-                            : "Mix."}{" "}
+                              ? "Dam."
+                              : "Mix."}{" "}
                           {c.nombre}
                         </SelectItem>
                       ))}
@@ -2169,8 +2557,8 @@ export default function Ranking() {
                             {c.genero === "caballeros"
                               ? "Cab."
                               : c.genero === "damas"
-                              ? "Dam."
-                              : "Mix."}{" "}
+                                ? "Dam."
+                                : "Mix."}{" "}
                             {c.nombre}
                           </SelectItem>
                         ))}

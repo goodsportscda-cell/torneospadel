@@ -35,7 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink, Settings } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar as CalIcon, MapPin, Award, Link2, Globe, ExternalLink, Settings, Eye, EyeOff } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/useAuth";
 import { useQueryClient } from "@tanstack/react-query";
@@ -391,7 +391,9 @@ export default function Torneos() {
       club_id: clubId, // Se asigna automáticamente al club del admin
       canchas_asignadas: [...form.canchas_asignadas].sort((a, b) => a - b),
       canchas_disponibles: form.tipo === "oficial" ? form.canchas_asignadas.length : null,
-      ...(form.estado === "finalizado" ? { ranking_publicado: true } : {}),
+      ...(form.estado === "finalizado" && (!editing || editing.estado !== "finalizado")
+        ? { ranking_publicado: false }
+        : {}),
     };
 
     if (editing) {
@@ -416,16 +418,18 @@ export default function Torneos() {
 
   const handleQuickEstado = async (t: any, estado: EstadoTorneo) => {
     const updatePayload: any = { estado };
-    if (estado === "finalizado") {
-      updatePayload.ranking_publicado = true;
+    if (estado === "finalizado" && t.estado !== "finalizado") {
+      updatePayload.ranking_publicado = false;
     }
     const { error } = await supabase.from("torneos").update(updatePayload).eq("id", t.id);
     if (error) return toast.error("Error: " + error.message);
-    // Si pasa a finalizado, calcular ranking automáticamente
+    // Si pasa a finalizado, calcular ranking automáticamente pero dejarlo oculto al público hasta revisión
     if (estado === "finalizado") {
       const res = await calcularRankingTorneo(t.id);
       if (res.ok) {
-        toast.success(`Estado actualizado. Ranking calculado (${res.jugadoresConPuntos} registros).`);
+        toast.success(
+          `Torneo cerrado y ranking calculado (${res.jugadoresConPuntos} registros). Queda oculto al público hasta que lo publiques desde la sección Ranking.`
+        );
         queryClient.invalidateQueries({ queryKey: ["ranking"] });
       } else {
         toast.error("Estado actualizado, pero falló el cálculo de ranking: " + res.error);
@@ -439,8 +443,12 @@ export default function Torneos() {
   const handleRecalcularRanking = async (t: any) => {
     const res = await calcularRankingTorneo(t.id);
     if (res.ok) {
-      await supabase.from("torneos").update({ ranking_publicado: true }).eq("id", t.id);
-      toast.success("Ranking recalculado: " + res.jugadoresConPuntos + " registros.");
+      toast.success(
+        `Ranking recalculado (${res.jugadoresConPuntos} registros). ${t.ranking_publicado === false
+          ? "Sigue oculto al público (podés publicarlo desde Ranking)."
+          : "Visible en el Ranking Público."
+        }`
+      );
       queryClient.invalidateQueries({ queryKey: ["ranking"] });
       fetchAll();
     } else {
@@ -543,15 +551,44 @@ export default function Torneos() {
         </div>
 
         {t.estado === "finalizado" && t.tipo !== "americano_individual" && (
-          <Button
-            size="sm"
-            variant="secondary"
-            className="w-full"
-            onClick={() => handleRecalcularRanking(t)}
-          >
-            <Award className="h-3.5 w-3.5" />
-            Recalcular ranking
-          </Button>
+          <div className="space-y-1.5 pt-1">
+            {t.tipo === "oficial" && (
+              <div className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-1.5 bg-muted/30">
+                <div className="flex items-center gap-1.5 text-xs font-medium">
+                  {t.ranking_publicado === false ? (
+                    <>
+                      <EyeOff className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                      <span className="text-amber-600 dark:text-amber-400">
+                        Ranking oculto (en revisión)
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Eye className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                      <span className="text-emerald-600 dark:text-emerald-400">
+                        Ranking público visible
+                      </span>
+                    </>
+                  )}
+                </div>
+                <Link
+                  to="/ranking"
+                  className="text-[11px] font-semibold text-primary hover:underline shrink-0"
+                >
+                  Ir a Ranking →
+                </Link>
+              </div>
+            )}
+            <Button
+              size="sm"
+              variant="secondary"
+              className="w-full"
+              onClick={() => handleRecalcularRanking(t)}
+            >
+              <Award className="h-3.5 w-3.5" />
+              Recalcular ranking
+            </Button>
+          </div>
         )}
 
         {t.tipo === "americano_individual" && (

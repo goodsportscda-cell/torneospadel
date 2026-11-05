@@ -1168,11 +1168,13 @@ export default function TorneoIndividualDashboard() {
     try {
       const { error } = await (supabase as any)
         .from("torneos")
-        .update({ estado: "finalizado" })
+        .update({ estado: "finalizado", ranking_publicado: false })
         .eq("id", id);
 
       if (error) throw error;
-      toast.success("¡El torneo ha sido finalizado con éxito!");
+      toast.success(
+        "¡Torneo finalizado! El ranking quedó oculto al público en modo revisión hasta que lo publiques."
+      );
       fetchTournamentData();
     } catch (e: any) {
       toast.error("Error al finalizar torneo: " + e.message);
@@ -1192,6 +1194,26 @@ export default function TorneoIndividualDashboard() {
       fetchTournamentData();
     } catch (e: any) {
       toast.error("Error al reabrir torneo: " + e.message);
+    }
+  };
+
+  const handleToggleRankingPublicado = async (publicar: boolean) => {
+    if (!id) return;
+    try {
+      const { error } = await (supabase as any)
+        .from("torneos")
+        .update({ ranking_publicado: publicar })
+        .eq("id", id);
+
+      if (error) throw error;
+      toast.success(
+        publicar
+          ? "¡Ranking publicado! Ya es visible para los jugadores en el Muro Público."
+          : "Ranking ocultado del Muro Público (en modo revisión para Admin)."
+      );
+      fetchTournamentData();
+    } catch (e: any) {
+      toast.error("Error al actualizar visibilidad del ranking: " + e.message);
     }
   };
 
@@ -3579,6 +3601,31 @@ export default function TorneoIndividualDashboard() {
               Reabrir Torneo
             </Button>
           )}
+          {torneo && isAdmin && (
+            <Button
+              size="sm"
+              variant={torneo.ranking_publicado === false ? "default" : "outline"}
+              onClick={() => handleToggleRankingPublicado(torneo.ranking_publicado === false)}
+              className={
+                torneo.ranking_publicado === false
+                  ? "bg-amber-600 hover:bg-amber-700 text-white font-bold gap-1.5"
+                  : "gap-1.5 font-medium"
+              }
+              title="Controlar si los jugadores pueden ver la tabla de posiciones en el Muro Público"
+            >
+              {torneo.ranking_publicado === false ? (
+                <>
+                  <EyeOff className="h-4 w-4" />
+                  Publicar Ranking (Oculto)
+                </>
+              ) : (
+                <>
+                  <Eye className="h-4 w-4 text-emerald-500" />
+                  Ranking Público: Visible
+                </>
+              )}
+            </Button>
+          )}
           {torneo && (
             <>
               <Button variant="outline" size="sm" asChild>
@@ -5126,6 +5173,30 @@ export default function TorneoIndividualDashboard() {
 
           {/* TAB 5: STANDINGS */}
           <TabsContent value="ranking" className="space-y-4">
+            {isAdmin && torneo?.ranking_publicado === false && (
+              <Card className="border-amber-500/40 bg-amber-500/10">
+                <CardContent className="py-3 px-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-0.5">
+                    <div className="flex items-center gap-2 font-bold text-sm text-amber-700 dark:text-amber-300">
+                      <EyeOff className="h-4 w-4 shrink-0" />
+                      <span>Modo Revisión: El Ranking está oculto para los jugadores</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      Como Admin podés revisar y ajustar todas las posiciones acá. En el Muro Público
+                      los jugadores ven un aviso de "Ranking en revisión" hasta que lo publiques.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => handleToggleRankingPublicado(true)}
+                    className="gap-1.5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shrink-0"
+                  >
+                    <Eye className="h-3.5 w-3.5" />
+                    Publicar Ranking al Público
+                  </Button>
+                </CardContent>
+              </Card>
+            )}
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between flex-wrap gap-2">
@@ -5145,7 +5216,31 @@ export default function TorneoIndividualDashboard() {
                         : "Ordenado prioritariamente por posiciones forzadas manuales, y luego por Puntos, Sets Ganados y Diferencia de Games."}
                     </CardDescription>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {isAdmin && torneo && (
+                      <Button
+                        size="sm"
+                        variant={torneo.ranking_publicado === false ? "default" : "outline"}
+                        onClick={() => handleToggleRankingPublicado(torneo.ranking_publicado === false)}
+                        className={
+                          torneo.ranking_publicado === false
+                            ? "gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                            : "gap-1.5 text-xs"
+                        }
+                      >
+                        {torneo.ranking_publicado === false ? (
+                          <>
+                            <Eye className="h-3.5 w-3.5" />
+                            Hacer Visible al Público
+                          </>
+                        ) : (
+                          <>
+                            <EyeOff className="h-3.5 w-3.5 text-muted-foreground" />
+                            Ocultar al Público
+                          </>
+                        )}
+                      </Button>
+                    )}
                     {isAdmin && standings.some((s: any) => s.posicion_manual) && (
                       <Button
                         size="sm"
