@@ -260,25 +260,135 @@ export default function TorneoIndividualDashboard() {
   const [savingCruces, setSavingCruces] = useState(false);
 
   const handleOpenEditCruces = () => {
-    // Populate the editing matches array with a deep clone of current fecha's pending matches
-    const pendingMatches = partidosDeFecha.filter(p => p.estado === "pendiente");
-    setEditingCruces(JSON.parse(JSON.stringify(pendingMatches)));
+    const pendingMatches = partidosDeFecha.filter((p) => p.estado === "pendiente");
+    if (pendingMatches.length > 0) {
+      setEditingCruces(JSON.parse(JSON.stringify(pendingMatches)));
+      setEditCrucesOpen(true);
+      return;
+    }
+
+    // Si la fecha aún no tiene partidos generados, creamos las plantillas de las canchas (3 canchas para 12 jugadoras)
+    // pre-cargadas con el ranking actual ([1º+4º] vs [2º+3º]) para que el Admin pueda ajustarlas o armarlas a mano.
+    const activeInscriptos = filterActiveTorneoJugadores(jugadoresInscriptos);
+    const fixedCourts = Math.min(3, resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length));
+    const orderedIds =
+      standings.length >= fixedCourts * 4
+        ? standings.map((s) => s.jugador_id)
+        : activeInscriptos.map((tj) => tj.jugador_id);
+
+    const totalWeeks = torneo?.desafio_semanas ?? 8;
+    const isFinalWeek = selectedFechaNum === totalWeeks;
+    const isPenultimateWeek = selectedFechaNum === totalWeeks - 1 && totalWeeks >= 9;
+
+    const draftMatches: PartidoInd[] = [];
+    for (let c = 1; c <= fixedCourts; c++) {
+      const offset = (c - 1) * 4;
+      const group = orderedIds.slice(offset, offset + 4);
+      const canchaDefault = isFinalWeek
+        ? c === 1
+          ? "Cancha 1: Título (Campeona Oficial)"
+          : c === 2
+          ? "Cancha 2: Copa Plata (Puestos 5º a 8º)"
+          : "Cancha 3: Copa Bronce (Puestos 9º a 12º)"
+        : isPenultimateWeek
+        ? c === 1
+          ? "Cancha 1: Zona Alta (Puestos 1º a 4º)"
+          : c === 2
+          ? "Cancha 2: Zona Media (Puestos 5º a 8º)"
+          : "Cancha 3: Zona Baja (Puestos 9º a 12º)"
+        : `Cancha ${c}: ${c === 1 ? "Élite" : c === 2 ? "Desafío" : "Base"}`;
+
+      draftMatches.push({
+        id: `new-${c}`,
+        torneo_id: id || "",
+        fecha: selectedFechaNum,
+        cancha: canchaDefault,
+        jugador1_id: group[0] || "",
+        jugador2_id: group[3] || "",
+        jugador3_id: group[1] || "",
+        jugador4_id: group[2] || "",
+        sets_pareja1: 0,
+        sets_pareja2: 0,
+        estado: "pendiente",
+        created_at: new Date().toISOString(),
+        suplente1_nombre: null,
+        suplente2_nombre: null,
+        suplente3_nombre: null,
+        suplente4_nombre: null,
+        fecha_programada: null,
+        hora_programada: null,
+      } as PartidoInd);
+    }
+
+    setEditingCruces(draftMatches);
     setEditCrucesOpen(true);
   };
 
   const handleSaveCrucesManuales = async () => {
+    if (!id || !torneo) return;
+    for (const p of editingCruces) {
+      if (!p.jugador1_id || !p.jugador2_id || !p.jugador3_id || !p.jugador4_id) {
+        toast.error(`Debes seleccionar los 4 jugadores en ${p.cancha}`);
+        return;
+      }
+    }
+
     setSavingCruces(true);
     try {
-      const promises = editingCruces.map(p => 
-        (supabase as any).from("partidos_individuales").update({
-          jugador1_id: p.jugador1_id,
-          jugador2_id: p.jugador2_id,
-          jugador3_id: p.jugador3_id,
-          jugador4_id: p.jugador4_id
-        }).eq("id", p.id)
-      );
+      const activeInscriptos = filterActiveTorneoJugadores(jugadoresInscriptos);
+      const fixedCourts = Math.min(3, resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length));
+
+      // Asegurar que exista el registro de la fecha en torneo_individual_fechas
+      const { error: fErr } = await (supabase as any)
+        .from("torneo_individual_fechas")
+        .upsert(
+          {
+            torneo_id: id,
+            fecha: selectedFechaNum,
+            costo_canchas: (torneo.costo_fecha_cancha ?? 22000) * fixedCourts,
+            estado: "pendiente",
+          },
+          { onConflict: "torneo_id, fecha" }
+        );
+      if (fErr) throw fErr;
+
+      const hasNewMatches = editingCruces.some((p) => String(p.id).startsWith("new-"));
+      if (hasNewMatches) {
+        await (supabase as any)
+          .from("partidos_individuales")
+          .delete()
+          .eq("torneo_id", id)
+          .eq("fecha", selectedFechaNum)
+          .eq("estado", "pendiente");
+      }
+
+      const promises = editingCruces.map((p) => {
+        if (String(p.id).startsWith("new-")) {
+          return (supabase as any).from("partidos_individuales").insert({
+            torneo_id: id,
+            fecha: selectedFechaNum,
+            cancha: p.cancha,
+            jugador1_id: p.jugador1_id,
+            jugador2_id: p.jugador2_id,
+            jugador3_id: p.jugador3_id,
+            jugador4_id: p.jugador4_id,
+            estado: "pendiente" as const,
+          });
+        }
+        return (supabase as any)
+          .from("partidos_individuales")
+          .update({
+            cancha: p.cancha,
+            jugador1_id: p.jugador1_id,
+            jugador2_id: p.jugador2_id,
+            jugador3_id: p.jugador3_id,
+            jugador4_id: p.jugador4_id,
+          })
+          .eq("id", p.id);
+      });
+
       await Promise.all(promises);
-      toast.success("Cruces actualizados manualmente");
+      toast.success(`Cruces de la Fecha ${selectedFechaNum} guardados manualmente`);
       setEditCrucesOpen(false);
       fetchTournamentData();
     } catch (e: any) {
@@ -488,6 +598,39 @@ export default function TorneoIndividualDashboard() {
       }
     }
   }, [loading, isAdmin, autoFixedF8, id, torneo, jugadoresInscriptos.length, fechas, partidos]);
+
+  // Limpieza automática de fechas excedentes (> desafio_semanas, ej. F11/F12 creadas por error en 6ta Damas de 10 fechas)
+  const [cleanedExtraFechas, setCleanedExtraFechas] = useState(false);
+  useEffect(() => {
+    if (!loading && isAdmin && !cleanedExtraFechas && id && torneo) {
+      const maxSemanas = torneo.desafio_semanas ?? 8;
+      const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
+      if (!isLiga && maxSemanas === 10) {
+        const extraFechas = fechas.filter((f) => f.fecha > maxSemanas && f.estado === "pendiente");
+        const extraPartidos = partidos.filter((p) => (p.fecha || 0) > maxSemanas && p.estado === "pendiente");
+        if (extraFechas.length > 0 || extraPartidos.length > 0) {
+          setCleanedExtraFechas(true);
+          Promise.all([
+            (supabase as any)
+              .from("partidos_individuales")
+              .delete()
+              .eq("torneo_id", id)
+              .gt("fecha", maxSemanas)
+              .eq("estado", "pendiente"),
+            (supabase as any)
+              .from("torneo_individual_fechas")
+              .delete()
+              .eq("torneo_id", id)
+              .gt("fecha", maxSemanas)
+              .eq("estado", "pendiente"),
+          ]).then(() => {
+            setSelectedFechaNum(maxSemanas);
+            fetchTournamentData();
+          });
+        }
+      }
+    }
+  }, [loading, isAdmin, cleanedExtraFechas, id, torneo, fechas, partidos, settingsForm.sistema_puntuacion, fetchTournamentData]);
 
   // Match config save
   const handleSaveMatchConfig = async () => {
@@ -4658,15 +4801,15 @@ export default function TorneoIndividualDashboard() {
                   </Button>
                 )}
 
-                {selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
+                {isAdmin && (!selectedFecha || selectedFecha.estado === "pendiente") && (
                   <Button
                     size="sm"
                     variant="outline"
-                    className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20"
+                    className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 font-semibold"
                     onClick={handleOpenEditCruces}
                   >
                     <Settings className="h-4 w-4 mr-1.5" />
-                    Editar Cruces Manualmente
+                    {partidosDeFecha.length > 0 ? "Editar Cruces Manualmente" : "Armar Cruces Manualmente"}
                   </Button>
                 )}
 
@@ -4747,42 +4890,44 @@ export default function TorneoIndividualDashboard() {
                       <Trophy className="h-4 w-4 mr-1.5" />
                       Generar Cruces Super Day (Semana 11)
                     </Button>
-                  ) : isAdmin && selectedFechaNum === ((torneo?.desafio_semanas ?? 8) - 1) && torneo?.modalidad !== "parejas" && !isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) && jugadoresInscriptos.length === 12 ? (
-                    <div className="flex flex-col gap-2">
-                      <Button onClick={handleGenerarSemifinales12Jugadores} className="bg-blue-600 hover:bg-blue-700 text-white">
-                        <Trophy className="h-4 w-4 mr-1.5" />
-                        Generar Semifinales y Cruces Posicionales (Semana {selectedFechaNum})
+                  ) : isAdmin && selectedFechaNum === (torneo?.desafio_semanas ?? 8) && !isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) && torneo?.modalidad === "parejas" ? (
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <Button onClick={handleOpenEditCruces} className="bg-blue-600 hover:bg-blue-700 text-white">
+                        <Settings className="h-4 w-4 mr-1.5" />
+                        Armar Cruces Manualmente (Fecha {selectedFechaNum})
+                      </Button>
+                      <Button onClick={handleGenerarFecha8Parejas} variant="outline">
+                        Generar Gran Final Automática (Semana {torneo?.desafio_semanas ?? 8})
                       </Button>
                     </div>
-                  ) : isAdmin && selectedFechaNum === (torneo?.desafio_semanas ?? 8) && !isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) ? (
-                    torneo?.modalidad === "parejas" ? (
-                      <Button onClick={handleGenerarFecha8Parejas}>
-                        Generar Gran Final y Cruces Finales (Semana {torneo?.desafio_semanas ?? 8})
-                      </Button>
-                    ) : (
-                      <div className="flex flex-col gap-2">
-                        <Button onClick={handleOpenDraftWeek8}>
-                          Armar Gran Final Manualmente (Semana {torneo?.desafio_semanas ?? 8})
-                        </Button>
-                        {jugadoresInscriptos.length === 8 && (
-                          <Button onClick={handleGenerarFecha8Individual} className="bg-secondary hover:bg-secondary text-white shadow-sm border border-secondary">
-                            <Trophy className="h-4 w-4 mr-1.5" />
-                            Generar Fecha 8 (Final Automática)
-                          </Button>
-                        )}
-                        {jugadoresInscriptos.length === 12 && (
-                          <Button onClick={handleGenerarFecha12Individual} className="bg-secondary hover:bg-secondary text-white shadow-sm border border-secondary">
-                            <Trophy className="h-4 w-4 mr-1.5" />
-                            Generar Fecha 12 (Final)
-                          </Button>
-                        )}
-                      </div>
-                    )
                   ) : (
-                    <Button onClick={() => handleGenerarFechaRegular(selectedFechaNum)}>
-                      <Settings className="h-4 w-4 mr-1.5" />
-                      Generar Cruces (Fecha {selectedFechaNum})
-                    </Button>
+                    <div className="flex flex-col sm:flex-row flex-wrap items-center justify-center gap-2.5">
+                      <Button
+                        onClick={handleOpenEditCruces}
+                        className="bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-sm"
+                      >
+                        <Settings className="h-4 w-4 mr-1.5" />
+                        Armar Cruces a Mano (Fecha {selectedFechaNum})
+                      </Button>
+                      <Button
+                        onClick={() => handleGenerarFechaRegular(selectedFechaNum)}
+                        variant="outline"
+                        className="border-primary/50 text-primary hover:bg-primary/10"
+                      >
+                        <Trophy className="h-4 w-4 mr-1.5" />
+                        Generar Automático por Ranking (Fecha {selectedFechaNum})
+                      </Button>
+                      {selectedFechaNum === (torneo?.desafio_semanas ?? 8) && torneo?.modalidad !== "parejas" && (
+                        <Button
+                          onClick={handleOpenDraftWeek8}
+                          variant="ghost"
+                          size="sm"
+                          className="text-xs text-muted-foreground hover:text-foreground"
+                        >
+                          Usar Draft de Compañeros
+                        </Button>
+                      )}
+                    </div>
                   )}
                 </CardContent>
               </Card>
@@ -5854,7 +5999,20 @@ export default function TorneoIndividualDashboard() {
           <div className="space-y-6 py-4">
             {editingCruces.map((partido, pIndex) => (
               <div key={partido.id} className="border rounded-xl p-4 bg-muted/20">
-                <h4 className="font-semibold mb-4 text-primary">{partido.cancha}</h4>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <Label className="text-xs font-bold uppercase text-primary shrink-0">
+                    Nombre de Cancha #{pIndex + 1}
+                  </Label>
+                  <Input
+                    value={partido.cancha}
+                    onChange={(e) => {
+                      const newM = [...editingCruces];
+                      newM[pIndex].cancha = e.target.value;
+                      setEditingCruces(newM);
+                    }}
+                    className="h-8 text-sm font-semibold max-w-md"
+                  />
+                </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   {/* Pareja 1 */}
                   <div className="space-y-3">
