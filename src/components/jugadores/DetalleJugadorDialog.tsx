@@ -46,6 +46,11 @@ interface Props {
   jugador: Jugador;
   categorias: Categoria[];
   clubId: string | null;
+  cuentaApp?: {
+    email: string;
+    created_at?: string | null;
+    rol?: string;
+  } | null;
 }
 
 interface TournamentResult {
@@ -98,6 +103,7 @@ export default function DetalleJugadorDialog({
   jugador,
   categorias,
   clubId,
+  cuentaApp,
 }: Props) {
   const [loading, setLoading] = useState(true);
   const [torneosJugados, setTorneosJugados] = useState<TournamentResult[]>([]);
@@ -306,7 +312,7 @@ export default function DetalleJugadorDialog({
   };
 
   const hasPersonalData =
-    jugador.dni || jugador.telefono || jugador.email || jugador.club || jugador.notas;
+    jugador.dni || jugador.telefono || jugador.email || jugador.club || jugador.notas || cuentaApp;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -319,8 +325,17 @@ export default function DetalleJugadorDialog({
                 {jugador.apellido[0]}
               </div>
               <div>
-                <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+                <DialogTitle className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2 flex-wrap">
                   {jugador.apellido}, {jugador.nombre}
+                  {cuentaApp && (
+                    <Badge
+                      variant="outline"
+                      className="bg-emerald-500/15 text-emerald-500 border-emerald-500/30 text-[11px] font-semibold gap-1 py-0.5"
+                    >
+                      <UserCheck className="h-3 w-3" />
+                      Cuenta Activa
+                    </Badge>
+                  )}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground mt-0.5 flex items-center gap-1.5 flex-wrap">
                   <User className="h-3 w-3" /> Ficha de Administrador
@@ -330,6 +345,12 @@ export default function DetalleJugadorDialog({
                       <Badge variant="secondary" className="text-[10px] font-bold py-0 h-4 px-1.5">
                         {categoriaLabel()}
                       </Badge>
+                    </>
+                  )}
+                  {cuentaApp?.email && (
+                    <>
+                      <span>·</span>
+                      <span className="text-emerald-500 font-medium">{cuentaApp.email}</span>
                     </>
                   )}
                 </DialogDescription>
@@ -363,6 +384,27 @@ export default function DetalleJugadorDialog({
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4 pt-2 text-sm">
+                  {cuentaApp && (
+                    <div className="space-y-1 p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/25">
+                      <p className="text-[10px] text-emerald-500 uppercase font-bold tracking-wider flex items-center gap-1">
+                        <UserCheck className="h-3 w-3" /> Cuenta Activa en Padel ID
+                      </p>
+                      <p className="font-semibold text-foreground break-all text-xs">
+                        {cuentaApp.email}
+                      </p>
+                      {cuentaApp.created_at && (
+                        <p className="text-[10px] text-muted-foreground">
+                          Registrado el{" "}
+                          {new Date(cuentaApp.created_at).toLocaleDateString("es-AR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            year: "numeric",
+                          })}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
                   {jugador.dni && (
                     <div className="space-y-1">
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1">
