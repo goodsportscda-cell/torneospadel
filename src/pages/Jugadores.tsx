@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Combobox, type ComboOption } from "@/components/Combobox";
 import {
   Dialog,
   DialogContent,
@@ -27,19 +28,47 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Plus, Pencil, Trash2, Search, Phone, Mail, Merge, Eye, Loader2, UserCheck } from "lucide-react";
+import {
+  Plus,
+  Pencil,
+  Trash2,
+  Search,
+  Phone,
+  Mail,
+  Merge,
+  Eye,
+  Loader2,
+  UserCheck,
+  Link2,
+  Unlink,
+} from "lucide-react";
 import { toast } from "sonner";
 import type { Database } from "@/integrations/supabase/types";
 
 import FusionarDialog from "@/components/jugadores/FusionarDialog";
 import DetalleJugadorDialog from "@/components/jugadores/DetalleJugadorDialog";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  extractLinkedPerfilIdFromNotas,
+  extractUnlinkedPerfilIdsFromNotas,
+  linkPerfilToJugador,
+  normalizeEmail,
+  stripPerfilTagsFromNotas,
+  unlinkPerfilFromJugador,
+  type RawPerfilRow,
+  type RawProfileBridgeRow,
+} from "@/lib/perfilJugadorLink";
 
-type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { genero?: Genero | null; notas?: string | null };
+type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & {
+  genero?: Genero | null;
+  notas?: string | null;
+};
 type Categoria = { id: string; nombre: string; genero: Genero; orden: number; activa: boolean; club_id: string };
 type Genero = Database["public"]["Enums"]["genero_categoria"];
+type FiltroCuentaApp = "todos" | "con_cuenta" | "sin_cuenta";
 
 interface LinkedAppAccount {
+  id: string;
   email: string;
   created_at: string | null;
   rol: string;
@@ -70,10 +99,6 @@ const emptyForm: FormState = {
   notas: "",
 };
 
-function normalizeEmail(email: string | null | undefined): string {
-  return (email || "").trim().toLowerCase();
-}
-
 export default function Jugadores() {
   const { clubId, isSuperAdmin } = useAuth();
   const [jugadores, setJugadores] = useState<Jugador[]>([]);
@@ -84,7 +109,7 @@ export default function Jugadores() {
   const [filtroGenero, setFiltroGenero] = useState<Genero | "todos">("todos");
   const [filtroCategoriaMain, setFiltroCategoriaMain] = useState<string>("todas");
   const [letraActiva, setLetraActiva] = useState<string>("");
-  const [soloConCuentaApp, setSoloConCuentaApp] = useState<boolean>(false);
+  const [filtroCuentaApp, setFiltroCuentaApp] = useState<FiltroCuentaApp>("todos");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [fusionarOpen, setFusionarOpen] = useState(false);
   const [editing, setEditing] = useState<Jugador | null>(null);
@@ -92,32 +117,42 @@ export default function Jugadores() {
   const [detailOpen, setDetailOpen] = useState(false);
   const [selectedJugador, setSelectedJugador] = useState<Jugador | null>(null);
 
-  // Registered app accounts maps
+  // Registered app accounts state
+  const [rawPerfiles, setRawPerfiles] = useState<RawPerfilRow[]>([]);
   const [accountByJugadorId, setAccountByJugadorId] = useState<Map<string, LinkedAppAccount>>(new Map());
   const [accountByEmail, setAccountByEmail] = useState<Map<string, LinkedAppAccount>>(new Map());
+  const [accountById, setAccountById] = useState<Map<string, LinkedAppAccount>>(new Map());
+
+  // Link / Unlink profile modal state for a Jugador
+  const [linkingJugador, setLinkingJugador] = useState<Jugador | null>(null);
+  const [selectedPerfilIdForLink, setSelectedPerfilIdForLink] = useState<string>("");
+  const [savingPerfilLink, setSavingPerfilLink] = useState(false);
+  const [confirmUnlinkPerfilOpen, setConfirmUnlinkPerfilOpen] = useState(false);
 
   const fetchCategoriasAndAccounts = useCallback(async () => {
     setLoading(true);
 
-    const fetchPerfilesSafe = async () => {
+    const fetchPerfilesSafe = async (): Promise<RawPerfilRow[]> => {
       const res = await (supabase as any)
         .from("perfiles")
-        .select("id, email, rol, created_at, jugador_id");
+        .select("id, email, rol, club_id, created_at, jugador_id")
+        .order("created_at", { ascending: false });
       if (res.error) {
         const fallback = await supabase
           .from("perfiles")
-          .select("id, email, rol, created_at");
-        return fallback.data ?? [];
+          .select("id, email, rol, club_id, created_at")
+          .order("created_at", { ascending: false });
+        return (fallback.data ?? []) as RawPerfilRow[];
       }
-      return res.data ?? [];
+      return (res.data ?? []) as RawPerfilRow[];
     };
 
-    const fetchProfilesSafe = async () => {
+    const fetchProfilesSafe = async (): Promise<RawProfileBridgeRow[]> => {
       try {
         const res = await (supabase as any)
           .from("profiles")
           .select("user_id, email, jugador_id");
-        return res.data ?? [];
+        return (res.data ?? []) as RawProfileBridgeRow[];
       } catch {
         return [];
       }
@@ -126,11 +161,11 @@ export default function Jugadores() {
     const [catsRes, perfilesData, profilesData] = await Promise.all([
       clubId
         ? (supabase as any)
-          .from("categorias_jugadores")
-          .select("*")
-          .eq("club_id", clubId)
-          .eq("activa", true)
-          .order("orden")
+            .from("categorias_jugadores")
+            .select("*")
+            .eq("club_id", clubId)
+            .eq("activa", true)
+            .order("orden")
         : Promise.resolve({ data: [], error: null }),
       fetchPerfilesSafe(),
       fetchProfilesSafe(),
@@ -140,46 +175,53 @@ export default function Jugadores() {
       toast.error("Error cargando categorías: " + catsRes.error.message);
     }
     setCategorias(catsRes.data ?? []);
+    setRawPerfiles(perfilesData);
 
     const byJugadorId = new Map<string, LinkedAppAccount>();
     const byEmail = new Map<string, LinkedAppAccount>();
+    const byId = new Map<string, LinkedAppAccount>();
 
-    const profileLinkByUserId = new Map<string, { email?: string | null; jugador_id?: string | null }>();
-    (profilesData as any[]).forEach((pr) => {
+    const profileLinkByUserId = new Map<string, RawProfileBridgeRow>();
+    profilesData.forEach((pr) => {
       if (pr?.user_id) {
         profileLinkByUserId.set(pr.user_id, pr);
       }
     });
 
-    (perfilesData as any[]).forEach((p) => {
+    perfilesData.forEach((p) => {
       const prLink = profileLinkByUserId.get(p.id);
       const email = (p.email || prLink?.email || "").trim();
       const jugadorId = p.jugador_id || prLink?.jugador_id || null;
       const item: LinkedAppAccount = {
+        id: p.id,
         email,
         created_at: p.created_at ?? null,
         rol: p.rol || "jugador",
         jugador_id: jugadorId,
       };
-      if (jugadorId) {
+      byId.set(p.id.toLowerCase(), item);
+      if (jugadorId && !byJugadorId.has(jugadorId)) {
         byJugadorId.set(jugadorId, item);
       }
       const norm = normalizeEmail(email);
-      if (norm) {
+      if (norm && !byEmail.has(norm)) {
         byEmail.set(norm, item);
       }
     });
 
-    // Also include any profiles row that might not be in perfilesData
-    (profilesData as any[]).forEach((pr) => {
+    profilesData.forEach((pr) => {
       const email = (pr.email || "").trim();
       const jugadorId = pr.jugador_id || null;
       const item: LinkedAppAccount = {
+        id: pr.user_id,
         email,
         created_at: null,
         rol: "jugador",
         jugador_id: jugadorId,
       };
+      if (!byId.has(pr.user_id.toLowerCase())) {
+        byId.set(pr.user_id.toLowerCase(), item);
+      }
       if (jugadorId && !byJugadorId.has(jugadorId)) {
         byJugadorId.set(jugadorId, item);
       }
@@ -191,6 +233,7 @@ export default function Jugadores() {
 
     setAccountByJugadorId(byJugadorId);
     setAccountByEmail(byEmail);
+    setAccountById(byId);
     setLoading(false);
   }, [clubId]);
 
@@ -201,15 +244,27 @@ export default function Jugadores() {
   const getLinkedAccount = useCallback(
     (j: Jugador | null): LinkedAppAccount | null => {
       if (!j) return null;
+      const unlinkedIds = extractUnlinkedPerfilIdsFromNotas(j.notas);
+      const explicitTagId = extractLinkedPerfilIdFromNotas(j.notas);
+      if (explicitTagId && accountById.has(explicitTagId)) {
+        return accountById.get(explicitTagId)!;
+      }
+
       const byId = accountByJugadorId.get(j.id);
-      if (byId) return byId;
+      if (byId && !unlinkedIds.has(byId.id.toLowerCase())) {
+        return byId;
+      }
+
       const norm = normalizeEmail(j.email);
       if (norm && accountByEmail.has(norm)) {
-        return accountByEmail.get(norm)!;
+        const candidate = accountByEmail.get(norm)!;
+        if (!unlinkedIds.has(candidate.id.toLowerCase())) {
+          return candidate;
+        }
       }
       return null;
     },
-    [accountByJugadorId, accountByEmail]
+    [accountByJugadorId, accountByEmail, accountById]
   );
 
   const handleSearch = useCallback(
@@ -218,7 +273,7 @@ export default function Jugadores() {
       genero: string,
       categoria: string,
       letra: string,
-      onlyWithAccount: boolean
+      accountFilter: FiltroCuentaApp
     ) => {
       const q = queryText.trim();
       if (
@@ -226,7 +281,7 @@ export default function Jugadores() {
         categoria === "todas" &&
         genero === "todos" &&
         !letra &&
-        !onlyWithAccount
+        accountFilter === "todos"
       ) {
         setJugadores([]);
         return;
@@ -251,9 +306,8 @@ export default function Jugadores() {
           );
         } else if (letra) {
           dbQuery = dbQuery.ilike("apellido", `${letra}%`);
-        } else if (onlyWithAccount && !idsPorCategoria) {
-          // Traer jugadores que tienen email cargado o vínculo directo para cruzar con cuentas activas
-          dbQuery = dbQuery.not("email", "is", null);
+        } else if (accountFilter === "con_cuenta" && !idsPorCategoria) {
+          dbQuery = dbQuery.or("email.not.is.null,notas.ilike.%[PERFIL_ID:%");
         }
 
         if (idsPorCategoria) {
@@ -268,14 +322,13 @@ export default function Jugadores() {
 
         const { data, error } = await dbQuery
           .order("apellido")
-          .limit(onlyWithAccount ? 500 : 100);
+          .limit(accountFilter !== "todos" ? 500 : 100);
         if (error) {
           toast.error("Error al buscar jugadores: " + error.message);
         } else {
           let found = data ?? [];
 
-          // Si se activó el filtro "Con cuenta en la App", también aseguramos traer cualquier jugador vinculado por jugador_id aunque no tuviera email
-          if (onlyWithAccount) {
+          if (accountFilter === "con_cuenta") {
             const explicitIds = Array.from(accountByJugadorId.keys());
             const missingIds = explicitIds.filter((id) => !found.some((j) => j.id === id));
             if (missingIds.length > 0 && q.length < 3 && !letra && categoria === "todas") {
@@ -290,21 +343,20 @@ export default function Jugadores() {
 
             found = found.filter((j) => {
               if (genero !== "todos" && j.genero !== genero) return false;
-              return Boolean(
-                accountByJugadorId.has(j.id) ||
-                (j.email && accountByEmail.has(normalizeEmail(j.email)))
-              );
+              return Boolean(getLinkedAccount(j));
             });
+          } else if (accountFilter === "sin_cuenta") {
+            found = found.filter((j) => !getLinkedAccount(j));
           }
 
           const ids = found.map((j) => j.id);
           const { data: asignaciones, error: asignacionesError } =
             ids.length && clubId
               ? await (supabase as any)
-                .from("jugador_categorias_club")
-                .select("jugador_id,categoria_id")
-                .eq("club_id", clubId)
-                .in("jugador_id", ids)
+                  .from("jugador_categorias_club")
+                  .select("jugador_id,categoria_id")
+                  .eq("club_id", clubId)
+                  .in("jugador_id", ids)
               : { data: [], error: null };
           if (asignacionesError) throw asignacionesError;
           const catByPlayer = new Map(
@@ -313,7 +365,9 @@ export default function Jugadores() {
               a.categoria_id,
             ])
           );
-          setJugadores(found.map((j) => ({ ...j, categoria_id: catByPlayer.get(j.id) ?? j.categoria_id ?? null })));
+          setJugadores(
+            found.map((j) => ({ ...j, categoria_id: catByPlayer.get(j.id) ?? j.categoria_id ?? null }))
+          );
         }
       } catch (err: any) {
         toast.error("Error: " + err.message);
@@ -321,7 +375,7 @@ export default function Jugadores() {
         setLoadingJugadores(false);
       }
     },
-    [clubId, accountByJugadorId, accountByEmail]
+    [clubId, accountByJugadorId, getLinkedAccount]
   );
 
   useEffect(() => {
@@ -331,19 +385,121 @@ export default function Jugadores() {
       filtroCategoriaMain === "todas" &&
       filtroGenero === "todos" &&
       !letraActiva &&
-      !soloConCuentaApp
+      filtroCuentaApp === "todos"
     ) {
       setJugadores([]);
       return;
     }
     const delayDebounceFn = setTimeout(() => {
-      handleSearch(q, filtroGenero, filtroCategoriaMain, letraActiva, soloConCuentaApp);
+      handleSearch(q, filtroGenero, filtroCategoriaMain, letraActiva, filtroCuentaApp);
     }, 350);
     return () => clearTimeout(delayDebounceFn);
-  }, [search, filtroGenero, filtroCategoriaMain, letraActiva, soloConCuentaApp, handleSearch]);
+  }, [search, filtroGenero, filtroCategoriaMain, letraActiva, filtroCuentaApp, handleSearch]);
 
-  const refreshSearchList = () => {
-    handleSearch(search, filtroGenero, filtroCategoriaMain, letraActiva, soloConCuentaApp);
+  const refreshSearchList = async () => {
+    await fetchCategoriasAndAccounts();
+    handleSearch(search, filtroGenero, filtroCategoriaMain, letraActiva, filtroCuentaApp);
+  };
+
+  // Options for the Profile Combobox inside the Link Profile modal
+  const perfilComboOptions = useMemo<ComboOption[]>(() => {
+    const currentLinked = linkingJugador ? getLinkedAccount(linkingJugador) : null;
+    return rawPerfiles
+      .filter((p) => {
+        if (!p.email) return false;
+        if (currentLinked && p.id === currentLinked.id) return true;
+        // Prevent selecting a profile that is already explicitly tied to another jugador_id
+        if (p.jugador_id && p.jugador_id !== linkingJugador?.id) return false;
+        return true;
+      })
+      .map((p) => ({
+        value: p.id,
+        label: p.email || p.id,
+        hint: `Rol: ${p.rol || "jugador"} · ID: ${p.id.slice(0, 8)}…`,
+      }));
+  }, [rawPerfiles, linkingJugador, getLinkedAccount]);
+
+  const openLinkPerfilModal = (j: Jugador) => {
+    const currentAcc = getLinkedAccount(j);
+    setLinkingJugador(j);
+    setSelectedPerfilIdForLink(currentAcc?.id || "");
+    setConfirmUnlinkPerfilOpen(false);
+  };
+
+  const handleConfirmLinkPerfilToJugador = async () => {
+    if (!linkingJugador || !selectedPerfilIdForLink) {
+      toast.error("Seleccioná un perfil registrado por email.");
+      return;
+    }
+
+    const chosenPerfil = rawPerfiles.find((p) => p.id === selectedPerfilIdForLink);
+    if (!chosenPerfil) {
+      toast.error("No se encontró el perfil seleccionado.");
+      return;
+    }
+
+    setSavingPerfilLink(true);
+    try {
+      const currentAcc = getLinkedAccount(linkingJugador);
+      if (currentAcc && currentAcc.id !== chosenPerfil.id) {
+        await unlinkPerfilFromJugador({
+          perfilId: currentAcc.id,
+          perfilEmail: currentAcc.email,
+          jugadorId: linkingJugador.id,
+        });
+      }
+
+      const res = await linkPerfilToJugador({
+        perfilId: chosenPerfil.id,
+        perfilEmail: chosenPerfil.email || "",
+        jugadorId: linkingJugador.id,
+        previousJugadorId: chosenPerfil.jugador_id ?? null,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "No se pudo vincular el perfil.");
+        return;
+      }
+
+      toast.success(
+        `Ficha de ${linkingJugador.apellido}, ${linkingJugador.nombre} vinculada con la cuenta ${chosenPerfil.email}.`
+      );
+      setLinkingJugador(null);
+      setSelectedPerfilIdForLink("");
+      await refreshSearchList();
+    } finally {
+      setSavingPerfilLink(false);
+    }
+  };
+
+  const handleConfirmUnlinkPerfilFromJugador = async () => {
+    if (!linkingJugador) return;
+    const currentAcc = getLinkedAccount(linkingJugador);
+    if (!currentAcc) return;
+
+    setSavingPerfilLink(true);
+    try {
+      const res = await unlinkPerfilFromJugador({
+        perfilId: currentAcc.id,
+        perfilEmail: currentAcc.email,
+        jugadorId: linkingJugador.id,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "No se pudo desvincular el perfil.");
+        return;
+      }
+
+      toast.success(
+        `Perfil ${currentAcc.email} desvinculado. La ficha deportiva de ${linkingJugador.apellido}, ${linkingJugador.nombre} y su historial se mantienen intactos.`
+      );
+      setConfirmUnlinkPerfilOpen(false);
+      setLinkingJugador(null);
+      setSelectedPerfilIdForLink("");
+      await refreshSearchList();
+    } finally {
+      setSavingPerfilLink(false);
+    }
   };
 
   const openDetail = (j: Jugador) => {
@@ -368,7 +524,7 @@ export default function Jugadores() {
       genero: j.genero ?? "",
       categoria_id: (j as any).categoria_id ?? "",
       club: j.club ?? "",
-      notas: j.notas ?? "",
+      notas: stripPerfilTagsFromNotas(j.notas),
     });
     setDialogOpen(true);
   };
@@ -383,6 +539,20 @@ export default function Jugadores() {
       return;
     }
 
+    // Preserve any internal profile link/unlink tags stored in editing.notas
+    const preservedPerfilLinkId = editing ? extractLinkedPerfilIdFromNotas(editing.notas) : null;
+    const preservedUnlinkedIds = editing
+      ? Array.from(extractUnlinkedPerfilIdsFromNotas(editing.notas))
+      : [];
+
+    let composedNotas = form.notas.trim();
+    if (preservedPerfilLinkId) {
+      composedNotas = `${composedNotas} [PERFIL_ID:${preservedPerfilLinkId}]`.trim();
+    } else if (preservedUnlinkedIds.length > 0) {
+      const tags = preservedUnlinkedIds.map((uid) => `[PERFIL_DESVINCULADO:${uid}]`).join(" ");
+      composedNotas = `${composedNotas} ${tags}`.trim();
+    }
+
     const payload = {
       nombre: form.nombre.trim(),
       apellido: form.apellido.trim(),
@@ -391,7 +561,7 @@ export default function Jugadores() {
       email: form.email.trim() || null,
       genero: form.genero || null,
       club: form.club.trim() || null,
-      notas: form.notas.trim() || null,
+      notas: composedNotas || null,
     };
 
     let savedPlayerId = editing?.id;
@@ -431,7 +601,7 @@ export default function Jugadores() {
       if (categoryError)
         toast.error(
           "Los datos se guardaron, pero no se pudo guardar la categoría de este club: " +
-          categoryError.message
+            categoryError.message
         );
     }
     setDialogOpen(false);
@@ -451,7 +621,6 @@ export default function Jugadores() {
     const isSinCategoria = nuevaCategoriaId === "sin-categoria";
     const payload = { categoria_id: isSinCategoria ? null : nuevaCategoriaId };
 
-    // Optimistic UI update
     setJugadores((prev) =>
       prev.map((j) => (j.id === jugadorId ? { ...j, categoria_id: payload.categoria_id } : j))
     );
@@ -478,7 +647,7 @@ export default function Jugadores() {
     Boolean(letraActiva) ||
     filtroCategoriaMain !== "todas" ||
     filtroGenero !== "todos" ||
-    soloConCuentaApp;
+    filtroCuentaApp !== "todos";
 
   return (
     <div className="space-y-4">
@@ -489,11 +658,18 @@ export default function Jugadores() {
             {!consultaActiva
               ? "Usá la búsqueda o los filtros para consultar jugadores."
               : loadingJugadores
-                ? "Buscando jugadores…"
-                : jugadores.length >= 100 && !soloConCuentaApp
-                  ? "Mostrando los primeros 100 resultados."
-                  : `${jugadores.length} ${jugadores.length === 1 ? "jugador encontrado" : "jugadores encontrados"
-                  }${soloConCuentaApp ? " con cuenta activa en Padel ID" : ""}.`}
+              ? "Buscando jugadores…"
+              : jugadores.length >= 100 && filtroCuentaApp === "todos"
+              ? "Mostrando los primeros 100 resultados."
+              : `${jugadores.length} ${
+                  jugadores.length === 1 ? "jugador encontrado" : "jugadores encontrados"
+                }${
+                  filtroCuentaApp === "con_cuenta"
+                    ? " con cuenta activa en Padel ID"
+                    : filtroCuentaApp === "sin_cuenta"
+                    ? " sin cuenta vinculada"
+                    : ""
+                }.`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -619,6 +795,34 @@ export default function Jugadores() {
                     onChange={(e) => setForm({ ...form, notas: e.target.value })}
                   />
                 </div>
+
+                {editing && (
+                  <div className="pt-2 border-t flex items-center justify-between gap-2">
+                    <div className="text-xs">
+                      <span className="font-semibold block">Cuenta de Usuario Padel ID</span>
+                      {getLinkedAccount(editing) ? (
+                        <span className="text-emerald-500">
+                          Vinculada a {getLinkedAccount(editing)?.email}
+                        </span>
+                      ) : (
+                        <span className="text-muted-foreground">Sin perfil de usuario vinculado</span>
+                      )}
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs"
+                      onClick={() => {
+                        setDialogOpen(false);
+                        openLinkPerfilModal(editing);
+                      }}
+                    >
+                      <Link2 className="h-3.5 w-3.5 mr-1" />
+                      {getLinkedAccount(editing) ? "Cambiar / Desvincular Perfil" : "Vincular Perfil"}
+                    </Button>
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setDialogOpen(false)}>
@@ -651,10 +855,11 @@ export default function Jugadores() {
                   setSearch("");
                 }
               }}
-              className={`h-8 w-8 rounded-md text-xs font-semibold flex items-center justify-center transition-colors ${letraActiva === letra
+              className={`h-8 w-8 rounded-md text-xs font-semibold flex items-center justify-center transition-colors ${
+                letraActiva === letra
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted/50 text-muted-foreground hover:bg-muted hover:text-foreground"
-                }`}
+              }`}
             >
               {letra}
             </button>
@@ -676,19 +881,21 @@ export default function Jugadores() {
               className="pl-8"
             />
           </div>
-          <Button
-            type="button"
-            variant={soloConCuentaApp ? "default" : "outline"}
-            onClick={() => setSoloConCuentaApp((prev) => !prev)}
-            className={
-              soloConCuentaApp
-                ? "bg-emerald-600 hover:bg-emerald-700 text-white border-emerald-600"
-                : "border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10"
-            }
+
+          <Select
+            value={filtroCuentaApp}
+            onValueChange={(v: FiltroCuentaApp) => setFiltroCuentaApp(v)}
           >
-            <UserCheck className="h-4 w-4 mr-1.5" />
-            Con cuenta en la App
-          </Button>
+            <SelectTrigger className="w-[185px]">
+              <SelectValue placeholder="Estado de Cuenta App" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="todos">Todas las fichas</SelectItem>
+              <SelectItem value="con_cuenta">Con cuenta en la App</SelectItem>
+              <SelectItem value="sin_cuenta">Sin cuenta vinculada</SelectItem>
+            </SelectContent>
+          </Select>
+
           <Select
             value={filtroGenero}
             onValueChange={(v: Genero | "todos") => {
@@ -757,7 +964,7 @@ export default function Jugadores() {
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {filtered.map((j) => {
             const linkedAccount = getLinkedAccount(j);
-            const displayEmail = j.email || linkedAccount?.email || null;
+            const displayEmail = linkedAccount?.email || j.email || null;
             return (
               <Card key={j.id} className="hover:shadow-md transition-shadow">
                 <CardContent className="p-4 space-y-2">
@@ -817,7 +1024,7 @@ export default function Jugadores() {
                     </div>
                   )}
                   {j.club && <p className="text-xs text-muted-foreground truncate">📍 {j.club}</p>}
-                  <div className="flex gap-2 pt-2 border-t mt-2">
+                  <div className="flex gap-1.5 pt-2 border-t mt-2">
                     <Button
                       size="sm"
                       variant="outline"
@@ -826,6 +1033,27 @@ export default function Jugadores() {
                     >
                       <Eye className="h-3.5 w-3.5 mr-1" />
                       Ver Detalles
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => openLinkPerfilModal(j)}
+                      title={
+                        linkedAccount
+                          ? `Cuenta vinculada: ${linkedAccount.email} (clic para cambiar o desvincular)`
+                          : "Vincular con perfil de usuario por email"
+                      }
+                      className={
+                        linkedAccount
+                          ? "border-emerald-500/40 text-emerald-500 hover:bg-emerald-500/10"
+                          : ""
+                      }
+                    >
+                      {linkedAccount ? (
+                        <Unlink className="h-3.5 w-3.5" />
+                      ) : (
+                        <Link2 className="h-3.5 w-3.5" />
+                      )}
                     </Button>
                     <Button
                       size="sm"
@@ -873,6 +1101,156 @@ export default function Jugadores() {
           })}
         </div>
       )}
+
+      {/* Modal para Vincular / Desvincular un Perfil de Usuario por Email desde Jugadores */}
+      <Dialog
+        open={Boolean(linkingJugador)}
+        onOpenChange={(open) => {
+          if (!open && !savingPerfilLink) {
+            setLinkingJugador(null);
+            setSelectedPerfilIdForLink("");
+            setConfirmUnlinkPerfilOpen(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Link2 className="h-5 w-5 text-primary" />
+              {linkingJugador && getLinkedAccount(linkingJugador)
+                ? "Cambiar o Desvincular Cuenta de Usuario"
+                : "Vincular Ficha con Perfil de Usuario"}
+            </DialogTitle>
+            <DialogDescription>
+              Jugador:{" "}
+              <span className="font-semibold text-foreground">
+                {linkingJugador ? `${linkingJugador.apellido}, ${linkingJugador.nombre}` : ""}
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+
+          {linkingJugador && (
+            <div className="space-y-4 py-2">
+              {(() => {
+                const currentAcc = getLinkedAccount(linkingJugador);
+                if (!currentAcc) return null;
+                return (
+                  <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 space-y-2">
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div>
+                        <p className="text-[11px] uppercase font-bold text-emerald-400">
+                          Cuenta actualmente vinculada
+                        </p>
+                        <p className="text-sm font-semibold break-all">{currentAcc.email}</p>
+                      </div>
+                      {!confirmUnlinkPerfilOpen && (
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                          onClick={() => setConfirmUnlinkPerfilOpen(true)}
+                          disabled={savingPerfilLink}
+                        >
+                          <Unlink className="h-3.5 w-3.5 mr-1" />
+                          Desvincular
+                        </Button>
+                      )}
+                    </div>
+
+                    {confirmUnlinkPerfilOpen && (
+                      <div className="pt-2 border-t border-emerald-500/20 space-y-2">
+                        <p className="text-xs text-amber-300">
+                          ¿Confirmás desvincular la cuenta <strong>{currentAcc.email}</strong> de{" "}
+                          <strong>
+                            {linkingJugador.apellido}, {linkingJugador.nombre}
+                          </strong>
+                          ? La ficha del jugador, sus puntos, inscripciones y partidos NO se borrarán.
+                        </p>
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={() => setConfirmUnlinkPerfilOpen(false)}
+                            disabled={savingPerfilLink}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="destructive"
+                            size="sm"
+                            className="h-7 text-xs"
+                            onClick={handleConfirmUnlinkPerfilFromJugador}
+                            disabled={savingPerfilLink}
+                          >
+                            {savingPerfilLink ? (
+                              <>
+                                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                Desvinculando…
+                              </>
+                            ) : (
+                              "Confirmar Desvinculación"
+                            )}
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
+
+              <div className="space-y-2">
+                <Label>Buscar perfil registrado por email</Label>
+                <Combobox
+                  options={perfilComboOptions}
+                  value={selectedPerfilIdForLink}
+                  onChange={setSelectedPerfilIdForLink}
+                  placeholder="Seleccionar cuenta por email..."
+                  searchPlaceholder="Escribí el correo electrónico del usuario..."
+                  emptyText="No se encontraron perfiles disponibles."
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Solo se muestran cuentas registradas en Padel ID que no están ocupadas por otro jugador.
+                </p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setLinkingJugador(null)}
+              disabled={savingPerfilLink}
+            >
+              Cerrar
+            </Button>
+            <Button
+              type="button"
+              onClick={handleConfirmLinkPerfilToJugador}
+              disabled={
+                savingPerfilLink ||
+                !selectedPerfilIdForLink ||
+                selectedPerfilIdForLink === (linkingJugador ? getLinkedAccount(linkingJugador)?.id : "")
+              }
+            >
+              {savingPerfilLink ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                  Guardando…
+                </>
+              ) : linkingJugador && getLinkedAccount(linkingJugador) ? (
+                "Guardar Cambio de Cuenta"
+              ) : (
+                "Vincular Cuenta"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {selectedJugador && (
         <DetalleJugadorDialog

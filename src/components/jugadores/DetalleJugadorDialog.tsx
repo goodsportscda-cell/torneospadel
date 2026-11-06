@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { PlayerStats } from "@/components/jugador/PlayerStats";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
+import { stripPerfilTagsFromNotas } from "@/lib/perfilJugadorLink";
 import type { Database } from "@/integrations/supabase/types";
 
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { notas?: string | null };
@@ -311,8 +312,9 @@ export default function DetalleJugadorDialog({
     });
   };
 
+  const cleanNotas = stripPerfilTagsFromNotas(jugador.notas);
   const hasPersonalData =
-    jugador.dni || jugador.telefono || jugador.email || jugador.club || jugador.notas || cuentaApp;
+    jugador.dni || jugador.telefono || jugador.email || jugador.club || cleanNotas || cuentaApp;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -454,13 +456,13 @@ export default function DetalleJugadorDialog({
                     </div>
                   )}
 
-                  {jugador.notas && (
+                  {cleanNotas && (
                     <div className="space-y-1 pt-1 border-t">
                       <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1">
                         <MessageSquareCode className="h-3 w-3" /> Notas
                       </p>
                       <p className="text-xs text-muted-foreground italic bg-muted/30 p-2.5 rounded-lg border border-dashed">
-                        {jugador.notas}
+                        {cleanNotas}
                       </p>
                     </div>
                   )}

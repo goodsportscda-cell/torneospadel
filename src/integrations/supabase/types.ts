@@ -1070,6 +1070,13 @@ export type Database = {
       }
     }
     Functions: {
+      admin_set_perfil_jugador_link: {
+        Args: {
+          p_perfil_id: string
+          p_jugador_id?: string | null
+        }
+        Returns: Json
+      }
       [key: string]: {
         Args: Record<string, unknown>
         Returns: unknown

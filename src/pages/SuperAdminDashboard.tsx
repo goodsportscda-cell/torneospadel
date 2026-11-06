@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Combobox, type ComboOption } from "@/components/Combobox";
 import {
   Table,
   TableBody,
@@ -30,11 +31,36 @@ import {
   ChevronDown,
   ChevronUp,
   MapPin,
+  Link2,
+  Unlink,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  linkPerfilToJugador,
+  unlinkPerfilFromJugador,
+  resolvePerfilesJugadorLinks,
+} from "@/lib/perfilJugadorLink";
 
 type Club = {
   id: string;
@@ -86,10 +112,6 @@ type RoleAudit = {
   cambiado_en: string;
 };
 
-function normalizeEmail(email: string | null | undefined): string {
-  return (email || "").trim().toLowerCase();
-}
-
 function formatDateDDMMYYYY(iso: string | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
@@ -109,6 +131,7 @@ export default function SuperAdminDashboard() {
     perfiles: null,
   });
   const [clubes, setClubes] = useState<Club[]>([]);
+  const [allJugadores, setAllJugadores] = useState<LinkedJugadorInfo[]>([]);
   const [perfilesDirectory, setPerfilesDirectory] = useState<DirectoryProfileItem[]>([]);
   const [roleAudit, setRoleAudit] = useState<RoleAudit[]>([]);
   const [loading, setLoading] = useState(true);
@@ -123,6 +146,12 @@ export default function SuperAdminDashboard() {
   const directorySectionRef = useRef<HTMLDivElement | null>(null);
   const assignRoleCardRef = useRef<HTMLDivElement | null>(null);
 
+  // Link / Unlink modal state
+  const [linkingProfile, setLinkingProfile] = useState<DirectoryProfileItem | null>(null);
+  const [selectedJugadorIdForLink, setSelectedJugadorIdForLink] = useState<string>("");
+  const [savingLink, setSavingLink] = useState(false);
+  const [confirmUnlinkOpen, setConfirmUnlinkOpen] = useState(false);
+
   // New club form
   const [newClub, setNewClub] = useState({ nombre: "", slug: "", logo_url: "" });
   const [isNewClubOpen, setIsNewClubOpen] = useState(false);
@@ -135,7 +164,6 @@ export default function SuperAdminDashboard() {
   const loadData = async () => {
     setLoading(true);
 
-    // Fetch perfiles resiliently (with fallback if jugador_id column has not been migrated yet)
     const fetchPerfilesRows = async () => {
       const res = await (supabase as any)
         .from("perfiles")
@@ -185,7 +213,8 @@ export default function SuperAdminDashboard() {
       supabase.from("clubes").select("*").order("created_at", { ascending: false }),
       supabase
         .from("jugadores")
-        .select("id, nombre, apellido, dni, email, club, genero, categoria_id")
+        .select("id, nombre, apellido, dni, email, club, genero, categoria_id, notas")
+        .order("apellido")
         .limit(5000),
       (supabase as any)
         .from("jugador_categorias_club")
@@ -198,6 +227,7 @@ export default function SuperAdminDashboard() {
     ]);
 
     const rawPerfiles = (perfilesRes?.data ?? []) as any[];
+    const rawJugadores = (jugadoresData ?? []) as any[];
     const clubesList = (clubesData ?? []) as Club[];
     const clubNameById = new Map<string, string>(clubesList.map((c) => [c.id, c.nombre]));
 
@@ -229,9 +259,9 @@ export default function SuperAdminDashboard() {
     });
 
     const jugadorById = new Map<string, LinkedJugadorInfo>();
-    const jugadorByEmail = new Map<string, LinkedJugadorInfo>();
+    const jugadoresList: LinkedJugadorInfo[] = [];
 
-    ((jugadoresData ?? []) as any[]).forEach((j) => {
+    rawJugadores.forEach((j) => {
       let catLabel = playerCatLabelMap.get(j.id) ?? null;
       if (!catLabel && j.categoria_id) {
         const cat = catById.get(j.categoria_id);
@@ -255,13 +285,18 @@ export default function SuperAdminDashboard() {
       };
 
       jugadorById.set(j.id, info);
-      const normEmail = normalizeEmail(j.email);
-      if (normEmail && !jugadorByEmail.has(normEmail)) {
-        jugadorByEmail.set(normEmail, info);
-      }
+      jugadoresList.push(info);
     });
 
-    const profileLinkByUserId = new Map<string, { jugador_id?: string | null; email?: string | null }>();
+    setAllJugadores(jugadoresList);
+
+    const { jugadorIdByPerfilId } = resolvePerfilesJugadorLinks({
+      perfiles: rawPerfiles,
+      profilesBridge: profilesLinks as any[],
+      jugadores: rawJugadores,
+    });
+
+    const profileLinkByUserId = new Map<string, { email?: string | null }>();
     (profilesLinks as any[]).forEach((pr) => {
       if (pr?.user_id) {
         profileLinkByUserId.set(pr.user_id, pr);
@@ -271,13 +306,8 @@ export default function SuperAdminDashboard() {
     const enrichedPerfiles: DirectoryProfileItem[] = rawPerfiles.map((p) => {
       const prLink = profileLinkByUserId.get(p.id);
       const effectiveEmail = p.email || prLink?.email || "";
-      const normEmail = normalizeEmail(effectiveEmail);
-      const explicitJugadorId = p.jugador_id || prLink?.jugador_id || null;
-
-      const linkedJugador =
-        (explicitJugadorId ? jugadorById.get(explicitJugadorId) : null) ||
-        (normEmail ? jugadorByEmail.get(normEmail) : null) ||
-        null;
+      const linkedJugadorId = jugadorIdByPerfilId.get(p.id) || null;
+      const linkedJugador = linkedJugadorId ? jugadorById.get(linkedJugadorId) ?? null : null;
 
       return {
         id: p.id,
@@ -336,14 +366,103 @@ export default function SuperAdminDashboard() {
       const idMatch = item.id.toLowerCase().includes(q);
       const nombreMatch = item.jugador
         ? `${item.jugador.nombre} ${item.jugador.apellido} ${item.jugador.apellido} ${item.jugador.nombre}`
-          .toLowerCase()
-          .includes(q)
+            .toLowerCase()
+            .includes(q)
         : false;
       const dniMatch = item.jugador?.dni ? item.jugador.dni.toLowerCase().includes(q) : false;
 
       return emailMatch || idMatch || nombreMatch || dniMatch;
     });
   }, [perfilesDirectory, directorySearch, directoryFilter]);
+
+  // Options for the Jugador Combobox inside the Link Modal
+  const jugadorComboOptions = useMemo<ComboOption[]>(() => {
+    const occupiedJugadorMap = new Map<string, string>();
+    perfilesDirectory.forEach((p) => {
+      if (p.jugador && p.id !== linkingProfile?.id) {
+        occupiedJugadorMap.set(p.jugador.id, p.email || p.id.slice(0, 8));
+      }
+    });
+
+    return allJugadores
+      .filter((j) => !occupiedJugadorMap.has(j.id))
+      .map((j) => {
+        const parts: string[] = [];
+        if (j.dni) parts.push(`DNI ${j.dni}`);
+        if (j.categoriaLabel) parts.push(j.categoriaLabel);
+        if (j.club) parts.push(j.club);
+        return {
+          value: j.id,
+          label: `${j.apellido}, ${j.nombre}`,
+          hint: parts.length > 0 ? parts.join(" · ") : "Sin localidad / DNI",
+        };
+      });
+  }, [allJugadores, perfilesDirectory, linkingProfile]);
+
+  const handleOpenLinkModal = (item: DirectoryProfileItem) => {
+    setLinkingProfile(item);
+    setSelectedJugadorIdForLink(item.jugador?.id || "");
+    setConfirmUnlinkOpen(false);
+  };
+
+  const handleConfirmLinkJugador = async () => {
+    if (!linkingProfile || !selectedJugadorIdForLink) {
+      toast.error("Seleccioná un jugador de la lista para vincular.");
+      return;
+    }
+
+    setSavingLink(true);
+    try {
+      const res = await linkPerfilToJugador({
+        perfilId: linkingProfile.id,
+        perfilEmail: linkingProfile.email,
+        jugadorId: selectedJugadorIdForLink,
+        previousJugadorId: linkingProfile.jugador?.id ?? null,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "No se pudo vincular el jugador.");
+        return;
+      }
+
+      const targetJug = allJugadores.find((j) => j.id === selectedJugadorIdForLink);
+      toast.success(
+        `Perfil ${linkingProfile.email} vinculado a ${targetJug ? `${targetJug.apellido}, ${targetJug.nombre}` : "la ficha seleccionada"}.`
+      );
+      setLinkingProfile(null);
+      setSelectedJugadorIdForLink("");
+      await loadData();
+    } finally {
+      setSavingLink(false);
+    }
+  };
+
+  const handleConfirmUnlinkJugador = async () => {
+    if (!linkingProfile || !linkingProfile.jugador) return;
+    setSavingLink(true);
+    try {
+      const res = await unlinkPerfilFromJugador({
+        perfilId: linkingProfile.id,
+        perfilEmail: linkingProfile.email,
+        jugadorId: linkingProfile.jugador.id,
+      });
+
+      if (!res.ok) {
+        toast.error(res.error || "No se pudo desvincular el perfil.");
+        return;
+      }
+
+      toast.success(
+        `Se desvinculó la cuenta ${linkingProfile.email}. La ficha deportiva de ${linkingProfile.jugador.apellido}, ${linkingProfile.jugador.nombre} y todo su historial permanecen intactos.`
+      );
+      setConfirmUnlinkOpen(false);
+      setLinkingProfile(null);
+      setSelectedJugadorIdForLink("");
+      await loadData();
+    } finally {
+      setSavingLink(false);
+    }
+  };
 
   const handleSelectProfileForRoleAssignment = (item: DirectoryProfileItem) => {
     setSearchEmail(item.email || "");
@@ -604,7 +723,7 @@ export default function SuperAdminDashboard() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     {stats.perfiles === null
                       ? "No se pudo consultar este total."
-                      : `${directoryCounts.conFicha} vinculados a ficha de jugador · ${directoryCounts.administradores} con rol admin/operador.`}
+                      : `${directoryCounts.conFicha} vinculados a ficha · ${directoryCounts.sinFicha} sin ficha vinculada.`}
                   </p>
                 </CardContent>
               </Card>
@@ -623,7 +742,7 @@ export default function SuperAdminDashboard() {
                       </Badge>
                     </CardTitle>
                     <CardDescription>
-                      Usuarios con cuenta creada en Padel ID, su ficha de jugador vinculada, rol actual y club asignado.
+                      Vinculá o desvinculá cuentas de usuario con su ficha deportiva en jugadores y administrá sus roles.
                     </CardDescription>
                   </div>
                   <Button
@@ -681,7 +800,7 @@ export default function SuperAdminDashboard() {
                         onClick={() => setDirectoryFilter("con_ficha")}
                         className="h-8 text-xs"
                       >
-                        Jugadores con ficha ({directoryCounts.conFicha})
+                        Vinculados a Jugador ({directoryCounts.conFicha})
                       </Button>
                       <Button
                         type="button"
@@ -699,7 +818,7 @@ export default function SuperAdminDashboard() {
 
               {directoryExpanded && (
                 <CardContent>
-                  <div className="rounded-md border overflow-x-auto max-h-[540px] overflow-y-auto">
+                  <div className="rounded-md border overflow-x-auto max-h-[560px] overflow-y-auto">
                     <Table>
                       <TableHeader className="bg-muted/40 sticky top-0 z-10">
                         <TableRow>
@@ -708,7 +827,7 @@ export default function SuperAdminDashboard() {
                           <TableHead>Rol Actual</TableHead>
                           <TableHead>Club Asignado</TableHead>
                           <TableHead>Fecha de Alta</TableHead>
-                          <TableHead className="text-right">Acción Rápida</TableHead>
+                          <TableHead className="text-right">Acciones Rápidas</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
@@ -720,9 +839,12 @@ export default function SuperAdminDashboard() {
                           </TableRow>
                         ) : (
                           filteredDirectory.map((item) => {
-                            const assignedClubName = item.club_id
-                              ? clubes.find((c) => c.id === item.club_id)?.nombre || item.club_id
-                              : null;
+                            const assignedClubName =
+                              item.rol === "super_admin"
+                                ? "Global"
+                                : item.club_id
+                                ? clubes.find((c) => c.id === item.club_id)?.nombre || item.club_id
+                                : null;
                             const participationClubs = item.jugador?.clubesParticipacion ?? [];
 
                             return (
@@ -730,7 +852,9 @@ export default function SuperAdminDashboard() {
                                 {/* 1. Usuario / Email */}
                                 <TableCell className="align-middle">
                                   <div className="font-medium text-sm break-all">
-                                    {item.email || <span className="text-muted-foreground italic">Sin email registrado</span>}
+                                    {item.email || (
+                                      <span className="text-muted-foreground italic">Sin email registrado</span>
+                                    )}
                                   </div>
                                   <div className="text-[11px] font-mono text-muted-foreground" title={item.id}>
                                     ID: {item.id.slice(0, 8)}…
@@ -764,7 +888,7 @@ export default function SuperAdminDashboard() {
                                   ) : (
                                     <Badge
                                       variant="outline"
-                                      className="bg-muted/40 text-muted-foreground border-border/60 font-normal gap-1"
+                                      className="bg-amber-500/15 text-amber-400 border-amber-500/30 font-medium gap-1"
                                     >
                                       <UserX className="h-3 w-3" />
                                       Sin ficha vinculada
@@ -773,9 +897,7 @@ export default function SuperAdminDashboard() {
                                 </TableCell>
 
                                 {/* 3. Rol Actual */}
-                                <TableCell className="align-middle">
-                                  {renderRoleBadge(item.rol)}
-                                </TableCell>
+                                <TableCell className="align-middle">{renderRoleBadge(item.rol)}</TableCell>
 
                                 {/* 4. Club Asignado */}
                                 <TableCell className="align-middle text-sm">
@@ -797,22 +919,46 @@ export default function SuperAdminDashboard() {
                                   {formatDateDDMMYYYY(item.created_at)}
                                 </TableCell>
 
-                                {/* 6. Acción Rápida */}
+                                {/* 6. Acciones Rápidas (Vinculación y Roles) */}
                                 <TableCell className="align-middle text-right">
-                                  {item.rol === "super_admin" ? (
-                                    <span className="text-xs text-muted-foreground px-2">Rol global</span>
-                                  ) : (
-                                    <Button
-                                      type="button"
-                                      variant="outline"
-                                      size="sm"
-                                      className="h-7 text-xs"
-                                      onClick={() => handleSelectProfileForRoleAssignment(item)}
-                                    >
-                                      <Shield className="h-3 w-3 mr-1" />
-                                      Asignar / Cambiar Rol
-                                    </Button>
-                                  )}
+                                  <div className="flex items-center justify-end gap-1.5 flex-wrap">
+                                    {item.jugador ? (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs border-amber-500/40 text-amber-400 hover:bg-amber-500/10"
+                                        onClick={() => handleOpenLinkModal(item)}
+                                      >
+                                        <Unlink className="h-3 w-3 mr-1" />
+                                        Cambiar / Desvincular
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs border-emerald-500/40 text-emerald-400 hover:bg-emerald-500/10"
+                                        onClick={() => handleOpenLinkModal(item)}
+                                      >
+                                        <Link2 className="h-3 w-3 mr-1" />
+                                        Vincular Jugador
+                                      </Button>
+                                    )}
+
+                                    {item.rol !== "super_admin" && (
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        className="h-7 text-xs"
+                                        onClick={() => handleSelectProfileForRoleAssignment(item)}
+                                      >
+                                        <Shield className="h-3 w-3 mr-1" />
+                                        Asignar Rol
+                                      </Button>
+                                    )}
+                                  </div>
                                 </TableCell>
                               </TableRow>
                             );
@@ -824,6 +970,163 @@ export default function SuperAdminDashboard() {
                 </CardContent>
               )}
             </Card>
+
+            {/* Modal para Vincular / Cambiar / Desvincular Jugador */}
+            <Dialog
+              open={Boolean(linkingProfile)}
+              onOpenChange={(open) => {
+                if (!open && !savingLink) {
+                  setLinkingProfile(null);
+                  setSelectedJugadorIdForLink("");
+                  setConfirmUnlinkOpen(false);
+                }
+              }}
+            >
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Link2 className="h-5 w-5 text-primary" />
+                    {linkingProfile?.jugador
+                      ? "Cambiar o Desvincular Ficha Deportiva"
+                      : "Vincular Perfil con Ficha de Jugador"}
+                  </DialogTitle>
+                  <DialogDescription>
+                    Asociá la cuenta de acceso{" "}
+                    <span className="font-semibold text-foreground">{linkingProfile?.email}</span> con su ficha en la base de jugadores.
+                  </DialogDescription>
+                </DialogHeader>
+
+                {linkingProfile && (
+                  <div className="space-y-4 py-2">
+                    {linkingProfile.jugador && (
+                      <div className="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/10 space-y-2">
+                        <div className="flex items-center justify-between gap-2 flex-wrap">
+                          <div>
+                            <p className="text-[11px] uppercase font-bold text-emerald-400">
+                              Ficha actualmente vinculada
+                            </p>
+                            <p className="text-sm font-semibold">
+                              {linkingProfile.jugador.apellido}, {linkingProfile.jugador.nombre}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {linkingProfile.jugador.dni ? `DNI ${linkingProfile.jugador.dni}` : "Sin DNI"}
+                              {linkingProfile.jugador.categoriaLabel
+                                ? ` · ${linkingProfile.jugador.categoriaLabel}`
+                                : ""}
+                              {linkingProfile.jugador.club ? ` · ${linkingProfile.jugador.club}` : ""}
+                            </p>
+                          </div>
+                          {!confirmUnlinkOpen && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="border-destructive/50 text-destructive hover:bg-destructive/10"
+                              onClick={() => setConfirmUnlinkOpen(true)}
+                              disabled={savingLink}
+                            >
+                              <Unlink className="h-3.5 w-3.5 mr-1" />
+                              Desvincular
+                            </Button>
+                          )}
+                        </div>
+
+                        {confirmUnlinkOpen && (
+                          <div className="pt-2 border-t border-emerald-500/20 space-y-2">
+                            <p className="text-xs text-amber-300">
+                              ¿Confirmás desvincular la cuenta <strong>{linkingProfile.email}</strong> de{" "}
+                              <strong>
+                                {linkingProfile.jugador.apellido}, {linkingProfile.jugador.nombre}
+                              </strong>
+                              ? La ficha del jugador, sus puntos, inscripciones y partidos NO se borrarán.
+                            </p>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={() => setConfirmUnlinkOpen(false)}
+                                disabled={savingLink}
+                              >
+                                Cancelar
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="destructive"
+                                size="sm"
+                                className="h-7 text-xs"
+                                onClick={handleConfirmUnlinkJugador}
+                                disabled={savingLink}
+                              >
+                                {savingLink ? (
+                                  <>
+                                    <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                                    Desvinculando…
+                                  </>
+                                ) : (
+                                  "Confirmar Desvinculación"
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <Label>
+                        {linkingProfile.jugador
+                          ? "Reasignar a otra ficha de jugador"
+                          : "Buscar ficha de jugador (por apellido, nombre, DNI o localidad)"}
+                      </Label>
+                      <Combobox
+                        options={jugadorComboOptions}
+                        value={selectedJugadorIdForLink}
+                        onChange={setSelectedJugadorIdForLink}
+                        placeholder="Seleccionar jugador..."
+                        searchPlaceholder="Escribí nombre, apellido, DNI o ciudad..."
+                        emptyText="No se encontraron jugadores disponibles."
+                      />
+                      <p className="text-[11px] text-muted-foreground">
+                        Solo se listan fichas que no están ocupadas por otra cuenta registrada.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setLinkingProfile(null)}
+                    disabled={savingLink}
+                  >
+                    Cerrar
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={handleConfirmLinkJugador}
+                    disabled={
+                      savingLink ||
+                      !selectedJugadorIdForLink ||
+                      selectedJugadorIdForLink === linkingProfile?.jugador?.id
+                    }
+                  >
+                    {savingLink ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-1.5 animate-spin" />
+                        Guardando…
+                      </>
+                    ) : linkingProfile?.jugador ? (
+                      "Guardar Cambio de Ficha"
+                    ) : (
+                      "Vincular Jugador"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             <div className="grid gap-6 md:grid-cols-2">
               {/* Lista de Clubes */}
