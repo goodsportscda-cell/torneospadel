@@ -29,7 +29,6 @@ import {
   obtenerPlantilla,
   CASOS_SOPORTADOS,
   parseRef,
-  resolverRef,
   NOMBRE_RONDA,
   ORDEN_RONDA,
   type RondaLlave,
@@ -51,6 +50,7 @@ type ZonaParejaRow = { id: string; zona_id: string; inscripcion_id: string; posi
 type PartidoZonaRow = {
   id: string;
   zona_id: string;
+  tipo?: string | null;
   pareja_local_id: string | null;
   pareja_visitante_id: string | null;
   ganador_id: string | null;
@@ -213,6 +213,92 @@ export default function Llaves() {
         }
       }
 
+      // AUTO-FIX: Reparar llaves de 21 parejas (7 zonas de 3 = 14 clasificados) que se hayan generado
+      // con los partidos 49 (1°A vs 3°B) y 56 (3°A vs 1°B) de octavos de más.
+      const esCuadro21Parejas =
+        ll.cantidad_parejas === 21 ||
+        (insc ?? []).length === 21 ||
+        ((zs ?? []).length === 7 && (zs ?? []).every((z: any) => z.tamanio === 3));
+
+      if (esCuadro21Parejas && pl && pl.length > 0) {
+        const m49 = pl.find((p) => p.numero === 49 || p.ref_visitante === "3°B");
+        const m56 = pl.find((p) => p.numero === 56 || p.ref_local === "3°A");
+        const m57 = pl.find((p) => p.numero === 57);
+        const m60 = pl.find((p) => p.numero === 60);
+
+        if (m49 || m56 || m57?.ref_local === "G:49" || m60?.ref_visitante === "G:56") {
+          console.log("Auto-reparando llave de 21 parejas según placa oficial FAP (6 octavos: 50-55, 1°A y 1°B directos a cuartos)...");
+          const idsToDelete = [m49?.id, m56?.id].filter(Boolean) as string[];
+          if (idsToDelete.length > 0) {
+            await supabase
+              .from("partidos_llave")
+              .update({ partido_siguiente_id: null, posicion_siguiente: null })
+              .in("id", idsToDelete);
+            await supabase.from("sets_partido").delete().in("partido_llave_id", idsToDelete);
+            await supabase.from("partidos_llave").delete().in("id", idsToDelete);
+          }
+
+          if (m57 && m57.ref_local !== "1°A") {
+            await supabase
+              .from("partidos_llave")
+              .update({
+                ref_local: "1°A",
+                ref_visitante: "G:50",
+                ...(m57.ref_local === "G:49" ? { pareja_local_id: null } : {}),
+              })
+              .eq("id", m57.id);
+          }
+          if (m60 && m60.ref_visitante !== "1°B") {
+            await supabase
+              .from("partidos_llave")
+              .update({
+                ref_local: "G:55",
+                ref_visitante: "1°B",
+                ...(m60.ref_visitante === "G:56" ? { pareja_visitante_id: null } : {}),
+              })
+              .eq("id", m60.id);
+          }
+
+          // Asegurar también los cruces oficiales FAP en octavos 50..55 si siguen pendientes
+          const officialOctavos21: Record<number, { ref_local: string; ref_visitante: string }> = {
+            50: { ref_local: "2°F", ref_visitante: "2°G" },
+            51: { ref_local: "1°E", ref_visitante: "2°C" },
+            52: { ref_local: "2°B", ref_visitante: "1°D" },
+            53: { ref_local: "1°C", ref_visitante: "2°A" },
+            54: { ref_local: "2°D", ref_visitante: "1°F" },
+            55: { ref_local: "1°G", ref_visitante: "2°E" },
+          };
+          for (const [numStr, refs] of Object.entries(officialOctavos21)) {
+            const num = Number(numStr);
+            const matchRow = pl.find((p) => p.numero === num);
+            if (
+              matchRow &&
+              matchRow.estado === "pendiente" &&
+              (matchRow.ref_local !== refs.ref_local || matchRow.ref_visitante !== refs.ref_visitante)
+            ) {
+              await supabase
+                .from("partidos_llave")
+                .update({
+                  ref_local: refs.ref_local,
+                  ref_visitante: refs.ref_visitante,
+                  pareja_local_id: null,
+                  pareja_visitante_id: null,
+                })
+                .eq("id", matchRow.id);
+            }
+          }
+
+          const { data: plRefreshed21 } = await supabase
+            .from("partidos_llave")
+            .select("*")
+            .eq("llave_id", ll.id)
+            .order("numero");
+          if (plRefreshed21) {
+            pl.splice(0, pl.length, ...plRefreshed21);
+          }
+        }
+      }
+
       setPartidosLlave((pl ?? []) as PartidoLlaveRow[]);
 
       if (pl && pl.length > 0) {
@@ -242,9 +328,11 @@ export default function Llaves() {
         Object.keys(map).forEach((k) => map[k].sort((a, b) => a.numero_set - b.numero_set));
         setSetsLlave(map);
       } else {
+        setPlantilla(null);
         setSetsLlave({});
       }
     } else {
+      setPlantilla(null);
       setPartidosLlave([]);
       setSetsLlave({});
     }
@@ -349,11 +437,12 @@ export default function Llaves() {
 
   const totalParejas = inscripciones.length;
   const plantillaBase = useMemo(() => obtenerPlantilla(totalParejas), [totalParejas]);
-  const plantilla = plantillaOverride || plantillaBase;
+  const plantilla = llave ? (plantillaOverride || plantillaBase) : plantillaBase;
 
-  // Genera el cuadro
+  // Genera el cuadro siempre desde la plantilla oficial base
   const generarCuadro = async () => {
-    if (!torneoId || !plantilla) return;
+    const plantillaActiva = plantillaBase;
+    if (!torneoId || !plantillaActiva) return;
     try {
       // Crear llave
       const { data: nuevaLlave, error: errLlave } = await supabase
@@ -361,14 +450,14 @@ export default function Llaves() {
         .insert({
           torneo_id: torneoId,
           cantidad_parejas: totalParejas,
-          tamanio_cuadro: plantilla.cantidad,
+          tamanio_cuadro: plantillaActiva.cantidad,
         })
         .select()
         .single();
       if (errLlave) throw errLlave;
 
       // Crear partidos (sin pareja_local/visitante todavía, luego rellenamos)
-      const partidosToInsert = plantilla.partidos.map((p) => ({
+      const partidosToInsert = plantillaActiva.partidos.map((p) => ({
         llave_id: nuevaLlave.id,
         numero: p.numero,
         ronda: p.ronda,
@@ -388,7 +477,7 @@ export default function Llaves() {
       // Calcular partido_siguiente: para cada partido cuyo ref es "G:N", el partido N
       // tiene como siguiente al que lo refería. Posición = local/visitante según el slot.
       const updates: Promise<unknown>[] = [];
-      for (const p of plantilla.partidos) {
+      for (const p of plantillaActiva.partidos) {
         const localRef = parseRef(p.ref_local);
         const visiRef = parseRef(p.ref_visitante);
         if (localRef.tipo === "ganador") {
@@ -432,7 +521,7 @@ export default function Llaves() {
       const rankingPorZona = obtenerRankingsFinalizados();
       const rellenoUpdates: Promise<unknown>[] = [];
       
-      for (const p of plantilla.partidos) {
+      for (const p of plantillaActiva.partidos) {
         const localId = resolverRefSiFinalizada(p.ref_local, rankingPorZona);
         const visiId = resolverRefSiFinalizada(p.ref_visitante, rankingPorZona);
         
@@ -453,7 +542,7 @@ export default function Llaves() {
         await Promise.all(rellenoUpdates);
       }
 
-      toast.success(`Cuadro de ${plantilla.cantidad} parejas generado`);
+      toast.success(`Cuadro de ${plantillaActiva.cantidad} parejas generado`);
       cargarTodo();
     } catch (e) {
       console.error(e);
@@ -539,9 +628,25 @@ export default function Llaves() {
 
   const eliminarLlave = async () => {
     if (!llave) return;
-    await supabase.from("llaves").delete().eq("id", llave.id);
-    toast.success("Cuadro eliminado");
-    cargarTodo();
+    try {
+      const pIds = partidosLlave.map((p) => p.id);
+      if (pIds.length > 0) {
+        await supabase
+          .from("partidos_llave")
+          .update({ partido_siguiente_id: null, posicion_siguiente: null })
+          .eq("llave_id", llave.id);
+        await supabase.from("sets_partido").delete().in("partido_llave_id", pIds);
+        await supabase.from("partidos_llave").delete().eq("llave_id", llave.id);
+      }
+      const { error } = await supabase.from("llaves").delete().eq("id", llave.id);
+      if (error) throw error;
+      setPlantilla(null);
+      toast.success("Cuadro eliminado");
+      cargarTodo();
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al eliminar cuadro: " + (e.message || "Error desconocido"));
+    }
   };
 
   // Recalcula las parejas iniciales (las que dependen de zona) usando el ranking actual.
@@ -653,6 +758,7 @@ export default function Llaves() {
           </p>
         </div>
         <Select value={torneoId} onValueChange={(val) => {
+          setPlantilla(null);
           setTorneoId(val);
           localStorage.setItem("ultimo_torneo_consultado", val);
         }}>
@@ -778,7 +884,7 @@ export default function Llaves() {
                 </Badge>
               )}
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <div className="flex items-center gap-2 mr-4 bg-muted/30 px-3 py-1.5 rounded-md border">
                 <input
                   type="checkbox"
@@ -799,7 +905,7 @@ export default function Llaves() {
                 <Sparkles className="h-4 w-4 mr-1" />
                 Recalcular desde zonas
               </Button>
-              {isAdmin && (
+              {canOperateTournament && (
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
                     <Button variant="ghost" size="sm">
@@ -906,4 +1012,3 @@ export default function Llaves() {
     </div>
   );
 }
-

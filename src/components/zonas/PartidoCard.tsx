@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useQueryClient } from "@tanstack/react-query";
-import { Trophy, Save, CalendarClock, MapPin, Pencil, X, Lock, Camera, Upload, Eye, Loader2 } from "lucide-react";
+import { Trophy, Save, CalendarClock, MapPin, Pencil, X, Lock, Camera, Upload, Eye, Loader2, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
@@ -96,6 +96,7 @@ export function PartidoCard({
   const [editRefLocal, setEditRefLocal] = useState<string>("");
   const [editRefVisitante, setEditRefVisitante] = useState<string>("");
   const [savingEquipos, setSavingEquipos] = useState(false);
+  const [deletingPartido, setDeletingPartido] = useState(false);
   // Selección explícita de ganador (tiene prioridad sobre cálculo por sets)
   const [ganadorOverride, setGanadorOverride] = useState<string | null>(ganadorId);
 
@@ -302,6 +303,43 @@ export function PartidoCard({
       toast.error("Error: " + e.message);
     } finally {
       setSavingEquipos(false);
+    }
+  };
+
+  const eliminarPartidoLlave = async () => {
+    if (tabla !== "partidos_llave") return;
+    if (!window.confirm(`¿Eliminar ${labelPartido ?? `Partido ${orden}`} del cuadro?`)) return;
+    setDeletingPartido(true);
+    try {
+      // 1. Limpiar punteros de partidos anteriores que apunten a este partido
+      await supabase
+        .from("partidos_llave")
+        .update({ partido_siguiente_id: null, posicion_siguiente: null })
+        .eq("partido_siguiente_id", partidoId);
+
+      // 2. Eliminar sets asociados a este partido de llave
+      await supabase
+        .from("sets_partido")
+        .delete()
+        .eq("partido_llave_id", partidoId);
+
+      // 3. Eliminar el partido de llave
+      const { error } = await supabase
+        .from("partidos_llave")
+        .delete()
+        .eq("id", partidoId);
+
+      if (error) throw error;
+
+      toast.success(`${labelPartido ?? `Partido ${orden}`} eliminado del cuadro`);
+      setEditingEquipos(false);
+      onUpdated();
+      queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
+    } catch (e: any) {
+      console.error(e);
+      toast.error("Error al eliminar partido: " + (e.message || "Error desconocido"));
+    } finally {
+      setDeletingPartido(false);
     }
   };
 
@@ -545,6 +583,17 @@ export function PartidoCard({
                 <Pencil className="h-3 w-3" />
               </button>
             )}
+            {/* Botón eliminar partido individual en cuadro eliminatorio */}
+            {!readOnly && tabla === "partidos_llave" && (
+              <button
+                onClick={eliminarPartidoLlave}
+                disabled={deletingPartido}
+                title="Eliminar este partido del cuadro"
+                className="ml-0.5 text-muted-foreground hover:text-destructive transition-colors disabled:opacity-50"
+              >
+                <Trash2 className="h-3 w-3" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -612,12 +661,27 @@ export function PartidoCard({
                 </SelectContent>
               </Select>
             </div>
-            <div className="flex gap-2 justify-end pt-1">
-              <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingEquipos(false)}>Cancelar</Button>
-              <Button size="sm" className="h-7 text-xs" onClick={guardarEquipos} disabled={savingEquipos}>
-                <Save className="h-3 w-3 mr-1" />
-                Guardar cambios
-              </Button>
+            <div className="flex gap-2 justify-between items-center pt-1">
+              {tabla === "partidos_llave" ? (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-destructive hover:text-destructive hover:bg-destructive/10 px-2"
+                  onClick={eliminarPartidoLlave}
+                  disabled={deletingPartido || savingEquipos}
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Eliminar partido
+                </Button>
+              ) : <div />}
+              <div className="flex gap-2">
+                <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={() => setEditingEquipos(false)}>Cancelar</Button>
+                <Button size="sm" className="h-7 text-xs" onClick={guardarEquipos} disabled={savingEquipos}>
+                  <Save className="h-3 w-3 mr-1" />
+                  Guardar cambios
+                </Button>
+              </div>
             </div>
           </div>
         )}
