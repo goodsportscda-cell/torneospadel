@@ -371,14 +371,41 @@ export const LIGA_6_PAREJAS_SCHEDULE: { fecha: number; canchas: [number, number]
 ];
 
 /**
- * Genera la estructura de partidos de una fecha regular (1 a 10) para Liga de Parejas.
+ * Tabla Berger oficial para 8 parejas (14 Fechas: 7 de Ida + 7 de Vuelta).
+ * Retorna los pares de índices [pA, pB] para cada fecha (1 a 14) y cada cancha (1 a 4).
+ */
+export const LIGA_8_PAREJAS_SCHEDULE: { fecha: number; canchas: [number, number][] }[] = [
+  // Ida (Fechas 1 a 7)
+  { fecha: 1, canchas: [[0, 7], [1, 6], [2, 5], [3, 4]] },
+  { fecha: 2, canchas: [[0, 6], [7, 5], [1, 4], [2, 3]] },
+  { fecha: 3, canchas: [[0, 5], [6, 4], [7, 3], [1, 2]] },
+  { fecha: 4, canchas: [[0, 4], [5, 3], [6, 2], [7, 1]] },
+  { fecha: 5, canchas: [[0, 3], [4, 2], [5, 1], [6, 7]] },
+  { fecha: 6, canchas: [[0, 2], [3, 1], [4, 7], [5, 6]] },
+  { fecha: 7, canchas: [[0, 1], [2, 7], [3, 6], [4, 5]] },
+  // Vuelta (Fechas 8 a 14)
+  { fecha: 8, canchas: [[7, 0], [6, 1], [5, 2], [4, 3]] },
+  { fecha: 9, canchas: [[6, 0], [5, 7], [4, 1], [3, 2]] },
+  { fecha: 10, canchas: [[5, 0], [4, 6], [3, 7], [2, 1]] },
+  { fecha: 11, canchas: [[4, 0], [3, 5], [2, 6], [1, 7]] },
+  { fecha: 12, canchas: [[3, 0], [2, 4], [1, 5], [7, 6]] },
+  { fecha: 13, canchas: [[2, 0], [1, 3], [7, 4], [6, 5]] },
+  { fecha: 14, canchas: [[1, 0], [7, 2], [6, 3], [5, 4]] },
+];
+
+/**
+ * Genera la estructura de partidos de una fecha regular para Liga de Parejas
+ * (soporta 6 parejas / 3 canchas / 10 fechas y 8 parejas / 4 canchas / 14 fechas).
  */
 export function getLigaParejasMatchupsForFecha(
   fechaNum: number,
   parejas: { id: string; jugador1_id: string; jugador2_id: string }[]
 ): { cancha: string; jugador1_id: string; jugador2_id: string; jugador3_id: string; jugador4_id: string }[] {
-  if (parejas.length < 6 || fechaNum < 1 || fechaNum > 10) return [];
-  const scheduleItem = LIGA_6_PAREJAS_SCHEDULE.find((s) => s.fecha === fechaNum);
+  const is8Parejas = parejas.length >= 8;
+  const maxFecha = is8Parejas ? 14 : 10;
+  if (parejas.length < 6 || fechaNum < 1 || fechaNum > maxFecha) return [];
+  const schedule = is8Parejas ? LIGA_8_PAREJAS_SCHEDULE : LIGA_6_PAREJAS_SCHEDULE;
+  const scheduleItem = schedule.find((s) => s.fecha === fechaNum);
   if (!scheduleItem) return [];
 
   return scheduleItem.canchas.map(([idxA, idxB], courtIdx) => {
@@ -395,10 +422,11 @@ export function getLigaParejasMatchupsForFecha(
 }
 
 /**
- * Genera los 3 cruces oficiales para el Super Day (Semana 11):
+ * Genera los cruces oficiales para el Super Day (3 canchas para 6 parejas o 4 canchas para 8 parejas):
  * - Cancha 1: 1° vs 2° (Gran Final)
  * - Cancha 2: 3° vs 4° (Duelo por el Podio)
- * - Cancha 3: 5° vs 6° (Permanencia)
+ * - Cancha 3: 5° vs 6° (Permanencia / Copa Plata)
+ * - Cancha 4 (si hay 8 parejas): 7° vs 8° (Permanencia)
  */
 export function getSuperDayMatchups(
   sortedParejas: { id?: string; jugador1_id: string; jugador2_id: string }[]
@@ -412,7 +440,7 @@ export function getSuperDayMatchups(
   const p5 = sortedParejas[4];
   const p6 = sortedParejas[5];
 
-  return [
+  const baseMatches = [
     {
       cancha: "Cancha 1: Gran Final (1° vs 2°)",
       jugador1_id: p1.jugador1_id,
@@ -428,13 +456,27 @@ export function getSuperDayMatchups(
       jugador4_id: p4.jugador2_id,
     },
     {
-      cancha: "Cancha 3: Permanencia (5° vs 6°)",
+      cancha: sortedParejas.length >= 8 ? "Cancha 3: Copa Plata (5° vs 6°)" : "Cancha 3: Permanencia (5° vs 6°)",
       jugador1_id: p5.jugador1_id,
       jugador2_id: p5.jugador2_id,
       jugador3_id: p6.jugador1_id,
       jugador4_id: p6.jugador2_id,
     },
   ];
+
+  if (sortedParejas.length >= 8) {
+    const p7 = sortedParejas[6];
+    const p8 = sortedParejas[7];
+    baseMatches.push({
+      cancha: "Cancha 4: Permanencia (7° vs 8°)",
+      jugador1_id: p7.jugador1_id,
+      jugador2_id: p7.jugador2_id,
+      jugador3_id: p8.jugador1_id,
+      jugador4_id: p8.jugador2_id,
+    });
+  }
+
+  return baseMatches;
 }
 
 const INACTIVE_PLAYER_STATES = new Set([
@@ -471,8 +513,8 @@ export function filterActiveTorneoJugadores<
 }
 
 /**
- * Determina la cantidad fija de canchas del torneo (máximo 3 canchas = 12 jugadoras / 3 partidos por fecha).
- * Nunca permite asignar una 4ª cancha en Desafíos Semanales Crown Pádel.
+ * Determina la cantidad de canchas del torneo respetando la configuración explícita (`canchas_count`, de 2 a 6 canchas).
+ * Mantiene el candado de 3 canchas únicamente para el torneo histórico 7ma Damas (1a7f0618-f3aa-4b2f-90a8-e9887ca4a3a6).
  */
 export function resolveTorneoCourtsCount(
   torneo: any,
@@ -480,24 +522,27 @@ export function resolveTorneoCourtsCount(
   parejasCount?: number
 ): number {
   if (!torneo) return 3;
-  if (torneo.modalidad === "parejas" || isLigaParejasTournament(torneo) || (parejasCount ?? 0) >= 6) {
+  // Candado específico para el torneo 7ma Damas individual de 12 jugadoras donde la vista TV alteró canchas_count
+  if (torneo.id === "1a7f0618-f3aa-4b2f-90a8-e9887ca4a3a6") {
     return 3;
   }
-  if (typeof activePlayersCount === "number" && activePlayersCount > 0) {
-    if (activePlayersCount >= 12) return 3;
-    if (activePlayersCount <= 8 && Number(torneo.canchas_disponibles) !== 3 && Number(torneo.canchas_count) === 2) {
-      return 2;
-    }
-    if (activePlayersCount === 8 && Number(torneo.canchas_disponibles) === 2) {
-      return 2;
-    }
+
+  const configured = Number(torneo.canchas_count);
+  if (Number.isFinite(configured) && configured >= 2 && configured <= 6) {
+    return Math.round(configured);
   }
-  if (Number(torneo.canchas_disponibles) === 3) {
-    return 3;
+
+  if (typeof parejasCount === "number" && parejasCount >= 4) {
+    return Math.max(2, Math.min(6, Math.ceil(parejasCount / 2)));
   }
-  const raw = Number(torneo.canchas_count ?? torneo.canchas_disponibles ?? 3);
+
+  if (typeof activePlayersCount === "number" && activePlayersCount >= 8) {
+    return Math.max(2, Math.min(6, Math.ceil(activePlayersCount / 4)));
+  }
+
+  const raw = Number(torneo.canchas_disponibles ?? 3);
   if (isNaN(raw) || raw < 2) return 3;
-  return Math.min(3, raw);
+  return Math.max(2, Math.min(6, Math.round(raw)));
 }
 
 /**

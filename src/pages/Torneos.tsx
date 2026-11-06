@@ -817,16 +817,19 @@ export default function Torneos() {
                       <div className="border p-3 rounded-md space-y-3 bg-muted/20">
                         <h4 className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Configuración Desafío</h4>
 
-                        <div className="grid grid-cols-3 gap-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div className="grid gap-1.5">
                             <Label htmlFor="modalidad">Modalidad *</Label>
                             <Select
                               value={form.modalidad || "individual"}
                               onValueChange={(v) => {
+                                const currentSemanas = form.desafio_semanas;
+                                const currentCanchas = form.canchas_count;
                                 if (v === "liga_parejas") {
-                                  setForm({ ...form, modalidad: v, desafio_semanas: "11", canchas_count: "3" });
-                                } else if (v === "parejas") {
-                                  setForm({ ...form, modalidad: v, desafio_semanas: "8", canchas_count: "3" });
+                                  const nextSemanas = (!currentSemanas || currentSemanas === "8")
+                                    ? (currentCanchas === "4" ? "14" : "11")
+                                    : currentSemanas;
+                                  setForm({ ...form, modalidad: v, desafio_semanas: nextSemanas });
                                 } else {
                                   setForm({ ...form, modalidad: v });
                                 }
@@ -837,34 +840,51 @@ export default function Torneos() {
                               </SelectTrigger>
                               <SelectContent>
                                 <SelectItem value="individual">Individual</SelectItem>
-                                <SelectItem value="parejas">Parejas (8 Semanas)</SelectItem>
-                                <SelectItem value="liga_parejas">Liga de Parejas (11 Semanas - Super Day)</SelectItem>
+                                <SelectItem value="parejas">Parejas Fijas (Escalera / Desafío)</SelectItem>
+                                <SelectItem value="liga_parejas">Liga de Parejas (Ida y Vuelta)</SelectItem>
                               </SelectContent>
                             </Select>
                           </div>
                           <div className="grid gap-1.5">
-                            <Label htmlFor="semanas">Semanas *</Label>
+                            <Label htmlFor="semanas">Semanas / Fechas *</Label>
                             <Input
                               id="semanas"
                               type="number"
                               min="7"
                               value={form.desafio_semanas}
                               onChange={(e) => setForm({ ...form, desafio_semanas: e.target.value })}
-                              placeholder="Mínimo 7"
+                              placeholder="Ej: 8, 11 o 14"
                             />
                           </div>
                           <div className="grid gap-1.5">
-                            <Label htmlFor="canchas-count">Canchas *</Label>
-                            <Input
-                              id="canchas-count"
-                              type="number"
-                              min="1"
-                              value={form.canchas_count}
-                              onChange={(e) => setForm({ ...form, canchas_count: e.target.value })}
-                              placeholder="Ej: 3"
-                            />
+                            <Label htmlFor="canchas-count">Cantidad de Canchas *</Label>
+                            <Select
+                              value={String(form.canchas_count || "3")}
+                              onValueChange={(v) => {
+                                const count = Math.max(2, Math.min(6, Number(v) || 3));
+                                const nextAsignadas = Array.from({ length: count }, (_, i) => i + 1);
+                                setForm({
+                                  ...form,
+                                  canchas_count: String(count),
+                                  canchas_asignadas: nextAsignadas,
+                                });
+                              }}
+                            >
+                              <SelectTrigger id="canchas-count">
+                                <SelectValue placeholder="Canchas" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="2">2 Canchas (8 jug. / 4 parejas)</SelectItem>
+                                <SelectItem value="3">3 Canchas (12 jug. / 6 parejas)</SelectItem>
+                                <SelectItem value="4">4 Canchas (16 jug. / 8 parejas)</SelectItem>
+                                <SelectItem value="5">5 Canchas (20 jug. / 10 parejas)</SelectItem>
+                                <SelectItem value="6">6 Canchas (24 jug. / 12 parejas)</SelectItem>
+                              </SelectContent>
+                            </Select>
                             <span className="text-[10px] text-muted-foreground mt-0.5 whitespace-nowrap">
-                              {form.canchas_count ? ((form.modalidad === 'parejas' || form.modalidad === 'liga_parejas') ? `${Number(form.canchas_count) * 2} parejas` : `${Number(form.canchas_count) * 4} jugadores`) : ""}
+                              {form.canchas_count
+                                ? `${Number(form.canchas_count) * 4} jugadores (${Number(form.canchas_count) * 2} parejas)`
+                                : ""}
                             </span>
                           </div>
                         </div>
