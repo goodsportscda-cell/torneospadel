@@ -59,6 +59,10 @@ export default defineConfig(({ mode }) => ({
         ]
       },
       workbox: {
+        cleanupOutdatedCaches: true,
+        skipWaiting: true,
+        clientsClaim: true,
+        navigateFallbackDenylist: [/^\/assets\//, /^\/api\//],
         maximumFileSizeToCacheInBytes: 5000000, // 5 MB
         runtimeCaching: [
           {

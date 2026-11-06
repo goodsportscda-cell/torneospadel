@@ -163,7 +163,7 @@ export function CompartirTodasZonasDialog({
   const themeStyles = {
     "cyber-neon": {
       background: "linear-gradient(135deg, #240046 0%, #0f1016 50%, #10002b 100%)",
-      titleColor: "#e0aaff", 
+      titleColor: "#e0aaff",
       cardStyle: {
         backgroundColor: "rgba(15, 16, 22, 0.9)",
         borderColor: "rgba(157, 78, 221, 0.4)",
@@ -175,7 +175,7 @@ export function CompartirTodasZonasDialog({
     },
     "dark-sport": {
       background: "linear-gradient(135deg, #0a0a0f 0%, #16161a 60%, #0a0a0f 100%)",
-      titleColor: "#ff0a54", 
+      titleColor: "#ff0a54",
       cardStyle: {
         backgroundColor: "rgba(22, 22, 26, 0.95)",
         borderColor: "rgba(255, 10, 84, 0.4)",
@@ -206,6 +206,9 @@ export function CompartirTodasZonasDialog({
     return /^cancha\b/i.test(trimmed) ? trimmed : `Cancha ${trimmed}`;
   };
 
+  const zonesPerPage = 6;
+  const totalPages = Math.max(1, Math.ceil(zonaGroups.length / zonesPerPage));
+  const currentZones = zonaGroups.slice(currentPage * zonesPerPage, (currentPage + 1) * zonesPerPage);
   const isThreeColSquare = ratio === "square" && currentZones.length > 4;
 
   const getParejaFontSize = (label: string) => {
@@ -220,10 +223,6 @@ export function CompartirTodasZonasDialog({
     if (len > 13) return "14px";
     return "15px";
   };
-
-  const zonesPerPage = 6;
-  const totalPages = Math.max(1, Math.ceil(zonaGroups.length / zonesPerPage));
-  const currentZones = zonaGroups.slice(currentPage * zonesPerPage, (currentPage + 1) * zonesPerPage);
 
   const handleExport = async () => {
     if (!captureRef.current) return;
@@ -259,7 +258,7 @@ export function CompartirTodasZonasDialog({
       }
 
       if (totalPages > 1) setCurrentPage(originalPage);
-      
+
       toast.success(totalPages > 1 ? "Imágenes generadas correctamente" : "Imagen generada correctamente");
     } catch (error) {
       console.error(error);
@@ -334,10 +333,10 @@ export function CompartirTodasZonasDialog({
 
               {totalPages > 1 && (
                 <div className="flex items-center gap-2">
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
-                    className="h-6 w-6" 
+                  <Button
+                    variant="outline"
+                    size="icon"
+                    className="h-6 w-6"
                     onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
                     disabled={currentPage === 0 || exporting}
                   >
@@ -346,9 +345,9 @@ export function CompartirTodasZonasDialog({
                   <span className="text-xs font-bold text-muted-foreground">
                     Pág {currentPage + 1} de {totalPages}
                   </span>
-                  <Button 
-                    variant="outline" 
-                    size="icon" 
+                  <Button
+                    variant="outline"
+                    size="icon"
                     className="h-6 w-6"
                     onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))}
                     disabled={currentPage === totalPages - 1 || exporting}
@@ -408,7 +407,7 @@ export function CompartirTodasZonasDialog({
                     <div className={`flex-1 grid gap-x-8 gap-y-6 ${ratio === "story" || currentZones.length <= 4 ? "grid-cols-2 content-start" : "grid-cols-3 content-start"} overflow-hidden`}>
                       {currentZones.map((zg) => (
                         <div key={zg.zona.id} className="flex flex-col gap-3 min-w-0">
-                          <h2 
+                          <h2
                             className="text-2xl font-black italic border-b-2 pb-1"
                             style={{ borderColor: currentTheme.titleColor, color: currentTheme.titleColor }}
                           >
@@ -436,7 +435,7 @@ export function CompartirTodasZonasDialog({
                                       {getMatchDateText(p)}
                                     </span>
                                     {courtBadge && (
-                                      <span 
+                                      <span
                                         className="text-[10px] font-black px-2 py-0.5 rounded uppercase tracking-wider whitespace-nowrap shrink-0"
                                         style={{ backgroundColor: currentTheme.vsColor, color: "white" }}
                                       >
@@ -444,7 +443,7 @@ export function CompartirTodasZonasDialog({
                                       </span>
                                     )}
                                   </div>
-                                  
+
                                   <div className="flex items-center justify-between gap-2 min-w-0">
                                     <div className="flex-1 min-w-0 text-center overflow-hidden px-0.5">
                                       <p
@@ -458,7 +457,7 @@ export function CompartirTodasZonasDialog({
                                         {localLabel}
                                       </p>
                                     </div>
-                                    <div 
+                                    <div
                                       className="px-2 py-0.5 rounded text-[10px] font-black italic shrink-0"
                                       style={{ backgroundColor: currentTheme.vsColor, color: "white" }}
                                     >

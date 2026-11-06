@@ -43,7 +43,8 @@ import {
   X,
   Tv,
   Camera,
-  Upload
+  Upload,
+  TrendingUp
 } from "lucide-react";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { toast } from "sonner";
@@ -79,6 +80,7 @@ import {
   updateRulesConfigInNotas,
   buildDefaultPuntosPorCancha,
   calcularSugerenciaEscaleraSiguienteFecha,
+  isTorneoElegibleEscalera,
   DEFAULT_RULES_CONFIG,
   CRITERIO_DESEMPATE_LABELS,
   type RulesConfig,

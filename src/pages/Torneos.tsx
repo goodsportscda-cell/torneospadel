@@ -115,6 +115,7 @@ const emptyForm: FormState = {
 };
 
 function GestionFechasDialog({ torneos, fetchAll }: { torneos: any[]; fetchAll: () => void }) {
+  const { clubId } = useAuth();
   const [open, setOpen] = useState(false);
   const queryClient = useQueryClient();
   const [loadingRecalcularFecha, setLoadingRecalcularFecha] = useState<number | null>(null);

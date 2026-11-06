@@ -18,7 +18,7 @@
       "destination": "/api/seo-preview?type=ranking"
     },
     {
-      "source": "/(.*)",
+      "source": "/((?!assets/|api/).*)",
       "destination": "/index.html"
     }
   ]
