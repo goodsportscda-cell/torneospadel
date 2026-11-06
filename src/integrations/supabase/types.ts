@@ -888,6 +888,7 @@ export type Database = {
           porcentaje_premios: number | null
           premios: string | null
           ranking_publicado: boolean | null
+          rules_config: Json | null
           sede: string | null
           slug: string | null
           subtitulo_fase: string | null
@@ -906,7 +907,7 @@ export type Database = {
           costo_inscripcion?: number | null
           created_at?: string
           cupo_maximo?: number | null
-          datos_bancarios?: string | null
+          datos_bancarios?: number | string | null
           desafio_semanas?: number | null
           estado?: Database["public"]["Enums"]["estado_torneo"]
           fecha_fin?: string | null
@@ -924,6 +925,7 @@ export type Database = {
           porcentaje_premios?: number | null
           premios?: string | null
           ranking_publicado?: boolean | null
+          rules_config?: Json | null
           sede?: string | null
           slug?: string | null
           subtitulo_fase?: string | null
@@ -960,6 +962,7 @@ export type Database = {
           porcentaje_premios?: number | null
           premios?: string | null
           ranking_publicado?: boolean | null
+          rules_config?: Json | null
           sede?: string | null
           slug?: string | null
           subtitulo_fase?: string | null

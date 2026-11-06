@@ -73,6 +73,18 @@ import {
   resolveTorneoCourtsCount,
   isPuntosPorSetTournament,
 } from "@/logic/torneoStandings";
+import {
+  computeTorneoStandings,
+  resolveRulesConfig,
+  updateRulesConfigInNotas,
+  buildDefaultPuntosPorCancha,
+  calcularSugerenciaEscaleraSiguienteFecha,
+  DEFAULT_RULES_CONFIG,
+  CRITERIO_DESEMPATE_LABELS,
+  type RulesConfig,
+  type FormatoCompeticion,
+  type CriterioDesempate,
+} from "@/logic/rulesEngine";
 
 
 type Torneo = Database["public"]["Tables"]["torneos"]["Row"];
@@ -258,6 +270,79 @@ export default function TorneoIndividualDashboard() {
   const [editCrucesOpen, setEditCrucesOpen] = useState(false);
   const [editingCruces, setEditingCruces] = useState<PartidoInd[]>([]);
   const [savingCruces, setSavingCruces] = useState(false);
+  const [rulesConfig, setRulesConfig] = useState<RulesConfig>(DEFAULT_RULES_CONFIG);
+  const [showRulesModal, setShowRulesModal] = useState(false);
+
+  const handleSugerirCrucesEscalera = (targetFechaNum: number = selectedFechaNum) => {
+    if (targetFechaNum <= 1) {
+      toast.info("El formato escalera sugiere ascensos y descensos a partir de la Fecha 2.");
+      return;
+    }
+    const prevMatches = partidos.filter(
+      (p) => p.fecha === targetFechaNum - 1 && p.estado === "finalizado"
+    );
+    if (prevMatches.length === 0) {
+      toast.error(
+        `Debes finalizar los partidos de la Fecha ${targetFechaNum - 1} para calcular los ascensos y descensos de la Fecha ${targetFechaNum}.`
+      );
+      return;
+    }
+
+    const activeInscriptos = filterActiveTorneoJugadores(jugadoresInscriptos);
+    const fixedCourts = resolveTorneoCourtsCount(
+      torneo,
+      activeInscriptos.length,
+      parejas.length
+    );
+
+    const sugerencias = calcularSugerenciaEscaleraSiguienteFecha({
+      partidosFechaAnterior: prevMatches,
+      modalidad: torneo?.modalidad || "individual",
+      courtsCount: fixedCourts,
+    });
+
+    if (sugerencias.length === 0) {
+      toast.error("No se pudieron calcular los cruces sugeridos.");
+      return;
+    }
+
+    const existingPending = partidos.filter(
+      (p) => p.fecha === targetFechaNum && p.estado === "pendiente"
+    );
+
+    const draftMatches: PartidoInd[] = sugerencias.map((sug, idx) => {
+      const existing = existingPending[idx];
+      return {
+        id: existing ? existing.id : `new-${sug.canchaNumero}`,
+        torneo_id: id || "",
+        fecha: targetFechaNum,
+        cancha: sug.canchaNombre,
+        jugador1_id: sug.jugador1_id,
+        jugador2_id: sug.jugador2_id,
+        jugador3_id: sug.jugador3_id,
+        jugador4_id: sug.jugador4_id,
+        sets_pareja1: 0,
+        sets_pareja2: 0,
+        estado: "pendiente",
+        created_at: new Date().toISOString(),
+        suplente1_nombre: null,
+        suplente2_nombre: null,
+        suplente3_nombre: null,
+        suplente4_nombre: null,
+        fecha_programada: existing?.fecha_programada || null,
+        hora_programada: existing?.hora_programada || null,
+      } as PartidoInd;
+    });
+
+    if (targetFechaNum !== selectedFechaNum) {
+      setSelectedFechaNum(targetFechaNum);
+    }
+    setEditingCruces(draftMatches);
+    setEditCrucesOpen(true);
+    toast.success(
+      `Cruces de Fecha ${targetFechaNum} sugeridos por Escalera (ganadores suben de cancha, perdedores bajan). Podés editarlos antes de guardar.`
+    );
+  };
 
   const handleOpenEditCruces = () => {
     const pendingMatches = partidosDeFecha.filter((p) => p.estado === "pendiente");
@@ -486,6 +571,12 @@ export default function TorneoIndividualDashboard() {
       const extractedSubtitulo = (tRes as any)?.subtitulo_fase || 
         (tRes?.notas?.match(/\[SUBTITULO:(.*?)\]/)?.[1]) || "";
 
+      const resolvedSys = isLiga
+        ? "liga_parejas"
+        : isPuntosPorSet
+        ? "puntos_por_set"
+        : "por_cancha";
+
       setSettingsForm({
         canchas_count: totalCanchas.toString(),
         costo_fecha_jugador: costoPorJugador.toString(),
@@ -498,11 +589,24 @@ export default function TorneoIndividualDashboard() {
         premios: parsed.gifts,
         efectivo_1: parsed.cash1 > 0 ? parsed.cash1.toString() : Math.round(totalCash * 0.7).toString(),
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
-        notas: tRes.notas?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO):.*?\]/g, "").replace(/\[OCULTAR_REGLAMENTO\]/g, "").trim() || "",
-        sistema_puntuacion: isLiga ? "liga_parejas" : isPuntosPorSet ? "puntos_por_set" : "por_cancha",
+        notas:
+          tRes.notas
+            ?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO|RULES_CONFIG):.*?\]/g, "")
+            .replace(/\[OCULTAR_REGLAMENTO\]/g, "")
+            .trim() || "",
+        sistema_puntuacion: resolvedSys,
         subtitulo_fase: extractedSubtitulo,
         ocultar_reglamento: Boolean(tRes.notas?.includes("[OCULTAR_REGLAMENTO]")),
       });
+
+      setRulesConfig(
+        resolveRulesConfig(
+          tRes,
+          resolvedSys,
+          activeInscriptos.length,
+          (tpRes ?? []).length
+        )
+      );
 
       setJugadoresInscriptos(activeInscriptos);
       setTodosJugadores(jRes ?? []);
@@ -713,415 +817,21 @@ export default function TorneoIndividualDashboard() {
     }
   };
 
-  // General ranking / standings calculation logic
+  // General ranking / standings calculation logic (Motor de Reglas Modular)
   const computedStandings = useMemo(() => {
     if (!torneo) return [];
-    const activeInscriptos = filterActiveTorneoJugadores(jugadoresInscriptos);
-    const countCanchas = resolveTorneoCourtsCount(torneo, activeInscriptos.length, parejas.length);
-    const isLigaParejas = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
-    const esPuntosPorSet = isPuntosPorSetTournament(
-      torneo,
-      settingsForm.sistema_puntuacion,
-      activeInscriptos.length
-    );
-
-    if (torneo.modalidad === "parejas" || isLigaParejas) {
-      interface CoupleStanding {
-        pareja_id: string;
-        jugador1_id: string;
-        jugador2_id: string;
-        jugador1: Jugador;
-        jugador2: Jugador;
-        puntos: number;
-        puntos_iniciales?: number;
-        posicion_manual?: number | null;
-        podio_final?: number | null;
-        rank_calculado?: number;
-        setsGanados: number;
-        setsPerdidos: number;
-        gamesGanados: number;
-        gamesPerdidos: number;
-        difSets: number;
-        difGames: number;
-        partidosJugados: number;
-        suplenciasUsadas: number;
-      }
-
-      const standingsMap = new Map<string, CoupleStanding>();
-
-      // Initialize couples
-      parejas.forEach((p) => {
-        if (p.jugador1 && p.jugador2) {
-          let initialPts = Number((p as any).puntos_iniciales) || 0;
-          if (!initialPts && torneo?.notas) {
-            const matchTag = torneo.notas.match(new RegExp(`\\[PUNTOS_INICIALES_${p.id}:(\\d+(?:\\.\\d+)?)\\]`));
-            if (matchTag && matchTag[1]) {
-              initialPts = Number(matchTag[1]);
-            }
-          }
-
-          const manualPos = typeof (p as any).posicion_manual === "number" && (p as any).posicion_manual > 0
-            ? (p as any).posicion_manual
-            : extractPosicionManualFromNotas(torneo?.notas, p.id);
-
-          standingsMap.set(p.id, {
-            pareja_id: p.id,
-            jugador1_id: p.jugador1_id,
-            jugador2_id: p.jugador2_id,
-            jugador1: p.jugador1,
-            jugador2: p.jugador2,
-            posicion_manual: manualPos,
-            podio_final: (p as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, p.id),
-            puntos: initialPts,
-            puntos_iniciales: initialPts,
-            setsGanados: 0,
-            setsPerdidos: 0,
-            gamesGanados: 0,
-            gamesPerdidos: 0,
-            difSets: 0,
-            difGames: 0,
-            partidosJugados: 0,
-            suplenciasUsadas: 0,
-          });
-        }
-      });
-
-      // Count substitutions per couple
-      partidos.forEach((p) => {
-        if (p.estado !== "finalizado") return;
-
-        const coupleA = parejas.find(
-          (cp) =>
-            (cp.jugador1_id === p.jugador1_id && cp.jugador2_id === p.jugador2_id) ||
-            (cp.jugador1_id === p.jugador2_id && cp.jugador2_id === p.jugador1_id)
-        );
-        if (coupleA && (p.suplente1_nombre || p.suplente2_nombre)) {
-          const s = standingsMap.get(coupleA.id);
-          if (s) s.suplenciasUsadas++;
-        }
-
-        const coupleB = parejas.find(
-          (cp) =>
-            (cp.jugador1_id === p.jugador3_id && cp.jugador2_id === p.jugador4_id) ||
-            (cp.jugador1_id === p.jugador4_id && cp.jugador2_id === p.jugador3_id)
-        );
-        if (coupleB && (p.suplente3_nombre || p.suplente4_nombre)) {
-          const s = standingsMap.get(coupleB.id);
-          if (s) s.suplenciasUsadas++;
-        }
-      });
-
-      // Compute statistics for couples
-      partidos.forEach((p) => {
-        if (p.estado !== "finalizado") return;
-
-        const coupleA = parejas.find(
-          (cp) =>
-            (cp.jugador1_id === p.jugador1_id && cp.jugador2_id === p.jugador2_id) ||
-            (cp.jugador1_id === p.jugador2_id && cp.jugador2_id === p.jugador1_id)
-        );
-        const coupleB = parejas.find(
-          (cp) =>
-            (cp.jugador1_id === p.jugador3_id && cp.jugador2_id === p.jugador4_id) ||
-            (cp.jugador1_id === p.jugador4_id && cp.jugador2_id === p.jugador3_id)
-        );
-
-        if (!coupleA || !coupleB) return;
-
-        const standA = standingsMap.get(coupleA.id);
-        const standB = standingsMap.get(coupleB.id);
-        if (!standA || !standB) return;
-
-        // Forfeit check (exceeds 2 substitutions total)
-        const isAForfeit = (p.suplente1_nombre || p.suplente2_nombre) && standA.suplenciasUsadas > 2;
-        const isBForfeit = (p.suplente3_nombre || p.suplente4_nombre) && standB.suplenciasUsadas > 2;
-
-        let setsP1 = p.sets_pareja1;
-        let setsP2 = p.sets_pareja2;
-        let gamesP1 = 0;
-        let gamesP2 = 0;
-
-        p.sets?.forEach((s) => {
-          gamesP1 += s.games_pareja1;
-          gamesP2 += s.games_pareja2;
-        });
-
-        if (isAForfeit && isBForfeit) {
-          setsP1 = 0;
-          setsP2 = 0;
-          gamesP1 = 0;
-          gamesP2 = 0;
-        } else if (isAForfeit) {
-          setsP1 = 0;
-          setsP2 = 2;
-          gamesP1 = 0;
-          gamesP2 = 12; // 6-0 6-0
-        } else if (isBForfeit) {
-          setsP1 = 2;
-          setsP2 = 0;
-          gamesP1 = 12;
-          gamesP2 = 0;
-        }
-
-        const p1Won = setsP1 > setsP2;
-
-        const canchaNumMatch = p.cancha.match(/\d+/);
-        const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
-
-        let ptsWin = countCanchas - courtIndex + 2;
-        let ptsLose = 1;
-
-        // Reglamento Oficial (Semanas 9 y 10 de Definición por Tabla Viva)
-        if (!esPuntosPorSet && !isLigaParejas) {
-          if (p.fecha === 9) {
-            ptsWin = 4;
-            ptsLose = 1;
-          } else if (p.fecha === 10) {
-            ptsWin = 6;
-            ptsLose = 2;
-          }
-        }
-
-        const woInfractor = extractWOFromNotas(torneo?.notas, p.id);
-
-        if (isLigaParejas) {
-          // Lógica Oficial Liga de Parejas:
-          // 2-0: 3 pts (0 al perdedor)
-          // 2-1 (STB): 2 pts (1 al perdedor)
-          // W.O.: -1 pt al infractor, 3 pts al ganador (0-6 / 0-6)
-          if (woInfractor === 1) {
-            standA.puntos += -1;
-            standB.puntos += 3;
-            standA.setsPerdidos += 2;
-            standB.setsGanados += 2;
-            standA.gamesPerdidos += 12;
-            standB.gamesGanados += 12;
-            standA.partidosJugados++;
-            standB.partidosJugados++;
-          } else if (woInfractor === 2) {
-            standA.puntos += 3;
-            standB.puntos += -1;
-            standA.setsGanados += 2;
-            standB.setsPerdidos += 2;
-            standA.gamesGanados += 12;
-            standB.gamesPerdidos += 12;
-            standA.partidosJugados++;
-            standB.partidosJugados++;
-          } else {
-            const wentToSTB = (setsP1 === 2 && setsP2 === 1) || (setsP1 === 1 && setsP2 === 2);
-            if (wentToSTB) {
-              standA.puntos += p1Won ? 2 : 1;
-              standB.puntos += !p1Won ? 2 : 1;
-            } else {
-              standA.puntos += p1Won ? 3 : 0;
-              standB.puntos += !p1Won ? 3 : 0;
-            }
-            standA.partidosJugados++;
-            standB.partidosJugados++;
-            standA.setsGanados += setsP1;
-            standA.setsPerdidos += setsP2;
-            standB.setsGanados += setsP2;
-            standB.setsPerdidos += setsP1;
-            standA.gamesGanados += gamesP1;
-            standA.gamesPerdidos += gamesP2;
-            standB.gamesGanados += gamesP2;
-            standB.gamesPerdidos += gamesP1;
-          }
-        } else {
-          // Couple A
-          standA.partidosJugados++;
-          standA.setsGanados += setsP1;
-          standA.setsPerdidos += setsP2;
-          standA.gamesGanados += gamesP1;
-          standA.gamesPerdidos += gamesP2;
-          standA.puntos += esPuntosPorSet ? setsP1 : (p1Won ? ptsWin : ptsLose);
-
-          // Couple B
-          standB.partidosJugados++;
-          standB.setsGanados += setsP2;
-          standB.setsPerdidos += setsP1;
-          standB.gamesGanados += gamesP2;
-          standB.gamesPerdidos += gamesP1;
-          standB.puntos += esPuntosPorSet ? setsP2 : (!p1Won ? ptsWin : ptsLose);
-        }
-      });
-
-      const list = Array.from(standingsMap.values()).map((s) => ({
-        ...s,
-        difSets: s.setsGanados - s.setsPerdidos,
-        difGames: s.gamesGanados - s.gamesPerdidos,
-      }));
-
-      const defaultSorter = (a: any, b: any) => {
-        if (isLigaParejas) {
-          return compareLigaParejasStandings(a, b, partidos);
-        }
-        if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-        if (b.difSets !== a.difSets) return b.difSets - a.difSets;
-        if (b.difGames !== a.difGames) return b.difGames - a.difGames;
-        return `${a.jugador1.apellido} ${a.jugador1.nombre}`.localeCompare(`${b.jugador1.apellido} ${b.jugador1.nombre}`);
-      };
-
-      return applyManualPositions(list, defaultSorter);
-    }
-
-    // Individual logic (same as original, but using local types for compatibility)
-    interface LocalPlayerStanding {
-      jugador_id: string;
-      nombre: string;
-      apellido: string;
-      dni: string | null;
-      puntos: number;
-      puntos_iniciales?: number;
-      posicion_manual?: number | null;
-      rank_calculado?: number;
-      setsGanados: number;
-      setsPerdidos: number;
-      gamesGanados: number;
-      gamesPerdidos: number;
-      difGames: number;
-      partidosJugados: number;
-      difSets?: number;
-      podio_final?: number | null;
-    }
-
-    const standingsMap = new Map<string, LocalPlayerStanding>();
-    activeInscriptos.forEach((tj) => {
-      if (tj.jugador) {
-        let initialPts = Number((tj as any).puntos_iniciales) || 0;
-        if (!initialPts && torneo?.notas) {
-          const matchTag = torneo.notas.match(new RegExp(`\\[PUNTOS_INICIALES_${tj.jugador_id}:(\\d+(?:\\.\\d+)?)\\]`));
-          if (matchTag && matchTag[1]) {
-            initialPts = Number(matchTag[1]);
-          }
-        }
-
-        const manualPos = typeof (tj as any).posicion_manual === "number" && (tj as any).posicion_manual > 0
-          ? (tj as any).posicion_manual
-          : extractPosicionManualFromNotas(torneo?.notas, tj.jugador_id);
-
-        standingsMap.set(tj.jugador_id, {
-          jugador_id: tj.jugador_id,
-          nombre: tj.jugador.nombre,
-          apellido: tj.jugador.apellido,
-          dni: tj.jugador.dni,
-          podio_final: (tj as any).podio_final ?? extractPodioFinalFromNotas(torneo?.notas, tj.jugador_id),
-          posicion_manual: manualPos,
-          puntos: initialPts,
-          puntos_iniciales: initialPts,
-          setsGanados: 0,
-          setsPerdidos: 0,
-          gamesGanados: 0,
-          gamesPerdidos: 0,
-          difGames: 0,
-          partidosJugados: 0,
-        });
-      }
-    });
-
-    const finalizedMatches = partidos.filter((p) => p.estado === "finalizado");
-    // Ordenar por fecha para procesar cronológicamente las ausencias
-    finalizedMatches.sort((a, b) => (a.fecha || 0) - (b.fecha || 0));
-
-    // Contador de ausencias por jugador
-    const absenceCountMap = new Map<string, number>();
-
-    finalizedMatches.forEach((p) => {
-      const canchaNumMatch = p.cancha.match(/\d+/);
-      const courtIndex = canchaNumMatch ? parseInt(canchaNumMatch[0], 10) : 1;
-
-      let ptsWinner = countCanchas - courtIndex + 2;
-      let ptsLoser = 1;
-
-      // Reglamento Oficial Crown Pádel (Semanas 9 y 10 de Definición por Tabla Viva)
-      if (!esPuntosPorSet) {
-        if (p.fecha === 9) {
-          // Semana 9: Pareja Ganadora: +4 pts individuales | Pareja Perdedora: +1 pt individual (en todas las canchas)
-          ptsWinner = 4;
-          ptsLoser = 1;
-        } else if (p.fecha === 10) {
-          // Semana 10: Súper Puntaje Final: Pareja Ganadora: +6 pts individuales | Pareja Perdedora: +2 pts individuales (en todas las canchas)
-          ptsWinner = 6;
-          ptsLoser = 2;
-        }
-      }
-
-      let gamesP1 = 0;
-      let gamesP2 = 0;
-      p.sets?.forEach((s) => {
-        gamesP1 += s.games_pareja1;
-        gamesP2 += s.games_pareja2;
-      });
-
-      const p1Won = p.sets_pareja1 > p.sets_pareja2;
-
-      const awardStats = (
-        jugId: string | null,
-        isWinner: boolean,
-        wasAbsent: boolean,
-        gamesOwn: number,
-        gamesOpp: number,
-        setsOwn: number,
-        setsOpp: number
-      ) => {
-        if (!jugId) return;
-        const s = standingsMap.get(jugId);
-        if (!s) return;
-
-        s.partidosJugados++;
-        
-        if (wasAbsent) {
-          // Contabilizar ausencia
-          const prevAbsences = absenceCountMap.get(jugId) || 0;
-          const newAbsences = prevAbsences + 1;
-          absenceCountMap.set(jugId, newAbsences);
-
-          if (newAbsences > 2) {
-            // Ausencia 3+: 0 puntos y pierde 6-0 6-0 (-12 games, 0 sets)
-            s.puntos += 0;
-            s.setsGanados += 0;
-            s.setsPerdidos += 2;
-            s.gamesGanados += 0;
-            s.gamesPerdidos += 12;
-          } else {
-            // Ausencia 1 o 2: se lleva los puntos y games del suplente (resultado real)
-            s.puntos += esPuntosPorSet ? setsOwn : (isWinner ? ptsWinner : ptsLoser);
-            s.setsGanados += setsOwn;
-            s.setsPerdidos += setsOpp;
-            s.gamesGanados += gamesOwn;
-            s.gamesPerdidos += gamesOpp;
-          }
-        } else {
-          // Asistió normalmente
-          s.puntos += esPuntosPorSet ? setsOwn : (isWinner ? ptsWinner : ptsLoser);
-          s.setsGanados += setsOwn;
-          s.setsPerdidos += setsOpp;
-          s.gamesGanados += gamesOwn;
-          s.gamesPerdidos += gamesOpp;
-        }
-      };
-
-      awardStats(p.jugador1_id, p1Won, !!p.suplente1_nombre, gamesP1, gamesP2, p.sets_pareja1, p.sets_pareja2);
-      awardStats(p.jugador2_id, p1Won, !!p.suplente2_nombre, gamesP1, gamesP2, p.sets_pareja1, p.sets_pareja2);
-      awardStats(p.jugador3_id, !p1Won, !!p.suplente3_nombre, gamesP2, gamesP1, p.sets_pareja2, p.sets_pareja1);
-      awardStats(p.jugador4_id, !p1Won, !!p.suplente4_nombre, gamesP2, gamesP1, p.sets_pareja2, p.sets_pareja1);
-    });
-
-    const list = Array.from(standingsMap.values()).map((s) => ({
-      ...s,
-      difSets: s.setsGanados - s.setsPerdidos,
-      difGames: s.gamesGanados - s.gamesPerdidos,
-    }));
-
-    const defaultSorter = (a: any, b: any) => {
-      if (b.puntos !== a.puntos) return b.puntos - a.puntos;
-      if ((b.difSets ?? 0) !== (a.difSets ?? 0)) return (b.difSets ?? 0) - (a.difSets ?? 0);
-      if (b.difGames !== a.difGames) return b.difGames - a.difGames;
-      return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
+    const effectiveTorneo = {
+      ...torneo,
+      rules_config: rulesConfig,
     };
-
-    return applyManualPositions(list, defaultSorter) as any[];
-  }, [torneo, jugadoresInscriptos, partidos, parejas]);
+    return computeTorneoStandings({
+      torneo: effectiveTorneo,
+      jugadoresInscriptos,
+      parejas,
+      partidos,
+      sistemaPuntuacion: settingsForm.sistema_puntuacion,
+    }) as any[];
+  }, [torneo, rulesConfig, jugadoresInscriptos, partidos, parejas, settingsForm.sistema_puntuacion]);
 
   useEffect(() => {
     setStandings(computedStandings);
@@ -1565,7 +1275,7 @@ export default function TorneoIndividualDashboard() {
     // Preserve any existing fecha legends stored in notas
     const existingFechaLeyendas = (torneo?.notas || "").match(/\[LEYENDA_FECHA_\d+:.*?\]/g) || [];
     let finalNotas = settingsForm.notas
-      .replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO):.*?\]/g, "")
+      .replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO|RULES_CONFIG_JSON):.*?\]/g, "")
       .replace(/\[OCULTAR_REGLAMENTO\]/g, "")
       .trim();
     if (settingsForm.sistema_puntuacion === "liga_parejas") {
@@ -1582,6 +1292,9 @@ export default function TorneoIndividualDashboard() {
     if (existingFechaLeyendas.length > 0) {
       finalNotas = finalNotas ? `${finalNotas} ${existingFechaLeyendas.join(" ")}` : existingFechaLeyendas.join(" ");
     }
+
+    // Sincronizar copia de respaldo en notas por si rules_config aún no está migrado en la instancia
+    finalNotas = updateRulesConfigInNotas(finalNotas, rulesConfig);
 
     const basePayload: any = {
       canchas_count: totalCanchas,
@@ -1602,11 +1315,19 @@ export default function TorneoIndividualDashboard() {
       .update({
         ...basePayload,
         subtitulo_fase: settingsForm.subtitulo_fase.trim() || null,
+        rules_config: rulesConfig,
       })
       .eq("id", id);
 
-    // Fallback if 'subtitulo_fase' column is not yet recognized in PostgREST schema cache
-    if (error && (error.message?.includes("subtitulo_fase") || error.code === "PGRST204" || error.code === "PGRST205" || error.code === "42703")) {
+    // Fallback if 'subtitulo_fase' or 'rules_config' column is not yet recognized in PostgREST schema cache
+    if (
+      error &&
+      (error.message?.includes("subtitulo_fase") ||
+        error.message?.includes("rules_config") ||
+        error.code === "PGRST204" ||
+        error.code === "PGRST205" ||
+        error.code === "42703")
+    ) {
       const retry = await (supabase as any)
         .from("torneos")
         .update(basePayload)
@@ -3506,10 +3227,23 @@ export default function TorneoIndividualDashboard() {
       toast.error("Error al cerrar la fecha: " + error.message);
     } else {
       toast.success(`Fecha ${selectedFechaNum} cerrada con éxito`);
-      const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion);
+      const isLiga = isLigaParejasTournament(torneo, settingsForm.sistema_puntuacion) || rulesConfig.formato_competicion === "liga_parejas";
+      const totalSemanas = torneo?.desafio_semanas ?? 8;
       if (isLiga && selectedFechaNum === 10) {
         toast.info("Generando automáticamente los cruces de la Semana 11 (Super Day)...");
         await handleGenerarSuperDay();
+      } else if (
+        rulesConfig.formato_competicion === "escalera_semanal" &&
+        isTorneoElegibleEscalera(torneo) &&
+        selectedFechaNum < totalSemanas
+      ) {
+        await fetchTournamentData();
+        const nextFecha = selectedFechaNum + 1;
+        const nextMatches = partidos.filter((p) => p.fecha === nextFecha);
+        if (nextMatches.length === 0) {
+          toast.info(`Calculando ascensos y descensos de Escalera para Fecha ${nextFecha}...`);
+          handleSugerirCrucesEscalera(nextFecha);
+        }
       } else {
         fetchTournamentData();
       }
@@ -4573,8 +4307,23 @@ export default function TorneoIndividualDashboard() {
                           onValueChange={(val) => {
                             if (val === "liga_parejas") {
                               setSettingsForm({ ...settingsForm, sistema_puntuacion: val, desafio_semanas: "11", canchas_count: "3" });
+                              setRulesConfig((prev) => ({
+                                ...prev,
+                                formato_competicion: "liga_parejas",
+                                puntos_victoria_2_0: 3,
+                                puntos_victoria_2_1: 2,
+                                puntos_derrota_1_2: 1,
+                                puntos_derrota_0_2: 0,
+                                puntos_wo_perdedor: -1,
+                              }));
+                            } else if (val === "por_cancha") {
+                              setSettingsForm({ ...settingsForm, sistema_puntuacion: val });
+                              if (isTorneoElegibleEscalera(torneo)) {
+                                setRulesConfig((prev) => ({ ...prev, formato_competicion: "escalera_semanal" }));
+                              }
                             } else {
                               setSettingsForm({ ...settingsForm, sistema_puntuacion: val });
+                              setRulesConfig((prev) => ({ ...prev, formato_competicion: "convencional" }));
                             }
                           }}
                         >
@@ -4582,7 +4331,7 @@ export default function TorneoIndividualDashboard() {
                             <SelectValue placeholder="Seleccionar..." />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="por_cancha">Por Cancha (Ganador/Perdedor según cancha)</SelectItem>
+                            <SelectItem value="por_cancha">Por Cancha / Escalera Semanal (Ganador/Perdedor según cancha)</SelectItem>
                             <SelectItem value="puntos_por_set">1 Punto por Set Ganado (2-0 = 2pts, 1-1 = 1pt c/u)</SelectItem>
                             <SelectItem value="liga_parejas">Liga de Parejas (Ida y Vuelta + Super Day)</SelectItem>
                           </SelectContent>
@@ -4597,6 +4346,208 @@ export default function TorneoIndividualDashboard() {
                           onChange={(e) => setSettingsForm({ ...settingsForm, desafio_semanas: e.target.value })}
                           className="h-8 text-xs font-semibold"
                         />
+                      </div>
+                    </div>
+
+                    {/* Motor de Reglas Modular (rules_config JSONB) */}
+                    <div className="space-y-2.5 border p-2.5 rounded-lg bg-emerald-50/20 dark:bg-emerald-950/10 border-emerald-500/20">
+                      <div className="flex items-center justify-between">
+                        <Label className="text-[10px] uppercase font-bold text-emerald-700 dark:text-emerald-400">
+                          Motor de Reglas Modular (rules_config)
+                        </Label>
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-emerald-500/30 text-emerald-600 dark:text-emerald-400">
+                          {rulesConfig.formato_competicion}
+                        </Badge>
+                      </div>
+
+                      <div className="space-y-1">
+                        <Label className="text-[9px] uppercase font-bold text-muted-foreground">Formato de Competición</Label>
+                        <Select
+                          value={rulesConfig.formato_competicion}
+                          onValueChange={(val: FormatoCompeticion) => {
+                            setRulesConfig((prev) => ({
+                              ...prev,
+                              formato_competicion: val,
+                            }));
+                            if (val === "liga_parejas") {
+                              setSettingsForm((prev) => ({ ...prev, sistema_puntuacion: "liga_parejas" }));
+                            } else if (val === "escalera_semanal") {
+                              setSettingsForm((prev) => ({ ...prev, sistema_puntuacion: "por_cancha" }));
+                            }
+                          }}
+                        >
+                          <SelectTrigger className="h-7 text-xs font-semibold bg-background">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="convencional">Convencional / Puntos por Partido o Set</SelectItem>
+                            <SelectItem value="liga_parejas">Liga de Parejas (3/2/1/0 + W.O.)</SelectItem>
+                            {isTorneoElegibleEscalera(torneo) && (
+                              <SelectItem value="escalera_semanal">Escalera Semanal (Puntos por Cancha + Ascensos/Descensos)</SelectItem>
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+
+                      {rulesConfig.formato_competicion === "escalera_semanal" && isTorneoElegibleEscalera(torneo) ? (
+                        <div className="space-y-2 pt-1">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold text-muted-foreground uppercase">
+                              Ponderación por Cancha (Cancha 1 = Pista Superior)
+                            </span>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="h-5 px-1.5 text-[9px] text-xs"
+                              onClick={() => {
+                                const cCount = Math.max(1, Number(settingsForm.canchas_count) || 3);
+                                setRulesConfig((prev) => ({
+                                  ...prev,
+                                  custom_cancha_points: false,
+                                  puntos_por_cancha: buildDefaultPuntosPorCancha(cCount),
+                                }));
+                              }}
+                            >
+                              Restaurar Escala Base
+                            </Button>
+                          </div>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {Array.from({ length: Math.min(6, Math.max(2, Number(settingsForm.canchas_count) || 3)) }, (_, idx) => {
+                              const cNum = idx + 1;
+                              const key = `cancha_${cNum}`;
+                              const rule = rulesConfig.puntos_por_cancha?.[key] || {
+                                victoria: Math.max(2, (Number(settingsForm.canchas_count) || 3) - cNum + 2),
+                                derrota: 1,
+                              };
+                              return (
+                                <div key={key} className="border rounded p-1.5 bg-background/70 space-y-1">
+                                  <div className="text-[9px] font-bold text-foreground flex items-center justify-between">
+                                    <span>Cancha {cNum} {cNum === 1 ? "👑" : ""}</span>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-1">
+                                    <div>
+                                      <Label className="text-[8px] text-muted-foreground">Ganador</Label>
+                                      <Input
+                                        type="number"
+                                        value={rule.victoria}
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value) || 0;
+                                          setRulesConfig((prev) => ({
+                                            ...prev,
+                                            custom_cancha_points: true,
+                                            puntos_por_cancha: {
+                                              ...prev.puntos_por_cancha,
+                                              [key]: { ...rule, victoria: val },
+                                            },
+                                          }));
+                                        }}
+                                        className="h-6 text-[11px] px-1.5 font-semibold"
+                                      />
+                                    </div>
+                                    <div>
+                                      <Label className="text-[8px] text-muted-foreground">Perdedor</Label>
+                                      <Input
+                                        type="number"
+                                        value={rule.derrota}
+                                        onChange={(e) => {
+                                          const val = Number(e.target.value) || 0;
+                                          setRulesConfig((prev) => ({
+                                            ...prev,
+                                            custom_cancha_points: true,
+                                            puntos_por_cancha: {
+                                              ...prev.puntos_por_cancha,
+                                              [key]: { ...rule, derrota: val },
+                                            },
+                                          }));
+                                        }}
+                                        className="h-6 text-[11px] px-1.5 font-semibold"
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="grid grid-cols-2 gap-1.5 pt-1">
+                          <div>
+                            <Label className="text-[9px] text-muted-foreground">Victoria 2-0 (Pts)</Label>
+                            <Input
+                              type="number"
+                              value={rulesConfig.puntos_victoria_2_0}
+                              onChange={(e) =>
+                                setRulesConfig((prev) => ({ ...prev, puntos_victoria_2_0: Number(e.target.value) || 0 }))
+                              }
+                              className="h-7 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[9px] text-muted-foreground">Victoria 2-1 STB (Pts)</Label>
+                            <Input
+                              type="number"
+                              value={rulesConfig.puntos_victoria_2_1}
+                              onChange={(e) =>
+                                setRulesConfig((prev) => ({ ...prev, puntos_victoria_2_1: Number(e.target.value) || 0 }))
+                              }
+                              className="h-7 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[9px] text-muted-foreground">Derrota 1-2 STB (Pts)</Label>
+                            <Input
+                              type="number"
+                              value={rulesConfig.puntos_derrota_1_2}
+                              onChange={(e) =>
+                                setRulesConfig((prev) => ({ ...prev, puntos_derrota_1_2: Number(e.target.value) || 0 }))
+                              }
+                              className="h-7 text-xs font-semibold"
+                            />
+                          </div>
+                          <div>
+                            <Label className="text-[9px] text-muted-foreground">Derrota 0-2 (Pts)</Label>
+                            <Input
+                              type="number"
+                              value={rulesConfig.puntos_derrota_0_2}
+                              onChange={(e) =>
+                                setRulesConfig((prev) => ({ ...prev, puntos_derrota_0_2: Number(e.target.value) || 0 }))
+                              }
+                              className="h-7 text-xs font-semibold"
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="grid grid-cols-2 gap-1.5 pt-1 border-t border-border/40">
+                        <div>
+                          <Label className="text-[9px] text-muted-foreground">Puntos W.O. Perdedor</Label>
+                          <Input
+                            type="number"
+                            value={rulesConfig.puntos_wo_perdedor}
+                            onChange={(e) =>
+                              setRulesConfig((prev) => ({ ...prev, puntos_wo_perdedor: Number(e.target.value) || 0 }))
+                            }
+                            className="h-7 text-xs font-semibold"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-[9px] text-muted-foreground">Score Simbólico W.O.</Label>
+                          <Input
+                            type="text"
+                            value={rulesConfig.wo_score_simbolico}
+                            onChange={(e) =>
+                              setRulesConfig((prev) => ({ ...prev, wo_score_simbolico: e.target.value || "6-0, 6-0" }))
+                            }
+                            placeholder="6-0, 6-0"
+                            className="h-7 text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="text-[9px] text-muted-foreground pt-0.5">
+                        <span className="font-semibold text-foreground">Orden Desempate:</span>{" "}
+                        {rulesConfig.criterios_desempate.join(" → ")}
                       </div>
                     </div>
 
@@ -4849,15 +4800,28 @@ export default function TorneoIndividualDashboard() {
                 )}
 
                 {isAdmin && (!selectedFecha || selectedFecha.estado === "pendiente") && (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 font-semibold"
-                    onClick={handleOpenEditCruces}
-                  >
-                    <Settings className="h-4 w-4 mr-1.5" />
-                    {partidosDeFecha.length > 0 ? "Editar Cruces Manualmente" : "Armar Cruces Manualmente"}
-                  </Button>
+                  <>
+                    {selectedFechaNum > 1 && isTorneoElegibleEscalera(torneo) && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 font-semibold"
+                        onClick={() => handleSugerirCrucesEscalera(selectedFechaNum)}
+                      >
+                        <TrendingUp className="h-4 w-4 mr-1.5" />
+                        Sugerir Escalera (Ascensos/Descensos)
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-blue-600 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-950/20 font-semibold"
+                      onClick={handleOpenEditCruces}
+                    >
+                      <Settings className="h-4 w-4 mr-1.5" />
+                      {partidosDeFecha.length > 0 ? "Editar Cruces Manualmente" : "Armar Cruces Manualmente"}
+                    </Button>
+                  </>
                 )}
 
                 {selectedFecha && selectedFecha.estado === "pendiente" && partidosDeFecha.length > 0 && (
@@ -4956,6 +4920,16 @@ export default function TorneoIndividualDashboard() {
                         <Settings className="h-4 w-4 mr-1.5" />
                         Armar Cruces a Mano (Fecha {selectedFechaNum})
                       </Button>
+                      {selectedFechaNum > 1 && isTorneoElegibleEscalera(torneo) && (
+                        <Button
+                          onClick={() => handleSugerirCrucesEscalera(selectedFechaNum)}
+                          variant="outline"
+                          className="border-emerald-600 text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/20 font-semibold"
+                        >
+                          <TrendingUp className="h-4 w-4 mr-1.5" />
+                          Sugerir Escalera (Ascensos/Descensos F{selectedFechaNum - 1})
+                        </Button>
+                      )}
                       <Button
                         onClick={() => handleGenerarFechaRegular(selectedFechaNum)}
                         variant="outline"
@@ -5271,8 +5245,11 @@ export default function TorneoIndividualDashboard() {
                       <TableHead className="w-[60px] text-center">Pos</TableHead>
                       <TableHead>{torneo?.modalidad === "parejas" ? "Pareja" : "Jugador"}</TableHead>
                       <TableHead>{torneo?.modalidad === "parejas" ? "Suplencias Usadas" : "DNI"}</TableHead>
-                      <TableHead className="text-center">PJ</TableHead>
-                      <TableHead className="text-center">Sets G - P</TableHead>
+                      <TableHead className="text-center" title="Partidos Jugados">PJ</TableHead>
+                      <TableHead className="text-center" title="Partidos Ganados">PG</TableHead>
+                      <TableHead className="text-center" title="Partidos Perdidos">PP</TableHead>
+                      <TableHead className="text-center" title="Ausencias / W.O.">WO</TableHead>
+                      <TableHead className="text-center" title="Sets a Favor - Sets en Contra (Dif. Sets)">Sets (SF-SC)</TableHead>
                       <TableHead className="text-center">GF</TableHead>
                       <TableHead className="text-center">GC</TableHead>
                       <TableHead className="text-center">DG</TableHead>
@@ -5284,7 +5261,7 @@ export default function TorneoIndividualDashboard() {
                   <TableBody>
                     {standings.length === 0 ? (
                       <TableRow>
-                        <TableCell colSpan={isAdmin ? 11 : 9} className="text-center py-6 text-muted-foreground">
+                        <TableCell colSpan={isAdmin ? 14 : 12} className="text-center py-6 text-muted-foreground">
                           Los resultados cargados en la pestaña "Fixture" generarán las posiciones automáticamente.
                         </TableCell>
                       </TableRow>
@@ -5319,6 +5296,15 @@ export default function TorneoIndividualDashboard() {
                             </span>
                           </TableCell>
                           <TableCell className="text-center">{s.partidosJugados}</TableCell>
+                          <TableCell className="text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">{s.partidosGanados ?? 0}</TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground">{s.partidosPerdidos ?? 0}</TableCell>
+                          <TableCell className="text-center text-xs font-mono">
+                            {(s.woCount ?? 0) > 0 ? (
+                              <span className="text-destructive font-bold">{s.woCount}</span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-center text-xs text-muted-foreground font-mono">
                             {s.setsGanados} - {s.setsPerdidos}
                           </TableCell>
@@ -5414,6 +5400,15 @@ export default function TorneoIndividualDashboard() {
                           <TableCell className="font-semibold">{s.apellido}, {s.nombre}</TableCell>
                           <TableCell>{s.dni || "—"}</TableCell>
                           <TableCell className="text-center">{s.partidosJugados}</TableCell>
+                          <TableCell className="text-center text-xs font-semibold text-emerald-600 dark:text-emerald-400">{(s as any).partidosGanados ?? 0}</TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground">{(s as any).partidosPerdidos ?? 0}</TableCell>
+                          <TableCell className="text-center text-xs font-mono">
+                            {((s as any).woCount ?? 0) > 0 ? (
+                              <span className="text-destructive font-bold">{(s as any).woCount}</span>
+                            ) : (
+                              <span className="text-muted-foreground">0</span>
+                            )}
+                          </TableCell>
                           <TableCell className="text-center text-xs text-muted-foreground font-mono">
                             {s.setsGanados} - {s.setsPerdidos}
                           </TableCell>
