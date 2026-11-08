@@ -4,7 +4,7 @@ import { Activity, Clock, Copy, Eye, Loader2, MapPin, Maximize2, Minimize2, Radi
 import { supabase } from "@/integrations/supabase/client";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, type FotoPosition } from "@/logic/torneoStandings";
 import { useOptionalTenant } from "@/contexts/TenantContext";
-import { partidoEsVisibleEnTvCanchas, TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
+import { ESTADOS_TORNEO_ACTIVOS_TV, partidoEsVisibleEnTvCanchas, TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
@@ -172,20 +172,17 @@ function TorneoTvCanchasContent() {
     let cargando = false;
     const cargar = async () => {
       if (cargando) return;
-      if (torneoIdsSolicitados.length === 0 && !tenant?.club?.id) {
-        setError(true);
-        setLoading(false);
-        return;
-      }
       cargando = true;
       try {
         const torneosQuery = supabase
           .from("torneos")
-          .select("id, nombre, tipo, canchas_asignadas, canchas_count")
+          .select("id, nombre, tipo, estado, canchas_asignadas, canchas_count")
           .in("tipo", [...TIPOS_TORNEO_TV]);
         const { data: torneos, error: errorTorneos } = torneoIdsSolicitados.length
           ? await torneosQuery.in("id", torneoIdsSolicitados)
-          : await torneosQuery.eq("club_id", tenant!.club!.id).eq("estado", "en_curso");
+          : tenant?.club?.id
+          ? await torneosQuery.eq("club_id", tenant.club.id).in("estado", [...ESTADOS_TORNEO_ACTIVOS_TV])
+          : await torneosQuery.in("estado", [...ESTADOS_TORNEO_ACTIVOS_TV]);
         if (errorTorneos) throw errorTorneos;
         const torneosLista = (torneos ?? []) as any[];
         const torneoIds = torneosLista.map((torneo) => torneo.id as string);
@@ -251,6 +248,7 @@ function TorneoTvCanchasContent() {
           lastNotasRefreshAtRef.current = Date.now();
         }
         const nombres = new Map<string, string>(torneosLista.map((torneo) => [torneo.id, torneo.nombre]));
+        const tiposTorneo = new Map<string, string>(torneosLista.map((torneo) => [torneo.id, torneo.tipo]));
         const notasTorneos = notasTorneosRef.current;
         const inscripcionesMap = new Map(inscripcionesLista.map((inscripcion) => [inscripcion.id, inscripcion]));
         const jugadoresMap = new Map(jugadoresLista.map((jugador) => [jugador.id, `${jugador.apellido ?? ""}, ${jugador.nombre ?? ""}`.trim().replace(/^, |, $/g, "")]));
@@ -296,11 +294,11 @@ function TorneoTvCanchasContent() {
         const filas: PartidoTv[] = [];
         for (const partido of partidosZona) {
           const torneoId = zonaTorneo.get(partido.zona_id);
-          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) ?? { x: 50, y: 16 }, sets: setsPorPartido.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
+          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoTipo: tiposTorneo.get(torneoId ?? ""), torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) ?? { x: 50, y: 16 }, sets: setsPorPartido.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
         }
         for (const partido of partidosLlave) {
           const torneoId = llaveTorneo.get(partido.llave_id);
-          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) ?? { x: 50, y: 16 }, sets: setsPorPartido.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
+          filas.push({ id: partido.id, torneoId: torneoId ?? "", torneoTipo: tiposTorneo.get(torneoId ?? ""), torneoNombre: nombres.get(torneoId ?? "") ?? "Torneo", cancha: partido.cancha, estado: partido.estado, fechaHora: partido.fecha_hora, local: nombrePareja(partido.pareja_local_id), visitante: nombrePareja(partido.pareja_visitante_id), fotoUrl: extractFotoFromNotas(notasTorneos.get(torneoId ?? ""), partido.id), fotoPosition: extractFotoPositionFromNotas(notasTorneos.get(torneoId ?? ""), partido.id) ?? { x: 50, y: 16 }, sets: setsPorPartido.get(partido.id) ?? [], marcadorEnVivo: partido.marcador_en_vivo ?? null });
         }
         for (const partido of individualesLista) {
           const jugadorNombre = (id: string | null, suplente?: string | null) => id ? jugadoresMap.get(id) ?? "Jugador" : suplente || "Por definir";

@@ -15,6 +15,13 @@ describe("tipos de torneo disponibles en TV conjunta", () => {
       torneoTipo: "americano_individual",
       fechaHora: null,
     }, "2", (value) => value?.match(/\d+/)?.[0] ?? null, () => false)).toBe(true);
+
+    expect(partidoEsVisibleEnTvCanchas({
+      cancha: "Cancha 5",
+      estado: "programado",
+      torneoTipo: "americano",
+      fechaHora: null,
+    }, "5", (value) => value?.match(/\d+/)?.[0] ?? null, () => false)).toBe(true);
   });
 
   it("sigue ocultando partidos futuros de torneos oficiales", () => {

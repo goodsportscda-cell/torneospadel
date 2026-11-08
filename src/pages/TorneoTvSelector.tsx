@@ -32,12 +32,13 @@ export default function TorneoTvSelector() {
         const { data, error: queryError } = await (supabase as any)
           .from("torneos")
           .select("id, nombre, tipo, estado, fecha_inicio, categoria_libre, numero_fecha, club_id")
-          .in("estado", ["en_curso", "proximamente"])
+          .in("estado", ["en_curso", "inscripciones_cerradas", "proximamente"])
           .order("fecha_inicio", { ascending: true });
         if (queryError) throw queryError;
         const list = (data ?? []) as TorneoTV[];
         if (cancelled) return;
-        setTorneos(list.sort((a, b) => Number(b.estado === "en_curso") - Number(a.estado === "en_curso")));
+        const prio = (e: string) => (e === "en_curso" ? 2 : e === "inscripciones_cerradas" ? 1 : 0);
+        setTorneos(list.sort((a, b) => prio(b.estado) - prio(a.estado)));
 
         const clubIds = [...new Set(list.map((torneo) => torneo.club_id).filter(Boolean))] as string[];
         if (clubIds.length) {
@@ -101,9 +102,9 @@ export default function TorneoTvSelector() {
                 >
                   <div className="min-w-0">
                     <div className="mb-3 flex flex-wrap items-center gap-2">
-                      <Badge className={torneo.estado === "en_curso" ? "bg-emerald-400/15 text-emerald-200 hover:bg-emerald-400/15" : "bg-white/10 text-white/65 hover:bg-white/10"}>
-                        {torneo.estado === "en_curso" ? <Radio className="mr-1.5 h-3 w-3" /> : <CalendarDays className="mr-1.5 h-3 w-3" />}
-                        {torneo.estado === "en_curso" ? "En curso" : "Próximo"}
+                      <Badge className={torneo.estado === "en_curso" || torneo.estado === "inscripciones_cerradas" ? "bg-emerald-400/15 text-emerald-200 hover:bg-emerald-400/15" : "bg-white/10 text-white/65 hover:bg-white/10"}>
+                        {torneo.estado === "en_curso" || torneo.estado === "inscripciones_cerradas" ? <Radio className="mr-1.5 h-3 w-3" /> : <CalendarDays className="mr-1.5 h-3 w-3" />}
+                        {torneo.estado === "en_curso" ? "En curso" : torneo.estado === "inscripciones_cerradas" ? "Activo" : "Próximo"}
                       </Badge>
                       {torneo.club_id && clubes[torneo.club_id] && <span className="truncate text-xs text-white/50">{clubes[torneo.club_id]}</span>}
                     </div>

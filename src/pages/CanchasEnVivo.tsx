@@ -157,7 +157,7 @@ export default function CanchasEnVivo() {
 
   useEffect(() => {
     if (torneoId === "todos") {
-      const enCurso = torneos.filter((t) => t.estado === "en_curso");
+      const enCurso = torneos.filter((t) => t.estado === "en_curso" || t.estado === "inscripciones_cerradas");
       const sourceTorneos = enCurso.length > 0 ? enCurso : torneos;
       const unionAsignadas = sourceTorneos.flatMap((t) =>
         Array.isArray(t.canchas_asignadas) && t.canchas_asignadas.length > 0
@@ -192,10 +192,11 @@ export default function CanchasEnVivo() {
 
     setActiveCourtIds(nextIds);
 
+    const activeStatuses = ["en_curso", "inscripciones_cerradas"];
     const targetIds =
       torneoId === "todos"
-        ? (torneos.filter((t) => t.estado === "en_curso").map((t) => t.id).length > 0
-          ? torneos.filter((t) => t.estado === "en_curso").map((t) => t.id)
+        ? (torneos.filter((t) => activeStatuses.includes(t.estado ?? "")).map((t) => t.id).length > 0
+          ? torneos.filter((t) => activeStatuses.includes(t.estado ?? "")).map((t) => t.id)
           : torneos.map((t) => t.id))
         : [torneoId];
 
@@ -238,7 +239,9 @@ export default function CanchasEnVivo() {
   const handleOpenTvMode = () => {
     const canchasParam = activeCourtIds.join(",");
     if (torneoId === "todos") {
-      const torneoIdsEnCurso = torneos.filter((torneo) => torneo.estado === "en_curso").map((torneo) => torneo.id);
+      const torneoIdsEnCurso = torneos
+        .filter((torneo) => torneo.estado === "en_curso" || torneo.estado === "inscripciones_cerradas")
+        .map((torneo) => torneo.id);
       if (torneoIdsEnCurso.length === 0) {
         toast.error("No hay torneos en curso para proyectar juntos");
         return;
@@ -511,6 +514,13 @@ export default function CanchasEnVivo() {
         const tabla = p.origen === "zona" ? "partidos_zona" : "partidos_llave";
         const { error } = await supabase.from(tabla).update({ cancha: cancha, estado: "en_juego" }).eq("id", p.id);
         if (error) throw error;
+      }
+      if (p.torneo_id) {
+        const tActual = torneos.find((t) => t.id === p.torneo_id);
+        if (tActual && tActual.estado !== "en_curso" && tActual.estado !== "finalizado") {
+          await supabase.from("torneos").update({ estado: "en_curso" }).eq("id", p.torneo_id);
+          setTorneos((prev) => prev.map((t) => (t.id === p.torneo_id ? { ...t, estado: "en_curso" } : t)));
+        }
       }
       toast.success("Partido en juego", { id: toastId });
       setAsignarCanchaNum(null);

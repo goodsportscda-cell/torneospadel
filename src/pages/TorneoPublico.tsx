@@ -356,7 +356,7 @@ export default function TorneoPublico() {
 
           {/* Tab: ZONAS */}
           <TabsContent value="zonas" className="mt-6 space-y-6">
-            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" ? (
+            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" && torneo?.estado !== "inscripciones_cerradas" ? (
               <Card className="border-dashed bg-muted/20">
                 <CardContent className="py-12 text-center text-muted-foreground space-y-3">
                   <LayoutGrid className="h-10 w-10 mx-auto opacity-40 text-primary" />
@@ -395,7 +395,7 @@ export default function TorneoPublico() {
 
           {/* Tab: LLAVES */}
           <TabsContent value="llaves" className="mt-6">
-            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" ? (
+            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" && torneo?.estado !== "inscripciones_cerradas" ? (
               <Card className="border-dashed bg-muted/20">
                 <CardContent className="py-12 text-center text-muted-foreground space-y-3">
                   <GitBranch className="h-10 w-10 mx-auto opacity-40 text-primary" />

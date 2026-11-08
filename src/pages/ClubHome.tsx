@@ -235,6 +235,10 @@ export default function ClubHome() {
     return torneos.filter(t => t.estado === "en_curso" && t.numero_fecha != null);
   }, [torneos]);
 
+  const torneosActivosPortal = useMemo(() => {
+    return torneos.filter(t => t.estado === "en_curso" || t.estado === "inscripciones_cerradas");
+  }, [torneos]);
+
   const copiarEnlace = () => {
     const textoCompartir = `🏆 Portal Público de ${club?.nombre || "Club"} - Padel ID\nMirá los torneos y el ranking oficial acá:\n${window.location.href}`;
     navigator.clipboard.writeText(textoCompartir);
@@ -336,7 +340,7 @@ export default function ClubHome() {
             
             {loadingTorneos ? (
               <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
-            ) : torneosEnCurso.length === 0 ? (
+            ) : torneosActivosPortal.length === 0 ? (
               <Card className="border-dashed">
                 <CardContent className="py-12 text-center text-muted-foreground">
                   No hay torneos en curso en este momento.
@@ -344,7 +348,7 @@ export default function ClubHome() {
               </Card>
             ) : (
               <div className="grid sm:grid-cols-2 gap-4">
-                {torneosEnCurso.map((t) => {
+                {torneosActivosPortal.map((t) => {
                   const tournamentUrl = (t as any).tipo === "americano_individual"
                     ? `/c/${club.slug}/torneo-individual/${t.id}`
                     : `/c/${club.slug}/torneo/${t.id}`;
