@@ -4,7 +4,7 @@ import { Activity, Clock, Copy, Eye, Loader2, MapPin, Maximize2, Minimize2, Radi
 import { supabase } from "@/integrations/supabase/client";
 import { extractFotoFromNotas, extractFotoPositionFromNotas, type FotoPosition } from "@/logic/torneoStandings";
 import { useOptionalTenant } from "@/contexts/TenantContext";
-import { ESTADOS_TORNEO_ACTIVOS_TV, partidoEsVisibleEnTvCanchas, TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
+import { partidoEsVisibleEnTvCanchas, TIPOS_TORNEO_TV } from "@/lib/torneoTvTipos";
 import { toast } from "sonner";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
@@ -172,17 +172,20 @@ function TorneoTvCanchasContent() {
     let cargando = false;
     const cargar = async () => {
       if (cargando) return;
+      if (torneoIdsSolicitados.length === 0 && !tenant?.club?.id) {
+        setError(true);
+        setLoading(false);
+        return;
+      }
       cargando = true;
       try {
         const torneosQuery = supabase
           .from("torneos")
-          .select("id, nombre, tipo, estado, canchas_asignadas, canchas_count")
+          .select("id, nombre, tipo, canchas_asignadas, canchas_count")
           .in("tipo", [...TIPOS_TORNEO_TV]);
         const { data: torneos, error: errorTorneos } = torneoIdsSolicitados.length
           ? await torneosQuery.in("id", torneoIdsSolicitados)
-          : tenant?.club?.id
-          ? await torneosQuery.eq("club_id", tenant.club.id).in("estado", [...ESTADOS_TORNEO_ACTIVOS_TV])
-          : await torneosQuery.in("estado", [...ESTADOS_TORNEO_ACTIVOS_TV]);
+          : await torneosQuery.eq("club_id", tenant!.club!.id).eq("estado", "en_curso");
         if (errorTorneos) throw errorTorneos;
         const torneosLista = (torneos ?? []) as any[];
         const torneoIds = torneosLista.map((torneo) => torneo.id as string);
@@ -201,8 +204,8 @@ function TorneoTvCanchasContent() {
           Array.isArray(torneo.canchas_asignadas) && torneo.canchas_asignadas.length > 0
             ? torneo.canchas_asignadas
             : torneo.canchas_count
-            ? Array.from({ length: Math.min(6, Math.max(1, Number(torneo.canchas_count))) }, (_, i) => i + 1)
-            : [],
+              ? Array.from({ length: Math.min(6, Math.max(1, Number(torneo.canchas_count))) }, (_, i) => i + 1)
+              : [],
         );
         const configuredCourtIds = canchasKey
           ? normalizeActiveCourtIds(canchasKey, [1, 2, 3])
@@ -408,7 +411,7 @@ function TorneoTvCanchasContent() {
       try {
         const lock = await wakeLock.request("screen");
         if (desmontado || document.visibilityState !== "visible") {
-          await lock.release().catch(() => {});
+          await lock.release().catch(() => { });
           return;
         }
         wakeLockRef.current = lock;
@@ -436,13 +439,13 @@ function TorneoTvCanchasContent() {
       window.removeEventListener("focus", solicitarBloqueo);
       const lock = wakeLockRef.current;
       wakeLockRef.current = null;
-      if (lock) void lock.release().catch(() => {});
+      if (lock) void lock.release().catch(() => { });
     };
   }, []);
 
   const alternarPantallaCompleta = () => {
-    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
-    else document.documentElement.requestFullscreen().catch(() => {});
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => { });
+    else document.documentElement.requestFullscreen().catch(() => { });
   };
 
   const copiarEnlace = async () => {
@@ -497,11 +500,10 @@ function TorneoTvCanchasContent() {
                     key={num}
                     type="button"
                     onClick={() => setPaginaCanchas(idx)}
-                    className={`rounded-lg px-3 py-1 text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${
-                      isCurrent
+                    className={`rounded-lg px-3 py-1 text-xs font-black uppercase tracking-wider transition-all cursor-pointer ${isCurrent
                         ? "bg-cyan-400 text-slate-950 shadow-[0_0_15px_rgba(34,211,238,0.45)]"
                         : "text-white/55 hover:bg-white/10 hover:text-white"
-                    }`}
+                      }`}
                   >
                     Cancha {num}
                   </button>
@@ -525,11 +527,10 @@ function TorneoTvCanchasContent() {
           <button
             type="button"
             onClick={() => setModoDemo((prev) => !prev)}
-            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition-all shadow-md ${
-              modoDemo
+            className={`flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-xs font-bold transition-all shadow-md ${modoDemo
                 ? "bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-[0_0_15px_rgba(251,191,36,0.4)]"
                 : "border border-cyan-400/40 bg-cyan-500/10 text-cyan-200 hover:bg-cyan-500/20"
-            }`}
+              }`}
             title={modoDemo ? "Salir del modo previsualización" : "Activar previsualización con datos y fotos de prueba"}
           >
             <Eye className="h-4 w-4" />
@@ -632,11 +633,10 @@ function TorneoTvCanchasContent() {
                     Cancha {cancha}
                   </h2>
                   <span
-                    className={`rounded-full px-3.5 py-1 text-xs font-black uppercase tracking-wider ${
-                      partidoEnJuego
+                    className={`rounded-full px-3.5 py-1 text-xs font-black uppercase tracking-wider ${partidoEnJuego
                         ? "bg-rose-500/20 text-rose-200 border border-rose-500/30 shadow-[0_0_15px_rgba(244,63,94,0.3)]"
                         : "bg-white/10 text-white/60"
-                    }`}
+                      }`}
                   >
                     {partidoEnJuego ? "En juego" : otrosPartidos.length > 0 ? "Próximos partidos" : "Disponible"}
                   </span>

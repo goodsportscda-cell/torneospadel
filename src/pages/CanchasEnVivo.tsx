@@ -157,7 +157,7 @@ export default function CanchasEnVivo() {
 
   useEffect(() => {
     if (torneoId === "todos") {
-      const enCurso = torneos.filter((t) => t.estado === "en_curso" || t.estado === "inscripciones_cerradas");
+      const enCurso = torneos.filter((t) => t.estado === "en_curso");
       const sourceTorneos = enCurso.length > 0 ? enCurso : torneos;
       const unionAsignadas = sourceTorneos.flatMap((t) =>
         Array.isArray(t.canchas_asignadas) && t.canchas_asignadas.length > 0
@@ -192,11 +192,10 @@ export default function CanchasEnVivo() {
 
     setActiveCourtIds(nextIds);
 
-    const activeStatuses = ["en_curso", "inscripciones_cerradas"];
     const targetIds =
       torneoId === "todos"
-        ? (torneos.filter((t) => activeStatuses.includes(t.estado ?? "")).map((t) => t.id).length > 0
-          ? torneos.filter((t) => activeStatuses.includes(t.estado ?? "")).map((t) => t.id)
+        ? (torneos.filter((t) => t.estado === "en_curso").map((t) => t.id).length > 0
+          ? torneos.filter((t) => t.estado === "en_curso").map((t) => t.id)
           : torneos.map((t) => t.id))
         : [torneoId];
 
@@ -236,11 +235,23 @@ export default function CanchasEnVivo() {
     void handleUpdateActiveCourts(next);
   };
 
-  const handleOpenTvMode = () => {
+  const handleOpenTvMode = async () => {
     const canchasParam = activeCourtIds.join(",");
+    const torneosConPartidoEnJuegoIds = new Set(
+      partidos.filter((p) => p.estado === "en_juego" && p.torneo_id).map((p) => p.torneo_id as string),
+    );
+    const porPromover = torneos.filter(
+      (t) => torneosConPartidoEnJuegoIds.has(t.id) && t.estado !== "en_curso" && t.estado !== "finalizado",
+    );
+    if (porPromover.length > 0) {
+      const idsPromover = porPromover.map((t) => t.id);
+      await supabase.from("torneos").update({ estado: "en_curso" }).in("id", idsPromover);
+      setTorneos((prev) => prev.map((t) => (idsPromover.includes(t.id) ? { ...t, estado: "en_curso" } : t)));
+    }
+
     if (torneoId === "todos") {
       const torneoIdsEnCurso = torneos
-        .filter((torneo) => torneo.estado === "en_curso" || torneo.estado === "inscripciones_cerradas")
+        .filter((torneo) => torneo.estado === "en_curso" || torneosConPartidoEnJuegoIds.has(torneo.id))
         .map((torneo) => torneo.id);
       if (torneoIdsEnCurso.length === 0) {
         toast.error("No hay torneos en curso para proyectar juntos");
@@ -906,8 +917,8 @@ export default function CanchasEnVivo() {
                 type="button"
                 onClick={() => toggleActiveCourt(courtNum)}
                 className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-bold transition-all cursor-pointer ${isSelected
-                    ? "border-primary bg-primary text-primary-foreground shadow-sm"
-                    : "border-border bg-background/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
+                  ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                  : "border-border bg-background/60 text-muted-foreground hover:bg-muted/50 hover:text-foreground"
                   }`}
               >
                 <span

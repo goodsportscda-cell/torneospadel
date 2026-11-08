@@ -30,7 +30,7 @@ export default function TorneoPublico() {
   const [categoriaNombre, setCategoriaNombre] = useState<string>("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(false);
-  
+
   // Data for Zonas and Llaves
   const [zonas, setZonas] = useState<Zona[]>([]);
   const [inscripciones, setInscripciones] = useState<any[]>([]);
@@ -49,94 +49,94 @@ export default function TorneoPublico() {
     setLoadError(false);
     let torneoPrincipalCargado = false;
     try {
-    // Buscamos solo por ID para evitar el error de cache del slug
-    const { data: tData, error: tErr } = await (supabase as any)
-      .from("torneos")
-      .select("id, nombre, tipo, estado, fecha_inicio, fecha_fin, numero_fecha, club_id, categoria_id, categoria_libre, sede, multiplicador_puntos")
-      .eq("id", slug)
-      .maybeSingle();
-    if (tErr || !tData) {
+      // Buscamos solo por ID para evitar el error de cache del slug
+      const { data: tData, error: tErr } = await (supabase as any)
+        .from("torneos")
+        .select("id, nombre, tipo, estado, fecha_inicio, fecha_fin, numero_fecha, club_id, categoria_id, categoria_libre, sede, multiplicador_puntos")
+        .eq("id", slug)
+        .maybeSingle();
+      if (tErr || !tData) {
+        setLoading(false);
+        return;
+      }
+
+      if (tData.tipo === "americano_individual") {
+        navigate(`/torneo-individual/${tData.id}`, { replace: true });
+        return;
+      }
+
+      setTorneo({ ...tData, notas: null, premios: null });
+      torneoPrincipalCargado = true;
       setLoading(false);
-      return;
-    }
 
-    if (tData.tipo === "americano_individual") {
-      navigate(`/torneo-individual/${tData.id}`, { replace: true });
-      return;
-    }
+      // Notas pueden contener datos grandes. Cargarlas aparte evita bloquear la página.
+      (supabase as any)
+        .from("torneos")
+        .select("notas, premios")
+        .eq("id", tData.id)
+        .maybeSingle()
+        .then(({ data, error }: any) => {
+          if (error) {
+            console.warn("No se pudieron cargar los detalles del torneo", error);
+            return;
+          }
+          setTorneo((current: Torneo | null) => current?.id === tData.id ? { ...current, notas: data?.notas ?? null, premios: data?.premios ?? null } : current);
+        })
+        .catch((error: unknown) => console.warn("No se pudieron cargar los detalles del torneo", error));
 
-    setTorneo({ ...tData, notas: null, premios: null });
-    torneoPrincipalCargado = true;
-    setLoading(false);
+      // 2. Fetch everything else in parallel
+      const [
+        { data: zData, error: zErr },
+        { data: iData, error: iErr },
+        { data: lData, error: lErr }
+      ] = await Promise.all([
+        (supabase as any).from("zonas").select("id, nombre, tamanio, orden, torneo_id").eq("torneo_id", tData.id).order("orden"),
+        (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado").eq("torneo_id", tData.id).eq("estado", "confirmada"),
+        (supabase as any).from("llaves").select("id, torneo_id").eq("torneo_id", tData.id).maybeSingle()
+      ]);
+      if (zErr || iErr || lErr) throw zErr ?? iErr ?? lErr;
 
-    // Notas pueden contener datos grandes. Cargarlas aparte evita bloquear la página.
-    (supabase as any)
-      .from("torneos")
-      .select("notas, premios")
-      .eq("id", tData.id)
-      .maybeSingle()
-      .then(({ data, error }: any) => {
-        if (error) {
-          console.warn("No se pudieron cargar los detalles del torneo", error);
-          return;
-        }
-        setTorneo((current: Torneo | null) => current?.id === tData.id ? { ...current, notas: data?.notas ?? null, premios: data?.premios ?? null } : current);
-      })
-      .catch((error: unknown) => console.warn("No se pudieron cargar los detalles del torneo", error));
-
-    // 2. Fetch everything else in parallel
-    const [
-      { data: zData, error: zErr },
-      { data: iData, error: iErr },
-      { data: lData, error: lErr }
-    ] = await Promise.all([
-      (supabase as any).from("zonas").select("id, nombre, tamanio, orden, torneo_id").eq("torneo_id", tData.id).order("orden"),
-      (supabase as any).from("inscripciones").select("id, torneo_id, jugador1_id, jugador2_id, estado").eq("torneo_id", tData.id).eq("estado", "confirmada"),
-      (supabase as any).from("llaves").select("id, torneo_id").eq("torneo_id", tData.id).maybeSingle()
-    ]);
-    if (zErr || iErr || lErr) throw zErr ?? iErr ?? lErr;
-
-    const jugadorIds = [...new Set((iData ?? []).flatMap((i: any) => [i.jugador1_id, i.jugador2_id]).filter(Boolean))];
-    const { data: jData } = jugadorIds.length > 0
-      ? await (supabase as any)
+      const jugadorIds = [...new Set((iData ?? []).flatMap((i: any) => [i.jugador1_id, i.jugador2_id]).filter(Boolean))];
+      const { data: jData } = jugadorIds.length > 0
+        ? await (supabase as any)
           .from("jugadores_publicos")
           .select("id, nombre, apellido, club, categoria_id, genero")
           .in("id", jugadorIds)
-      : { data: [] };
+        : { data: [] };
 
-    setZonas((zData ?? []) as Zona[]);
-    setInscripciones(iData ?? []);
-    setJugadores(jData ?? []);
-    
-    if (lData) {
-      const { data: llavesData, error: llavesErr } = await (supabase as any)
-        .from("partidos_llave")
-        .select("id, llave_id, numero, ronda, pareja_local_id, pareja_visitante_id, ref_local, ref_visitante, estado, ganador_id, fecha_hora, cancha")
-        .eq("llave_id", lData.id)
-        .order("numero");
-      if (llavesErr) throw llavesErr;
-      const filteredPartidos = llavesData ?? [];
-      setPartidosLlave(filteredPartidos as PartidoLlaveRow[]);
-      
-      if (filteredPartidos.length > 0) {
-        const pIds = filteredPartidos.map(p => p.id);
-        const { data: sData, error: setsErr } = await (supabase as any).from("sets_partido").select("partido_llave_id, numero_set, games_local, games_visitante").in("partido_llave_id", pIds);
-        if (setsErr) throw setsErr;
-        const map: Record<string, any[]> = {};
-        (sData ?? []).forEach(s => {
-          if (!map[s.partido_llave_id!]) map[s.partido_llave_id!] = [];
-          map[s.partido_llave_id!].push(s);
-        });
-        setSetsLlave(map);
+      setZonas((zData ?? []) as Zona[]);
+      setInscripciones(iData ?? []);
+      setJugadores(jData ?? []);
+
+      if (lData) {
+        const { data: llavesData, error: llavesErr } = await (supabase as any)
+          .from("partidos_llave")
+          .select("id, llave_id, numero, ronda, pareja_local_id, pareja_visitante_id, ref_local, ref_visitante, estado, ganador_id, fecha_hora, cancha")
+          .eq("llave_id", lData.id)
+          .order("numero");
+        if (llavesErr) throw llavesErr;
+        const filteredPartidos = llavesData ?? [];
+        setPartidosLlave(filteredPartidos as PartidoLlaveRow[]);
+
+        if (filteredPartidos.length > 0) {
+          const pIds = filteredPartidos.map(p => p.id);
+          const { data: sData, error: setsErr } = await (supabase as any).from("sets_partido").select("partido_llave_id, numero_set, games_local, games_visitante").in("partido_llave_id", pIds);
+          if (setsErr) throw setsErr;
+          const map: Record<string, any[]> = {};
+          (sData ?? []).forEach(s => {
+            if (!map[s.partido_llave_id!]) map[s.partido_llave_id!] = [];
+            map[s.partido_llave_id!].push(s);
+          });
+          setSetsLlave(map);
+        }
       }
-    }
 
-    // Fetch Category Name if official
-    if (tData.tipo === "oficial" && tData.categoria_id) {
-      const { data: cData, error: categoryErr } = await (supabase as any).from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
-      if (categoryErr) throw categoryErr;
-      if (cData) setCategoriaNombre(cData.nombre);
-    }
+      // Fetch Category Name if official
+      if (tData.tipo === "oficial" && tData.categoria_id) {
+        const { data: cData, error: categoryErr } = await (supabase as any).from("categorias").select("nombre").eq("id", tData.categoria_id).maybeSingle();
+        if (categoryErr) throw categoryErr;
+        if (cData) setCategoriaNombre(cData.nombre);
+      }
     } catch (error) {
       console.error("No se pudo cargar el torneo público", error);
       if (!torneoPrincipalCargado) setLoadError(true);
@@ -258,11 +258,11 @@ export default function TorneoPublico() {
                 </Badge>
               )}
             </div>
-            
+
             <h2 className="text-3xl sm:text-5xl font-black tracking-tighter bg-gradient-to-br from-foreground to-muted-foreground dark:from-foreground dark:to-foreground/60 bg-clip-text text-transparent pb-1">
               {torneo.nombre}
             </h2>
-            
+
             <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm font-medium text-muted-foreground pt-2">
               <div className="flex items-center gap-2 bg-background/60 dark:bg-black/40 rounded-full px-3 py-1.5 border dark:border-primary/20 shadow-sm backdrop-blur-md">
                 <Calendar className="h-3.5 w-3.5 text-primary" />
@@ -356,7 +356,7 @@ export default function TorneoPublico() {
 
           {/* Tab: ZONAS */}
           <TabsContent value="zonas" className="mt-6 space-y-6">
-            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" && torneo?.estado !== "inscripciones_cerradas" ? (
+            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" ? (
               <Card className="border-dashed bg-muted/20">
                 <CardContent className="py-12 text-center text-muted-foreground space-y-3">
                   <LayoutGrid className="h-10 w-10 mx-auto opacity-40 text-primary" />
@@ -377,14 +377,14 @@ export default function TorneoPublico() {
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {zonas.map((z) => (
-                  <ZonaCard 
-                    key={z.id} 
-                    zona={z} 
+                  <ZonaCard
+                    key={z.id}
+                    zona={z}
                     torneoId={torneo.id}
-                    parejasDisponibles={[]} 
+                    parejasDisponibles={[]}
                     parejaLabel={parejaLabel}
-                    onChanged={() => {}} 
-                    onDeleted={() => {}}
+                    onChanged={() => { }}
+                    onDeleted={() => { }}
                     readOnly={true}
                     torneoNombre={torneo?.nombre || ""}
                   />
@@ -395,7 +395,7 @@ export default function TorneoPublico() {
 
           {/* Tab: LLAVES */}
           <TabsContent value="llaves" className="mt-6">
-            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" && torneo?.estado !== "inscripciones_cerradas" ? (
+            {torneo?.estado !== "en_curso" && torneo?.estado !== "finalizado" ? (
               <Card className="border-dashed bg-muted/20">
                 <CardContent className="py-12 text-center text-muted-foreground space-y-3">
                   <GitBranch className="h-10 w-10 mx-auto opacity-40 text-primary" />
@@ -427,63 +427,63 @@ export default function TorneoPublico() {
                 </div>
                 <div className="overflow-x-auto pb-6">
                   <div className="flex gap-6 min-w-fit items-stretch">
-                  {partidosPorRonda.map(([ronda, partidos]) => (
-                    <div key={ronda} className="flex flex-col min-w-[280px]">
-                      <h3 className="text-sm font-bold text-center uppercase tracking-widest text-primary sticky top-0 bg-background/95 backdrop-blur py-2 z-10 border-b mb-4">
-                        {NOMBRE_RONDA[ronda]}
-                      </h3>
-                      <div className="flex-1 flex flex-col justify-around gap-6 py-4 min-h-[350px]">
-                        {partidos.map((p) => (
-                          <PartidoCard
-                            key={p.id}
-                            partidoId={p.id}
-                            torneoId={torneo.id}
-                            orden={p.numero}
-                            labelPartido={`Partido ${p.numero}`}
-                            tabla="partidos_llave"
-                            parejaLocal={
-                              p.pareja_local_id
-                                ? {
+                    {partidosPorRonda.map(([ronda, partidos]) => (
+                      <div key={ronda} className="flex flex-col min-w-[280px]">
+                        <h3 className="text-sm font-bold text-center uppercase tracking-widest text-primary sticky top-0 bg-background/95 backdrop-blur py-2 z-10 border-b mb-4">
+                          {NOMBRE_RONDA[ronda]}
+                        </h3>
+                        <div className="flex-1 flex flex-col justify-around gap-6 py-4 min-h-[350px]">
+                          {partidos.map((p) => (
+                            <PartidoCard
+                              key={p.id}
+                              partidoId={p.id}
+                              torneoId={torneo.id}
+                              orden={p.numero}
+                              labelPartido={`Partido ${p.numero}`}
+                              tabla="partidos_llave"
+                              parejaLocal={
+                                p.pareja_local_id
+                                  ? {
                                     inscripcion_id: p.pareja_local_id,
                                     posicion_siembra: 0,
                                     label: parejaLabel(p.pareja_local_id),
                                   }
-                                : p.ref_local
-                                  ? {
+                                  : p.ref_local
+                                    ? {
                                       inscripcion_id: "",
                                       posicion_siembra: 0,
                                       label: formatRefLabel(p.ref_local),
                                     }
-                                  : null
-                            }
-                            parejaVisitante={
-                              p.pareja_visitante_id
-                                ? {
+                                    : null
+                              }
+                              parejaVisitante={
+                                p.pareja_visitante_id
+                                  ? {
                                     inscripcion_id: p.pareja_visitante_id,
                                     posicion_siembra: 0,
                                     label: parejaLabel(p.pareja_visitante_id),
                                   }
-                                : p.ref_visitante
-                                  ? {
+                                  : p.ref_visitante
+                                    ? {
                                       inscripcion_id: "",
                                       posicion_siembra: 0,
                                       label: formatRefLabel(p.ref_visitante),
                                     }
-                                  : null
-                            }
-                            estado={p.estado}
-                            ganadorId={p.ganador_id}
-                            setsExistentes={setsLlave[p.id] ?? []}
-                            onUpdated={() => {}}
-                            fechaHora={p.fecha_hora}
-                            cancha={p.cancha}
-                            showProgramacion
-                            readOnly={true}
-                          />
-                        ))}
+                                    : null
+                              }
+                              estado={p.estado}
+                              ganadorId={p.ganador_id}
+                              setsExistentes={setsLlave[p.id] ?? []}
+                              onUpdated={() => { }}
+                              fechaHora={p.fecha_hora}
+                              cancha={p.cancha}
+                              showProgramacion
+                              readOnly={true}
+                            />
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    ))}
                   </div>
                 </div>
               </div>

@@ -62,7 +62,7 @@ export default function ClubHome() {
   const { club, loading: tenantLoading } = useTenant();
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [loadingTorneos, setLoadingTorneos] = useState(false);
-  
+
   // Rankings state
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
@@ -77,8 +77,8 @@ export default function ClubHome() {
   const rankingFiltrado = useMemo(() => {
     if (!busqueda.trim()) return rankingRows;
     const lower = busqueda.toLowerCase();
-    return rankingRows.filter(r => 
-      r.jugador_nombre.toLowerCase().includes(lower) || 
+    return rankingRows.filter(r =>
+      r.jugador_nombre.toLowerCase().includes(lower) ||
       r.jugador_apellido.toLowerCase().includes(lower)
     );
   }, [rankingRows, busqueda]);
@@ -106,7 +106,7 @@ export default function ClubHome() {
       .order("fecha_inicio", { ascending: false });
 
     q = q.eq("club_id", club.id);
-    
+
     const { data } = await q;
     setTorneos(data || []);
     setLoadingTorneos(false);
@@ -119,7 +119,7 @@ export default function ClubHome() {
       .select("id, nombre, genero")
       .eq("club_id", club.id)
       .order("orden");
-    
+
     if (cats) setCategorias(cats);
 
     // Obtener años disponibles de torneos jugados en el club
@@ -128,7 +128,7 @@ export default function ClubHome() {
       .select("fecha_inicio");
     tQuery = tQuery.eq("club_id", club.id);
     const { data: torneosAnios } = await tQuery;
-    
+
     const anioSet = new Set<number>();
     anioSet.add(new Date().getFullYear());
     (torneosAnios || []).forEach(t => {
@@ -137,7 +137,7 @@ export default function ClubHome() {
     setAniosDisp(Array.from(anioSet).sort((a, b) => b - a));
   };
 
-  
+
   const inscripcionesAbiertas = useMemo(() => {
     return torneos.filter(t => t.estado === "inscripciones_abiertas");
   }, [torneos]);
@@ -236,7 +236,7 @@ export default function ClubHome() {
   }, [torneos]);
 
   const torneosActivosPortal = useMemo(() => {
-    return torneos.filter(t => t.estado === "en_curso" || t.estado === "inscripciones_cerradas");
+    return torneos.filter(t => t.estado === "en_curso");
   }, [torneos]);
 
   const copiarEnlace = () => {
@@ -299,7 +299,7 @@ export default function ClubHome() {
       </header>
 
       <main className="flex-1 w-full max-w-4xl mx-auto px-4 py-6 sm:py-8 space-y-6">
-        
+
         {/* Hero Section */}
         <div className="flex flex-col items-center text-center space-y-4 pb-2 animate-in fade-in slide-in-from-top-4 duration-500">
           <div className="relative">
@@ -337,7 +337,7 @@ export default function ClubHome() {
             <div className="flex items-center justify-between">
               <h2 className="text-lg font-bold">Torneos y Resultados</h2>
             </div>
-            
+
             {loadingTorneos ? (
               <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
             ) : torneosActivosPortal.length === 0 ? (
@@ -355,39 +355,39 @@ export default function ClubHome() {
                   return (
                     <Link key={t.id} to={tournamentUrl}>
                       <Card className="hover:border-primary/50 transition-colors h-full flex flex-col group cursor-pointer">
-                      <CardHeader className="pb-3 flex-row items-start justify-between space-y-0 gap-2">
-                        <div className="space-y-1 pr-4">
-                          <CardTitle className="text-base line-clamp-2 leading-tight group-hover:text-primary transition-colors">
-                            {t.nombre}
-                          </CardTitle>
-                          {t.numero_fecha != null && (
-                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-background">
-                              Fecha {t.numero_fecha}
-                            </Badge>
-                          )}
-                        </div>
-                        <Badge className={`shrink-0 text-[10px] capitalize ${ESTADO_TORNEO_BADGE[t.estado as EstadoTorneo]}`}>
-                          {ESTADO_TORNEO_LABELS[t.estado as EstadoTorneo]}
-                        </Badge>
-                      </CardHeader>
-                      <CardContent className="mt-auto pb-4">
-                        <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                          <div className="flex items-center gap-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            {new Date(t.fecha_inicio).toLocaleDateString("es-AR", { month: "short", day: "numeric" })}
+                        <CardHeader className="pb-3 flex-row items-start justify-between space-y-0 gap-2">
+                          <div className="space-y-1 pr-4">
+                            <CardTitle className="text-base line-clamp-2 leading-tight group-hover:text-primary transition-colors">
+                              {t.nombre}
+                            </CardTitle>
+                            {t.numero_fecha != null && (
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-background">
+                                Fecha {t.numero_fecha}
+                              </Badge>
+                            )}
                           </div>
-                          {t.sede && (
-                            <div className="flex items-center gap-1 line-clamp-1">
-                              <MapPin className="h-3.5 w-3.5" />
-                              {t.sede}
+                          <Badge className={`shrink-0 text-[10px] capitalize ${ESTADO_TORNEO_BADGE[t.estado as EstadoTorneo]}`}>
+                            {ESTADO_TORNEO_LABELS[t.estado as EstadoTorneo]}
+                          </Badge>
+                        </CardHeader>
+                        <CardContent className="mt-auto pb-4">
+                          <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3.5 w-3.5" />
+                              {new Date(t.fecha_inicio).toLocaleDateString("es-AR", { month: "short", day: "numeric" })}
                             </div>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Link>
-                );
-              })}
+                            {t.sede && (
+                              <div className="flex items-center gap-1 line-clamp-1">
+                                <MapPin className="h-3.5 w-3.5" />
+                                {t.sede}
+                              </div>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
               </div>
             )}
           </TabsContent>
@@ -478,7 +478,7 @@ export default function ClubHome() {
                   <div className="py-12 flex justify-center"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
                 ) : rankingFiltrado.length === 0 ? (
                   <div className="py-12 text-center text-muted-foreground text-sm">
-                    {rankingRows.length === 0 
+                    {rankingRows.length === 0
                       ? "No hay puntos registrados para esta categoría."
                       : "No se encontraron jugadores que coincidan con la búsqueda."}
                   </div>
