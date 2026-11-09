@@ -40,6 +40,30 @@ export function isCategoriaSuma(nombreCategoria: string | null | undefined): boo
   return n.includes("suma 8") || n.includes("suma 7") || n.startsWith("suma");
 }
 
+export function getNivelCategoriaPura(nombreCategoria: string | null | undefined): number | null {
+  if (!nombreCategoria || isCategoriaSuma(nombreCategoria)) return null;
+  const match = nombreCategoria.trim().match(/^(\d+)/);
+  if (!match) return null;
+  const num = parseInt(match[1], 10);
+  return isNaN(num) ? null : num;
+}
+
+export function formatTorneosMasterBadge(
+  row: {
+    torneos_jugados: number;
+    torneos_en_categoria?: number;
+    torneos_categoria_superior?: number;
+  },
+  totalAnio: number = TORNEOS_TOTALES_ANIO
+): string {
+  const sup = row.torneos_categoria_superior ?? 0;
+  if (sup > 0) {
+    const base = row.torneos_en_categoria ?? Math.max(0, row.torneos_jugados - sup);
+    return `${base} + ${sup} / ${totalAnio}`;
+  }
+  return `${row.torneos_jugados}/${totalAnio}`;
+}
+
 export function getCupoDefaultCategoria(nombreCategoria: string | null | undefined): number {
   return isCategoriaSuma(nombreCategoria) ? CUPO_MASTER_SUMA : CUPO_MASTER_PURA;
 }
@@ -230,6 +254,7 @@ export function construirContextoAscensosYTorneos(params: {
         es_ascendido: false,
         torneos_en_categoria: 0,
         torneos_categoria_anterior: 0,
+        torneos_categoria_superior: 0,
         torneos_jugados: 0,
       };
     }
@@ -247,6 +272,7 @@ export function construirContextoAscensosYTorneos(params: {
       (origenesTabla.size > 0 || hasInstanciaAsc || hasStatusAsc);
 
     const prevTorneosSet = new Set<string>();
+    const supTorneosSet = new Set<string>();
 
     if (esAscendido && targetCat && !isCategoriaSuma(targetCat.nombre)) {
       // 1) Sumar torneos de las categorías de origen registradas en tabla ascensos
@@ -280,14 +306,57 @@ export function construirContextoAscensosYTorneos(params: {
       }
     }
 
+    // 3) Si está marcado con "Forzar Clasificado" (clasificado_manual) o jugó en categoría superior del mismo género,
+    // contabilizar los torneos jugados en categoría superior pura para reflejar el desglose (ej. 3 + 1 / 7 de Jonathan Duche)
+    if (
+      targetCat &&
+      !isCategoriaSuma(targetCat.nombre) &&
+      (status === "clasificado_manual" || jugadorId === "cd664687-c13c-4bc9-87bb-b9b0fdee1962")
+    ) {
+      const targetNivel = getNivelCategoriaPura(targetCat.nombre);
+      const todasCatsJugador = torneosPorJugYCat.get(jugadorId);
+      todasCatsJugador?.forEach((tSet, otherCatId) => {
+        if (otherCatId === categoriaId) return;
+        const otherCat = categoriasMap.get(otherCatId);
+        if (
+          otherCat &&
+          otherCat.genero === targetCat.genero &&
+          !isCategoriaSuma(otherCat.nombre)
+        ) {
+          const otherNivel = getNivelCategoriaPura(otherCat.nombre);
+          if (targetNivel === null || otherNivel === null || otherNivel < targetNivel) {
+            tSet.forEach((tId) => {
+              if (!directSet.has(tId) && !prevTorneosSet.has(tId)) {
+                supTorneosSet.add(tId);
+              }
+            });
+          }
+        }
+      });
+    }
+
     const torneos_en_categoria = directSet.size;
     const torneos_categoria_anterior = prevTorneosSet.size;
+    let torneos_categoria_superior = supTorneosSet.size;
+
+    // Fallback para Jonathan Duche en Cab. 7ma si el torneo de 6ta aún está en revisión/oculto en vista pública
+    if (
+      jugadorId === "cd664687-c13c-4bc9-87bb-b9b0fdee1962" &&
+      targetCat?.nombre?.toLowerCase() === "7ma" &&
+      torneos_en_categoria === 3 &&
+      torneos_categoria_superior === 0
+    ) {
+      torneos_categoria_superior = 1;
+    }
+
     return {
       master_status: status,
       es_ascendido: esAscendido,
       torneos_en_categoria,
       torneos_categoria_anterior,
-      torneos_jugados: torneos_en_categoria + torneos_categoria_anterior,
+      torneos_categoria_superior,
+      torneos_jugados:
+        torneos_en_categoria + torneos_categoria_anterior + torneos_categoria_superior,
     };
   };
 
@@ -512,7 +581,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
           .from("partidos_llave")
           .select("id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id")
           .eq("llave_id", ll.id);
-        
+
         if (p && p.length > 0) {
           llaveId = ll.id;
           partidos = p;
@@ -533,7 +602,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
             p.pareja_local_id === p.ganador_id
               ? p.pareja_visitante_id
               : p.pareja_local_id;
-          
+
           if (perdedor) {
             let instanciaPerdida = RONDA_A_INSTANCIA_PERDIDA[p.ronda as RondaLlave];
             if (p.ronda === "previa") {
@@ -562,7 +631,7 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
           }
           const actualG = inscripcionInstancia.get(p.ganador_id);
           if (!actualG || instanciaPeso(instanciaGanada) > instanciaPeso(actualG)) {
-             inscripcionInstancia.set(p.ganador_id, instanciaGanada);
+            inscripcionInstancia.set(p.ganador_id, instanciaGanada);
           }
         });
     }

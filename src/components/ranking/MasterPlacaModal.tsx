@@ -22,6 +22,8 @@ export type PlacaJugadorItem = {
   club?: string | null;
   puntos: number;
   torneos_jugados: number;
+  torneos_en_categoria?: number;
+  torneos_categoria_superior?: number;
   posicion_general: number;
   posicion_master: number;
   orden_suplente?: number | null;
@@ -276,7 +278,9 @@ export function MasterPlacaModal({
                     <div className="rounded-xl bg-white/5 border border-white/10 p-3">
                       <p className="text-[10px] uppercase text-slate-400 font-bold">Torneos</p>
                       <p className="text-xl font-black text-emerald-400 mt-0.5">
-                        {jugadorDestacado.torneos_jugados}/7
+                        {(jugadorDestacado.torneos_categoria_superior ?? 0) > 0
+                          ? `${jugadorDestacado.torneos_en_categoria ?? jugadorDestacado.torneos_jugados - (jugadorDestacado.torneos_categoria_superior ?? 0)} + ${jugadorDestacado.torneos_categoria_superior} / 7`
+                          : `${jugadorDestacado.torneos_jugados}/7`}
                       </p>
                     </div>
                   </div>
@@ -349,7 +353,9 @@ export function MasterPlacaModal({
                                 {item.puntos} pts
                               </span>
                               <span className="text-[9px] text-slate-400 font-mono">
-                                {item.torneos_jugados}/7 T
+                                {(item.torneos_categoria_superior ?? 0) > 0
+                                  ? `${item.torneos_en_categoria ?? item.torneos_jugados - (item.torneos_categoria_superior ?? 0)} + ${item.torneos_categoria_superior} / 7 T`
+                                  : `${item.torneos_jugados}/7 T`}
                               </span>
                             </div>
                           )}
@@ -392,7 +398,9 @@ export function MasterPlacaModal({
                             </p>
                             {item && (
                               <p className="text-[8.5px] text-slate-400 truncate leading-tight">
-                                {item.torneos_jugados}/7 torneos
+                                {(item.torneos_categoria_superior ?? 0) > 0
+                                  ? `${item.torneos_en_categoria ?? item.torneos_jugados - (item.torneos_categoria_superior ?? 0)} + ${item.torneos_categoria_superior} / 7 torneos`
+                                  : `${item.torneos_jugados}/7 torneos`}
                               </p>
                             )}
                           </div>

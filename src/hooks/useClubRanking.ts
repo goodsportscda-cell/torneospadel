@@ -34,6 +34,7 @@ export type RankingRowUnified = {
   torneos_jugados: number;
   torneos_en_categoria?: number;
   torneos_categoria_anterior?: number;
+  torneos_categoria_superior?: number;
   es_ascendido?: boolean;
   master_status?: MasterStatus;
   elegible_master?: boolean;
@@ -362,6 +363,7 @@ export function useClubRanking(
           torneos_jugados: metricasMaster.torneos_jugados,
           torneos_en_categoria: metricasMaster.torneos_en_categoria,
           torneos_categoria_anterior: metricasMaster.torneos_categoria_anterior,
+          torneos_categoria_superior: metricasMaster.torneos_categoria_superior,
           es_ascendido: metricasMaster.es_ascendido,
           master_status: metricasMaster.master_status,
           desglose: desgloseSeguro,

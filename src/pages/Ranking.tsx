@@ -62,6 +62,7 @@ import {
   actualizarMasterStatusJugador,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
+  formatTorneosMasterBadge,
   type MasterStatus,
 } from "@/lib/ranking";
 import { type RankingRowUnified } from "@/hooks/useClubRanking";
@@ -266,6 +267,8 @@ export default function Ranking() {
         club: string | null;
         puntos: number;
         torneos_jugados: number;
+        torneos_en_categoria?: number;
+        torneos_categoria_superior?: number;
       };
 
       type CatMasterData = {
@@ -318,6 +321,8 @@ export default function Ranking() {
               club: j?.club ?? null,
               puntos: ptsObj.ptsTorneos + ptsObj.ptsAscenso,
               torneos_jugados: m.torneos_jugados,
+              torneos_en_categoria: m.torneos_en_categoria,
+              torneos_categoria_superior: m.torneos_categoria_superior,
               master_status: m.master_status,
             };
           })
@@ -468,7 +473,7 @@ export default function Ranking() {
             pdf.text(`${idx + 1}.`, x + 3, ry, { align: "left" });
             pdf.setTextColor(0);
             pdf.setFont("helvetica", "bold");
-            const nombre = `${c.apellido}, ${c.nombre} (${c.torneos_jugados}/7)`;
+            const nombre = `${c.apellido}, ${c.nombre} (${formatTorneosMasterBadge(c)})`;
             const maxNombreW = colW - 18;
             const nombreFit = pdf.splitTextToSize(nombre, maxNombreW)[0];
             pdf.text(nombreFit, x + 8, ry);
@@ -897,6 +902,7 @@ export default function Ranking() {
         torneos_jugados: metricasMaster.torneos_jugados,
         torneos_en_categoria: metricasMaster.torneos_en_categoria,
         torneos_categoria_anterior: metricasMaster.torneos_categoria_anterior,
+        torneos_categoria_superior: metricasMaster.torneos_categoria_superior,
         es_ascendido: metricasMaster.es_ascendido,
         master_status: metricasMaster.master_status,
         categoria_ranking_id: evalCatId,
@@ -1008,6 +1014,8 @@ export default function Ranking() {
           club: r.jugador_club,
           puntos: r.puntos_totales,
           torneos_jugados: r.torneos_jugados,
+          torneos_en_categoria: r.torneos_en_categoria,
+          torneos_categoria_superior: r.torneos_categoria_superior,
           posicion_general: r.posicion,
           posicion_master: r.posicion_master ?? r.posicion,
         })),
@@ -1025,6 +1033,8 @@ export default function Ranking() {
           club: r.jugador_club,
           puntos: r.puntos_totales,
           torneos_jugados: r.torneos_jugados,
+          torneos_en_categoria: r.torneos_en_categoria,
+          torneos_categoria_superior: r.torneos_categoria_superior,
           posicion_general: r.posicion,
           posicion_master: r.posicion_master ?? r.posicion,
           orden_suplente: r.orden_suplente,
@@ -1984,12 +1994,20 @@ export default function Ranking() {
                             <Badge
                               variant="outline"
                               className={`font-mono ${r.torneos_jugados >= TORNEOS_REQUERIDOS_MASTER
-                                  ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5"
-                                  : ""
+                                ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5"
+                                : ""
                                 }`}
                             >
-                              {r.torneos_jugados}/{TORNEOS_TOTALES_ANIO}
+                              {formatTorneosMasterBadge(r, TORNEOS_TOTALES_ANIO)}
                             </Badge>
+                            {(r.torneos_categoria_superior ?? 0) > 0 && (
+                              <span
+                                className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5"
+                                title="Incluye torneo(s) jugado(s) en categoría superior"
+                              >
+                                ({r.torneos_en_categoria} + {r.torneos_categoria_superior} cat. sup.)
+                              </span>
+                            )}
                             {(r.torneos_categoria_anterior ?? 0) > 0 && (
                               <span
                                 className="text-[10px] text-muted-foreground mt-0.5"
@@ -2117,9 +2135,16 @@ export default function Ranking() {
                           #{r.posicion}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className="font-mono">
-                            {r.torneos_jugados}/{TORNEOS_TOTALES_ANIO}
-                          </Badge>
+                          <div className="inline-flex flex-col items-center">
+                            <Badge variant="outline" className="font-mono">
+                              {formatTorneosMasterBadge(r, TORNEOS_TOTALES_ANIO)}
+                            </Badge>
+                            {(r.torneos_categoria_superior ?? 0) > 0 && (
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                                ({r.torneos_en_categoria} + {r.torneos_categoria_superior} cat. sup.)
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell>
                           <Select
@@ -2191,9 +2216,16 @@ export default function Ranking() {
                           {r.jugador_apellido}, {r.jugador_nombre}
                         </TableCell>
                         <TableCell className="text-center">
-                          <Badge variant="outline" className="font-mono">
-                            {r.torneos_jugados}/{TORNEOS_TOTALES_ANIO}
-                          </Badge>
+                          <div className="inline-flex flex-col items-center">
+                            <Badge variant="outline" className="font-mono">
+                              {formatTorneosMasterBadge(r, TORNEOS_TOTALES_ANIO)}
+                            </Badge>
+                            {(r.torneos_categoria_superior ?? 0) > 0 && (
+                              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
+                                ({r.torneos_en_categoria} + {r.torneos_categoria_superior} cat. sup.)
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="text-right font-bold">
                           {r.puntos_totales}
@@ -2282,8 +2314,8 @@ export default function Ranking() {
                     <div
                       key={t.id}
                       className={`flex items-center justify-between gap-3 rounded-lg border p-3 transition-colors ${t.ranking_publicado
-                          ? "bg-background"
-                          : "border-amber-500/40 bg-amber-500/5"
+                        ? "bg-background"
+                        : "border-amber-500/40 bg-amber-500/5"
                         }`}
                     >
                       <div className="min-w-0 flex-1 space-y-1">

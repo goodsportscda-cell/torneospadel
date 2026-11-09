@@ -41,6 +41,7 @@ import {
   isCategoriaSuma,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
+  formatTorneosMasterBadge,
   type EstadoMasterTipo,
 } from "@/lib/ranking";
 import { MasterPlacaModal, type PlacaJugadorItem } from "@/components/ranking/MasterPlacaModal";
@@ -85,6 +86,7 @@ type RankingEntry = {
   torneos_jugados: number;
   torneos_en_categoria: number;
   torneos_categoria_anterior: number;
+  torneos_categoria_superior: number;
   clasifica_master: boolean;
   es_suplente_master: boolean;
   posicion_master: number | null;
@@ -303,6 +305,7 @@ export default function PlayerDashboard() {
                     torneos_jugados: m.torneos_jugados,
                     torneos_en_categoria: m.torneos_en_categoria,
                     torneos_categoria_anterior: m.torneos_categoria_anterior,
+                    torneos_categoria_superior: m.torneos_categoria_superior,
                     master_status: m.master_status,
                   };
                 })
@@ -327,6 +330,8 @@ export default function PlayerDashboard() {
                     club: e.club,
                     puntos: e.puntos_totales,
                     torneos_jugados: e.torneos_jugados,
+                    torneos_en_categoria: e.torneos_en_categoria,
+                    torneos_categoria_superior: e.torneos_categoria_superior,
                     posicion_general: e.posicion,
                     posicion_master: e.posicion_master ?? e.posicion,
                   }));
@@ -340,6 +345,8 @@ export default function PlayerDashboard() {
                     club: e.club,
                     puntos: e.puntos_totales,
                     torneos_jugados: e.torneos_jugados,
+                    torneos_en_categoria: e.torneos_en_categoria,
+                    torneos_categoria_superior: e.torneos_categoria_superior,
                     posicion_general: e.posicion,
                     posicion_master: e.posicion_master ?? e.posicion,
                     orden_suplente: e.orden_suplente,
@@ -356,6 +363,7 @@ export default function PlayerDashboard() {
                   torneos_jugados: miFila.torneos_jugados,
                   torneos_en_categoria: miFila.torneos_en_categoria,
                   torneos_categoria_anterior: miFila.torneos_categoria_anterior,
+                  torneos_categoria_superior: miFila.torneos_categoria_superior,
                   clasifica_master: miFila.clasifica_master,
                   es_suplente_master: miFila.es_suplente_master,
                   posicion_master: miFila.posicion_master,
@@ -470,7 +478,7 @@ export default function PlayerDashboard() {
     if (error || !data?.ok) {
       toast.error(
         "Error al inscribirte: " +
-          (error?.message || data?.error || "Intente nuevamente")
+        (error?.message || data?.error || "Intente nuevamente")
       );
     } else {
       toast.success(
@@ -736,7 +744,7 @@ export default function PlayerDashboard() {
                               Torneos del Año
                             </p>
                             <p className="text-lg font-black mt-0.5">
-                              {r.torneos_jugados} / {TORNEOS_TOTALES_ANIO}
+                              {formatTorneosMasterBadge(r, TORNEOS_TOTALES_ANIO)}
                             </p>
                           </div>
                         </div>
@@ -750,13 +758,19 @@ export default function PlayerDashboard() {
                                 {Math.min(r.torneos_jugados, TORNEOS_REQUERIDOS_MASTER)}/
                                 {TORNEOS_REQUERIDOS_MASTER} requeridos
                               </strong>{" "}
-                              ({r.torneos_jugados}/{TORNEOS_TOTALES_ANIO} jugados en el año)
+                              ({formatTorneosMasterBadge(r, TORNEOS_TOTALES_ANIO)} jugados en el año)
                             </span>
                             <span className="text-muted-foreground font-mono">
                               {progresoPct}%
                             </span>
                           </div>
                           <Progress value={progresoPct} className="h-2.5" />
+                          {r.torneos_categoria_superior > 0 && (
+                            <p className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium">
+                              Incluye {r.torneos_en_categoria} torneo(s) en esta categoría +{" "}
+                              {r.torneos_categoria_superior} en categoría superior.
+                            </p>
+                          )}
                           {r.torneos_categoria_anterior > 0 && (
                             <p className="text-[11px] text-muted-foreground">
                               Incluye {r.torneos_en_categoria} torneo(s) en esta categoría +{" "}
@@ -989,9 +1003,8 @@ export default function PlayerDashboard() {
                                       asChild
                                     >
                                       <Link
-                                        to={`/inscribirse/${t.id}${
-                                          jugadorId ? `?j1=${jugadorId}` : ""
-                                        }`}
+                                        to={`/inscribirse/${t.id}${jugadorId ? `?j1=${jugadorId}` : ""
+                                          }`}
                                       >
                                         Inscribirme
                                       </Link>
@@ -1008,9 +1021,8 @@ export default function PlayerDashboard() {
                           )}
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge
-                              className={`text-[10px] ${
-                                ESTADO_TORNEO_BADGE[t.estado as EstadoTorneo]
-                              }`}
+                              className={`text-[10px] ${ESTADO_TORNEO_BADGE[t.estado as EstadoTorneo]
+                                }`}
                             >
                               {ESTADO_TORNEO_LABELS[t.estado as EstadoTorneo]}
                             </Badge>
