@@ -190,6 +190,27 @@ export default function SuperAdminDashboard() {
       }
     };
 
+    const fetchAllJugadoresAdmin = async () => {
+      const pageSize = 1000;
+      const all: any[] = [];
+      let offset = 0;
+      while (true) {
+        const { data, error } = await supabase
+          .from("jugadores")
+          .select("id, nombre, apellido, dni, email, club, genero, categoria_id, notas")
+          .order("apellido", { ascending: true })
+          .order("nombre", { ascending: true })
+          .order("id", { ascending: true })
+          .range(offset, offset + pageSize - 1);
+        if (error) break;
+        const page = data ?? [];
+        all.push(...page);
+        if (page.length < pageSize) break;
+        offset += pageSize;
+      }
+      return { data: all };
+    };
+
     const [
       { count: clubesCount, error: clubesError },
       { count: torneosCount, error: torneosError },
@@ -211,11 +232,7 @@ export default function SuperAdminDashboard() {
         .order("cambiado_en", { ascending: false })
         .limit(10),
       supabase.from("clubes").select("*").order("created_at", { ascending: false }),
-      supabase
-        .from("jugadores")
-        .select("id, nombre, apellido, dni, email, club, genero, categoria_id, notas")
-        .order("apellido")
-        .limit(5000),
+      fetchAllJugadoresAdmin(),
       (supabase as any)
         .from("jugador_categorias_club")
         .select("jugador_id, club_id, categoria_id")

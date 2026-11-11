@@ -431,11 +431,44 @@ export default function Inscripciones() {
       }
     }
 
+    // Si es un Desafío Semanal en Parejas, sincronizar también con torneo_individual_parejas y torneo_individual_jugadores
+    if (torneo?.tipo === "americano_individual" && (torneo as any)?.modalidad === "parejas") {
+      try {
+        const { data: existingCouple } = await (supabase as any)
+          .from("torneo_individual_parejas")
+          .select("id")
+          .eq("torneo_id", form.torneo_id)
+          .or(`jugador1_id.in.(${form.jugador1_id},${form.jugador2_id}),jugador2_id.in.(${form.jugador1_id},${form.jugador2_id})`);
+
+        if (!existingCouple || existingCouple.length === 0) {
+          await (supabase as any).from("torneo_individual_parejas").insert({
+            torneo_id: form.torneo_id,
+            jugador1_id: form.jugador1_id,
+            jugador2_id: form.jugador2_id,
+          });
+        }
+
+        await (supabase as any)
+          .from("torneo_individual_jugadores")
+          .upsert(
+            [
+              { torneo_id: form.torneo_id, jugador_id: form.jugador1_id, estado: "confirmada" },
+              { torneo_id: form.torneo_id, jugador_id: form.jugador2_id, estado: "confirmada" },
+            ],
+            { onConflict: "torneo_id,jugador_id" }
+          );
+      } catch (syncErr) {
+        console.warn("No se pudo sincronizar pareja con consola de Desafío:", syncErr);
+      }
+    }
+
     setDialogOpen(false);
     fetchAll();
   };
 
   const handleDelete = async (id: string) => {
+    const targetInsc = inscripciones.find((ins) => ins.id === id);
+
     // Check if the pairing is already assigned to a zone to prevent orphaned matches
     const { data: assigned, error: checkError } = await supabase
       .from("zonas_parejas")
@@ -453,6 +486,32 @@ export default function Inscripciones() {
 
     const { error } = await supabase.from("inscripciones").delete().eq("id", id);
     if (error) return toast.error("Error al eliminar: " + error.message);
+
+    if (targetInsc) {
+      const t = torneoMap.get(targetInsc.torneo_id);
+      if (t?.tipo === "americano_individual" && (t as any)?.modalidad === "parejas") {
+        const { count: matchesCount } = await (supabase as any)
+          .from("partidos_individuales")
+          .select("id", { count: "exact", head: true })
+          .eq("torneo_id", targetInsc.torneo_id);
+
+        if (!matchesCount || matchesCount === 0) {
+          await (supabase as any)
+            .from("torneo_individual_parejas")
+            .delete()
+            .eq("torneo_id", targetInsc.torneo_id)
+            .in("jugador1_id", [targetInsc.jugador1_id, targetInsc.jugador2_id])
+            .in("jugador2_id", [targetInsc.jugador1_id, targetInsc.jugador2_id]);
+
+          await (supabase as any)
+            .from("torneo_individual_jugadores")
+            .delete()
+            .eq("torneo_id", targetInsc.torneo_id)
+            .in("jugador_id", [targetInsc.jugador1_id, targetInsc.jugador2_id]);
+        }
+      }
+    }
+
     toast.success("Inscripción eliminada");
     fetchAll();
   };

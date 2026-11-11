@@ -543,32 +543,139 @@ export default function TorneoIndividualDashboard() {
   const [currentLeyendaInput, setCurrentLeyendaInput] = useState("");
   const [savingLeyenda, setSavingLeyenda] = useState(false);
 
+  const fetchAllJugadores = useCallback(async (): Promise<Jugador[]> => {
+    const pageSize = 1000;
+    const allJugadores: Jugador[] = [];
+    let offset = 0;
+
+    while (true) {
+      const { data, error } = await (supabase as any)
+        .from("jugadores")
+        .select("*")
+        .order("apellido", { ascending: true })
+        .order("nombre", { ascending: true })
+        .order("id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+
+      if (error) {
+        console.error("Error fetching jugadores page:", error);
+        break;
+      }
+
+      const page = (data ?? []) as Jugador[];
+      allJugadores.push(...page);
+      if (page.length < pageSize) break;
+      offset += pageSize;
+    }
+
+    return allJugadores;
+  }, []);
+
   const fetchTournamentData = useCallback(async () => {
     if (!id) return;
     setLoading(true);
     try {
       const [
         { data: tRes },
-        { data: tjRes },
-        { data: jRes },
+        { data: initialTjRes },
+        jRes,
         { data: fRes },
         { data: pRes },
         { data: partRes },
-        { data: tpRes },
+        { data: initialTpRes },
+        { data: inscRes },
       ] = await Promise.all([
         (supabase as any).from("torneos").select("*").eq("id", id).maybeSingle(),
         (supabase as any).from("torneo_individual_jugadores").select("*, jugador:jugadores(*)").eq("torneo_id", id),
-        (supabase as any).from("jugadores").select("*").order("apellido"),
+        fetchAllJugadores(),
         (supabase as any).from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
         (supabase as any).from("torneo_individual_pagos").select("*").eq("torneo_id", id),
         (supabase as any).from("partidos_individuales").select("*").eq("torneo_id", id),
         (supabase as any).from("torneo_individual_parejas").select("*").eq("torneo_id", id),
+        (supabase as any).from("inscripciones").select("id, jugador1_id, jugador2_id, estado").eq("torneo_id", id),
       ]);
 
       if (!tRes) {
         toast.error("No se encontró el torneo");
         navigate("/torneos");
         return;
+      }
+
+      let tjRes = initialTjRes ?? [];
+      let tpRes = initialTpRes ?? [];
+
+      // Si el torneo es en modalidad parejas y se cargaron parejas desde el menú "Inscripciones"
+      // (tabla public.inscripciones), las sincronizamos automáticamente a torneo_individual_parejas y torneo_individual_jugadores.
+      if (tRes.modalidad === "parejas" && Array.isArray(inscRes) && inscRes.length > 0) {
+        const activeInsc = inscRes.filter(
+          (ins: any) =>
+            ins.estado !== "cancelada" &&
+            ins.jugador1_id &&
+            ins.jugador2_id &&
+            ins.jugador1_id !== ins.jugador2_id
+        );
+
+        const existingPlayerIdsInParejas = new Set<string>();
+        tpRes.forEach((p: any) => {
+          if (p.jugador1_id) existingPlayerIdsInParejas.add(p.jugador1_id);
+          if (p.jugador2_id) existingPlayerIdsInParejas.add(p.jugador2_id);
+        });
+
+        const missingPairs = activeInsc.filter(
+          (ins: any) =>
+            !existingPlayerIdsInParejas.has(ins.jugador1_id) &&
+            !existingPlayerIdsInParejas.has(ins.jugador2_id)
+        );
+
+        if (missingPairs.length > 0) {
+          let syncedAny = false;
+          for (const pair of missingPairs) {
+            if (
+              existingPlayerIdsInParejas.has(pair.jugador1_id) ||
+              existingPlayerIdsInParejas.has(pair.jugador2_id)
+            ) {
+              continue;
+            }
+            const { error: insertPairErr } = await (supabase as any)
+              .from("torneo_individual_parejas")
+              .insert({
+                torneo_id: id,
+                jugador1_id: pair.jugador1_id,
+                jugador2_id: pair.jugador2_id,
+              });
+
+            if (!insertPairErr) {
+              syncedAny = true;
+              existingPlayerIdsInParejas.add(pair.jugador1_id);
+              existingPlayerIdsInParejas.add(pair.jugador2_id);
+
+              await (supabase as any)
+                .from("torneo_individual_jugadores")
+                .upsert(
+                  [
+                    { torneo_id: id, jugador_id: pair.jugador1_id, estado: "confirmada" },
+                    { torneo_id: id, jugador_id: pair.jugador2_id, estado: "confirmada" },
+                  ],
+                  { onConflict: "torneo_id,jugador_id" }
+                );
+            }
+          }
+
+          if (syncedAny) {
+            const [{ data: refreshedTj }, { data: refreshedTp }] = await Promise.all([
+              (supabase as any)
+                .from("torneo_individual_jugadores")
+                .select("*, jugador:jugadores(*)")
+                .eq("torneo_id", id),
+              (supabase as any)
+                .from("torneo_individual_parejas")
+                .select("*")
+                .eq("torneo_id", id),
+            ]);
+            tjRes = refreshedTj ?? tjRes;
+            tpRes = refreshedTp ?? tpRes;
+          }
+        }
       }
 
       setTorneo(tRes);
@@ -1204,9 +1311,25 @@ export default function TorneoIndividualDashboard() {
       return;
     }
 
-    const maxParejas = (torneo?.canchas_count ?? 3) * 2;
+    const alreadyInCouple = parejas.some(
+      (p) =>
+        p.jugador1_id === selectedJ1Id ||
+        p.jugador2_id === selectedJ1Id ||
+        p.jugador1_id === selectedJ2Id ||
+        p.jugador2_id === selectedJ2Id
+    );
+    if (alreadyInCouple) {
+      toast.error("Uno de los jugadores seleccionados ya forma parte de una pareja en este torneo");
+      return;
+    }
+
+    const activeCanchas = Math.max(
+      Number(torneo?.canchas_count) || 3,
+      Number(settingsForm.canchas_count) || 3
+    );
+    const maxParejas = activeCanchas * 2;
     if (parejas.length >= maxParejas) {
-      toast.error(`El cupo está completo para ${torneo?.canchas_count} canchas (${maxParejas} parejas)`);
+      toast.error(`El cupo está completo para ${activeCanchas} canchas (${maxParejas} parejas)`);
       return;
     }
 
@@ -1220,15 +1343,22 @@ export default function TorneoIndividualDashboard() {
 
       if (pErr) throw pErr;
 
-      // 2. Insert both players into torneo_individual_jugadores so they are registered in the tournament
-      const { error: jErr } = await (supabase as any).from("torneo_individual_jugadores").insert([
-        { torneo_id: id, jugador_id: selectedJ1Id, estado: "confirmada" },
-        { torneo_id: id, jugador_id: selectedJ2Id, estado: "confirmada" },
-      ]);
+      // 2. Upsert both players into torneo_individual_jugadores so they are registered in the tournament
+      // without failing if one of the players already had a record in torneo_individual_jugadores.
+      const { error: jErr } = await (supabase as any)
+        .from("torneo_individual_jugadores")
+        .upsert(
+          [
+            { torneo_id: id, jugador_id: selectedJ1Id, estado: "confirmada" },
+            { torneo_id: id, jugador_id: selectedJ2Id, estado: "confirmada" },
+          ],
+          { onConflict: "torneo_id,jugador_id" }
+        );
 
       if (jErr) {
-        // Rollback couple
-        await (supabase as any).from("torneo_individual_parejas")
+        // Rollback couple only if upsert also fails
+        await (supabase as any)
+          .from("torneo_individual_parejas")
           .delete()
           .eq("torneo_id", id)
           .eq("jugador1_id", selectedJ1Id)
@@ -1269,6 +1399,14 @@ export default function TorneoIndividualDashboard() {
         .in("jugador_id", [j1Id, j2Id]);
 
       if (jErr) throw jErr;
+
+      // 3. Also clean up any mirror row in public.inscripciones for this tournament so it doesn't re-sync
+      await supabase
+        .from("inscripciones")
+        .delete()
+        .eq("torneo_id", id)
+        .in("jugador1_id", [j1Id, j2Id])
+        .in("jugador2_id", [j1Id, j2Id]);
 
       toast.success("Pareja desinscripta");
       fetchTournamentData();
