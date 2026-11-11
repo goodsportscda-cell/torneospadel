@@ -1,6 +1,10 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchTorneoIndividualParejas,
+  filterActiveTorneoParejas,
+} from "@/lib/torneoIndividualParejas";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -157,7 +161,7 @@ export default function TorneoIndividualPublico() {
         (supabase as any).from("torneo_individual_jugadores").select("*").eq("torneo_id", id),
         (supabase as any).from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
         (supabase as any).from("partidos_individuales").select("*").eq("torneo_id", id),
-        (supabase as any).from("torneo_individual_parejas").select("*").eq("torneo_id", id),
+        fetchTorneoIndividualParejas(id),
       ]);
 
       if (!tRes) {
@@ -166,7 +170,13 @@ export default function TorneoIndividualPublico() {
       }
 
       const inscriptosBase = (tjRes ?? []) as TorneoJugador[];
-      const jugadorIds = [...new Set(inscriptosBase.map((tj) => tj.jugador_id))];
+      const activeParejas = filterActiveTorneoParejas(tpRes ?? [], inscriptosBase, tRes.notas);
+      const jugadorIds = [
+        ...new Set([
+          ...inscriptosBase.map((tj) => tj.jugador_id),
+          ...activeParejas.flatMap((p: any) => [p.jugador1_id, p.jugador2_id].filter(Boolean)),
+        ]),
+      ];
       const { data: jugadoresPublicos } = jugadorIds.length > 0
         ? await (supabase as any)
             .from("jugadores_publicos")
@@ -193,10 +203,10 @@ export default function TorneoIndividualPublico() {
       setFechas(mappedFechas);
 
       // Map couples players
-      const mappedParejas = (tpRes ?? []).map((p: any) => ({
+      const mappedParejas = activeParejas.map((p: any) => ({
         ...p,
-        jugador1: inscriptos.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || null,
-        jugador2: inscriptos.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || null,
+        jugador1: inscriptos.find((tj) => tj.jugador_id === p.jugador1_id)?.jugador || jugadoresMap.get(p.jugador1_id) || null,
+        jugador2: inscriptos.find((tj) => tj.jugador_id === p.jugador2_id)?.jugador || jugadoresMap.get(p.jugador2_id) || null,
       }));
       setParejas(mappedParejas);
 

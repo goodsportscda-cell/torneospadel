@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchTorneoIndividualParejas } from "@/lib/torneoIndividualParejas";
 import {
   Dialog,
   DialogContent,
@@ -193,11 +194,10 @@ export function ReemplazoJugadorDialog({
 
       // 3. Si es modalidad parejas, actualizar torneo_individual_parejas
       if (isModalidadParejas && jugadorSaliente.pareja_id) {
-        const { data: parejaData } = await (supabase as any)
-          .from("torneo_individual_parejas")
-          .select("*")
-          .eq("id", jugadorSaliente.pareja_id)
-          .single();
+        const { data: allParejas } = await fetchTorneoIndividualParejas(torneoId);
+        const parejaData = (allParejas ?? []).find(
+          (p: any) => p.id === jugadorSaliente.pareja_id
+        );
 
         if (parejaData) {
           const updateField = parejaData.jugador1_id === oldJugadorId ? "jugador1_id" : "jugador2_id";

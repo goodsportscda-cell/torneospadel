@@ -55,6 +55,10 @@ import { CompartirFixtureIndividualDialog } from "@/components/torneo-individual
 import { CompartirRankingDialog } from "@/components/torneo-individual/CompartirRankingDialog";
 import { ReemplazoJugadorDialog, JugadorSalienteInfo } from "@/components/torneo-individual/ReemplazoJugadorDialog";
 import { useAuth } from "@/hooks/useAuth";
+import {
+  fetchTorneoIndividualParejas,
+  filterActiveTorneoParejas,
+} from "@/lib/torneoIndividualParejas";
 import { generateIntelligentAmericanoMatches, MatchHistory } from "@/logic/americanoInteligente";
 import {
   applyManualPositions,
@@ -591,7 +595,7 @@ export default function TorneoIndividualDashboard() {
         (supabase as any).from("torneo_individual_fechas").select("*").eq("torneo_id", id).order("fecha"),
         (supabase as any).from("torneo_individual_pagos").select("*").eq("torneo_id", id),
         (supabase as any).from("partidos_individuales").select("*").eq("torneo_id", id),
-        (supabase as any).from("torneo_individual_parejas").select("*").eq("torneo_id", id),
+        fetchTorneoIndividualParejas(id),
         (supabase as any).from("inscripciones").select("id, jugador1_id, jugador2_id, estado").eq("torneo_id", id),
       ]);
 
@@ -667,10 +671,7 @@ export default function TorneoIndividualDashboard() {
                 .from("torneo_individual_jugadores")
                 .select("*, jugador:jugadores(*)")
                 .eq("torneo_id", id),
-              (supabase as any)
-                .from("torneo_individual_parejas")
-                .select("*")
-                .eq("torneo_id", id),
+              fetchTorneoIndividualParejas(id),
             ]);
             tjRes = refreshedTj ?? tjRes;
             tpRes = refreshedTp ?? tpRes;
@@ -681,6 +682,7 @@ export default function TorneoIndividualDashboard() {
       setTorneo(tRes);
 
       const activeInscriptos = filterActiveTorneoJugadores((tjRes as TorneoJugador[]) ?? []);
+      tpRes = filterActiveTorneoParejas(tpRes, activeInscriptos, tRes.notas);
       const semanas = tRes.desafio_semanas ?? 8;
       const costoPorJugador = tRes.costo_fecha_jugador ?? 10000;
       const costoPorCancha = tRes.costo_fecha_cancha ?? 22000;
@@ -734,7 +736,7 @@ export default function TorneoIndividualDashboard() {
         efectivo_2: parsed.cash2 > 0 ? parsed.cash2.toString() : Math.round(totalCash * 0.3).toString(),
         notas:
           tRes.notas
-            ?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO|RULES_CONFIG):.*?\]/g, "")
+            ?.replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO|RULES_CONFIG|RULES_CONFIG_JSON|BAJA_PAREJA|PUNTOS_INICIALES_[^\]:]+|REEMPLAZO_[^\]:]+):.*?\]/g, "")
             .replace(/\[OCULTAR_REGLAMENTO\]/g, "")
             .trim() || "",
         sistema_puntuacion: resolvedSys,
@@ -1333,87 +1335,119 @@ export default function TorneoIndividualDashboard() {
       return;
     }
 
-    try {
-      // 1. Insert into torneo_individual_parejas
-      const { error: pErr } = await (supabase as any).from("torneo_individual_parejas").insert({
-        torneo_id: id,
-        jugador1_id: selectedJ1Id,
-        jugador2_id: selectedJ2Id,
-      });
+      try {
+        // 1. Insert into torneo_individual_parejas
+        const { error: pErr } = await (supabase as any).from("torneo_individual_parejas").insert({
+          torneo_id: id,
+          jugador1_id: selectedJ1Id,
+          jugador2_id: selectedJ2Id,
+        });
 
-      if (pErr) throw pErr;
+        if (pErr) {
+          // Si ya existía la fila en torneo_individual_parejas (p. ej. dada de baja antes), reactivarla
+          if (pErr.code === "23505") {
+            const { data: allRawParejas } = await fetchTorneoIndividualParejas(id);
+            const existingRow = (allRawParejas ?? []).find(
+              (r: any) =>
+                (r.jugador1_id === selectedJ1Id && r.jugador2_id === selectedJ2Id) ||
+                (r.jugador1_id === selectedJ2Id && r.jugador2_id === selectedJ1Id)
+            );
+            if (existingRow && torneo?.notas?.includes(`[BAJA_PAREJA:${existingRow.id}]`)) {
+              const cleanedNotas = torneo.notas
+                .replace(new RegExp(`\\[BAJA_PAREJA:${existingRow.id}\\]`, "gi"), "")
+                .trim();
+              await (supabase as any).from("torneos").update({ notas: cleanedNotas }).eq("id", id);
+            }
+          } else {
+            throw pErr;
+          }
+        }
 
-      // 2. Upsert both players into torneo_individual_jugadores so they are registered in the tournament
-      // without failing if one of the players already had a record in torneo_individual_jugadores.
-      const { error: jErr } = await (supabase as any)
-        .from("torneo_individual_jugadores")
-        .upsert(
-          [
-            { torneo_id: id, jugador_id: selectedJ1Id, estado: "confirmada" },
-            { torneo_id: id, jugador_id: selectedJ2Id, estado: "confirmada" },
-          ],
-          { onConflict: "torneo_id,jugador_id" }
-        );
+        // 2. Upsert both players into torneo_individual_jugadores so they are registered in the tournament
+        // without failing if one of the players already had a record in torneo_individual_jugadores.
+        const { error: jErr } = await (supabase as any)
+          .from("torneo_individual_jugadores")
+          .upsert(
+            [
+              { torneo_id: id, jugador_id: selectedJ1Id, estado: "confirmada" },
+              { torneo_id: id, jugador_id: selectedJ2Id, estado: "confirmada" },
+            ],
+            { onConflict: "torneo_id,jugador_id" }
+          );
 
-      if (jErr) {
-        // Rollback couple only if upsert also fails
-        await (supabase as any)
-          .from("torneo_individual_parejas")
-          .delete()
-          .eq("torneo_id", id)
-          .eq("jugador1_id", selectedJ1Id)
-          .eq("jugador2_id", selectedJ2Id);
-        throw jErr;
+        if (jErr) {
+          // Rollback couple only if upsert also fails
+          await (supabase as any)
+            .from("torneo_individual_parejas")
+            .delete()
+            .eq("torneo_id", id)
+            .eq("jugador1_id", selectedJ1Id)
+            .eq("jugador2_id", selectedJ2Id);
+          throw jErr;
+        }
+
+        toast.success("Pareja inscripta con éxito");
+        setSelectedJ1Id("");
+        setSelectedJ2Id("");
+        fetchTournamentData();
+      } catch (e: any) {
+        toast.error("Error al inscribir pareja: " + e.message);
+      }
+    };
+
+    // Actions: Remove Couple
+    const handleQuitarPareja = async (parejaId: string, j1Id: string, j2Id: string) => {
+      if (partidos.length > 0) {
+        toast.error("No se puede desinscribir parejas una vez generado el fixture del torneo");
+        return;
       }
 
-      toast.success("Pareja inscripta con éxito");
-      setSelectedJ1Id("");
-      setSelectedJ2Id("");
-      fetchTournamentData();
-    } catch (e: any) {
-      toast.error("Error al inscribir pareja: " + e.message);
-    }
-  };
+      try {
+        // 1. Delete couple
+        const { error: pErr } = await supabase
+          .from("torneo_individual_parejas")
+          .delete()
+          .eq("id", parejaId);
 
-  // Actions: Remove Couple
-  const handleQuitarPareja = async (parejaId: string, j1Id: string, j2Id: string) => {
-    if (partidos.length > 0) {
-      toast.error("No se puede desinscribir parejas una vez generado el fixture del torneo");
-      return;
-    }
+        if (pErr) throw pErr;
 
-    try {
-      // 1. Delete couple
-      const { error: pErr } = await supabase
-        .from("torneo_individual_parejas")
-        .delete()
-        .eq("id", parejaId);
+        // 2. Delete both players from tournament
+        const { error: jErr } = await supabase
+          .from("torneo_individual_jugadores")
+          .delete()
+          .eq("torneo_id", id)
+          .in("jugador_id", [j1Id, j2Id]);
 
-      if (pErr) throw pErr;
+        if (jErr) throw jErr;
 
-      // 2. Delete both players from tournament
-      const { error: jErr } = await supabase
-        .from("torneo_individual_jugadores")
-        .delete()
-        .eq("torneo_id", id)
-        .in("jugador_id", [j1Id, j2Id]);
+        // 3. Si la fila en torneo_individual_parejas sigue existiendo por falta de política SELECT en la BD remota,
+        // registrar la baja en torneos.notas para que no vuelva a listarse.
+        const { data: remainingParejas } = await fetchTorneoIndividualParejas(id!);
+        if ((remainingParejas ?? []).some((r: any) => r.id === parejaId)) {
+          const currentNotas = torneo?.notas || "";
+          const bajaTag = `[BAJA_PAREJA:${parejaId}]`;
+          if (!currentNotas.includes(bajaTag)) {
+            await (supabase as any)
+              .from("torneos")
+              .update({ notas: `${currentNotas} ${bajaTag}`.trim() })
+              .eq("id", id);
+          }
+        }
 
-      if (jErr) throw jErr;
+        // 4. Also clean up any mirror row in public.inscripciones for this tournament so it doesn't re-sync
+        await supabase
+          .from("inscripciones")
+          .delete()
+          .eq("torneo_id", id)
+          .in("jugador1_id", [j1Id, j2Id])
+          .in("jugador2_id", [j1Id, j2Id]);
 
-      // 3. Also clean up any mirror row in public.inscripciones for this tournament so it doesn't re-sync
-      await supabase
-        .from("inscripciones")
-        .delete()
-        .eq("torneo_id", id)
-        .in("jugador1_id", [j1Id, j2Id])
-        .in("jugador2_id", [j1Id, j2Id]);
-
-      toast.success("Pareja desinscripta");
-      fetchTournamentData();
-    } catch (e: any) {
-      toast.error("Error al desinscribir pareja: " + e.message);
-    }
-  };
+        toast.success("Pareja desinscripta");
+        fetchTournamentData();
+      } catch (e: any) {
+        toast.error("Error al desinscribir pareja: " + e.message);
+      }
+    };
 
   // Actions: Modify Finance settings
   const handleSaveSettings = async () => {
@@ -1446,10 +1480,14 @@ export default function TorneoIndividualDashboard() {
 
     const premiosTexto = serializePremiosString(cash1, cash2, settingsForm.premios.trim());
 
-    // Preserve any existing fecha legends stored in notas
+    // Preserve any existing fecha legends and system tags stored in notas
     const existingFechaLeyendas = (torneo?.notas || "").match(/\[LEYENDA_FECHA_\d+:.*?\]/g) || [];
+    const existingSystemTags =
+      (torneo?.notas || "").match(
+        /\[(BAJA_PAREJA|PUNTOS_INICIALES_[^\]:]+|REEMPLAZO_[^\]:]+):.*?\]/g
+      ) || [];
     let finalNotas = settingsForm.notas
-      .replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO|RULES_CONFIG_JSON):.*?\]/g, "")
+      .replace(/\[(SISTEMA|SUBTITULO|LEYENDA_FECHA_\d+|OCULTAR_REGLAMENTO|RULES_CONFIG|RULES_CONFIG_JSON|BAJA_PAREJA|PUNTOS_INICIALES_[^\]:]+|REEMPLAZO_[^\]:]+):.*?\]/g, "")
       .replace(/\[OCULTAR_REGLAMENTO\]/g, "")
       .trim();
     if (settingsForm.sistema_puntuacion === "liga_parejas") {
@@ -1465,6 +1503,9 @@ export default function TorneoIndividualDashboard() {
     }
     if (existingFechaLeyendas.length > 0) {
       finalNotas = finalNotas ? `${finalNotas} ${existingFechaLeyendas.join(" ")}` : existingFechaLeyendas.join(" ");
+    }
+    if (existingSystemTags.length > 0) {
+      finalNotas = finalNotas ? `${finalNotas} ${existingSystemTags.join(" ")}` : existingSystemTags.join(" ");
     }
 
     // Sincronizar copia de respaldo en notas por si rules_config aún no está migrado en la instancia
@@ -3655,7 +3696,9 @@ export default function TorneoIndividualDashboard() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
           <TabsList className="bg-muted p-1">
             <TabsTrigger value="resumen">Resumen</TabsTrigger>
-            <TabsTrigger value="inscriptos">Inscriptos ({jugadoresInscriptos.length})</TabsTrigger>
+            <TabsTrigger value="inscriptos">
+              Inscriptos ({torneo?.modalidad === "parejas" ? `${parejas.length} parejas` : jugadoresInscriptos.length})
+            </TabsTrigger>
             {isAdmin && <TabsTrigger value="finanzas">Finanzas y Pagos</TabsTrigger>}
             <TabsTrigger value="fixture">Fixture y Resultados</TabsTrigger>
             <TabsTrigger value="ranking">Posiciones Generales</TabsTrigger>

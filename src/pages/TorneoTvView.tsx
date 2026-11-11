@@ -1,6 +1,10 @@
 import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import {
+  fetchTorneoIndividualParejas,
+  filterActiveTorneoParejas,
+} from "@/lib/torneoIndividualParejas";
 import { LiveScoreSummary } from "@/components/marcador/LiveScoreSummary";
 import type { PadelState } from "@/logic/padelLogic";
 import {
@@ -170,10 +174,7 @@ export default function TorneoTvView() {
           .from("torneo_individual_jugadores")
           .select("*")
           .eq("torneo_id", id),
-        supabase
-          .from("torneo_individual_parejas")
-          .select("*")
-          .eq("torneo_id", id),
+        fetchTorneoIndividualParejas(id),
         supabase
           .from("partidos_individuales")
           .select(`
@@ -199,7 +200,11 @@ export default function TorneoTvView() {
         }
       }
       const jugadoresRows = jRes.data ?? [];
-      const parejasRows = pRes.data ?? [];
+      const parejasRows = filterActiveTorneoParejas(
+        pRes.data ?? [],
+        jugadoresRows,
+        tRes.data?.notas
+      );
       const playerIds = new Set<string>();
       jugadoresRows.forEach((row: any) => playerIds.add(row.jugador_id));
       parejasRows.forEach((row: any) => {

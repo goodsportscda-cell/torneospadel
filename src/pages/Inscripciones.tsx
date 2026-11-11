@@ -51,6 +51,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { extraerSumaCategoriaPareja, puedeAnotarseEnCategoria, puedeAnotarseParejaEnCategoria } from "@/lib/categoriaCompatibilidad";
+import { fetchTorneoIndividualParejas } from "@/lib/torneoIndividualParejas";
 
 
 type Inscripcion = Database["public"]["Tables"]["inscripciones"]["Row"];
@@ -434,13 +435,16 @@ export default function Inscripciones() {
     // Si es un Desafío Semanal en Parejas, sincronizar también con torneo_individual_parejas y torneo_individual_jugadores
     if (torneo?.tipo === "americano_individual" && (torneo as any)?.modalidad === "parejas") {
       try {
-        const { data: existingCouple } = await (supabase as any)
-          .from("torneo_individual_parejas")
-          .select("id")
-          .eq("torneo_id", form.torneo_id)
-          .or(`jugador1_id.in.(${form.jugador1_id},${form.jugador2_id}),jugador2_id.in.(${form.jugador1_id},${form.jugador2_id})`);
+        const { data: allCouples } = await fetchTorneoIndividualParejas(form.torneo_id);
+        const existingCouple = (allCouples ?? []).filter(
+          (c: any) =>
+            c.jugador1_id === form.jugador1_id ||
+            c.jugador2_id === form.jugador1_id ||
+            c.jugador1_id === form.jugador2_id ||
+            c.jugador2_id === form.jugador2_id
+        );
 
-        if (!existingCouple || existingCouple.length === 0) {
+        if (existingCouple.length === 0) {
           await (supabase as any).from("torneo_individual_parejas").insert({
             torneo_id: form.torneo_id,
             jugador1_id: form.jugador1_id,
