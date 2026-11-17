@@ -5,6 +5,7 @@ import {
   construirContextoAscensosYTorneos,
   aplicarReglasMaster,
   getCupoDefaultCategoria,
+  normalizarFilasRankingConSincronizacion,
   type MasterStatus,
   type EstadoMasterTipo,
   type CategoriaBasica,
@@ -77,10 +78,11 @@ export function useClubRanking(
       // 2. Obtener Torneos del club para mapear nombres y fechas
       const { data: torneosData, error: torneosError } = await supabase
         .from("torneos")
-        .select("id, nombre, fecha_inicio, fecha_fin, estado, ranking_publicado, club_id")
+        .select("id, nombre, fecha_inicio, fecha_fin, estado, ranking_publicado, club_id, notas")
         .eq("club_id", clubId);
       if (torneosError) throw torneosError;
       const clubTournamentIds = new Set((torneosData || []).map((t) => t.id));
+      const torneosNotasMap = new Map<string, string | null>();
 
       const torneosMap = new Map<
         string,
@@ -94,7 +96,8 @@ export function useClubRanking(
         }
       >();
 
-      (torneosData || []).forEach((t) => {
+      (torneosData || []).forEach((t: any) => {
+        torneosNotasMap.set(t.id, t.notas ?? null);
         torneosMap.set(t.id, {
           nombre: t.nombre,
           fecha_fin: t.fecha_fin,
@@ -158,6 +161,11 @@ export function useClubRanking(
         }
       }
 
+      allRankingData = normalizarFilasRankingConSincronizacion(
+        allRankingData,
+        torneosNotasMap
+      );
+
       // Filtrar torneos cuyo ranking aún no fue publicado por el Admin
       const validAllRankingRows = allRankingData.filter((r) => {
         if (isAscenso(r.instancia)) return true;
@@ -173,12 +181,12 @@ export function useClubRanking(
         categoryIds.size === 0
           ? { data: [], error: null }
           : await supabase
-              .from("ascensos")
-              .select(
-                "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos"
-              )
-              .eq("anio", filtroAnio)
-              .in("categoria_origen_id", Array.from(categoryIds));
+            .from("ascensos")
+            .select(
+              "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos"
+            )
+            .eq("anio", filtroAnio)
+            .in("categoria_origen_id", Array.from(categoryIds));
 
       if (ascensosError) throw ascensosError;
 

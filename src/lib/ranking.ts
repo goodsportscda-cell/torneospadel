@@ -34,6 +34,146 @@ export const TORNEOS_TOTALES_ANIO = 7;
 export const CUPO_MASTER_PURA = 16;
 export const CUPO_MASTER_SUMA = 8;
 
+export const GS_6TA_DAMAS_TORNEO_ID = "9ed9e0ce-633a-4830-9a9c-7f116bb031e6";
+export const GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID = "5ff03277-eeaa-4b3e-b97c-94b7e1e24dca";
+export const GS_6TA_DAMAS_CAMPEONAS_JUGADOR_IDS = new Set([
+  "57021e3d-9bf0-4aae-a2a0-f053a1d9c899", // Ledesma, Andrea
+  "4244f042-8af6-467f-9e8d-054861b7d376", // Quevedo, Silvana
+]);
+
+const SNAPSHOT_STORAGE_KEY = "padel_ranking_snapshots_v1";
+
+export type RankingSnapshotRow = {
+  jugador_id: string;
+  torneo_id: string;
+  inscripcion_id: string | null;
+  instancia: Instancia;
+  puntos: number;
+  anio: number;
+  categoria_id: string | null;
+  genero: string | null;
+  master_status?: MasterStatus;
+};
+
+export function isTorneoRankingRevertidoManual(
+  torneoId: string,
+  torneoNotas?: string | null
+): boolean {
+  if (torneoNotas && torneoNotas.includes("[RANKING_REVERTIDO_MANUAL]")) {
+    return true;
+  }
+  try {
+    if (
+      typeof window !== "undefined" &&
+      window.localStorage?.getItem(`padel_revertido_manual_${torneoId}`) === "true"
+    ) {
+      return true;
+    }
+  } catch {
+    // ignore storage errors
+  }
+  return false;
+}
+
+/**
+ * Normaliza las filas de ranking garantizando que la corrección de campeonas del
+ * Grand Slam de Julio (6ta Damas) se refleje en todas las vistas, salvo que el
+ * administrador haya activado la reversión manual (`[RANKING_REVERTIDO_MANUAL]`).
+ */
+export function normalizarFilasRankingConSincronizacion<
+  T extends {
+    jugador_id: string;
+    torneo_id?: string | null;
+    inscripcion_id?: string | null;
+    instancia: string;
+    puntos: number;
+  }
+>(
+  rows: T[],
+  torneosNotasMap?: Map<string, string | null | undefined>
+): T[] {
+  const gsNotas = torneosNotasMap?.get(GS_6TA_DAMAS_TORNEO_ID);
+  const gsRevertido = isTorneoRankingRevertidoManual(GS_6TA_DAMAS_TORNEO_ID, gsNotas);
+
+  return (rows || []).map((r) => {
+    if (
+      r.torneo_id === GS_6TA_DAMAS_TORNEO_ID &&
+      (r.inscripcion_id === GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID ||
+        GS_6TA_DAMAS_CAMPEONAS_JUGADOR_IDS.has(r.jugador_id))
+    ) {
+      if (gsRevertido) {
+        if (r.instancia !== "subcampeon" || r.puntos !== 400) {
+          return { ...r, instancia: "subcampeon", puntos: 400 };
+        }
+      } else {
+        if (r.instancia !== "campeon" || r.puntos !== 600) {
+          return { ...r, instancia: "campeon", puntos: 600 };
+        }
+      }
+    }
+    return r;
+  });
+}
+
+/**
+ * Obtiene de forma paginada todas las filas de `ranking_jugadores` de un año (superando el límite de 1.000 filas de PostgREST)
+ * y aplica la normalización de sincronización de llaves.
+ */
+export async function fetchAllRankingRowsYear(
+  anio: number,
+  categoryIds?: string[],
+  torneosNotasMap?: Map<string, string | null | undefined>
+): Promise<any[]> {
+  if (categoryIds && categoryIds.length === 0) return [];
+  const step = 1000;
+  let offset = 0;
+  let includeMasterStatus = true;
+  let all: any[] = [];
+
+  while (true) {
+    const cols = includeMasterStatus
+      ? "jugador_id, puntos, torneo_id, inscripcion_id, categoria_id, genero, anio, instancia, master_status"
+      : "jugador_id, puntos, torneo_id, inscripcion_id, categoria_id, genero, anio, instancia";
+
+    let q = (supabase as any)
+      .from("ranking_jugadores")
+      .select(cols)
+      .eq("anio", anio)
+      .order("id", { ascending: true })
+      .range(offset, offset + step - 1);
+
+    if (categoryIds && categoryIds.length > 0) {
+      q = q.in("categoria_id", categoryIds);
+    }
+
+    const { data, error } = await q;
+    if (error) {
+      if (includeMasterStatus && String(error.message || "").includes("master_status")) {
+        includeMasterStatus = false;
+        continue;
+      }
+      break;
+    }
+
+    const page = data ?? [];
+    all = all.concat(page);
+    if (page.length < step) break;
+    offset += step;
+  }
+
+  let effectiveNotasMap = torneosNotasMap;
+  if (!effectiveNotasMap) {
+    const { data: gsRow } = await supabase
+      .from("torneos")
+      .select("id, notas")
+      .eq("id", GS_6TA_DAMAS_TORNEO_ID)
+      .maybeSingle();
+    effectiveNotasMap = new Map([[GS_6TA_DAMAS_TORNEO_ID, gsRow?.notas ?? null]]);
+  }
+
+  return normalizarFilasRankingConSincronizacion(all, effectiveNotasMap);
+}
+
 export function isCategoriaSuma(nombreCategoria: string | null | undefined): boolean {
   if (!nombreCategoria) return false;
   const n = nombreCategoria.toLowerCase().trim();
@@ -493,6 +633,214 @@ const RONDA_A_INSTANCIA_GANADA: Record<RondaLlave, Instancia> = {
 };
 
 /**
+ * Guarda una copia de respaldo (snapshot) de las filas actuales de `ranking_jugadores` de un torneo
+ * en `torneos.notas` (`[RANKING_SNAPSHOT_V1:...]`) y en `localStorage` antes de recalcular o sincronizar,
+ * de modo que el administrador pueda revertir en cualquier momento.
+ */
+export async function guardarSnapshotRankingTorneo(torneoId: string): Promise<void> {
+  try {
+    const [{ data: tRow }, { data: currentRows }] = await Promise.all([
+      supabase.from("torneos").select("id, notas").eq("id", torneoId).maybeSingle(),
+      (supabase as any)
+        .from("ranking_jugadores")
+        .select("jugador_id, torneo_id, inscripcion_id, instancia, puntos, anio, categoria_id, genero, master_status")
+        .eq("torneo_id", torneoId),
+    ]);
+
+    if (!currentRows || currentRows.length === 0) return;
+
+    // Si para el Grand Slam 6ta Damas ya está en 600 pts, aseguramos que el snapshot original conserve el estado previo (400 pts subcampeón)
+    const snapshotRows: RankingSnapshotRow[] = (currentRows as any[]).map((r) => {
+      if (
+        torneoId === GS_6TA_DAMAS_TORNEO_ID &&
+        (r.inscripcion_id === GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID ||
+          GS_6TA_DAMAS_CAMPEONAS_JUGADOR_IDS.has(r.jugador_id))
+      ) {
+        return {
+          jugador_id: r.jugador_id,
+          torneo_id: r.torneo_id,
+          inscripcion_id: r.inscripcion_id,
+          instancia: "subcampeon" as Instancia,
+          puntos: 400,
+          anio: r.anio ?? 2026,
+          categoria_id: r.categoria_id ?? null,
+          genero: r.genero ?? "damas",
+          master_status: normalizeMasterStatus(r.master_status),
+        };
+      }
+      return {
+        jugador_id: r.jugador_id,
+        torneo_id: r.torneo_id,
+        inscripcion_id: r.inscripcion_id ?? null,
+        instancia: r.instancia as Instancia,
+        puntos: Number(r.puntos) || 0,
+        anio: r.anio ?? 2026,
+        categoria_id: r.categoria_id ?? null,
+        genero: r.genero ?? null,
+        master_status: normalizeMasterStatus(r.master_status),
+      };
+    });
+
+    // Guardar en localStorage
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY);
+        const allSnaps = raw ? JSON.parse(raw) : {};
+        if (!allSnaps[torneoId]) {
+          allSnaps[torneoId] = {
+            savedAt: new Date().toISOString(),
+            rows: snapshotRows,
+          };
+          window.localStorage.setItem(SNAPSHOT_STORAGE_KEY, JSON.stringify(allSnaps));
+        }
+      }
+    } catch {
+      // ignore localStorage errors
+    }
+
+    // Guardar también en torneos.notas si aún no tiene un [RANKING_SNAPSHOT_V1:...]
+    const notasActuales = tRow?.notas || "";
+    if (!notasActuales.includes("[RANKING_SNAPSHOT_V1:")) {
+      const compact = snapshotRows.map((s) => ({
+        j: s.jugador_id,
+        i: s.inscripcion_id,
+        inst: s.instancia,
+        p: s.puntos,
+        a: s.anio,
+        c: s.categoria_id,
+        g: s.genero,
+        ms: s.master_status,
+      }));
+      const encoded = encodeURIComponent(JSON.stringify(compact));
+      const nextNotas = `${notasActuales} [RANKING_SNAPSHOT_V1:${encoded}]`.trim();
+      await supabase.from("torneos").update({ notas: nextNotas }).eq("id", torneoId);
+    }
+  } catch (err) {
+    console.warn("No se pudo guardar snapshot previo de ranking:", err);
+  }
+}
+
+export function extraerSnapshotDesdeNotasOLocal(
+  torneoId: string,
+  notas?: string | null
+): RankingSnapshotRow[] | null {
+  if (notas) {
+    const match = notas.match(/\[RANKING_SNAPSHOT_V1:([^\]]+)\]/);
+    if (match && match[1]) {
+      try {
+        const parsed = JSON.parse(decodeURIComponent(match[1]));
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed.map((x: any) => ({
+            jugador_id: x.j,
+            torneo_id: torneoId,
+            inscripcion_id: x.i ?? null,
+            instancia: x.inst as Instancia,
+            puntos: Number(x.p) || 0,
+            anio: Number(x.a) || 2026,
+            categoria_id: x.c ?? null,
+            genero: x.g ?? null,
+            master_status: normalizeMasterStatus(x.ms),
+          }));
+        }
+      } catch {
+        // fallback a localStorage
+      }
+    }
+  }
+
+  try {
+    if (typeof window !== "undefined" && window.localStorage) {
+      const raw = window.localStorage.getItem(SNAPSHOT_STORAGE_KEY);
+      if (raw) {
+        const allSnaps = JSON.parse(raw);
+        if (allSnaps[torneoId]?.rows?.length > 0) {
+          return allSnaps[torneoId].rows;
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+
+  return null;
+}
+
+/**
+ * Revierte los puntos de `ranking_jugadores` de un torneo a su estado previo guardado en el snapshot
+ * (o revierte la corrección de campeonas en el Grand Slam de 6ta Damas a 400 pts subcampeonas).
+ */
+export async function revertirRankingTorneo(torneoId: string): Promise<{
+  ok: boolean;
+  restaurados: number;
+  error?: string;
+}> {
+  try {
+    const { data: torneo, error: errT } = await supabase
+      .from("torneos")
+      .select("id, club_id, fecha_inicio, categoria_id, genero, notas")
+      .eq("id", torneoId)
+      .maybeSingle();
+    if (errT) throw errT;
+    if (!torneo) throw new Error("Torneo no encontrado");
+
+    const anio = new Date(torneo.fecha_inicio).getFullYear();
+    const snapshot = extraerSnapshotDesdeNotasOLocal(torneoId, torneo.notas);
+
+    let restaurados = 0;
+
+    if (snapshot && snapshot.length > 0) {
+      await supabase.from("ranking_jugadores").delete().eq("torneo_id", torneoId);
+      const { error: insErr } = await supabase.from("ranking_jugadores").insert(snapshot);
+      if (insErr) {
+        const sinStatus = snapshot.map(({ master_status: _ms, ...rest }) => rest);
+        const { error: retryErr } = await supabase.from("ranking_jugadores").insert(sinStatus);
+        if (retryErr) throw retryErr;
+      }
+      restaurados = snapshot.length;
+    } else if (torneoId === GS_6TA_DAMAS_TORNEO_ID) {
+      // Fallback directo para Grand Slam 6ta Damas: volver a subcampeón (400 pts) a la pareja campeona
+      const { error: updErr } = await supabase
+        .from("ranking_jugadores")
+        .update({ instancia: "subcampeon", puntos: 400 })
+        .eq("torneo_id", GS_6TA_DAMAS_TORNEO_ID)
+        .eq("inscripcion_id", GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID);
+      if (updErr) throw updErr;
+      restaurados = 2;
+    } else {
+      return {
+        ok: false,
+        restaurados: 0,
+        error: "No hay un respaldo previo guardado para este torneo.",
+      };
+    }
+
+    // Marcar [RANKING_REVERTIDO_MANUAL] en torneos.notas y localStorage
+    const currentNotas = torneo.notas || "";
+    if (!currentNotas.includes("[RANKING_REVERTIDO_MANUAL]")) {
+      const nextNotas = `${currentNotas} [RANKING_REVERTIDO_MANUAL]`.trim();
+      await supabase.from("torneos").update({ notas: nextNotas }).eq("id", torneoId);
+    }
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem(`padel_revertido_manual_${torneoId}`, "true");
+      }
+    } catch {
+      // ignore
+    }
+
+    await recalcularTodosLosAscensos(anio, torneo.club_id);
+    return { ok: true, restaurados };
+  } catch (e) {
+    console.error(e);
+    return {
+      ok: false,
+      restaurados: 0,
+      error: e instanceof Error ? e.message : "Error desconocido al revertir",
+    };
+  }
+}
+
+/**
  * Calcula y guarda los puntos de ranking para todos los jugadores
  * de un torneo finalizado. Borra puntos previos del torneo y los recalcula.
  */
@@ -505,11 +853,28 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
     // 1. Datos del torneo
     const { data: torneo, error: errT } = await supabase
       .from("torneos")
-      .select("id, club_id, fecha_inicio, categoria_id, genero, categoria_libre, tipo, numero_fecha, multiplicador_puntos")
+      .select("id, club_id, fecha_inicio, categoria_id, genero, categoria_libre, tipo, numero_fecha, multiplicador_puntos, notas")
       .eq("id", torneoId)
       .maybeSingle();
     if (errT) throw errT;
     if (!torneo) throw new Error("Torneo no encontrado");
+
+    // Guardar snapshot reversible antes de modificar ranking_jugadores
+    if (torneo.tipo === "oficial") {
+      await guardarSnapshotRankingTorneo(torneoId);
+      // Si tenía marca de revertido manual, limpiarla al recalcular/sincronizar explícitamente
+      if (torneo.notas && torneo.notas.includes("[RANKING_REVERTIDO_MANUAL]")) {
+        const cleaned = torneo.notas.replace(/\[RANKING_REVERTIDO_MANUAL\]/g, "").trim();
+        await supabase.from("torneos").update({ notas: cleaned }).eq("id", torneoId);
+      }
+      try {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(`padel_revertido_manual_${torneoId}`);
+        }
+      } catch {
+        // ignore
+      }
+    }
 
     // Los americanos no forman parte del ranking oficial. También limpiamos
     // cualquier registro previo por si el torneo se había calculado antes.
@@ -829,4 +1194,267 @@ function instanciaPeso(i: Instancia): number {
 export function isAscenso(instancia: string | null | undefined): boolean {
   if (!instancia) return false;
   return instancia.trim().toLowerCase() === "ascenso";
+}
+
+export type DiferenciaSincronizacionJugador = {
+  jugador_id: string;
+  jugador_nombre: string;
+  instancia_actual: Instancia;
+  puntos_actuales: number;
+  instancia_llave: Instancia;
+  puntos_llave: number;
+};
+
+export type TorneoSincronizacionAuditItem = {
+  torneo_id: string;
+  torneo_nombre: string;
+  fecha_inicio: string;
+  numero_fecha: number | null;
+  multiplicador: number;
+  categoria_id: string | null;
+  categoria_nombre: string;
+  genero: string | null;
+  tiene_diferencias_con_llave: boolean;
+  tiene_snapshot_reversible: boolean;
+  esta_revertido_manual: boolean;
+  diferencias: DiferenciaSincronizacionJugador[];
+};
+
+/**
+ * Audita los torneos oficiales finalizados de un club en el año dado, detectando:
+ * 1) Cualquier diferencia de puntos/instancia entre el cuadro (`partidos_llave`) y `ranking_jugadores`.
+ * 2) Cualquier torneo que tenga un respaldo (snapshot) reversible activo (incluyendo el Grand Slam de 6ta Damas).
+ */
+export async function auditarSincronizacionLlavesClub(
+  clubId: string,
+  anio: number
+): Promise<TorneoSincronizacionAuditItem[]> {
+  try {
+    const [
+      { data: torneosData },
+      { data: categoriasData },
+      { data: puntosCfg },
+    ] = await Promise.all([
+      supabase
+        .from("torneos")
+        .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos, categoria_id, genero, tipo, estado, notas")
+        .eq("club_id", clubId)
+        .eq("tipo", "oficial")
+        .order("fecha_inicio", { ascending: false }),
+      supabase.from("categorias").select("id, nombre, genero").eq("club_id", clubId),
+      (supabase as any).from("puntos_ranking").select("instancia, puntos").eq("club_id", clubId),
+    ]);
+
+    const torneosAnio = ((torneosData ?? []) as any[]).filter((t) => {
+      const a = t.fecha_inicio ? new Date(t.fecha_inicio).getFullYear() : anio;
+      return a === anio && t.estado === "finalizado";
+    });
+    if (torneosAnio.length === 0) return [];
+
+    const catMap = new Map<string, { nombre: string; genero: string }>();
+    ((categoriasData ?? []) as any[]).forEach((c) =>
+      catMap.set(c.id, { nombre: c.nombre, genero: c.genero })
+    );
+
+    const puntosMap = new Map<string, number>();
+    ((puntosCfg ?? []) as any[]).forEach((p) => puntosMap.set(p.instancia, Number(p.puntos) || 0));
+
+    const torneoIds = torneosAnio.map((t) => t.id);
+    const notasMap = new Map<string, string | null>();
+    torneosAnio.forEach((t) => notasMap.set(t.id, t.notas ?? null));
+
+    const [{ data: llavesData }, { data: rkRawData }] = await Promise.all([
+      supabase
+        .from("llaves")
+        .select("id, torneo_id, created_at")
+        .in("torneo_id", torneoIds)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("ranking_jugadores")
+        .select("jugador_id, torneo_id, inscripcion_id, instancia, puntos")
+        .in("torneo_id", torneoIds),
+    ]);
+
+    const rkNormalized = normalizarFilasRankingConSincronizacion(
+      (rkRawData ?? []) as any[],
+      notasMap
+    );
+
+    const llaveIds = ((llavesData ?? []) as any[]).map((l) => l.id);
+    const { data: partidosData } =
+      llaveIds.length > 0
+        ? await supabase
+            .from("partidos_llave")
+            .select("id, llave_id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id")
+            .in("llave_id", llaveIds)
+        : { data: [] };
+
+    const playerIdsSet = new Set<string>();
+    rkNormalized.forEach((r) => playerIdsSet.add(r.jugador_id));
+
+    const playerNameMap = new Map<string, string>();
+    const allPIds = Array.from(playerIdsSet);
+    for (let i = 0; i < allPIds.length; i += 100) {
+      const chunk = allPIds.slice(i, i + 100);
+      const { data: pRows } = await (supabase as any)
+        .from("jugadores_publicos")
+        .select("id, nombre, apellido")
+        .in("id", chunk);
+      ((pRows ?? []) as any[]).forEach((p) =>
+        playerNameMap.set(p.id, `${p.apellido}, ${p.nombre}`)
+      );
+    }
+
+    const result: TorneoSincronizacionAuditItem[] = [];
+
+    for (const t of torneosAnio) {
+      const tLlaves = ((llavesData ?? []) as any[]).filter((l) => l.torneo_id === t.id);
+      let activePartidos: any[] | null = null;
+      for (const ll of tLlaves) {
+        const p = ((partidosData ?? []) as any[]).filter((x) => x.llave_id === ll.id);
+        if (p.length > 0) {
+          activePartidos = p;
+          break;
+        }
+      }
+      if (!activePartidos) continue;
+
+      const pMap = new Map(activePartidos.map((p) => [p.id, p]));
+      const expectedInst = new Map<string, Instancia>();
+
+      activePartidos
+        .filter((p) => p.estado === "finalizado" && p.ganador_id)
+        .forEach((p) => {
+          const perdedor =
+            p.pareja_local_id === p.ganador_id ? p.pareja_visitante_id : p.pareja_local_id;
+          if (perdedor) {
+            let instP = RONDA_A_INSTANCIA_PERDIDA[p.ronda as RondaLlave];
+            if (p.ronda === "previa") {
+              const sig = pMap.get(p.partido_siguiente_id);
+              if (sig) {
+                if (sig.ronda === "octavos") instP = "dieciseisavos";
+                else if (sig.ronda === "cuartos") instP = "octavos";
+                else if (sig.ronda === "semifinal") instP = "cuartos";
+              }
+            }
+            const cur = expectedInst.get(perdedor);
+            if (!cur || instanciaPeso(instP) > instanciaPeso(cur)) {
+              expectedInst.set(perdedor, instP);
+            }
+          }
+
+          let instG = RONDA_A_INSTANCIA_GANADA[p.ronda as RondaLlave];
+          if (p.ronda === "previa") {
+            const sig = pMap.get(p.partido_siguiente_id);
+            if (sig) {
+              if (sig.ronda === "octavos") instG = "octavos";
+              else if (sig.ronda === "cuartos") instG = "cuartos";
+              else if (sig.ronda === "semifinal") instG = "semifinal";
+            }
+          }
+          const curG = expectedInst.get(p.ganador_id);
+          if (!curG || instanciaPeso(instG) > instanciaPeso(curG)) {
+            expectedInst.set(p.ganador_id, instG);
+          }
+        });
+
+      const mult = Number(t.multiplicador_puntos ?? 1) || 1;
+      const tRk = rkNormalized.filter((r) => r.torneo_id === t.id);
+      const diferencias: DiferenciaSincronizacionJugador[] = [];
+
+      for (const r of tRk) {
+        const expInst = (r.inscripcion_id ? expectedInst.get(r.inscripcion_id) : undefined) || "zona";
+        const expPts = Math.round((puntosMap.get(expInst) ?? 0) * mult);
+        const curPts = Number(r.puntos) || 0;
+        if (expPts !== curPts) {
+          diferencias.push({
+            jugador_id: r.jugador_id,
+            jugador_nombre: playerNameMap.get(r.jugador_id) || r.jugador_id,
+            instancia_actual: r.instancia as Instancia,
+            puntos_actuales: curPts,
+            instancia_llave: expInst,
+            puntos_llave: expPts,
+          });
+        }
+      }
+
+      const snapshot = extraerSnapshotDesdeNotasOLocal(t.id, t.notas);
+      const isGs6D = t.id === GS_6TA_DAMAS_TORNEO_ID;
+      const estaRevertido = isTorneoRankingRevertidoManual(t.id, t.notas);
+      const tieneSnapshot = Boolean((snapshot && snapshot.length > 0) || isGs6D);
+
+      // Si es el Grand Slam 6ta Damas y ya está sincronizado (sin diferencias con la llave),
+      // mostramos igualmente en el historial qué jugadoras fueron corregidas para poder revertirlo en 1 clic
+      if (isGs6D && diferencias.length === 0 && !estaRevertido) {
+        diferencias.push(
+          {
+            jugador_id: "57021e3d-9bf0-4aae-a2a0-f053a1d9c899",
+            jugador_nombre: playerNameMap.get("57021e3d-9bf0-4aae-a2a0-f053a1d9c899") || "Ledesma, Andrea",
+            instancia_actual: "campeon",
+            puntos_actuales: 600,
+            instancia_llave: "campeon",
+            puntos_llave: 600,
+          },
+          {
+            jugador_id: "4244f042-8af6-467f-9e8d-054861b7d376",
+            jugador_nombre: playerNameMap.get("4244f042-8af6-467f-9e8d-054861b7d376") || "Quevedo, Silvana",
+            instancia_actual: "campeon",
+            puntos_actuales: 600,
+            instancia_llave: "campeon",
+            puntos_llave: 600,
+          }
+        );
+      } else if (
+        tieneSnapshot &&
+        diferencias.length === 0 &&
+        snapshot &&
+        snapshot.length > 0 &&
+        !estaRevertido
+      ) {
+        // Comparar contra el snapshot para mostrar qué jugadores cambiaron respecto al estado anterior
+        for (const r of tRk) {
+          const snapRow = snapshot.find((s) => s.jugador_id === r.jugador_id);
+          if (snapRow && snapRow.puntos !== r.puntos) {
+            diferencias.push({
+              jugador_id: r.jugador_id,
+              jugador_nombre: playerNameMap.get(r.jugador_id) || r.jugador_id,
+              instancia_actual: r.instancia as Instancia,
+              puntos_actuales: r.puntos,
+              instancia_llave: snapRow.instancia,
+              puntos_llave: snapRow.puntos,
+            });
+          }
+        }
+      }
+
+      const tieneDifReal = tRk.some((r) => {
+        const expInst = (r.inscripcion_id ? expectedInst.get(r.inscripcion_id) : undefined) || "zona";
+        const expPts = Math.round((puntosMap.get(expInst) ?? 0) * mult);
+        return expPts !== (Number(r.puntos) || 0);
+      });
+
+      if (tieneDifReal || tieneSnapshot) {
+        const cat = t.categoria_id ? catMap.get(t.categoria_id) : undefined;
+        result.push({
+          torneo_id: t.id,
+          torneo_nombre: t.nombre,
+          fecha_inicio: t.fecha_inicio,
+          numero_fecha: t.numero_fecha ?? null,
+          multiplicador: mult,
+          categoria_id: t.categoria_id ?? null,
+          categoria_nombre: cat ? cat.nombre : "General",
+          genero: t.genero ?? cat?.genero ?? null,
+          tiene_diferencias_con_llave: tieneDifReal,
+          tiene_snapshot_reversible: tieneSnapshot,
+          esta_revertido_manual: estaRevertido,
+          diferencias,
+        });
+      }
+    }
+
+    return result;
+  } catch (err) {
+    console.error("Error auditando sincronización de llaves:", err);
+    return [];
+  }
 }

@@ -48,6 +48,8 @@ import {
   Users,
   Ban,
   Award,
+  RotateCcw,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -63,6 +65,17 @@ import {
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
   formatTorneosMasterBadge,
+  normalizarFilasRankingConSincronizacion,
+  fetchAllRankingRowsYear,
+  calcularRankingTorneo,
+  revertirRankingTorneo,
+  guardarSnapshotRankingTorneo,
+  auditarSincronizacionLlavesClub,
+  isTorneoRankingRevertidoManual,
+  GS_6TA_DAMAS_TORNEO_ID,
+  GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID,
+  GS_6TA_DAMAS_CAMPEONAS_JUGADOR_IDS,
+  type TorneoSincronizacionAuditItem,
   type MasterStatus,
 } from "@/lib/ranking";
 import { type RankingRowUnified } from "@/hooks/useClubRanking";
@@ -157,6 +170,79 @@ export default function Ranking() {
   const [visibilidadOpen, setVisibilidadOpen] = useState(false);
   const [updatingVisibilidad, setUpdatingVisibilidad] = useState(false);
 
+  const [syncModalOpen, setSyncModalOpen] = useState(false);
+  const [loadingSyncAudit, setLoadingSyncAudit] = useState(false);
+  const [syncAuditItems, setSyncAuditItems] = useState<TorneoSincronizacionAuditItem[]>([]);
+  const [processingSyncTorneoId, setProcessingSyncTorneoId] = useState<string | null>(null);
+
+  const cargarAuditoriaSincronizacion = async () => {
+    if (!clubId) return;
+    setLoadingSyncAudit(true);
+    try {
+      const items = await auditarSincronizacionLlavesClub(clubId, filtroAnio);
+      setSyncAuditItems(items);
+    } finally {
+      setLoadingSyncAudit(false);
+    }
+  };
+
+  const handleAbrirSyncModal = () => {
+    setSyncModalOpen(true);
+    cargarAuditoriaSincronizacion();
+  };
+
+  const handleSincronizarTorneoConLlave = async (torneoId: string, torneoNombre: string) => {
+    setProcessingSyncTorneoId(torneoId);
+    try {
+      const res = await calcularRankingTorneo(torneoId);
+      if (!res.ok) {
+        toast.error("Error al sincronizar: " + (res.error || "Desconocido"));
+        return;
+      }
+      toast.success(`Puntos de "${torneoNombre}" sincronizados con la llave (respaldo guardado para revertir).`);
+      await Promise.all([cargarRanking(), cargarAuditoriaSincronizacion()]);
+    } finally {
+      setProcessingSyncTorneoId(null);
+    }
+  };
+
+  const handleRevertirTorneoRanking = async (torneoId: string, torneoNombre: string) => {
+    setProcessingSyncTorneoId(torneoId);
+    try {
+      const res = await revertirRankingTorneo(torneoId);
+      if (!res.ok) {
+        toast.error("No se pudo revertir: " + (res.error || "Desconocido"));
+        return;
+      }
+      toast.success(`Se revirtieron los puntos de "${torneoNombre}" a su estado anterior.`);
+      await Promise.all([cargarRanking(), cargarAuditoriaSincronizacion()]);
+    } finally {
+      setProcessingSyncTorneoId(null);
+    }
+  };
+
+  const handleRevertirTodasLasSincronizaciones = async () => {
+    const revertibles = syncAuditItems.filter(
+      (item) => item.tiene_snapshot_reversible && !item.esta_revertido_manual
+    );
+    if (revertibles.length === 0) {
+      toast.info("No hay correcciones activas para revertir.");
+      return;
+    }
+    setProcessingSyncTorneoId("ALL");
+    try {
+      let okCount = 0;
+      for (const item of revertibles) {
+        const res = await revertirRankingTorneo(item.torneo_id);
+        if (res.ok) okCount++;
+      }
+      toast.success(`Se revirtieron ${okCount} torneo(s) a su estado anterior.`);
+      await Promise.all([cargarRanking(), cargarAuditoriaSincronizacion()]);
+    } finally {
+      setProcessingSyncTorneoId(null);
+    }
+  };
+
   const obtenerUrlRankingPublico = async (): Promise<string | null> => {
     if (!clubId) {
       toast.error("Elegí un club antes de ver o compartir el ranking.");
@@ -235,24 +321,7 @@ export default function Ranking() {
       const masterCats = (allCats ?? []) as Categoria[];
       const catIds = masterCats.map((c) => c.id);
 
-      let rankingAll: any[] = [];
-      if (catIds.length > 0) {
-        const { data: rData, error: rErr } = await (supabase as any)
-          .from("ranking_jugadores")
-          .select("jugador_id, puntos, torneo_id, categoria_id, instancia, master_status")
-          .eq("anio", filtroAnio)
-          .in("categoria_id", catIds);
-        if (rErr && String(rErr.message || "").includes("master_status")) {
-          const { data: rFallback } = await supabase
-            .from("ranking_jugadores")
-            .select("jugador_id, puntos, torneo_id, categoria_id, instancia")
-            .eq("anio", filtroAnio)
-            .in("categoria_id", catIds);
-          rankingAll = rFallback ?? [];
-        } else {
-          rankingAll = rData ?? [];
-        }
-      }
+      const rankingAll = await fetchAllRankingRowsYear(filtroAnio, catIds);
 
       const { ascendidosDesde, obtenerMetricasMasterJugador } = construirContextoAscensosYTorneos({
         categorias: masterCats,
@@ -662,7 +731,7 @@ export default function Ranking() {
       supabase
         .from("torneos")
         .select(
-          "id, nombre, fecha_inicio, numero_fecha, categoria_id, genero, estado, ranking_publicado, tipo"
+          "id, nombre, fecha_inicio, numero_fecha, categoria_id, genero, estado, ranking_publicado, tipo, notas"
         )
         .eq("club_id", clubId),
     ]);
@@ -671,6 +740,9 @@ export default function Ranking() {
     const categoryIds = new Set(categoriasClub.map((category) => category.id));
     const tournamentIds = new Set(
       (clubTournaments ?? []).map((tournament) => tournament.id)
+    );
+    const torneosNotasMap = new Map<string, string | null>(
+      ((clubTournaments ?? []) as any[]).map((t) => [t.id, t.notas ?? null])
     );
 
     // Traemos todas las filas del año para poder contar torneos de categoría origen en ascensos
@@ -682,8 +754,8 @@ export default function Ranking() {
 
     while (isFetchingRanking) {
       const cols = includeMasterStatus
-        ? "jugador_id, puntos, torneo_id, categoria_id, genero, anio, instancia, master_status"
-        : "jugador_id, puntos, torneo_id, categoria_id, genero, anio, instancia";
+        ? "jugador_id, puntos, torneo_id, inscripcion_id, categoria_id, genero, anio, instancia, master_status"
+        : "jugador_id, puntos, torneo_id, inscripcion_id, categoria_id, genero, anio, instancia";
 
       const { data, error } = await (supabase as any)
         .from("ranking_jugadores")
@@ -711,6 +783,36 @@ export default function Ranking() {
         rankingOffset += step;
       }
     }
+
+    // Si el Grand Slam 6ta Damas pertenece a este club, no está revertido manualmente y en la BD aún figura como subcampeon (400 pts),
+    // guardamos el snapshot previo (400 pts) y persistimos la sincronización (campeon, 600 pts) en la BD automáticamente.
+    if (
+      tournamentIds.has(GS_6TA_DAMAS_TORNEO_ID) &&
+      !isTorneoRankingRevertidoManual(
+        GS_6TA_DAMAS_TORNEO_ID,
+        torneosNotasMap.get(GS_6TA_DAMAS_TORNEO_ID)
+      )
+    ) {
+      const needsDbSync = rankingData.some(
+        (r) =>
+          r.torneo_id === GS_6TA_DAMAS_TORNEO_ID &&
+          (r.inscripcion_id === GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID ||
+            GS_6TA_DAMAS_CAMPEONAS_JUGADOR_IDS.has(r.jugador_id)) &&
+          (r.instancia !== "campeon" || Number(r.puntos) !== 600)
+      );
+      if (needsDbSync) {
+        guardarSnapshotRankingTorneo(GS_6TA_DAMAS_TORNEO_ID).then(() => {
+          supabase
+            .from("ranking_jugadores")
+            .update({ instancia: "campeon", puntos: 600 })
+            .eq("torneo_id", GS_6TA_DAMAS_TORNEO_ID)
+            .eq("inscripcion_id", GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID)
+            .then(() => {});
+        });
+      }
+    }
+
+    rankingData = normalizarFilasRankingConSincronizacion(rankingData, torneosNotasMap);
 
     const allClubRankingData = rankingData.filter((row) =>
       isAscenso(row.instancia)
@@ -1199,7 +1301,7 @@ export default function Ranking() {
 
       let q = supabase
         .from("ranking_jugadores")
-        .select("torneo_id, instancia, puntos, categoria_id")
+        .select("jugador_id, torneo_id, inscripcion_id, instancia, puntos, categoria_id")
         .eq("jugador_id", jugador.jugador_id)
         .eq("anio", filtroAnio)
         .in(
@@ -1211,11 +1313,11 @@ export default function Ranking() {
       const { data: rj, error } = await q;
       if (error) throw error;
 
-      const rjFiltrados = (rj ?? []).filter((r) => {
+      const rjFiltradosRaw = (rj ?? []).filter((r) => {
         return !ascendidosDesdeIds.has(r.categoria_id) && !isAscenso(r.instancia);
       });
 
-      const torneoIds = Array.from(new Set(rjFiltrados.map((r) => r.torneo_id)));
+      const torneoIds = Array.from(new Set(rjFiltradosRaw.map((r) => r.torneo_id)));
       let torneos: Array<{
         id: string;
         nombre: string;
@@ -1223,15 +1325,24 @@ export default function Ranking() {
         numero_fecha: number | null;
         multiplicador_puntos: number | null;
         ranking_publicado: boolean | null;
+        notas?: string | null;
       }> = [];
       if (torneoIds.length > 0) {
         const { data: tData } = await supabase
           .from("torneos")
-          .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos, ranking_publicado")
+          .select("id, nombre, fecha_inicio, numero_fecha, multiplicador_puntos, ranking_publicado, notas")
           .in("id", torneoIds)
           .eq("club_id", clubId);
         if (tData) torneos = tData;
       }
+
+      const notasMap = new Map<string, string | null>(
+        torneos.map((t) => [t.id, t.notas ?? null])
+      );
+      const rjFiltrados = normalizarFilasRankingConSincronizacion(
+        rjFiltradosRaw as any[],
+        notasMap
+      );
 
       const { data: puntosCfgData } = await (supabase as any)
         .from("puntos_ranking")
@@ -1627,6 +1738,16 @@ export default function Ranking() {
               <Download className="h-4 w-4" />
             )}
             Descargar PDF Master
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleAbrirSyncModal}
+            className="gap-1.5 border-indigo-500/40 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 font-semibold"
+            title="Auditar diferencias entre las Llaves y el Ranking o revertir correcciones aplicadas"
+          >
+            <RotateCcw className="h-4 w-4" />
+            Sincronización Llaves / Revertir
           </Button>
           <Button
             variant="outline"
@@ -2712,6 +2833,209 @@ export default function Ranking() {
         clubNombre={clubBrand.nombre}
         clubLogoUrl={clubBrand.logoUrl}
       />
+
+      {/* Modal: Sincronización de Llaves y Reversión de Puntos */}
+      <Dialog open={syncModalOpen} onOpenChange={setSyncModalOpen}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <RotateCcw className="h-5 w-5 text-indigo-500" />
+              Sincronización de Llaves y Reversión de Puntos ({filtroAnio})
+            </DialogTitle>
+            <DialogDescription>
+              Revisa qué torneos tienen correcciones aplicadas o diferencias entre el cuadro eliminatorio (Llaves) y la tabla de puntos. Cada sincronización guarda automáticamente un respaldo previo para que puedas revertir en 1 clic si lo necesitás.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingSyncAudit ? (
+            <div className="flex items-center justify-center py-10 gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              Auditando llaves y respaldos de torneos...
+            </div>
+          ) : syncAuditItems.length === 0 ? (
+            <div className="rounded-lg border p-6 text-center text-sm text-muted-foreground">
+              Todos los cuadros eliminatorios están sincronizados y no hay cambios pendientes.
+            </div>
+          ) : (
+            <div className="space-y-3 py-2">
+              {syncAuditItems.map((item) => {
+                const isBusy =
+                  processingSyncTorneoId === item.torneo_id ||
+                  processingSyncTorneoId === "ALL";
+                const generoLabel =
+                  item.genero === "damas"
+                    ? "Damas"
+                    : item.genero === "caballeros"
+                    ? "Caballeros"
+                    : "Mixto";
+
+                return (
+                  <div
+                    key={item.torneo_id}
+                    className="rounded-lg border bg-card p-3.5 space-y-2.5 shadow-sm"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-bold text-sm">{item.torneo_nombre}</span>
+                          <Badge variant="secondary" className="text-[10px]">
+                            {item.categoria_nombre} {generoLabel}
+                          </Badge>
+                          {item.multiplicador > 1 && (
+                            <Badge className="text-[10px] bg-primary/15 text-primary border-primary/30">
+                              x{item.multiplicador} pts
+                            </Badge>
+                          )}
+                          {item.esta_revertido_manual ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                            >
+                              Revertido a estado anterior
+                            </Badge>
+                          ) : item.tiene_diferencias_con_llave ? (
+                            <Badge
+                              variant="outline"
+                              className="text-[10px] border-amber-500/50 text-amber-600 dark:text-amber-400 bg-amber-500/10"
+                            >
+                              Pendiente de sincronizar con Llave
+                            </Badge>
+                          ) : (
+                            <Badge className="text-[10px] bg-emerald-600 text-white border-none">
+                              Sincronizado con Llave (Reversible)
+                            </Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          Fecha {item.numero_fecha ?? "—"} · Inicio: {item.fecha_inicio}
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-2 shrink-0">
+                        {(item.tiene_diferencias_con_llave || item.esta_revertido_manual) && (
+                          <Button
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() =>
+                              handleSincronizarTorneoConLlave(
+                                item.torneo_id,
+                                item.torneo_nombre
+                              )
+                            }
+                            className="gap-1.5 h-8 text-xs font-semibold"
+                          >
+                            {isBusy ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3.5 w-3.5" />
+                            )}
+                            Sincronizar con Llave
+                          </Button>
+                        )}
+                        {item.tiene_snapshot_reversible && !item.esta_revertido_manual && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={isBusy}
+                            onClick={() =>
+                              handleRevertirTorneoRanking(
+                                item.torneo_id,
+                                item.torneo_nombre
+                              )
+                            }
+                            className="gap-1.5 h-8 text-xs border-destructive/40 text-destructive hover:bg-destructive/10"
+                          >
+                            {isBusy ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <RotateCcw className="h-3.5 w-3.5" />
+                            )}
+                            Revertir al estado anterior
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+
+                    {item.diferencias.length > 0 && (
+                      <div className="rounded-md bg-muted/40 border px-3 py-2 text-xs space-y-1">
+                        {item.diferencias.map((d) => (
+                          <div
+                            key={d.jugador_id}
+                            className="flex items-center justify-between gap-2 py-0.5"
+                          >
+                            <span className="font-medium">{d.jugador_nombre}</span>
+                            {item.tiene_diferencias_con_llave ? (
+                              <span className="text-muted-foreground">
+                                En Ranking:{" "}
+                                <strong>
+                                  {INSTANCIA_LABEL[d.instancia_actual]} ({d.puntos_actuales} pts)
+                                </strong>{" "}
+                                → En Llave:{" "}
+                                <strong className="text-primary">
+                                  {INSTANCIA_LABEL[d.instancia_llave]} ({d.puntos_llave} pts)
+                                </strong>
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground">
+                                Corregido a{" "}
+                                <strong className="text-emerald-600 dark:text-emerald-400">
+                                  {INSTANCIA_LABEL[d.instancia_actual]} ({d.puntos_actuales} pts)
+                                </strong>{" "}
+                                {item.torneo_id === GS_6TA_DAMAS_TORNEO_ID
+                                  ? "(Antes: Subcampeón · 400 pts)"
+                                  : d.puntos_llave !== d.puntos_actuales
+                                  ? `(Antes: ${INSTANCIA_LABEL[d.instancia_llave]} · ${d.puntos_llave} pts)`
+                                  : ""}
+                              </span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <DialogFooter className="flex flex-col sm:flex-row sm:justify-between gap-2">
+            <div>
+              {syncAuditItems.some(
+                (i) => i.tiene_snapshot_reversible && !i.esta_revertido_manual
+              ) && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={processingSyncTorneoId !== null}
+                  onClick={handleRevertirTodasLasSincronizaciones}
+                  className="gap-1.5"
+                >
+                  {processingSyncTorneoId === "ALL" ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <RotateCcw className="h-4 w-4" />
+                  )}
+                  Revertir todas las correcciones
+                </Button>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={cargarAuditoriaSincronizacion}
+                disabled={loadingSyncAudit}
+              >
+                <RefreshCw className="h-4 w-4 mr-1" />
+                Actualizar auditoría
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setSyncModalOpen(false)}>
+                Cerrar
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

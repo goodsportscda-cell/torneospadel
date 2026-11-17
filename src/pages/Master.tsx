@@ -14,6 +14,7 @@ import {
   isCategoriaSuma,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
+  fetchAllRankingRowsYear,
 } from "@/lib/ranking";
 import { MasterPlacaModal, type PlacaJugadorItem } from "@/components/ranking/MasterPlacaModal";
 import padelIdLogo from "@/assets/new-padel-id-logo.jpg";
@@ -85,20 +86,7 @@ export default function Master() {
         .eq("anio", anio),
     ]);
 
-    let ranking: any[] = [];
-    const { data: rData, error: rErr } = await (supabase as any)
-      .from("ranking_jugadores")
-      .select("jugador_id, puntos, torneo_id, categoria_id, instancia, master_status")
-      .eq("anio", anio);
-    if (rErr && String(rErr.message || "").includes("master_status")) {
-      const { data: rFallback } = await supabase
-        .from("ranking_jugadores")
-        .select("jugador_id, puntos, torneo_id, categoria_id, instancia")
-        .eq("anio", anio);
-      ranking = rFallback ?? [];
-    } else {
-      ranking = rData ?? [];
-    }
+    const ranking = await fetchAllRankingRowsYear(anio);
 
     const cuposMap = new Map<string, number>();
     (cupos ?? []).forEach((c: { categoria_id: string; cupos: number }) =>

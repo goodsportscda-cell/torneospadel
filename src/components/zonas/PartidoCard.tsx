@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import { uploadPartidoPhoto, persistPartidoPhoto } from "@/lib/partidoPhotoUpload";
 import { extractFotoFromNotas } from "@/logic/torneoStandings";
 import { sanitizeParejaLabel } from "@/lib/zonas";
+import { calcularRankingTorneo } from "@/lib/ranking";
 
 type Pareja = {
   inscripcion_id: string;
@@ -475,7 +476,31 @@ export function PartidoCard({
         }
       }
 
-      toast.success("Resultado guardado");
+      // Si se editó un partido de llave en un torneo oficial ya finalizado, sincronizar automáticamente el ranking (con respaldo reversible)
+      if (tabla === "partidos_llave" && effectiveTorneoId) {
+        try {
+          const { data: tCheck } = await supabase
+            .from("torneos")
+            .select("estado, tipo")
+            .eq("id", effectiveTorneoId)
+            .maybeSingle();
+          if (tCheck?.estado === "finalizado" && tCheck?.tipo === "oficial") {
+            const syncRes = await calcularRankingTorneo(effectiveTorneoId);
+            if (syncRes.ok) {
+              toast.success("Resultado guardado y puntos de ranking sincronizados con el cuadro");
+            } else {
+              toast.success("Resultado guardado");
+            }
+          } else {
+            toast.success("Resultado guardado");
+          }
+        } catch {
+          toast.success("Resultado guardado");
+        }
+      } else {
+        toast.success("Resultado guardado");
+      }
+
       onUpdated();
       queryClient.invalidateQueries({ queryKey: ["torneo-llaves"] });
       queryClient.invalidateQueries({ queryKey: ["torneo-zonas"] });

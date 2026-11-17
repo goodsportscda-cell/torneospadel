@@ -42,6 +42,7 @@ import {
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
   formatTorneosMasterBadge,
+  fetchAllRankingRowsYear,
   type EstadoMasterTipo,
 } from "@/lib/ranking";
 import { MasterPlacaModal, type PlacaJugadorItem } from "@/components/ranking/MasterPlacaModal";
@@ -174,7 +175,7 @@ export default function PlayerDashboard() {
       if (jId) {
         const [{ data: torneosPub }, { data: allCatsData }, { data: cuposData }, { data: ascData }] =
           await Promise.all([
-            supabase.from("torneos").select("id, nombre").eq("ranking_publicado", true),
+            supabase.from("torneos").select("id, nombre, notas").eq("ranking_publicado", true),
             supabase.from("categorias").select("id, nombre, genero").eq("activa", true),
             supabase.from("cupos_master").select("categoria_id, cupos"),
             supabase
@@ -187,6 +188,7 @@ export default function PlayerDashboard() {
 
         const idsPub = new Set((torneosPub ?? []).map((t) => t.id));
         const nameMap = new Map((torneosPub ?? []).map((t) => [t.id, t.nombre]));
+        const notasMap = new Map((torneosPub ?? []).map((t: any) => [t.id, t.notas ?? null]));
         const allCats = (allCatsData ?? []) as { id: string; nombre: string; genero: string }[];
         const catMap = new Map(allCats.map((c) => [c.id, c]));
         const cuposMap = new Map<string, number>();
@@ -194,20 +196,7 @@ export default function PlayerDashboard() {
           cuposMap.set(c.categoria_id, c.cupos)
         );
 
-        let allYearRank: any[] = [];
-        const { data: rData, error: rErr } = await (supabase as any)
-          .from("ranking_jugadores")
-          .select("jugador_id, torneo_id, instancia, puntos, categoria_id, master_status")
-          .eq("anio", anio);
-        if (rErr && String(rErr.message || "").includes("master_status")) {
-          const { data: rFallback } = await supabase
-            .from("ranking_jugadores")
-            .select("jugador_id, torneo_id, instancia, puntos, categoria_id")
-            .eq("anio", anio);
-          allYearRank = rFallback ?? [];
-        } else {
-          allYearRank = rData ?? [];
-        }
+        const allYearRank = await fetchAllRankingRowsYear(anio, undefined, notasMap);
 
         const validYearRank = allYearRank.filter(
           (r) => isAscenso(r.instancia) || (r.torneo_id && idsPub.has(r.torneo_id))
