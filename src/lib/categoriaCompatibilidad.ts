@@ -43,5 +43,5 @@ export function puedeAnotarseParejaEnCategoria(
   const nivel2 = extraerNivelCategoria(categoriaJugador2);
   // Unknown/special categories continue to require manual review, as before.
   if (nivel1 === null || nivel2 === null) return true;
-  return nivel1 + nivel2 === suma;
+  return nivel1 + nivel2 >= suma;
 }

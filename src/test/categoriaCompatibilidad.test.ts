@@ -17,10 +17,14 @@ describe("compatibilidad de categorías de inscripción", () => {
     expect(puedeAnotarseEnCategoria("6ta", "Suma 7")).toBe(true);
   });
 
-  it("valida Suma N por la suma de categorías de la pareja", () => {
+  it("valida Suma N permitiendo suma igual o mayor (nivel igual o inferior al tope del torneo)", () => {
     expect(puedeAnotarseParejaEnCategoria("4ta", "7ma", "Suma 11")).toBe(true);
     expect(puedeAnotarseParejaEnCategoria("5ta", "6ta", "Suma 11")).toBe(true);
+    expect(puedeAnotarseParejaEnCategoria("5ta", "7ma", "Suma 11")).toBe(true);
     expect(puedeAnotarseParejaEnCategoria("4ta", "6ta", "Suma 11")).toBe(false);
+    expect(puedeAnotarseParejaEnCategoria("3ra", "4ta", "Suma 7")).toBe(true);
+    expect(puedeAnotarseParejaEnCategoria("3ra", "5ta", "Suma 7")).toBe(true);
+    expect(puedeAnotarseParejaEnCategoria("3ra", "3ra", "Suma 7")).toBe(false);
   });
 
   it("reconoce las etiquetas S11 y 5ta-6ta que usa la app", () => {
