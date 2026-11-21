@@ -217,10 +217,9 @@ export function useClubRanking(
         (a) => categoryIds.has(a.categoria_origen_id) && categoryIds.has(a.categoria_destino_id)
       );
 
-      // Construir contexto de ascensos, categoría personal del jugador y conteo de torneos
+      // Construir contexto de ascensos y conteo de torneos
       const {
         ascendidosDesde,
-        categoriaPuraJugadorMap,
         coincideFilaConCategoria,
         obtenerCategoriaAgrupacionFila,
         obtenerMetricasMasterJugador,
@@ -463,7 +462,6 @@ export function useClubRanking(
         const puntos_totales = catStats.ptsTorneos + catStats.ptsAscenso;
         const evalCatInfo = evalCatId ? categoriasMap.get(evalCatId) : undefined;
         const assignedCatInfo = categoryByPlayer.get(id);
-        const playerPuraCat = categoriaPuraJugadorMap.get(id);
 
         return {
           posicion: 0,
@@ -471,12 +469,9 @@ export function useClubRanking(
           jugador_nombre: j?.nombre ?? "?",
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
-          jugador_categoria_id:
-            playerPuraCat?.id ?? assignedCatInfo?.id ?? evalCatInfo?.id ?? null,
-          jugador_categoria_nombre:
-            assignedCatInfo?.nombre ?? playerPuraCat?.nombre ?? evalCatInfo?.nombre ?? null,
-          jugador_categoria_genero:
-            assignedCatInfo?.genero ?? playerPuraCat?.genero ?? evalCatInfo?.genero ?? null,
+          jugador_categoria_id: evalCatInfo?.id ?? assignedCatInfo?.id ?? null,
+          jugador_categoria_nombre: evalCatInfo?.nombre ?? assignedCatInfo?.nombre ?? null,
+          jugador_categoria_genero: evalCatInfo?.genero ?? assignedCatInfo?.genero ?? null,
           categoria_ranking_id: evalCatId,
           puntos_totales,
           puntos_torneos: catStats.ptsTorneos,

@@ -356,6 +356,7 @@ export function construirContextoAscensosYTorneos(params: {
   const torneosPorJugYCat = new Map<string, Map<string, Set<string>>>();
   const tieneInstanciaAscenso = new Map<string, Set<string>>();
   const masterStatusPorJugYCat = new Map<string, Map<string, MasterStatus>>();
+  const torneosCountPorCat = new Map<string, number>();
 
   (rankingRows || []).forEach((r) => {
     if (!r.categoria_id) return;
@@ -377,6 +378,7 @@ export function construirContextoAscensosYTorneos(params: {
       }
       tieneInstanciaAscenso.get(r.jugador_id)!.add(r.categoria_id);
     } else if (r.torneo_id) {
+      torneosCountPorCat.set(r.categoria_id, (torneosCountPorCat.get(r.categoria_id) ?? 0) + 1);
       if (!torneosPorJugYCat.has(r.jugador_id)) {
         torneosPorJugYCat.set(r.jugador_id, new Map());
       }
@@ -388,153 +390,133 @@ export function construirContextoAscensosYTorneos(params: {
     }
   });
 
-  // 4. Determinar la categoría personal pura actual de cada jugador (ej. 3ra, 4ta, 5ta, 6ta, 7ma, 8va),
-  //    que es independiente del torneo Suma (Suma 6, Suma 7, Suma 8) que dispute.
-  const categoriaPuraJugadorMap = new Map<string, CategoriaBasica>();
-
-  const buscarCategoriaPuraEnClub = (
-    catId?: string | null,
-    catNombre?: string | null,
-    genero?: string | null
-  ): CategoriaBasica | undefined => {
-    if (catId && categoriasMap.has(catId)) {
-      const direct = categoriasMap.get(catId)!;
-      if (!isCategoriaSuma(direct.nombre)) return direct;
+  // 4. Vincular ascensos a una categoría pura que no tiene torneos propios en el club (ej. ascenso 5ta -> 4ta Caballeros)
+  //    con el torneo Suma donde compite ese jugador ascendido (ej. Suma 7 Caballeros),
+  //    PERO ÚNICAMENTE si el jugador efectivamente jugó ese torneo Suma y sin mezclar puntos de otras categorías (5ta, 6ta, 7ma, 8va).
+  const catPuraSinTorneosASuma = new Map<string, string[]>();
+  categorias.forEach((c) => {
+    if (!isCategoriaSuma(c.nombre) && (torneosCountPorCat.get(c.id) ?? 0) === 0) {
+      const sumasConTorneos = categorias
+        .filter(
+          (s) =>
+            s.genero === c.genero &&
+            isCategoriaSuma(s.nombre) &&
+            (torneosCountPorCat.get(s.id) ?? 0) > 0
+        )
+        .map((s) => s.id);
+      if (sumasConTorneos.length > 0) {
+        catPuraSinTorneosASuma.set(c.id, sumasConTorneos);
+      }
     }
-    if (catNombre) {
-      const n = catNombre.toLowerCase().trim();
-      const g = (genero || "").toLowerCase().trim();
-      const match = categorias.find(
-        (c) =>
-          !isCategoriaSuma(c.nombre) &&
-          c.nombre.toLowerCase().trim() === n &&
-          (!g || c.genero.toLowerCase().trim() === g)
+  });
+
+  // Mapa jugador_id -> { puraCatId (ej. 4ta), sumaCatId (ej. Suma 7 donde jugó) }
+  const jugadorVinculoAscensoASuma = new Map<
+    string,
+    { puraCatId: string; sumaCatId: string }
+  >();
+
+  const todosJugadoresConAscenso = new Set<string>([
+    ...Array.from(origenesDirectos.keys()),
+    ...Array.from(tieneInstanciaAscenso.keys()),
+  ]);
+
+  todosJugadoresConAscenso.forEach((jId) => {
+    catPuraSinTorneosASuma.forEach((sumaCatIds, puraCatId) => {
+      if (ascendidosDesde.get(puraCatId)?.has(jId)) return;
+      const tieneOrigenHaciaPura = origenesDirectos.get(jId)?.has(puraCatId) ?? false;
+      const tieneFilaAscensoPura = tieneInstanciaAscenso.get(jId)?.has(puraCatId) ?? false;
+      if (!tieneOrigenHaciaPura && !tieneFilaAscensoPura) return;
+
+      // Solo vincular con el torneo Suma en el que el jugador realmente haya jugado al menos 1 torneo
+      const sumaJugadaId = sumaCatIds.find(
+        (sId) => (torneosPorJugYCat.get(jId)?.get(sId)?.size ?? 0) > 0
       );
-      if (match) return match;
-    }
-    return undefined;
-  };
-
-  // 4a. Asignación explícita del jugador en el club (jugador_categorias_publicas / jugador_categorias_club)
-  (jugadorCategorias || []).forEach((jc) => {
-    const matched = buscarCategoriaPuraEnClub(jc.categoria_id, jc.categoria_nombre, jc.genero);
-    if (matched && !ascendidosDesde.get(matched.id)?.has(jc.jugador_id)) {
-      categoriaPuraJugadorMap.set(jc.jugador_id, matched);
-    }
-  });
-
-  // 4b. Destino de ascenso activo del jugador (si ascendió a 4ta, 3ra, 5ta, etc. y no ascendió desde esa categoría)
-  const elegirCategoriaMasAlta = (
-    actual: CategoriaBasica | undefined,
-    candidata: CategoriaBasica
-  ): CategoriaBasica => {
-    if (!actual) return candidata;
-    const nivAct = getNivelCategoriaPura(actual.nombre);
-    const nivCand = getNivelCategoriaPura(candidata.nombre);
-    if (nivAct !== null && nivCand !== null && nivCand < nivAct) {
-      return candidata;
-    }
-    return actual;
-  };
-
-  ascensosDeduplicados.forEach((a) => {
-    if (ascendidosDesde.get(a.categoria_destino_id)?.has(a.jugador_id)) return;
-    const catDest = categoriasMap.get(a.categoria_destino_id);
-    if (catDest && !isCategoriaSuma(catDest.nombre)) {
-      const prev = categoriaPuraJugadorMap.get(a.jugador_id);
-      categoriaPuraJugadorMap.set(a.jugador_id, elegirCategoriaMasAlta(prev, catDest));
-    }
-  });
-
-  tieneInstanciaAscenso.forEach((catIdsSet, jId) => {
-    catIdsSet.forEach((cId) => {
-      if (ascendidosDesde.get(cId)?.has(jId)) return;
-      const catDest = categoriasMap.get(cId);
-      if (catDest && !isCategoriaSuma(catDest.nombre)) {
-        const prev = categoriaPuraJugadorMap.get(jId);
-        categoriaPuraJugadorMap.set(jId, elegirCategoriaMasAlta(prev, catDest));
+      if (sumaJugadaId) {
+        jugadorVinculoAscensoASuma.set(jId, {
+          puraCatId,
+          sumaCatId: sumaJugadaId,
+        });
       }
     });
   });
 
-  // 4c. Si aún no tiene categoría pura asignada, inferir de sus filas de ranking en categorías puras activas
-  (rankingRows || []).forEach((r) => {
-    if (!r.categoria_id || categoriaPuraJugadorMap.has(r.jugador_id)) return;
-    if (ascendidosDesde.get(r.categoria_id)?.has(r.jugador_id)) return;
-    const cat = categoriasMap.get(r.categoria_id);
-    if (cat && !isCategoriaSuma(cat.nombre)) {
-      categoriaPuraJugadorMap.set(r.jugador_id, cat);
-    }
-  });
-
   /**
-   * Determina si una fila de ranking_jugadores corresponde a la categoría filtrada.
-   * - La categoría del jugador es su categoría personal (3ra, 4ta, 5ta, 6ta, etc.).
-   * - El torneo que juega puede ser de su categoría pura o un torneo Suma (Suma 6, Suma 7, Suma 8).
-   * Por lo tanto, el jugador acumula los puntos de todos los torneos que jugó en su etapa actual
-   * (incluyendo Suma 6, Suma 7, Suma 8) más los puntos transferidos por sus ascensos.
+   * Determina si una fila de ranking_jugadores corresponde al torneo/categoría filtrado:
+   * - En cada torneo (ej. Suma 7, 5ta, 6ta, 7ma, 8va) SOLO figuran los jugadores que jugaron ese torneo
+   *   y SOLO se suman los puntos obtenidos en ese torneo.
+   * - Excepción reglamentaria de ascenso: cuando un jugador ascendió a una categoría superior sin torneos propios
+   *   (ej. ascendió de 5ta a 4ta) y juega el torneo Suma 7, su fila `instancia = 'ascenso'` (el 50% que arrastra a 4ta)
+   *   se suma a sus puntos del torneo Suma 7.
    */
   const coincideFilaConCategoria = (
-    r: { jugador_id: string; categoria_id: string | null },
+    r: { jugador_id: string; categoria_id: string | null; instancia?: string },
     targetCategoriaId: string
   ): boolean => {
-    if (!r.categoria_id) return targetCategoriaId === "todas";
+    if (!r.categoria_id) return false;
     if (ascendidosDesde.get(r.categoria_id)?.has(r.jugador_id)) return false;
-    if (targetCategoriaId === "todas") return true;
-    if (r.categoria_id === targetCategoriaId) return true;
 
-    const targetCat = categoriasMap.get(targetCategoriaId);
-    const rowCat = categoriasMap.get(r.categoria_id);
-    if (!targetCat || !rowCat || targetCat.genero !== rowCat.genero) return false;
+    const vinculo = jugadorVinculoAscensoASuma.get(r.jugador_id);
 
-    const playerPuraCat = categoriaPuraJugadorMap.get(r.jugador_id);
-
-    // Si se filtra por una categoría de jugador (ej. 3ra, 4ta, 5ta) y el jugador pertenece a esa categoría,
-    // incluir los puntos de los torneos Suma (Suma 6, Suma 7, Suma 8) que haya jugado.
-    if (!isCategoriaSuma(targetCat.nombre)) {
-      if (playerPuraCat?.id === targetCategoriaId && isCategoriaSuma(rowCat.nombre)) {
-        return true;
+    if (targetCategoriaId === "todas") {
+      // Excluir filas de ascenso huérfanas en categorías sin torneos propios si el jugador no jugó ningún torneo allí
+      if (
+        isAscenso(r.instancia) &&
+        catPuraSinTorneosASuma.has(r.categoria_id) &&
+        !vinculo
+      ) {
+        return false;
       }
-      return false;
-    }
-
-    // Si se filtra por un torneo Suma (ej. Suma 7, Suma 8, Suma 6) y el jugador participó en ese circuito Suma,
-    // incluir también los puntos activos de su categoría personal (ej. su ascenso a 4ta/3ra/5ta y torneos activos)
-    const jugoEnTargetSuma =
-      (torneosPorJugYCat.get(r.jugador_id)?.get(targetCategoriaId)?.size ?? 0) > 0;
-    if (!jugoEnTargetSuma) return false;
-
-    if (playerPuraCat && r.categoria_id === playerPuraCat.id) {
       return true;
     }
+
+    if (r.categoria_id === targetCategoriaId) return true;
+
+    // Si estamos viendo el torneo Suma (ej. Suma 7) y el jugador jugó Suma 7 tras ascender a 4ta,
+    // incluir ÚNICAMENTE su fila de puntos por ascenso a 4ta (`instancia = 'ascenso'`).
+    if (
+      vinculo &&
+      targetCategoriaId === vinculo.sumaCatId &&
+      r.categoria_id === vinculo.puraCatId &&
+      isAscenso(r.instancia)
+    ) {
+      return true;
+    }
+
+    // Y si se consulta 4ta, incluir los torneos Suma 7 del jugador ascendido a 4ta
+    if (
+      vinculo &&
+      targetCategoriaId === vinculo.puraCatId &&
+      r.categoria_id === vinculo.sumaCatId
+    ) {
+      return true;
+    }
+
     return false;
   };
 
   /**
-   * Devuelve la clave de agrupación de categoría para un jugador al construir la tabla de ranking,
-   * de modo que los puntos por ascenso y los torneos jugados (puros + Suma 6/7/8) se sumen en una única fila del jugador.
+   * Devuelve la clave de agrupación de categoría para un jugador al construir la tabla de ranking.
+   * Para jugadores ascendidos a 4ta que compiten en Suma 7, unifica su ascenso a 4ta dentro de Suma 7.
    */
   const obtenerCategoriaAgrupacionFila = (
-    r: { jugador_id: string; categoria_id: string | null },
+    r: { jugador_id: string; categoria_id: string | null; instancia?: string },
     filtroCategoria: string
   ): string => {
     if (filtroCategoria !== "todas") return filtroCategoria;
-    const playerPuraCat = categoriaPuraJugadorMap.get(r.jugador_id);
-    const rowCat = r.categoria_id ? categoriasMap.get(r.categoria_id) : undefined;
+    const vinculo = jugadorVinculoAscensoASuma.get(r.jugador_id);
     if (
-      playerPuraCat &&
-      rowCat &&
-      rowCat.genero === playerPuraCat.genero &&
-      (rowCat.id === playerPuraCat.id || isCategoriaSuma(rowCat.nombre))
+      vinculo &&
+      (r.categoria_id === vinculo.puraCatId || r.categoria_id === vinculo.sumaCatId)
     ) {
-      return playerPuraCat.id;
+      return vinculo.sumaCatId;
     }
     return r.categoria_id ?? "sin_categoria";
   };
 
   /**
-   * Calcula para un jugador en una categoría específica:
-   * - torneos_en_categoria (jugados en su categoría actual + torneos Suma 6/7/8 del mismo género)
+   * Calcula para un jugador en un torneo/categoría específico:
+   * - torneos_en_categoria (jugados en ese torneo/categoría)
    * - torneos_categoria_anterior (jugados en su cadena de categorías origen si ascendió: ej. 6ta -> 5ta -> 4ta)
    * - torneos_jugados (suma total válida para el Master)
    * - master_status y es_ascendido
@@ -551,41 +533,29 @@ export function construirContextoAscensosYTorneos(params: {
       };
     }
 
-    const evalCat = categoriasMap.get(categoriaId);
-    const playerPuraCat = categoriaPuraJugadorMap.get(jugadorId);
-    const vinculaConCategoriaJugador =
-      Boolean(playerPuraCat && evalCat && playerPuraCat.genero === evalCat.genero) &&
-      (categoriaId === playerPuraCat!.id || isCategoriaSuma(evalCat?.nombre));
+    const vinculo = jugadorVinculoAscensoASuma.get(jugadorId);
+    const esVinculadoAscensoSuma =
+      Boolean(vinculo) &&
+      (categoriaId === vinculo!.sumaCatId || categoriaId === vinculo!.puraCatId);
 
-    const targetCat = vinculaConCategoriaJugador ? playerPuraCat : evalCat;
-    const catParaOrigenes = vinculaConCategoriaJugador ? playerPuraCat!.id : categoriaId;
+    const targetCat = categoriasMap.get(
+      esVinculadoAscensoSuma ? vinculo!.puraCatId : categoriaId
+    );
+    const catParaOrigenes = esVinculadoAscensoSuma ? vinculo!.puraCatId : categoriaId;
 
     const directSet = new Set<string>();
-    torneosPorJugYCat.get(jugadorId)?.get(categoriaId)?.forEach((t) => directSet.add(t));
-
-    if (vinculaConCategoriaJugador && playerPuraCat) {
-      torneosPorJugYCat.get(jugadorId)?.get(playerPuraCat.id)?.forEach((t) => directSet.add(t));
-      // Sumar todos los torneos Suma (Suma 6, Suma 7, Suma 8) del mismo género jugados por el jugador
-      categorias.forEach((c) => {
-        if (c.genero === playerPuraCat.genero && isCategoriaSuma(c.nombre)) {
-          torneosPorJugYCat.get(jugadorId)?.get(c.id)?.forEach((t) => directSet.add(t));
-        }
-      });
+    if (esVinculadoAscensoSuma && vinculo) {
+      torneosPorJugYCat.get(jugadorId)?.get(vinculo.sumaCatId)?.forEach((t) => directSet.add(t));
+      torneosPorJugYCat.get(jugadorId)?.get(vinculo.puraCatId)?.forEach((t) => directSet.add(t));
+    } else {
+      torneosPorJugYCat.get(jugadorId)?.get(categoriaId)?.forEach((t) => directSet.add(t));
     }
 
     let status: MasterStatus = masterStatusPorJugYCat.get(jugadorId)?.get(categoriaId) ?? "auto";
-    if (vinculaConCategoriaJugador && playerPuraCat && status === "auto") {
-      const stPura = masterStatusPorJugYCat.get(jugadorId)?.get(playerPuraCat.id) ?? "auto";
-      if (stPura !== "auto") {
-        status = stPura;
-      } else {
-        categorias.forEach((c) => {
-          if (status === "auto" && c.genero === playerPuraCat.genero && isCategoriaSuma(c.nombre)) {
-            const stS = masterStatusPorJugYCat.get(jugadorId)?.get(c.id) ?? "auto";
-            if (stS !== "auto") status = stS;
-          }
-        });
-      }
+    if (esVinculadoAscensoSuma && vinculo && status === "auto") {
+      const stPura = masterStatusPorJugYCat.get(jugadorId)?.get(vinculo.puraCatId) ?? "auto";
+      const stSuma = masterStatusPorJugYCat.get(jugadorId)?.get(vinculo.sumaCatId) ?? "auto";
+      status = stPura !== "auto" ? stPura : stSuma;
     }
 
     const origenesTabla = obtenerCategoriasOrigen(jugadorId, catParaOrigenes);
@@ -594,7 +564,7 @@ export function construirContextoAscensosYTorneos(params: {
     const hasStatusAsc = status === "ascendido_habilitado";
 
     const esAscendido =
-      (vinculaConCategoriaJugador || !isCategoriaSuma(targetCat?.nombre)) &&
+      (esVinculadoAscensoSuma || !isCategoriaSuma(targetCat?.nombre)) &&
       (origenesTabla.size > 0 || hasInstanciaAsc || hasStatusAsc);
 
     const prevTorneosSet = new Set<string>();
@@ -689,7 +659,7 @@ export function construirContextoAscensosYTorneos(params: {
   return {
     ascensosDeduplicados,
     ascendidosDesde,
-    categoriaPuraJugadorMap,
+    jugadorVinculoAscensoASuma,
     coincideFilaConCategoria,
     obtenerCategoriaAgrupacionFila,
     obtenerMetricasMasterJugador,
