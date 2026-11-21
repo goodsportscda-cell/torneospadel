@@ -723,21 +723,55 @@ export default function Ranking() {
     setLoading(false);
   };
 
-  // Cupos al Master en la categoría filtrada (si aplica)
-  const categoriaSeleccionada = useMemo(
-    () => categorias.find((c) => c.id === filtroCategoria) ?? null,
-    [categorias, filtroCategoria]
-  );
+  // Cupos al Master en la categoría o modalidad filtrada (si aplica)
+  const categoriaSeleccionada = useMemo(() => {
+    if (filtroCategoria !== "todas") {
+      return categorias.find((c) => c.id === filtroCategoria) ?? null;
+    }
+    if (filtroTorneo && filtroTorneo !== "todos") {
+      if (filtroTorneo.startsWith("modalidad:")) {
+        const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
+        return (
+          categorias.find(
+            (c) =>
+              c.nombre.toLowerCase().includes(modKey) &&
+              (filtroGenero === "todos" || c.genero === filtroGenero)
+          ) ??
+          categorias.find((c) => c.nombre.toLowerCase().includes(modKey)) ??
+          null
+        );
+      }
+      if (filtroTorneo.startsWith("cat_torneo:")) {
+        const cId = filtroTorneo.slice("cat_torneo:".length);
+        return categorias.find((c) => c.id === cId) ?? null;
+      }
+      if (filtroTorneo.startsWith("torneo:")) {
+        const tId = filtroTorneo.slice("torneo:".length);
+        const tObj = torneosVisibilidad.find((t) => t.id === tId);
+        if (tObj?.categoria_id) {
+          return categorias.find((c) => c.id === tObj.categoria_id) ?? null;
+        }
+      }
+    }
+    return null;
+  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero, torneosVisibilidad]);
 
   const cupoActual = useMemo(() => {
-    if (!categoriaSeleccionada) return null;
+    if (!categoriaSeleccionada) {
+      if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
+        return 8;
+      }
+      return null;
+    }
     const def = getCupoDefaultCategoria(categoriaSeleccionada.nombre);
-    return cuposMaster[filtroCategoria] ?? def;
-  }, [filtroCategoria, categoriaSeleccionada, cuposMaster]);
+    return cuposMaster[categoriaSeleccionada.id] ?? def;
+  }, [categoriaSeleccionada, cuposMaster, filtroTorneo]);
 
   const esSuma8 = useMemo(
-    () => isCategoriaSuma(categoriaSeleccionada?.nombre),
-    [categoriaSeleccionada]
+    () =>
+      isCategoriaSuma(categoriaSeleccionada?.nombre) ||
+      (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")),
+    [categoriaSeleccionada, filtroTorneo]
   );
 
   const cargarRanking = async () => {
@@ -1123,8 +1157,20 @@ export default function Ranking() {
       r.posicion = i + 1;
     });
 
+    const catEvalMaster =
+      effectiveFiltroCategoria !== "todas"
+        ? catById.get(effectiveFiltroCategoria)
+        : categoriaSeleccionada;
+    const esFiltroSuma =
+      isCategoriaSuma(catEvalMaster?.nombre) ||
+      (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma"));
+    const cupoDefault = esFiltroSuma
+      ? 8
+      : getCupoDefaultCategoria(catEvalMaster?.nombre ?? null);
     const cupoEfectivo =
-      cupoActual ?? getCupoDefaultCategoria(categoriaSeleccionada?.nombre ?? null);
+      (catEvalMaster?.id ? cuposMaster[catEvalMaster.id] : undefined) ??
+      cupoActual ??
+      cupoDefault;
     const result = aplicarReglasMaster(baseResult, cupoEfectivo);
 
     setRows(result);

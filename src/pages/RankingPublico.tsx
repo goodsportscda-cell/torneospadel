@@ -94,20 +94,47 @@ export default function RankingPublico() {
   const [busqueda, setBusqueda] = useState("");
   const [copiado, setCopiado] = useState(false);
 
-  const categoriaSeleccionada = useMemo(
-    () => categorias.find((c) => c.id === filtroCategoria) ?? null,
-    [categorias, filtroCategoria]
-  );
+  const categoriaSeleccionada = useMemo(() => {
+    if (filtroCategoria !== "todas") {
+      return categorias.find((c) => c.id === filtroCategoria) ?? null;
+    }
+    if (filtroTorneo && filtroTorneo !== "todos") {
+      if (filtroTorneo.startsWith("modalidad:")) {
+        const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
+        return (
+          categorias.find(
+            (c) =>
+              c.nombre.toLowerCase().includes(modKey) &&
+              (filtroGenero === "todos" || c.genero === filtroGenero)
+          ) ??
+          categorias.find((c) => c.nombre.toLowerCase().includes(modKey)) ??
+          null
+        );
+      }
+      if (filtroTorneo.startsWith("cat_torneo:")) {
+        const cId = filtroTorneo.slice("cat_torneo:".length);
+        return categorias.find((c) => c.id === cId) ?? null;
+      }
+    }
+    return null;
+  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero]);
 
   const cupoActual = useMemo(() => {
-    if (!categoriaSeleccionada) return null;
+    if (!categoriaSeleccionada) {
+      if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
+        return 8;
+      }
+      return null;
+    }
     const def = getCupoDefaultCategoria(categoriaSeleccionada.nombre);
     return cuposMaster[categoriaSeleccionada.id] ?? def;
-  }, [categoriaSeleccionada, cuposMaster]);
+  }, [categoriaSeleccionada, cuposMaster, filtroTorneo]);
 
   const esSuma8 = useMemo(
-    () => isCategoriaSuma(categoriaSeleccionada?.nombre),
-    [categoriaSeleccionada]
+    () =>
+      isCategoriaSuma(categoriaSeleccionada?.nombre) ||
+      (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")),
+    [categoriaSeleccionada, filtroTorneo]
   );
 
   const {
@@ -720,8 +747,8 @@ export default function RankingPublico() {
                           <Badge
                             variant="outline"
                             className={`font-mono text-xs ${r.torneos_jugados >= TORNEOS_REQUERIDOS_MASTER
-                                ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5"
-                                : ""
+                              ? "border-emerald-500/40 text-emerald-600 dark:text-emerald-400 bg-emerald-500/5"
+                              : ""
                               }`}
                           >
                             {formatTorneosMasterBadge(r, TORNEOS_TOTALES_ANIO)} torneos

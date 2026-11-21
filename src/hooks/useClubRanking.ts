@@ -199,12 +199,12 @@ export function useClubRanking(
           categoryIds.size === 0
             ? Promise.resolve({ data: [], error: null })
             : supabase
-                .from("ascensos")
-                .select(
-                  "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos"
-                )
-                .eq("anio", filtroAnio)
-                .in("categoria_origen_id", Array.from(categoryIds)),
+              .from("ascensos")
+              .select(
+                "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos"
+              )
+              .eq("anio", filtroAnio)
+              .in("categoria_origen_id", Array.from(categoryIds)),
           (supabase as any)
             .from("jugador_categorias_publicas")
             .select("jugador_id, categoria_id, categoria_nombre, genero")
@@ -481,10 +481,10 @@ export function useClubRanking(
 
         const catStats = m.porCat.get(evalCatId ?? "sin_categoria") ??
           Array.from(m.porCat.values())[0] ?? {
-            ptsTorneos: 0,
-            ptsAscenso: 0,
-            desglose: [],
-          };
+          ptsTorneos: 0,
+          ptsAscenso: 0,
+          desglose: [],
+        };
 
         const metricasMaster = obtenerMetricasMasterJugador(id, evalCatId);
         const desgloseSeguro = [...(catStats.desglose || [])];
@@ -533,10 +533,18 @@ export function useClubRanking(
         r.posicion = currentPos;
       });
 
-      // Aplicar reglas de clasificación al Master (corrimiento de cupo sin alterar orden de puntos)
-      const catSel = filtroCategoria !== "todas" ? categoriasMap.get(filtroCategoria) : undefined;
-      const cupoEfectivo =
-        cupoOverride ?? getCupoDefaultCategoria(catSel?.nombre ?? null);
+      // Aplicar reglas de clasificación al Master (corrimiento de cupo sin alterar orden de puntos: 8 en Suma, 16 en Puras)
+      const catSel =
+        effectiveFiltroCategoria !== "todas"
+          ? categoriasMap.get(effectiveFiltroCategoria)
+          : undefined;
+      const esFiltroSuma =
+        isCategoriaSuma(catSel?.nombre) ||
+        (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma"));
+      const cupoDefault = esFiltroSuma
+        ? 8
+        : getCupoDefaultCategoria(catSel?.nombre ?? null);
+      const cupoEfectivo = cupoOverride ?? cupoDefault;
 
       const finalResult = aplicarReglasMaster(baseResult, cupoEfectivo);
 
