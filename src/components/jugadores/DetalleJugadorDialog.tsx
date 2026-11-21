@@ -393,14 +393,9 @@ export default function DetalleJugadorDialog({
         );
 
         const cActual = categorias.find((c) => c.id === jugador.categoria_id);
-        const usaSuma7Por4ta =
-          cActual?.nombre?.toLowerCase().startsWith("4ta") &&
-          torneosEtapaActualList.some((t) =>
-            (t.categoriaNombre || "").toLowerCase().includes("suma 7")
-          );
         const categoriaActualLabel = cActual
-          ? `${cActual.nombre}${usaSuma7Por4ta ? " / Suma 7" : ""}`
-          : "Actual";
+          ? `Categoría ${cActual.nombre}`
+          : "Categoría actual";
 
         setResumenRanking({
           puntosTorneosActuales,

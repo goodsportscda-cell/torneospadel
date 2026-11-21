@@ -71,20 +71,24 @@ export default function Master() {
 
   const cargar = async () => {
     setLoading(true);
-    const [{ data: cats }, { data: cupos }, { data: ascensos }] = await Promise.all([
-      supabase
-        .from("categorias")
-        .select("id, nombre, genero, orden")
-        .eq("activa", true)
-        .order("orden"),
-      supabase.from("cupos_master").select("categoria_id, cupos"),
-      supabase
-        .from("ascensos")
-        .select(
-          "jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id, created_at, fecha"
-        )
-        .eq("anio", anio),
-    ]);
+    const [{ data: cats }, { data: cupos }, { data: ascensos }, { data: playerCats }] =
+      await Promise.all([
+        supabase
+          .from("categorias")
+          .select("id, nombre, genero, orden")
+          .eq("activa", true)
+          .order("orden"),
+        supabase.from("cupos_master").select("categoria_id, cupos"),
+        supabase
+          .from("ascensos")
+          .select(
+            "jugador_id, puntos_transferidos, categoria_destino_id, categoria_origen_id, created_at, fecha"
+          )
+          .eq("anio", anio),
+        (supabase as any)
+          .from("jugador_categorias_publicas")
+          .select("jugador_id, categoria_id, categoria_nombre, genero"),
+      ]);
 
     const ranking = await fetchAllRankingRowsYear(anio);
 
@@ -102,6 +106,7 @@ export default function Master() {
       categorias: activeCats,
       ascensos: (ascensos ?? []) as any[],
       rankingRows: ranking,
+      jugadorCategorias: (playerCats ?? []) as any[],
     });
 
     // Agrupar puntos por categoria + jugador (excluyendo categorías origen de ascenso y unificando 4ta sin torneos propios con Suma 7)

@@ -173,18 +173,26 @@ export default function PlayerDashboard() {
 
       // If linked, get performance data & Master Race progress
       if (jId) {
-        const [{ data: torneosPub }, { data: allCatsData }, { data: cuposData }, { data: ascData }] =
-          await Promise.all([
-            supabase.from("torneos").select("id, nombre, notas").eq("ranking_publicado", true),
-            supabase.from("categorias").select("id, nombre, genero").eq("activa", true),
-            supabase.from("cupos_master").select("categoria_id, cupos"),
-            supabase
-              .from("ascensos")
-              .select(
-                "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha"
-              )
-              .eq("anio", anio),
-          ]);
+        const [
+          { data: torneosPub },
+          { data: allCatsData },
+          { data: cuposData },
+          { data: ascData },
+          { data: playerCatsData },
+        ] = await Promise.all([
+          supabase.from("torneos").select("id, nombre, notas").eq("ranking_publicado", true),
+          supabase.from("categorias").select("id, nombre, genero").eq("activa", true),
+          supabase.from("cupos_master").select("categoria_id, cupos"),
+          supabase
+            .from("ascensos")
+            .select(
+              "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha"
+            )
+            .eq("anio", anio),
+          (supabase as any)
+            .from("jugador_categorias_publicas")
+            .select("jugador_id, categoria_id, categoria_nombre, genero"),
+        ]);
 
         const idsPub = new Set((torneosPub ?? []).map((t) => t.id));
         const nameMap = new Map((torneosPub ?? []).map((t) => [t.id, t.nombre]));
@@ -232,6 +240,7 @@ export default function PlayerDashboard() {
             categorias: allCats,
             ascensos: (ascData ?? []) as any[],
             rankingRows: validYearRank,
+            jugadorCategorias: (playerCatsData ?? []) as any[],
           });
 
           // Categorías activas del jugador (excluyendo categorías de origen desde las que ascendió y unificando 4ta con Suma 7 si corresponde)

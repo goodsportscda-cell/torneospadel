@@ -176,17 +176,23 @@ export function useClubRanking(
         return true;
       });
 
-      // 4. Obtener Ascensos del año
-      const { data: ascensosData, error: ascensosError } =
-        categoryIds.size === 0
-          ? { data: [], error: null }
-          : await supabase
-            .from("ascensos")
-            .select(
-              "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos"
-            )
-            .eq("anio", filtroAnio)
-            .in("categoria_origen_id", Array.from(categoryIds));
+      // 4. Obtener Ascensos del año y Categorías personales de los jugadores en el club
+      const [{ data: ascensosData, error: ascensosError }, { data: allPlayerCatsData }] =
+        await Promise.all([
+          categoryIds.size === 0
+            ? Promise.resolve({ data: [], error: null })
+            : supabase
+                .from("ascensos")
+                .select(
+                  "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha, notas, puntos_transferidos"
+                )
+                .eq("anio", filtroAnio)
+                .in("categoria_origen_id", Array.from(categoryIds)),
+          (supabase as any)
+            .from("jugador_categorias_publicas")
+            .select("jugador_id, categoria_id, categoria_nombre, genero")
+            .eq("club_id", clubId),
+        ]);
 
       if (ascensosError) throw ascensosError;
 
@@ -194,9 +200,10 @@ export function useClubRanking(
         (a) => categoryIds.has(a.categoria_origen_id) && categoryIds.has(a.categoria_destino_id)
       );
 
-      // Construir contexto de ascensos y conteo de torneos (categoría actual + categoría origen si ascendió)
+      // Construir contexto de ascensos, categoría personal del jugador y conteo de torneos
       const {
         ascendidosDesde,
+        categoriaPuraJugadorMap,
         coincideFilaConCategoria,
         obtenerCategoriaAgrupacionFila,
         obtenerMetricasMasterJugador,
@@ -204,6 +211,7 @@ export function useClubRanking(
         categorias: categoriasList,
         ascensos: validAscensos,
         rankingRows: validAllRankingRows,
+        jugadorCategorias: (allPlayerCatsData ?? []) as any[],
       });
 
       // Filtrar las filas que aplican a la vista actual (filtroCategoria / filtroGenero)
@@ -376,6 +384,7 @@ export function useClubRanking(
         const puntos_totales = catStats.ptsTorneos + catStats.ptsAscenso;
         const evalCatInfo = evalCatId ? categoriasMap.get(evalCatId) : undefined;
         const assignedCatInfo = categoryByPlayer.get(id);
+        const playerPuraCat = categoriaPuraJugadorMap.get(id);
 
         return {
           posicion: 0,
@@ -383,9 +392,12 @@ export function useClubRanking(
           jugador_nombre: j?.nombre ?? "?",
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
-          jugador_categoria_id: evalCatInfo?.id ?? assignedCatInfo?.id ?? null,
-          jugador_categoria_nombre: evalCatInfo?.nombre ?? assignedCatInfo?.nombre ?? null,
-          jugador_categoria_genero: evalCatInfo?.genero ?? assignedCatInfo?.genero ?? null,
+          jugador_categoria_id:
+            playerPuraCat?.id ?? assignedCatInfo?.id ?? evalCatInfo?.id ?? null,
+          jugador_categoria_nombre:
+            assignedCatInfo?.nombre ?? playerPuraCat?.nombre ?? evalCatInfo?.nombre ?? null,
+          jugador_categoria_genero:
+            assignedCatInfo?.genero ?? playerPuraCat?.genero ?? evalCatInfo?.genero ?? null,
           categoria_ranking_id: evalCatId,
           puntos_totales,
           puntos_torneos: catStats.ptsTorneos,

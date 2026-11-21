@@ -300,19 +300,24 @@ export default function Ranking() {
     if (!clubId) return;
     setExportingMaster(true);
     try {
-      const [{ data: allCats }, { data: cupos }, { data: ascData }] = await Promise.all([
-        supabase
-          .from("categorias")
-          .select("id, nombre, genero, orden")
-          .eq("activa", true)
-          .eq("club_id", clubId)
-          .order("orden"),
-        supabase.from("cupos_master").select("categoria_id, cupos"),
-        supabase
-          .from("ascensos")
-          .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha")
-          .eq("anio", filtroAnio),
-      ]);
+      const [{ data: allCats }, { data: cupos }, { data: ascData }, { data: allPlayerCatsData }] =
+        await Promise.all([
+          supabase
+            .from("categorias")
+            .select("id, nombre, genero, orden")
+            .eq("activa", true)
+            .eq("club_id", clubId)
+            .order("orden"),
+          supabase.from("cupos_master").select("categoria_id, cupos"),
+          supabase
+            .from("ascensos")
+            .select("jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha")
+            .eq("anio", filtroAnio),
+          (supabase as any)
+            .from("jugador_categorias_publicas")
+            .select("jugador_id, categoria_id, categoria_nombre, genero")
+            .eq("club_id", clubId),
+        ]);
 
       const cuposMap = new Map<string, number>();
       (cupos ?? []).forEach((c: { categoria_id: string; cupos: number }) =>
@@ -332,6 +337,7 @@ export default function Ranking() {
         categorias: masterCats,
         ascensos: (ascData ?? []) as any[],
         rankingRows: rankingAll,
+        jugadorCategorias: (allPlayerCatsData ?? []) as any[],
       });
 
       type ClasificadoRowData = {
@@ -868,13 +874,19 @@ export default function Ranking() {
 
     setTorneosVisibilidad(visList);
 
-    // Cargar todos los ascensos del año para deduplicar y calcular exclusión + torneos previos
-    const { data: ascensosAllData } = await supabase
-      .from("ascensos")
-      .select(
-        "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha"
-      )
-      .eq("anio", filtroAnio);
+    // Cargar todos los ascensos del año y las categorías personales de los jugadores en el club
+    const [{ data: ascensosAllData }, { data: allPlayerCatsData }] = await Promise.all([
+      supabase
+        .from("ascensos")
+        .select(
+          "jugador_id, categoria_origen_id, categoria_destino_id, created_at, fecha"
+        )
+        .eq("anio", filtroAnio),
+      (supabase as any)
+        .from("jugador_categorias_publicas")
+        .select("jugador_id, categoria_id, categoria_nombre, genero")
+        .eq("club_id", clubId),
+    ]);
 
     const validAscensos = (ascensosAllData ?? []).filter(
       (a) =>
@@ -884,6 +896,7 @@ export default function Ranking() {
 
     const {
       ascendidosDesde,
+      categoriaPuraJugadorMap,
       coincideFilaConCategoria,
       obtenerCategoriaAgrupacionFila,
       obtenerMetricasMasterJugador,
@@ -891,6 +904,7 @@ export default function Ranking() {
       categorias: categoriasClub,
       ascensos: validAscensos,
       rankingRows: allClubRankingData,
+      jugadorCategorias: (allPlayerCatsData ?? []) as any[],
     });
 
     // Filtrar para la vista seleccionada (incluyendo equivalencia 4ta <-> Suma 7 para jugadores ascendidos a 4ta sin torneos propios)
@@ -986,10 +1000,10 @@ export default function Ranking() {
 
       let evalCatId: string | null =
         filtroCategoria !== "todas" ? filtroCategoria : m.primaryCatId;
+      const playerPuraCat = categoriaPuraJugadorMap.get(id);
       if (filtroCategoria === "todas" && m.porCat.size > 0) {
-        const assignedCatId = playerCategory?.categoria_id ?? null;
-        if (assignedCatId && m.porCat.has(assignedCatId)) {
-          evalCatId = assignedCatId;
+        if (playerPuraCat && m.porCat.has(playerPuraCat.id)) {
+          evalCatId = playerPuraCat.id;
         } else {
           let bestPts = -1;
           m.porCat.forEach((entry, cId) => {
@@ -1024,9 +1038,12 @@ export default function Ranking() {
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
         jugador_club: j?.club ?? null,
-        jugador_categoria_id: evalCatInfo?.id ?? playerCategory?.categoria_id ?? null,
-        jugador_categoria_nombre: evalCatInfo?.nombre ?? playerCategory?.categoria_nombre ?? null,
-        jugador_categoria_genero: evalCatInfo?.genero ?? playerCategory?.genero ?? null,
+        jugador_categoria_id:
+          playerPuraCat?.id ?? playerCategory?.categoria_id ?? evalCatInfo?.id ?? null,
+        jugador_categoria_nombre:
+          playerCategory?.categoria_nombre ?? playerPuraCat?.nombre ?? evalCatInfo?.nombre ?? null,
+        jugador_categoria_genero:
+          playerCategory?.genero ?? playerPuraCat?.genero ?? evalCatInfo?.genero ?? null,
         desglose: [],
       };
     });
@@ -1306,16 +1323,15 @@ export default function Ranking() {
         );
         if (isSuperseded) return false;
         if (filtroCategoria !== "todas" && a.categoria_destino_id !== filtroCategoria) {
-          // Si está filtrando por Suma 7 y el jugador ascendió a 4ta del mismo género, conservar la nota del ascenso a 4ta
+          // Si está filtrando por un torneo Suma (Suma 6, Suma 7, Suma 8), conservar la nota del ascenso activo del jugador del mismo género
           const catFiltroObj = categorias.find((c) => c.id === filtroCategoria);
           const catDestObj = categorias.find((c) => c.id === a.categoria_destino_id);
-          const esEquivalente4taSuma7 =
+          const esTorneoSumaMismoGenero =
             catFiltroObj &&
             catDestObj &&
             catFiltroObj.genero === catDestObj.genero &&
-            catFiltroObj.nombre.toLowerCase().includes("suma 7") &&
-            catDestObj.nombre.toLowerCase().startsWith("4ta");
-          if (!esEquivalente4taSuma7) return false;
+            isCategoriaSuma(catFiltroObj.nombre);
+          if (!esTorneoSumaMismoGenero) return false;
         }
         return true;
       });
@@ -1327,36 +1343,34 @@ export default function Ranking() {
           ? filtroCategoria
           : jugador.categoria_ranking_id ?? null;
 
-      // Si el jugador ascendió a 4ta y compite en Suma 7 (porque no hay torneos de 4ta pura),
-      // incluir en el desglose tanto 4ta como Suma 7 del mismo género
+      // Incluir tanto la categoría personal pura del jugador (3ra, 4ta, 5ta, etc.) como los torneos Suma (Suma 6, Suma 7, Suma 8) del mismo género
       let targetCatIdsForDetail: string[] | null = targetCatForDetail ? [targetCatForDetail] : null;
       if (targetCatForDetail) {
         const targetCatObj = categorias.find((c) => c.id === targetCatForDetail);
-        const ascendioA4taMismoGenero = (playerAscensos ?? []).some((a: any) => {
-          const destCat = categorias.find((c) => c.id === a.categoria_destino_id);
-          return (
-            destCat &&
-            targetCatObj &&
-            destCat.genero === targetCatObj.genero &&
-            destCat.nombre.toLowerCase().startsWith("4ta") &&
-            !ascendidosDesdeIds.has(destCat.id)
-          );
-        });
-        if (
-          targetCatObj &&
-          ascendioA4taMismoGenero &&
-          (targetCatObj.nombre.toLowerCase().startsWith("4ta") ||
-            targetCatObj.nombre.toLowerCase().includes("suma 7"))
-        ) {
-          const cat4ta = categorias.find(
+        if (targetCatObj) {
+          const sumaCatIdsMismoGenero = categorias
+            .filter(
+              (c) =>
+                c.genero === targetCatObj.genero &&
+                isCategoriaSuma(c.nombre) &&
+                !ascendidosDesdeIds.has(c.id)
+            )
+            .map((c) => c.id);
+          const playerCatIdEnClub = categorias.find(
             (c) =>
-              c.genero === targetCatObj.genero && c.nombre.toLowerCase().startsWith("4ta")
+              !isCategoriaSuma(c.nombre) &&
+              c.genero === targetCatObj.genero &&
+              (c.id === jugador.jugador_categoria_id ||
+                c.nombre.toLowerCase().trim() ===
+                  (jugador.jugador_categoria_nombre || "").toLowerCase().trim())
+          )?.id;
+          targetCatIdsForDetail = Array.from(
+            new Set(
+              [targetCatForDetail, playerCatIdEnClub, ...sumaCatIdsMismoGenero].filter(
+                Boolean
+              ) as string[]
+            )
           );
-          const catS7 = categorias.find(
-            (c) =>
-              c.genero === targetCatObj.genero && c.nombre.toLowerCase().includes("suma 7")
-          );
-          targetCatIdsForDetail = [cat4ta?.id, catS7?.id].filter(Boolean) as string[];
         }
       }
 
