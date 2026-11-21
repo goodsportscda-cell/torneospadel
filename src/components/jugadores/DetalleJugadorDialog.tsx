@@ -67,10 +67,15 @@ interface TournamentResult {
   instancia: string;
   puntos: number;
   estadoTorneo: string;
+  categoriaId: string | null;
+  categoriaNombre: string | null;
+  esCategoriaAnteriorAscendida: boolean;
 }
 
 interface AscensoItem {
   id: string;
+  catOrigenId: string;
+  catDestinoId: string;
   catOrigenNombre: string;
   catDestinoNombre: string;
   puntosOrigen: number;
@@ -78,6 +83,16 @@ interface AscensoItem {
   anio: number;
   fecha: string | null;
   notas: string | null;
+}
+
+interface ResumenRankingActivo {
+  puntosTorneosActuales: number;
+  puntosAscensoActual: number;
+  puntosTotalesActivos: number;
+  torneosTotalesJugados: number;
+  torneosEtapaActual: number;
+  torneosEtapasAnteriores: number;
+  categoriaActualLabel: string;
 }
 
 const INSTANCIA_BADGE_STYLE: Record<string, string> = {
@@ -113,6 +128,7 @@ export default function DetalleJugadorDialog({
   const [loading, setLoading] = useState(true);
   const [torneosJugados, setTorneosJugados] = useState<TournamentResult[]>([]);
   const [ascensosHistorial, setAscensosHistorial] = useState<AscensoItem[]>([]);
+  const [resumenRanking, setResumenRanking] = useState<ResumenRankingActivo | null>(null);
 
   useEffect(() => {
     if (!open || !jugador.id) return;
@@ -123,14 +139,19 @@ export default function DetalleJugadorDialog({
         if (!clubId) {
           setTorneosJugados([]);
           setAscensosHistorial([]);
+          setResumenRanking(null);
           return;
         }
-        const { data: clubTorneos, error: clubTorneosError } = await supabase.from("torneos").select("id").eq("club_id", clubId);
+        const { data: clubTorneos, error: clubTorneosError } = await supabase.from("torneos").select("id, categoria_id").eq("club_id", clubId);
         if (clubTorneosError) throw clubTorneosError;
         const clubTournamentIds = (clubTorneos ?? []).map((t) => t.id);
+        const torneoCatIdMap = new Map<string, string | null>(
+          (clubTorneos ?? []).map((t: any) => [t.id, t.categoria_id ?? null])
+        );
         if (!clubTournamentIds.length) {
           setTorneosJugados([]);
           setAscensosHistorial([]);
+          setResumenRanking(null);
           return;
         }
         // 1. Obtener todas las inscripciones del jugador
@@ -144,7 +165,8 @@ export default function DetalleJugadorDialog({
               tipo,
               nombre,
               estado,
-              fecha_inicio
+              fecha_inicio,
+              categoria_id
             ),
             jugador1:jugadores!inscripciones_jugador1_id_fkey (
               id,
@@ -182,7 +204,82 @@ export default function DetalleJugadorDialog({
             .map((r) => [r.inscripcion_id || r.torneo_id, r])
         );
 
-        // 3. Procesar las inscripciones y unirlas al ranking de torneos
+        // 3. Obtener ascensos del jugador, deduplicarlos y recalcular el 50% encadenado real
+        const { data: ascData } = await (supabase as any)
+          .from("ascensos")
+          .select("*")
+          .eq("jugador_id", jugador.id)
+          .order("fecha", { ascending: true })
+          .order("created_at", { ascending: true });
+
+        const { data: catsAll } = await (supabase as any).from("categorias").select("id, nombre, genero").eq("club_id", clubId);
+        const { data: catsJugAll } = await (supabase as any).from("categorias_jugadores").select("id, nombre, genero").eq("club_id", clubId);
+
+        const catNameMap = new Map<string, string>();
+        const catShortMap = new Map<string, string>();
+        (catsAll ?? []).forEach((c: any) => {
+          catNameMap.set(c.id, `${c.nombre}${c.genero ? " (" + c.genero + ")" : ""}`);
+          catShortMap.set(c.id, c.nombre);
+        });
+        (catsJugAll ?? []).forEach((c: any) => {
+          catNameMap.set(c.id, `${c.nombre}${c.genero ? " (" + c.genero + ")" : ""}`);
+          catShortMap.set(c.id, c.nombre);
+        });
+
+        const clubAscData = (ascData ?? []).filter(
+          (a: any) => catNameMap.has(a.categoria_origen_id) && catNameMap.has(a.categoria_destino_id)
+        );
+
+        const { ascensosLimpios, idsDuplicados } = calcularAscensosEncadenadosJugador(
+          clubAscData,
+          rankingPoints as any[]
+        );
+
+        const categoriasAscendidasOrigenSet = new Set<string>(
+          ascensosLimpios.map((a) => a.categoria_origen_id)
+        );
+
+        // Si había filas duplicadas o valores desactualizados en la tabla ascensos o ranking_jugadores, sincronizarlos en segundo plano
+        if (idsDuplicados.length > 0) {
+          supabase
+            .from("ascensos")
+            .delete()
+            .in("id", idsDuplicados)
+            .then(() => { });
+        }
+        for (const calc of ascensosLimpios) {
+          const origRow = clubAscData.find((x: any) => x.id === calc.id);
+          if (
+            origRow &&
+            (origRow.puntos_origen !== calc.puntos_origen ||
+              origRow.puntos_transferidos !== calc.puntos_transferidos)
+          ) {
+            supabase
+              .from("ascensos")
+              .update({
+                puntos_origen: calc.puntos_origen,
+                puntos_transferidos: calc.puntos_transferidos,
+              })
+              .eq("id", calc.id)
+              .then(() => { });
+          }
+
+          // Deduplicar filas instancia='ascenso' duplicadas en ranking_jugadores para este destino
+          const ascRankRows = rankingPoints.filter(
+            (r) =>
+              String(r.instancia || "").toLowerCase() === "ascenso" &&
+              r.categoria_id === calc.categoria_destino_id &&
+              r.anio === calc.anio
+          );
+          if (ascRankRows.length > 1) {
+            const extraIds = ascRankRows.slice(1).map((r) => r.id).filter(Boolean);
+            if (extraIds.length > 0) {
+              supabase.from("ranking_jugadores").delete().in("id", extraIds).then(() => { });
+            }
+          }
+        }
+
+        // 4. Procesar las inscripciones y unirlas al ranking de torneos
         const results: TournamentResult[] = clubInscripciones.map((ins: any) => {
           const torneo = ins.torneos;
 
@@ -227,6 +324,15 @@ export default function DetalleJugadorDialog({
             puntos = 0;
           }
 
+          const catIdTorneo =
+            rankEntry?.categoria_id ??
+            torneo?.categoria_id ??
+            torneoCatIdMap.get(ins.torneo_id) ??
+            null;
+          const esCategoriaAnteriorAscendida = Boolean(
+            catIdTorneo && categoriasAscendidasOrigenSet.has(catIdTorneo)
+          );
+
           return {
             torneoId: ins.torneo_id,
             torneoNombre: torneo?.nombre ?? "Torneo Desconocido",
@@ -236,6 +342,9 @@ export default function DetalleJugadorDialog({
             instancia,
             puntos,
             estadoTorneo: torneo?.estado ?? "desconocido",
+            categoriaId: catIdTorneo,
+            categoriaNombre: catIdTorneo ? catShortMap.get(catIdTorneo) ?? null : null,
+            esCategoriaAnteriorAscendida,
           };
         });
 
@@ -248,61 +357,13 @@ export default function DetalleJugadorDialog({
 
         setTorneosJugados(results);
 
-        // 4. Obtener ascensos del jugador, deduplicarlos y recalcular el 50% encadenado real
-        const { data: ascData } = await (supabase as any)
-          .from("ascensos")
-          .select("*")
-          .eq("jugador_id", jugador.id)
-          .order("fecha", { ascending: true })
-          .order("created_at", { ascending: true });
-
-        const { data: catsAll } = await (supabase as any).from("categorias").select("id, nombre, genero").eq("club_id", clubId);
-        const { data: catsJugAll } = await (supabase as any).from("categorias_jugadores").select("id, nombre, genero").eq("club_id", clubId);
-
-        const catNameMap = new Map<string, string>();
-        (catsAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
-        (catsJugAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
-
-        const clubAscData = (ascData ?? []).filter(
-          (a: any) => catNameMap.has(a.categoria_origen_id) && catNameMap.has(a.categoria_destino_id)
-        );
-
-        const { ascensosLimpios, idsDuplicados } = calcularAscensosEncadenadosJugador(
-          clubAscData,
-          rankingPoints as any[]
-        );
-
-        // Si había filas duplicadas o valores desactualizados en la tabla ascensos, sincronizarlos en segundo plano
-        if (idsDuplicados.length > 0) {
-          supabase
-            .from("ascensos")
-            .delete()
-            .in("id", idsDuplicados)
-            .then(() => {});
-        }
-        for (const calc of ascensosLimpios) {
-          const origRow = clubAscData.find((x: any) => x.id === calc.id);
-          if (
-            origRow &&
-            (origRow.puntos_origen !== calc.puntos_origen ||
-              origRow.puntos_transferidos !== calc.puntos_transferidos)
-          ) {
-            supabase
-              .from("ascensos")
-              .update({
-                puntos_origen: calc.puntos_origen,
-                puntos_transferidos: calc.puntos_transferidos,
-              })
-              .eq("id", calc.id)
-              .then(() => {});
-          }
-        }
-
         // Mostrar los ascensos más recientes primero
         const ascResult: AscensoItem[] = [...ascensosLimpios]
           .reverse()
           .map((a) => ({
             id: a.id,
+            catOrigenId: a.categoria_origen_id,
+            catDestinoId: a.categoria_destino_id,
             catOrigenNombre: catNameMap.get(a.categoria_origen_id) || "Categoría Origen",
             catDestinoNombre: catNameMap.get(a.categoria_destino_id) || "Categoría Destino",
             puntosOrigen: a.puntos_origen || 0,
@@ -313,6 +374,43 @@ export default function DetalleJugadorDialog({
           }));
 
         setAscensosHistorial(ascResult);
+
+        // Calcular resumen de puntos activos en el ranking actual
+        const ultimoAscensoActivo = ascensosLimpios.find(
+          (a) => !categoriasAscendidasOrigenSet.has(a.categoria_destino_id)
+        );
+        const puntosAscensoActual = ultimoAscensoActivo?.puntos_transferidos ?? 0;
+        const torneosConPuntos = results.filter((t) => t.puntos > 0);
+        const torneosEtapaActualList = torneosConPuntos.filter(
+          (t) => !t.esCategoriaAnteriorAscendida
+        );
+        const torneosEtapasAnterioresList = torneosConPuntos.filter(
+          (t) => t.esCategoriaAnteriorAscendida
+        );
+        const puntosTorneosActuales = torneosEtapaActualList.reduce(
+          (acc, t) => acc + t.puntos,
+          0
+        );
+
+        const cActual = categorias.find((c) => c.id === jugador.categoria_id);
+        const usaSuma7Por4ta =
+          cActual?.nombre?.toLowerCase().startsWith("4ta") &&
+          torneosEtapaActualList.some((t) =>
+            (t.categoriaNombre || "").toLowerCase().includes("suma 7")
+          );
+        const categoriaActualLabel = cActual
+          ? `${cActual.nombre}${usaSuma7Por4ta ? " / Suma 7" : ""}`
+          : "Actual";
+
+        setResumenRanking({
+          puntosTorneosActuales,
+          puntosAscensoActual,
+          puntosTotalesActivos: puntosTorneosActuales + puntosAscensoActual,
+          torneosTotalesJugados: torneosConPuntos.length,
+          torneosEtapaActual: torneosEtapaActualList.length,
+          torneosEtapasAnteriores: torneosEtapasAnterioresList.length,
+          categoriaActualLabel,
+        });
       } catch (err) {
         console.error("Error al obtener historial del jugador:", err);
       } finally {
@@ -327,10 +425,10 @@ export default function DetalleJugadorDialog({
     const c = categorias.find((c) => c.id === jugador.categoria_id);
     if (!c) return null;
     return `${c.genero === "caballeros"
-        ? "Caballeros"
-        : c.genero === "damas"
-          ? "Damas"
-          : "Mixto"
+      ? "Caballeros"
+      : c.genero === "damas"
+        ? "Damas"
+        : "Mixto"
       } — ${c.nombre}`;
   };
 
@@ -545,42 +643,85 @@ export default function DetalleJugadorDialog({
                 <p className="text-xs max-w-xs mt-1">Este jugador aún no tiene inscripciones registradas en el sistema.</p>
               </div>
             ) : (
-              <div className="flex-1 overflow-y-auto border rounded-xl shadow-sm bg-card">
-                <Table>
-                  <TableHeader className="bg-muted/30 sticky top-0 z-10">
-                    <TableRow>
-                      <TableHead className="font-bold text-xs uppercase text-muted-foreground">Torneo</TableHead>
-                      <TableHead className="font-bold text-xs uppercase text-muted-foreground">Fecha</TableHead>
-                      <TableHead className="font-bold text-xs uppercase text-muted-foreground">Compañero</TableHead>
-                      <TableHead className="font-bold text-xs uppercase text-muted-foreground text-center">Instancia</TableHead>
-                      <TableHead className="font-bold text-xs uppercase text-muted-foreground text-right">Puntos</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {torneosJugados.map((t, index) => (
-                      <TableRow key={index} className="hover:bg-muted/10 transition-colors">
-                        <TableCell className="font-bold text-sm text-foreground max-w-[240px] truncate font-sans">
-                          {t.torneoNombre}
-                        </TableCell>
-                        <TableCell className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
-                          {fmtFecha(t.fechaInicio)}
-                        </TableCell>
-                        <TableCell className="text-sm text-foreground font-sans">
-                          <span className="flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-                            {t.partnerNombre}
-                          </span>
-                        </TableCell>
-                        <TableCell className="text-center">
-                          {getInstanciaBadge(t.instancia)}
-                        </TableCell>
-                        <TableCell className="text-right font-mono font-bold text-sm text-primary">
-                          {t.puntos > 0 ? `+${t.puntos} pts` : "0 pts"}
-                        </TableCell>
+              <div className="flex-1 flex flex-col overflow-hidden gap-3">
+                {resumenRanking && (
+                  <div className="p-3 rounded-xl border border-primary/25 bg-primary/5 flex items-center justify-between gap-3 flex-wrap shrink-0">
+                    <div className="space-y-0.5">
+                      <p className="text-xs font-bold text-foreground flex items-center gap-1.5 flex-wrap">
+                        <Award className="h-3.5 w-3.5 text-primary" />
+                        Puntaje Activo en Ranking ({resumenRanking.categoriaActualLabel}):
+                        <span className="text-primary font-black text-sm">
+                          {resumenRanking.puntosTotalesActivos} pts
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {resumenRanking.puntosAscensoActual > 0 ? (
+                          <>
+                            <strong>+{resumenRanking.puntosAscensoActual} pts</strong> por ascenso (50% de cat. anterior) +{" "}
+                            <strong>+{resumenRanking.puntosTorneosActuales} pts</strong> en torneos actuales ({resumenRanking.torneosEtapaActual})
+                          </>
+                        ) : (
+                          <>
+                            <strong>+{resumenRanking.puntosTorneosActuales} pts</strong> en torneos jugados ({resumenRanking.torneosEtapaActual})
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="text-xs font-bold bg-background/80">
+                      {resumenRanking.torneosTotalesJugados}/7 torneos jugados
+                      {resumenRanking.torneosEtapasAnteriores > 0
+                        ? ` (${resumenRanking.torneosEtapaActual} act. + ${resumenRanking.torneosEtapasAnteriores} prev.)`
+                        : ""}
+                    </Badge>
+                  </div>
+                )}
+                <div className="flex-1 overflow-y-auto border rounded-xl shadow-sm bg-card">
+                  <Table>
+                    <TableHeader className="bg-muted/30 sticky top-0 z-10">
+                      <TableRow>
+                        <TableHead className="font-bold text-xs uppercase text-muted-foreground">Torneo</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-muted-foreground">Fecha</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-muted-foreground">Compañero</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-muted-foreground text-center">Instancia</TableHead>
+                        <TableHead className="font-bold text-xs uppercase text-muted-foreground text-right">Puntos</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {torneosJugados.map((t, index) => (
+                        <TableRow key={index} className="hover:bg-muted/10 transition-colors">
+                          <TableCell className="font-bold text-sm text-foreground max-w-[240px] font-sans">
+                            <div className="truncate">{t.torneoNombre}</div>
+                            {t.esCategoriaAnteriorAscendida && t.puntos > 0 && (
+                              <span className="text-[10px] font-normal text-muted-foreground">
+                                Cat. anterior ({t.categoriaNombre || "previa"}) · incluido al 50% en ascenso
+                              </span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground shrink-0 whitespace-nowrap">
+                            {fmtFecha(t.fechaInicio)}
+                          </TableCell>
+                          <TableCell className="text-sm text-foreground font-sans">
+                            <span className="flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                              {t.partnerNombre}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-center">
+                            {getInstanciaBadge(t.instancia)}
+                          </TableCell>
+                          <TableCell className="text-right font-mono font-bold text-sm text-primary whitespace-nowrap">
+                            <div>{t.puntos > 0 ? `+${t.puntos} pts` : "0 pts"}</div>
+                            {t.esCategoriaAnteriorAscendida && t.puntos > 0 && (
+                              <div className="text-[10px] font-sans font-normal text-muted-foreground">
+                                (50% en ascenso)
+                              </div>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
               </div>
             )}
           </TabsContent>

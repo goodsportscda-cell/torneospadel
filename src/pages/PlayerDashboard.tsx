@@ -223,14 +223,18 @@ export default function PlayerDashboard() {
             });
           setMisTorneos(Array.from(grouped.values()));
 
-          const { ascendidosDesde, obtenerMetricasMasterJugador } =
-            construirContextoAscensosYTorneos({
-              categorias: allCats,
-              ascensos: (ascData ?? []) as any[],
-              rankingRows: validYearRank,
-            });
+          const {
+            ascendidosDesde,
+            coincideFilaConCategoria,
+            obtenerCategoriaAgrupacionFila,
+            obtenerMetricasMasterJugador,
+          } = construirContextoAscensosYTorneos({
+            categorias: allCats,
+            ascensos: (ascData ?? []) as any[],
+            rankingRows: validYearRank,
+          });
 
-          // Categorías activas del jugador (excluyendo categorías de origen desde las que ascendió)
+          // Categorías activas del jugador (excluyendo categorías de origen desde las que ascendió y unificando 4ta con Suma 7 si corresponde)
           const myActiveCatIds = [
             ...new Set(
               myRankRows
@@ -238,7 +242,8 @@ export default function PlayerDashboard() {
                   (r) =>
                     r.categoria_id && !ascendidosDesde.get(r.categoria_id)?.has(jId)
                 )
-                .map((r) => r.categoria_id as string)
+                .map((r) => obtenerCategoriaAgrupacionFila(r, "todas"))
+                .filter((cId) => cId !== "sin_categoria")
             ),
           ];
 
@@ -249,7 +254,7 @@ export default function PlayerDashboard() {
               const cat = catMap.get(catId);
               if (!cat) continue;
 
-              const catRows = validYearRank.filter((r) => r.categoria_id === catId);
+              const catRows = validYearRank.filter((r) => coincideFilaConCategoria(r, catId));
               const catAscendidos = ascendidosDesde.get(catId) ?? new Set<string>();
 
               const puntosMap = new Map<string, { ptsTorneos: number; ptsAscenso: number }>();

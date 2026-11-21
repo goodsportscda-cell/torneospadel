@@ -195,7 +195,12 @@ export function useClubRanking(
       );
 
       // Construir contexto de ascensos y conteo de torneos (categoría actual + categoría origen si ascendió)
-      const { ascendidosDesde, obtenerMetricasMasterJugador } = construirContextoAscensosYTorneos({
+      const {
+        ascendidosDesde,
+        coincideFilaConCategoria,
+        obtenerCategoriaAgrupacionFila,
+        obtenerMetricasMasterJugador,
+      } = construirContextoAscensosYTorneos({
         categorias: categoriasList,
         ascensos: validAscensos,
         rankingRows: validAllRankingRows,
@@ -203,12 +208,12 @@ export function useClubRanking(
 
       // Filtrar las filas que aplican a la vista actual (filtroCategoria / filtroGenero)
       const filteredRankingRows = validAllRankingRows.filter((r) => {
-        if (filtroCategoria !== "todas" && r.categoria_id !== filtroCategoria) return false;
+        if (!coincideFilaConCategoria(r, filtroCategoria)) return false;
         if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;
         return true;
       });
 
-      // 5. Construcción de Desgloses y Puntos (separados estrictamente por categoría para no mezclar Suma 7/8 con categorías puras)
+      // 5. Construcción de Desgloses y Puntos (unificando ascenso a 4ta pura sin torneos propios con torneos Suma 7)
       const map = new Map<
         string,
         {
@@ -231,9 +236,9 @@ export function useClubRanking(
           return;
         }
 
-        const catKey = r.categoria_id ?? "sin_categoria";
+        const catKey = obtenerCategoriaAgrupacionFila(r, filtroCategoria);
         const cur = map.get(r.jugador_id) ?? {
-          primaryCatId: r.categoria_id ?? null,
+          primaryCatId: catKey === "sin_categoria" ? null : catKey,
           porCat: new Map(),
         };
 

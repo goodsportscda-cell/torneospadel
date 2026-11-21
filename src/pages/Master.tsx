@@ -94,36 +94,46 @@ export default function Master() {
     );
 
     const activeCats = (cats ?? []) as Categoria[];
-    const { ascendidosDesde, obtenerMetricasMasterJugador } =
-      construirContextoAscensosYTorneos({
-        categorias: activeCats,
-        ascensos: (ascensos ?? []) as any[],
-        rankingRows: ranking,
-      });
+    const {
+      ascendidosDesde,
+      coincideFilaConCategoria,
+      obtenerMetricasMasterJugador,
+    } = construirContextoAscensosYTorneos({
+      categorias: activeCats,
+      ascensos: (ascensos ?? []) as any[],
+      rankingRows: ranking,
+    });
 
-    // Agrupar puntos por categoria + jugador (excluyendo categorías origen de ascenso)
+    // Agrupar puntos por categoria + jugador (excluyendo categorías origen de ascenso y unificando 4ta sin torneos propios con Suma 7)
     const puntosPorCat = new Map<
       string,
       Map<string, { ptsTorneos: number; ptsAscenso: number }>
     >();
 
-    (ranking ?? []).forEach((r) => {
-      if (!r.categoria_id) return;
-      const catAscendidos = ascendidosDesde.get(r.categoria_id);
-      if (catAscendidos && catAscendidos.has(r.jugador_id)) {
-        return; // skip
-      }
-      if (!puntosPorCat.has(r.categoria_id)) {
-        puntosPorCat.set(r.categoria_id, new Map());
-      }
-      const m = puntosPorCat.get(r.categoria_id)!;
-      const cur = m.get(r.jugador_id) ?? { ptsTorneos: 0, ptsAscenso: 0 };
-      if (isAscenso(r.instancia)) {
-        cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos);
-      } else {
-        cur.ptsTorneos += r.puntos;
-      }
-      m.set(r.jugador_id, cur);
+    activeCats.forEach((cat) => {
+      const catAscendidos = ascendidosDesde.get(cat.id);
+      const catRows = (ranking ?? []).filter((r) => coincideFilaConCategoria(r, cat.id));
+      catRows.forEach((r) => {
+        if (!r.categoria_id) return;
+        const rowAscendidos = ascendidosDesde.get(r.categoria_id);
+        if (
+          (catAscendidos && catAscendidos.has(r.jugador_id)) ||
+          (rowAscendidos && rowAscendidos.has(r.jugador_id))
+        ) {
+          return; // skip
+        }
+        if (!puntosPorCat.has(cat.id)) {
+          puntosPorCat.set(cat.id, new Map());
+        }
+        const m = puntosPorCat.get(cat.id)!;
+        const cur = m.get(r.jugador_id) ?? { ptsTorneos: 0, ptsAscenso: 0 };
+        if (isAscenso(r.instancia)) {
+          cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos);
+        } else {
+          cur.ptsTorneos += r.puntos;
+        }
+        m.set(r.jugador_id, cur);
+      });
     });
 
     // Cargar todos los jugadores que aparecen

@@ -348,6 +348,7 @@ export function construirContextoAscensosYTorneos(params: {
   const torneosPorJugYCat = new Map<string, Map<string, Set<string>>>();
   const tieneInstanciaAscenso = new Map<string, Set<string>>();
   const masterStatusPorJugYCat = new Map<string, Map<string, MasterStatus>>();
+  const torneosCountPorCat = new Map<string, number>();
 
   (rankingRows || []).forEach((r) => {
     if (!r.categoria_id) return;
@@ -369,6 +370,7 @@ export function construirContextoAscensosYTorneos(params: {
       }
       tieneInstanciaAscenso.get(r.jugador_id)!.add(r.categoria_id);
     } else if (r.torneo_id) {
+      torneosCountPorCat.set(r.categoria_id, (torneosCountPorCat.get(r.categoria_id) ?? 0) + 1);
       if (!torneosPorJugYCat.has(r.jugador_id)) {
         torneosPorJugYCat.set(r.jugador_id, new Map());
       }
@@ -380,10 +382,98 @@ export function construirContextoAscensosYTorneos(params: {
     }
   });
 
+  // 4. Vincular categorías puras que no tienen torneos propios (ej. 4ta Caballeros) con Suma 7 del mismo género
+  //    para los jugadores que ascendieron a esa categoría pura y compiten en torneos Suma 7.
+  const catPuraSinTorneosASuma7 = new Map<string, string>();
+  categorias.forEach((c) => {
+    if (!isCategoriaSuma(c.nombre) && (torneosCountPorCat.get(c.id) ?? 0) === 0) {
+      const suma7 = categorias.find(
+        (s) =>
+          s.genero === c.genero &&
+          isCategoriaSuma(s.nombre) &&
+          s.nombre.toLowerCase().includes("suma 7")
+      );
+      if (suma7) {
+        catPuraSinTorneosASuma7.set(c.id, suma7.id);
+      }
+    }
+  });
+
+  const jugadorVinculoPuraSuma7 = new Map<
+    string,
+    { puraCatId: string; suma7CatId: string; jugoSuma7: boolean }
+  >();
+
+  const todosJugadoresConAscenso = new Set<string>([
+    ...Array.from(origenesDirectos.keys()),
+    ...Array.from(tieneInstanciaAscenso.keys()),
+  ]);
+
+  todosJugadoresConAscenso.forEach((jId) => {
+    catPuraSinTorneosASuma7.forEach((suma7CatId, puraCatId) => {
+      if (ascendidosDesde.get(puraCatId)?.has(jId)) return;
+      const tieneOrigenHaciaPura = origenesDirectos.get(jId)?.has(puraCatId) ?? false;
+      const tieneFilaAscensoPura = tieneInstanciaAscenso.get(jId)?.has(puraCatId) ?? false;
+      if (tieneOrigenHaciaPura || tieneFilaAscensoPura) {
+        const jugoSuma7 = (torneosPorJugYCat.get(jId)?.get(suma7CatId)?.size ?? 0) > 0;
+        jugadorVinculoPuraSuma7.set(jId, {
+          puraCatId,
+          suma7CatId,
+          jugoSuma7,
+        });
+      }
+    });
+  });
+
+  /**
+   * Determina si una fila de ranking_jugadores corresponde a la categoría filtrada,
+   * contemplando que un jugador ascendido a 4ta (sin torneos de 4ta pura) compite en Suma 7
+   * y por ende unifica sus puntos de ascenso a 4ta con sus puntos de torneos Suma 7.
+   */
+  const coincideFilaConCategoria = (
+    r: { jugador_id: string; categoria_id: string | null },
+    targetCategoriaId: string
+  ): boolean => {
+    if (targetCategoriaId === "todas") return true;
+    if (r.categoria_id === targetCategoriaId) return true;
+    const vinculo = jugadorVinculoPuraSuma7.get(r.jugador_id);
+    if (!vinculo) return false;
+    if (targetCategoriaId === vinculo.puraCatId && r.categoria_id === vinculo.suma7CatId) {
+      return true;
+    }
+    if (
+      targetCategoriaId === vinculo.suma7CatId &&
+      r.categoria_id === vinculo.puraCatId &&
+      vinculo.jugoSuma7
+    ) {
+      return true;
+    }
+    return false;
+  };
+
+  /**
+   * Devuelve la clave de agrupación de categoría para un jugador al construir la tabla de ranking,
+   * de modo que los puntos de ascenso a 4ta y los torneos jugados en Suma 7 se sumen en una única fila.
+   */
+  const obtenerCategoriaAgrupacionFila = (
+    r: { jugador_id: string; categoria_id: string | null },
+    filtroCategoria: string
+  ): string => {
+    if (filtroCategoria !== "todas") return filtroCategoria;
+    const vinculo = jugadorVinculoPuraSuma7.get(r.jugador_id);
+    if (
+      vinculo &&
+      (r.categoria_id === vinculo.puraCatId || r.categoria_id === vinculo.suma7CatId)
+    ) {
+      return vinculo.puraCatId;
+    }
+    return r.categoria_id ?? "sin_categoria";
+  };
+
   /**
    * Calcula para un jugador en una categoría específica:
-   * - torneos_en_categoria (jugados en esa categoria_id)
-   * - torneos_categoria_anterior (jugados en su categoria_origen_id si ascendió / instancia='ascenso' / ascendido_habilitado, excluyendo Suma 8)
+   * - torneos_en_categoria (jugados en esa categoria_id, o en Suma 7 si ascendió a 4ta pura sin torneos propios)
+   * - torneos_categoria_anterior (jugados en su cadena de categoria_origen_id si ascendió)
    * - torneos_jugados (suma total válida para el Master en esa categoría)
    * - master_status y es_ascendido
    */
@@ -399,23 +489,47 @@ export function construirContextoAscensosYTorneos(params: {
       };
     }
 
-    const targetCat = categoriasMap.get(categoriaId);
-    const directSet = torneosPorJugYCat.get(jugadorId)?.get(categoriaId) ?? new Set<string>();
-    const status = masterStatusPorJugYCat.get(jugadorId)?.get(categoriaId) ?? "auto";
+    const vinculo = jugadorVinculoPuraSuma7.get(jugadorId);
+    const esCatVinculada4taSuma7 =
+      Boolean(vinculo) &&
+      (categoriaId === vinculo!.puraCatId || categoriaId === vinculo!.suma7CatId);
 
-    const origenesTabla = obtenerCategoriasOrigen(jugadorId, categoriaId);
-    const hasInstanciaAsc = tieneInstanciaAscenso.get(jugadorId)?.has(categoriaId) ?? false;
+    const targetCat = categoriasMap.get(
+      esCatVinculada4taSuma7 ? vinculo!.puraCatId : categoriaId
+    );
+
+    const directSet = new Set<string>();
+    if (esCatVinculada4taSuma7 && vinculo) {
+      torneosPorJugYCat.get(jugadorId)?.get(vinculo.puraCatId)?.forEach((t) => directSet.add(t));
+      torneosPorJugYCat.get(jugadorId)?.get(vinculo.suma7CatId)?.forEach((t) => directSet.add(t));
+    } else {
+      torneosPorJugYCat.get(jugadorId)?.get(categoriaId)?.forEach((t) => directSet.add(t));
+    }
+
+    let status: MasterStatus = "auto";
+    if (esCatVinculada4taSuma7 && vinculo) {
+      const stPura = masterStatusPorJugYCat.get(jugadorId)?.get(vinculo.puraCatId) ?? "auto";
+      const stSuma = masterStatusPorJugYCat.get(jugadorId)?.get(vinculo.suma7CatId) ?? "auto";
+      status = stPura !== "auto" ? stPura : stSuma;
+    } else {
+      status = masterStatusPorJugYCat.get(jugadorId)?.get(categoriaId) ?? "auto";
+    }
+
+    const catParaOrigenes = esCatVinculada4taSuma7 && vinculo ? vinculo.puraCatId : categoriaId;
+    const origenesTabla = obtenerCategoriasOrigen(jugadorId, catParaOrigenes);
+    const hasInstanciaAsc =
+      tieneInstanciaAscenso.get(jugadorId)?.has(catParaOrigenes) ?? false;
     const hasStatusAsc = status === "ascendido_habilitado";
 
     const esAscendido =
-      !isCategoriaSuma(targetCat?.nombre) &&
+      (esCatVinculada4taSuma7 || !isCategoriaSuma(targetCat?.nombre)) &&
       (origenesTabla.size > 0 || hasInstanciaAsc || hasStatusAsc);
 
     const prevTorneosSet = new Set<string>();
     const supTorneosSet = new Set<string>();
 
     if (esAscendido && targetCat && !isCategoriaSuma(targetCat.nombre)) {
-      // 1) Sumar torneos de las categorías de origen registradas en tabla ascensos
+      // 1) Sumar torneos de las categorías de origen registradas en tabla ascensos (incluyendo cadena 6ta -> 5ta -> 4ta)
       origenesTabla.forEach((origCatId) => {
         const origCat = categoriasMap.get(origCatId);
         if (!isCategoriaSuma(origCat?.nombre)) {
@@ -431,7 +545,7 @@ export function construirContextoAscensosYTorneos(params: {
       if (prevTorneosSet.size === 0 && (hasInstanciaAsc || hasStatusAsc)) {
         const todasCatsJugador = torneosPorJugYCat.get(jugadorId);
         todasCatsJugador?.forEach((tSet, otherCatId) => {
-          if (otherCatId === categoriaId) return;
+          if (otherCatId === catParaOrigenes) return;
           const otherCat = categoriasMap.get(otherCatId);
           if (
             otherCat &&
@@ -456,7 +570,7 @@ export function construirContextoAscensosYTorneos(params: {
       const targetNivel = getNivelCategoriaPura(targetCat.nombre);
       const todasCatsJugador = torneosPorJugYCat.get(jugadorId);
       todasCatsJugador?.forEach((tSet, otherCatId) => {
-        if (otherCatId === categoriaId) return;
+        if (otherCatId === catParaOrigenes) return;
         const otherCat = categoriasMap.get(otherCatId);
         if (
           otherCat &&
@@ -503,6 +617,9 @@ export function construirContextoAscensosYTorneos(params: {
   return {
     ascensosDeduplicados,
     ascendidosDesde,
+    jugadorVinculoPuraSuma7,
+    coincideFilaConCategoria,
+    obtenerCategoriaAgrupacionFila,
     obtenerMetricasMasterJugador,
   };
 }
@@ -1387,9 +1504,9 @@ export async function auditarSincronizacionLlavesClub(
     const { data: partidosData } =
       llaveIds.length > 0
         ? await supabase
-            .from("partidos_llave")
-            .select("id, llave_id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id")
-            .in("llave_id", llaveIds)
+          .from("partidos_llave")
+          .select("id, llave_id, ronda, pareja_local_id, pareja_visitante_id, ganador_id, estado, partido_siguiente_id")
+          .in("llave_id", llaveIds)
         : { data: [] };
 
     const playerIdsSet = new Set<string>();
