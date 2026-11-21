@@ -491,7 +491,15 @@ export default function RankingPublico() {
               <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
                 <Filter className="h-3 w-3" /> Categoría del jugador
               </label>
-              <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+              <Select
+                value={filtroCategoria}
+                onValueChange={(v) => {
+                  setFiltroCategoria(v);
+                  if (v !== "todas" && filtroTorneo !== "todos") {
+                    setFiltroTorneo("todos");
+                  }
+                }}
+              >
                 <SelectTrigger className="bg-background">
                   <SelectValue />
                 </SelectTrigger>
@@ -528,7 +536,15 @@ export default function RankingPublico() {
               <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
                 <Trophy className="h-3 w-3" /> Torneo / Modalidad
               </label>
-              <Select value={filtroTorneo} onValueChange={setFiltroTorneo}>
+              <Select
+                value={filtroTorneo}
+                onValueChange={(v) => {
+                  setFiltroTorneo(v);
+                  if (v !== "todos" && filtroCategoria !== "todas") {
+                    setFiltroCategoria("todas");
+                  }
+                }}
+              >
                 <SelectTrigger className="bg-background">
                   <SelectValue placeholder="Todos los torneos" />
                 </SelectTrigger>

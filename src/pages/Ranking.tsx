@@ -911,20 +911,29 @@ export default function Ranking() {
     });
 
     // Si hay un filtroTorneo activo ("modalidad:suma 7", "modalidad:suma 8", "modalidad:suma 6", "cat_torneo:<id>" o "torneo:<id>"),
-    // identificar los jugadores que participaron en ese torneo o modalidad
+    // restringir estrictamente TANTO los jugadores COMO las filas de puntos a la categoría de ese torneo/modalidad
     let jugadoresEnTorneoFiltro: Set<string> | null = null;
     let torneoEspecificoId: string | null = null;
+    let categoriasTorneoFiltro: Set<string> | null = null;
+
     if (filtroTorneo && filtroTorneo !== "todos") {
       jugadoresEnTorneoFiltro = new Set<string>();
+      categoriasTorneoFiltro = new Set<string>();
       if (filtroTorneo.startsWith("torneo:")) {
         torneoEspecificoId = filtroTorneo.slice("torneo:".length);
+        const tObj = (clubTournaments ?? []).find((t: any) => t.id === torneoEspecificoId);
+        if (tObj?.categoria_id) {
+          categoriasTorneoFiltro.add(tObj.categoria_id);
+        }
         allClubRankingData.forEach((r) => {
           if (!isAscenso(r.instancia) && r.torneo_id === torneoEspecificoId) {
             jugadoresEnTorneoFiltro!.add(r.jugador_id);
+            if (r.categoria_id) categoriasTorneoFiltro!.add(r.categoria_id);
           }
         });
       } else if (filtroTorneo.startsWith("cat_torneo:")) {
         const targetCatTorneoId = filtroTorneo.slice("cat_torneo:".length);
+        categoriasTorneoFiltro.add(targetCatTorneoId);
         allClubRankingData.forEach((r) => {
           if (!isAscenso(r.instancia) && r.categoria_id === targetCatTorneoId) {
             jugadoresEnTorneoFiltro!.add(r.jugador_id);
@@ -932,22 +941,49 @@ export default function Ranking() {
         });
       } else if (filtroTorneo.startsWith("modalidad:")) {
         const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
-        const matchingCatIds = new Set(
-          categoriasClub
-            .filter((c) => c.nombre.toLowerCase().includes(modKey))
-            .map((c) => c.id)
-        );
+        categoriasClub
+          .filter((c) => c.nombre.toLowerCase().includes(modKey))
+          .forEach((c) => categoriasTorneoFiltro!.add(c.id));
         allClubRankingData.forEach((r) => {
-          if (!isAscenso(r.instancia) && r.categoria_id && matchingCatIds.has(r.categoria_id)) {
+          if (
+            !isAscenso(r.instancia) &&
+            r.categoria_id &&
+            categoriasTorneoFiltro!.has(r.categoria_id)
+          ) {
             jugadoresEnTorneoFiltro!.add(r.jugador_id);
           }
         });
       }
     }
 
-    // Filtrar para la vista seleccionada (Categoría del jugador + Torneo / Modalidad + Género)
+    const singleTorneoCatId =
+      categoriasTorneoFiltro && categoriasTorneoFiltro.size === 1
+        ? Array.from(categoriasTorneoFiltro)[0]
+        : null;
+    const effectiveFiltroCategoria =
+      filtroCategoria !== "todas"
+        ? filtroCategoria
+        : singleTorneoCatId ?? "todas";
+
+    // Filtrar para la vista seleccionada: si hay un torneo/modalidad seleccionado, SOLO entran filas de esa categoría de torneo
     const data = allClubRankingData.filter((r) => {
-      if (!coincideFilaConCategoria(r, filtroCategoria)) return false;
+      if (filtroCategoria !== "todas" && !coincideFilaConCategoria(r, filtroCategoria)) {
+        return false;
+      }
+      if (
+        categoriasTorneoFiltro &&
+        categoriasTorneoFiltro.size > 0 &&
+        !Array.from(categoriasTorneoFiltro).some((cId) => coincideFilaConCategoria(r, cId))
+      ) {
+        return false;
+      }
+      if (
+        filtroCategoria === "todas" &&
+        (!categoriasTorneoFiltro || categoriasTorneoFiltro.size === 0) &&
+        !coincideFilaConCategoria(r, "todas")
+      ) {
+        return false;
+      }
       if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;
       if (jugadoresEnTorneoFiltro && !jugadoresEnTorneoFiltro.has(r.jugador_id)) return false;
       if (torneoEspecificoId && !isAscenso(r.instancia) && r.torneo_id !== torneoEspecificoId) {
@@ -956,7 +992,7 @@ export default function Ranking() {
       return true;
     });
 
-    // Agrupar por jugador unificando ascenso a 4ta pura sin torneos propios con torneos Suma 7
+    // Agrupar por jugador usando la categoría efectiva del filtro
     const map = new Map<
       string,
       {
@@ -971,7 +1007,7 @@ export default function Ranking() {
         return; // skip — ya ascendió de esta categoría
       }
 
-      const catKey = obtenerCategoriaAgrupacionFila(r, filtroCategoria);
+      const catKey = obtenerCategoriaAgrupacionFila(r, effectiveFiltroCategoria);
       const cur = map.get(r.jugador_id) ?? {
         primaryCatId: catKey === "sin_categoria" ? null : catKey,
         porCat: new Map<string, { puntos: number; ptsAscenso: number }>(),
@@ -1041,8 +1077,8 @@ export default function Ranking() {
       const playerCategory = playerCategoryById.get(id);
 
       let evalCatId: string | null =
-        filtroCategoria !== "todas" ? filtroCategoria : m.primaryCatId;
-      if (filtroCategoria === "todas" && m.porCat.size > 0) {
+        effectiveFiltroCategoria !== "todas" ? effectiveFiltroCategoria : m.primaryCatId;
+      if (effectiveFiltroCategoria === "todas" && m.porCat.size > 0) {
         let bestPts = -1;
         m.porCat.forEach((entry, cId) => {
           const totalCat = entry.puntos + entry.ptsAscenso;
@@ -2091,7 +2127,15 @@ export default function Ranking() {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Categoría del jugador</label>
-            <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+            <Select
+              value={filtroCategoria}
+              onValueChange={(v) => {
+                setFiltroCategoria(v);
+                if (v !== "todas" && filtroTorneo !== "todos") {
+                  setFiltroTorneo("todos");
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -2126,7 +2170,15 @@ export default function Ranking() {
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Torneo / Modalidad</label>
-            <Select value={filtroTorneo} onValueChange={setFiltroTorneo}>
+            <Select
+              value={filtroTorneo}
+              onValueChange={(v) => {
+                setFiltroTorneo(v);
+                if (v !== "todos" && filtroCategoria !== "todas") {
+                  setFiltroCategoria("todas");
+                }
+              }}
+            >
               <SelectTrigger>
                 <SelectValue placeholder="Todos los torneos" />
               </SelectTrigger>

@@ -254,20 +254,29 @@ export function useClubRanking(
       setTorneosDisponibles(torneosOpts);
 
       // Si hay un filtroTorneo activo (ej. "modalidad:suma 7", "modalidad:suma 8", "modalidad:suma 6", "cat_torneo:<id>" o "torneo:<id>"),
-      // identificar los jugadores que participaron en ese torneo/modalidad
+      // restringir estrictamente TANTO los jugadores COMO las filas de puntos a la categoría de ese torneo/modalidad
       let jugadoresEnTorneoFiltro: Set<string> | null = null;
       let torneoEspecificoId: string | null = null;
+      let categoriasTorneoFiltro: Set<string> | null = null;
+
       if (filtroTorneo && filtroTorneo !== "todos") {
         jugadoresEnTorneoFiltro = new Set<string>();
+        categoriasTorneoFiltro = new Set<string>();
         if (filtroTorneo.startsWith("torneo:")) {
           torneoEspecificoId = filtroTorneo.slice("torneo:".length);
+          const tInfo = torneosMap.get(torneoEspecificoId);
+          if (tInfo?.categoria_id) {
+            categoriasTorneoFiltro.add(tInfo.categoria_id);
+          }
           validAllRankingRows.forEach((r) => {
             if (!isAscenso(r.instancia) && r.torneo_id === torneoEspecificoId) {
               jugadoresEnTorneoFiltro!.add(r.jugador_id);
+              if (r.categoria_id) categoriasTorneoFiltro!.add(r.categoria_id);
             }
           });
         } else if (filtroTorneo.startsWith("cat_torneo:")) {
           const targetCatTorneoId = filtroTorneo.slice("cat_torneo:".length);
+          categoriasTorneoFiltro.add(targetCatTorneoId);
           validAllRankingRows.forEach((r) => {
             if (!isAscenso(r.instancia) && r.categoria_id === targetCatTorneoId) {
               jugadoresEnTorneoFiltro!.add(r.jugador_id);
@@ -275,22 +284,49 @@ export function useClubRanking(
           });
         } else if (filtroTorneo.startsWith("modalidad:")) {
           const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
-          const matchingCatIds = new Set(
-            categoriasList
-              .filter((c) => c.nombre.toLowerCase().includes(modKey))
-              .map((c) => c.id)
-          );
+          categoriasList
+            .filter((c) => c.nombre.toLowerCase().includes(modKey))
+            .forEach((c) => categoriasTorneoFiltro!.add(c.id));
           validAllRankingRows.forEach((r) => {
-            if (!isAscenso(r.instancia) && r.categoria_id && matchingCatIds.has(r.categoria_id)) {
+            if (
+              !isAscenso(r.instancia) &&
+              r.categoria_id &&
+              categoriasTorneoFiltro!.has(r.categoria_id)
+            ) {
               jugadoresEnTorneoFiltro!.add(r.jugador_id);
             }
           });
         }
       }
 
-      // Filtrar las filas que aplican a la vista actual (filtroCategoria / filtroGenero / filtroTorneo)
+      const singleTorneoCatId =
+        categoriasTorneoFiltro && categoriasTorneoFiltro.size === 1
+          ? Array.from(categoriasTorneoFiltro)[0]
+          : null;
+      const effectiveFiltroCategoria =
+        filtroCategoria !== "todas"
+          ? filtroCategoria
+          : singleTorneoCatId ?? "todas";
+
+      // Filtrar las filas que aplican a la vista actual: si hay un torneo/modalidad seleccionado, SOLO entran filas de esa categoría de torneo
       const filteredRankingRows = validAllRankingRows.filter((r) => {
-        if (!coincideFilaConCategoria(r, filtroCategoria)) return false;
+        if (filtroCategoria !== "todas" && !coincideFilaConCategoria(r, filtroCategoria)) {
+          return false;
+        }
+        if (
+          categoriasTorneoFiltro &&
+          categoriasTorneoFiltro.size > 0 &&
+          !Array.from(categoriasTorneoFiltro).some((cId) => coincideFilaConCategoria(r, cId))
+        ) {
+          return false;
+        }
+        if (
+          filtroCategoria === "todas" &&
+          (!categoriasTorneoFiltro || categoriasTorneoFiltro.size === 0) &&
+          !coincideFilaConCategoria(r, "todas")
+        ) {
+          return false;
+        }
         if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;
         if (jugadoresEnTorneoFiltro && !jugadoresEnTorneoFiltro.has(r.jugador_id)) return false;
         if (torneoEspecificoId && !isAscenso(r.instancia) && r.torneo_id !== torneoEspecificoId) {
@@ -299,7 +335,7 @@ export function useClubRanking(
         return true;
       });
 
-      // 5. Construcción de Desgloses y Puntos (unificando ascenso a 4ta pura sin torneos propios con torneos Suma 7)
+      // 5. Construcción de Desgloses y Puntos usando la categoría efectiva del filtro
       const map = new Map<
         string,
         {
@@ -322,7 +358,7 @@ export function useClubRanking(
           return;
         }
 
-        const catKey = obtenerCategoriaAgrupacionFila(r, filtroCategoria);
+        const catKey = obtenerCategoriaAgrupacionFila(r, effectiveFiltroCategoria);
         const cur = map.get(r.jugador_id) ?? {
           primaryCatId: catKey === "sin_categoria" ? null : catKey,
           porCat: new Map(),
@@ -426,8 +462,8 @@ export function useClubRanking(
 
         // Determinar categoría efectiva de evaluación para este jugador
         let evalCatId: string | null =
-          filtroCategoria !== "todas" ? filtroCategoria : m.primaryCatId;
-        if (filtroCategoria === "todas" && m.porCat.size > 0) {
+          effectiveFiltroCategoria !== "todas" ? effectiveFiltroCategoria : m.primaryCatId;
+        if (effectiveFiltroCategoria === "todas" && m.porCat.size > 0) {
           const assignedCatId = categoryByPlayer.get(id)?.id ?? null;
           if (assignedCatId && m.porCat.has(assignedCatId)) {
             evalCatId = assignedCatId;
