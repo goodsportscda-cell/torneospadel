@@ -160,6 +160,7 @@ export default function Ranking() {
 
   const [filtroAnio, setFiltroAnio] = useState<number>(new Date().getFullYear());
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
+  const [filtroTorneo, setFiltroTorneo] = useState<string>("todos");
   const [filtroGenero, setFiltroGenero] = useState<string>("todos");
   const [vistaModo, setVistaModo] = useState<"general" | "master">("general");
   const [busqueda, setBusqueda] = useState("");
@@ -651,17 +652,20 @@ export default function Ranking() {
       { nombre: "6ta", genero: "caballeros", orden: 6 },
       { nombre: "7ma", genero: "caballeros", orden: 7 },
       { nombre: "8va", genero: "caballeros", orden: 8 },
-      { nombre: "Suma 7", genero: "caballeros", orden: 9 },
-      { nombre: "Suma 8", genero: "caballeros", orden: 10 },
-      { nombre: "1ra", genero: "damas", orden: 11 },
-      { nombre: "2da", genero: "damas", orden: 12 },
-      { nombre: "3ra", genero: "damas", orden: 13 },
-      { nombre: "4ta", genero: "damas", orden: 14 },
-      { nombre: "5ta", genero: "damas", orden: 15 },
-      { nombre: "6ta", genero: "damas", orden: 16 },
-      { nombre: "7ma", genero: "damas", orden: 17 },
-      { nombre: "8va", genero: "damas", orden: 18 },
-      { nombre: "Suma 8", genero: "damas", orden: 19 },
+      { nombre: "Suma 6", genero: "caballeros", orden: 9 },
+      { nombre: "Suma 7", genero: "caballeros", orden: 10 },
+      { nombre: "Suma 8", genero: "caballeros", orden: 11 },
+      { nombre: "1ra", genero: "damas", orden: 12 },
+      { nombre: "2da", genero: "damas", orden: 13 },
+      { nombre: "3ra", genero: "damas", orden: 14 },
+      { nombre: "4ta", genero: "damas", orden: 15 },
+      { nombre: "5ta", genero: "damas", orden: 16 },
+      { nombre: "6ta", genero: "damas", orden: 17 },
+      { nombre: "7ma", genero: "damas", orden: 18 },
+      { nombre: "8va", genero: "damas", orden: 19 },
+      { nombre: "Suma 6", genero: "damas", orden: 20 },
+      { nombre: "Suma 7", genero: "damas", orden: 21 },
+      { nombre: "Suma 8", genero: "damas", orden: 22 },
     ];
 
     const categoriesToInsert = [];
@@ -907,10 +911,49 @@ export default function Ranking() {
       jugadorCategorias: (allPlayerCatsData ?? []) as any[],
     });
 
-    // Filtrar para la vista seleccionada (incluyendo equivalencia 4ta <-> Suma 7 para jugadores ascendidos a 4ta sin torneos propios)
+    // Si hay un filtroTorneo activo ("modalidad:suma 7", "modalidad:suma 8", "modalidad:suma 6", "cat_torneo:<id>" o "torneo:<id>"),
+    // identificar los jugadores que participaron en ese torneo o modalidad
+    let jugadoresEnTorneoFiltro: Set<string> | null = null;
+    let torneoEspecificoId: string | null = null;
+    if (filtroTorneo && filtroTorneo !== "todos") {
+      jugadoresEnTorneoFiltro = new Set<string>();
+      if (filtroTorneo.startsWith("torneo:")) {
+        torneoEspecificoId = filtroTorneo.slice("torneo:".length);
+        allClubRankingData.forEach((r) => {
+          if (!isAscenso(r.instancia) && r.torneo_id === torneoEspecificoId) {
+            jugadoresEnTorneoFiltro!.add(r.jugador_id);
+          }
+        });
+      } else if (filtroTorneo.startsWith("cat_torneo:")) {
+        const targetCatTorneoId = filtroTorneo.slice("cat_torneo:".length);
+        allClubRankingData.forEach((r) => {
+          if (!isAscenso(r.instancia) && r.categoria_id === targetCatTorneoId) {
+            jugadoresEnTorneoFiltro!.add(r.jugador_id);
+          }
+        });
+      } else if (filtroTorneo.startsWith("modalidad:")) {
+        const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
+        const matchingCatIds = new Set(
+          categoriasClub
+            .filter((c) => c.nombre.toLowerCase().includes(modKey))
+            .map((c) => c.id)
+        );
+        allClubRankingData.forEach((r) => {
+          if (!isAscenso(r.instancia) && r.categoria_id && matchingCatIds.has(r.categoria_id)) {
+            jugadoresEnTorneoFiltro!.add(r.jugador_id);
+          }
+        });
+      }
+    }
+
+    // Filtrar para la vista seleccionada (Categoría del jugador + Torneo / Modalidad + Género)
     const data = allClubRankingData.filter((r) => {
       if (!coincideFilaConCategoria(r, filtroCategoria)) return false;
       if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;
+      if (jugadoresEnTorneoFiltro && !jugadoresEnTorneoFiltro.has(r.jugador_id)) return false;
+      if (torneoEspecificoId && !isAscenso(r.instancia) && r.torneo_id !== torneoEspecificoId) {
+        return false;
+      }
       return true;
     });
 
@@ -1073,7 +1116,7 @@ export default function Ranking() {
   useEffect(() => {
     if (!loading) cargarRanking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroAnio, filtroCategoria, filtroGenero, loading, clubId, cupoActual]);
+  }, [filtroAnio, filtroCategoria, filtroTorneo, filtroGenero, loading, clubId, cupoActual]);
 
   const handleCambiarMasterStatus = async (
     row: RankingRowUnified,
@@ -2034,7 +2077,7 @@ export default function Ranking() {
             {copiado ? "¡Enlace Copiado!" : "Copiar Enlace Público para Compartir"}
           </Button>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <div>
             <label className="text-xs text-muted-foreground">Año</label>
             <Select
@@ -2054,21 +2097,54 @@ export default function Ranking() {
             </Select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Categoría</label>
+            <label className="text-xs text-muted-foreground">Categoría del jugador</label>
             <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="todas">Todas</SelectItem>
-                {categorias.map((c) => (
-                  <SelectItem key={c.id} value={c.id}>
-                    {c.genero === "caballeros"
-                      ? "Cab."
-                      : c.genero === "damas"
-                        ? "Dam."
-                        : "Mix."}{" "}
-                    {c.nombre}
+                <SelectItem value="todas">Todas las categorías</SelectItem>
+                {categorias
+                  .filter((c) => !isCategoriaSuma(c.nombre))
+                  .map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.genero === "caballeros"
+                        ? "Cab."
+                        : c.genero === "damas"
+                          ? "Dam."
+                          : "Mix."}{" "}
+                      {c.nombre}
+                    </SelectItem>
+                  ))}
+                {categorias
+                  .filter((c) => isCategoriaSuma(c.nombre))
+                  .map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.genero === "caballeros"
+                        ? "Cab."
+                        : c.genero === "damas"
+                          ? "Dam."
+                          : "Mix."}{" "}
+                      {c.nombre}
+                    </SelectItem>
+                  ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Torneo / Modalidad</label>
+            <Select value={filtroTorneo} onValueChange={setFiltroTorneo}>
+              <SelectTrigger>
+                <SelectValue placeholder="Todos los torneos" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todos">Todos los torneos</SelectItem>
+                <SelectItem value="modalidad:suma 6">Modalidad: Suma 6</SelectItem>
+                <SelectItem value="modalidad:suma 7">Modalidad: Suma 7</SelectItem>
+                <SelectItem value="modalidad:suma 8">Modalidad: Suma 8</SelectItem>
+                {torneosVisibilidad.map((t) => (
+                  <SelectItem key={t.id} value={`torneo:${t.id}`}>
+                    {t.nombre} ({t.categoria_nombre})
                   </SelectItem>
                 ))}
               </SelectContent>

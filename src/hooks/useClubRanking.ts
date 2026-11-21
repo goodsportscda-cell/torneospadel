@@ -47,15 +47,26 @@ export type RankingRowUnified = {
   desglose: DesglosePunto[];
 };
 
+export type TorneoFiltroOption = {
+  id: string;
+  nombre: string;
+  fecha_inicio: string | null;
+  categoria_id: string | null;
+  categoria_nombre: string | null;
+  genero: string | null;
+};
+
 export function useClubRanking(
   clubId: string | null | undefined,
   filtroCategoria: string,
   filtroGenero: string,
   filtroAnio: number,
-  cupoOverride?: number | null
+  cupoOverride?: number | null,
+  filtroTorneo: string = "todos"
 ) {
   const [loading, setLoading] = useState(true);
   const [rankingRows, setRankingRows] = useState<RankingRowUnified[]>([]);
+  const [torneosDisponibles, setTorneosDisponibles] = useState<TorneoFiltroOption[]>([]);
   const [error, setError] = useState<string | null>(null);
 
   const fetchRanking = async () => {
@@ -78,7 +89,7 @@ export function useClubRanking(
       // 2. Obtener Torneos del club para mapear nombres y fechas
       const { data: torneosData, error: torneosError } = await supabase
         .from("torneos")
-        .select("id, nombre, fecha_inicio, fecha_fin, estado, ranking_publicado, club_id, notas")
+        .select("id, nombre, fecha_inicio, fecha_fin, estado, ranking_publicado, club_id, categoria_id, genero, tipo, notas")
         .eq("club_id", clubId);
       if (torneosError) throw torneosError;
       const clubTournamentIds = new Set((torneosData || []).map((t) => t.id));
@@ -93,6 +104,9 @@ export function useClubRanking(
           estado: string;
           ranking_publicado: boolean | null;
           club_id: string | null;
+          categoria_id: string | null;
+          genero: string | null;
+          tipo: string | null;
         }
       >();
 
@@ -105,6 +119,9 @@ export function useClubRanking(
           estado: t.estado,
           ranking_publicado: t.ranking_publicado,
           club_id: t.club_id,
+          categoria_id: t.categoria_id ?? null,
+          genero: t.genero ?? null,
+          tipo: t.tipo ?? null,
         });
       });
 
@@ -214,10 +231,72 @@ export function useClubRanking(
         jugadorCategorias: (allPlayerCatsData ?? []) as any[],
       });
 
-      // Filtrar las filas que aplican a la vista actual (filtroCategoria / filtroGenero)
+      // Construir lista de torneos con puntos publicados en este año para el selector "Torneo"
+      const torneosConPuntosIds = new Set<string>();
+      validAllRankingRows.forEach((r) => {
+        if (!isAscenso(r.instancia) && r.torneo_id) {
+          torneosConPuntosIds.add(r.torneo_id);
+        }
+      });
+      const torneosOpts: TorneoFiltroOption[] = Array.from(torneosConPuntosIds)
+        .map((tId) => {
+          const t = torneosMap.get(tId);
+          const cat = t?.categoria_id ? categoriasMap.get(t.categoria_id) : undefined;
+          return {
+            id: tId,
+            nombre: t?.nombre ?? "Torneo Oficial",
+            fecha_inicio: t?.fecha_inicio ?? null,
+            categoria_id: t?.categoria_id ?? null,
+            categoria_nombre: cat?.nombre ?? null,
+            genero: t?.genero ?? cat?.genero ?? null,
+          };
+        })
+        .sort((a, b) => (b.fecha_inicio || "").localeCompare(a.fecha_inicio || ""));
+      setTorneosDisponibles(torneosOpts);
+
+      // Si hay un filtroTorneo activo (ej. "modalidad:suma 7", "modalidad:suma 8", "modalidad:suma 6", "cat_torneo:<id>" o "torneo:<id>"),
+      // identificar los jugadores que participaron en ese torneo/modalidad
+      let jugadoresEnTorneoFiltro: Set<string> | null = null;
+      let torneoEspecificoId: string | null = null;
+      if (filtroTorneo && filtroTorneo !== "todos") {
+        jugadoresEnTorneoFiltro = new Set<string>();
+        if (filtroTorneo.startsWith("torneo:")) {
+          torneoEspecificoId = filtroTorneo.slice("torneo:".length);
+          validAllRankingRows.forEach((r) => {
+            if (!isAscenso(r.instancia) && r.torneo_id === torneoEspecificoId) {
+              jugadoresEnTorneoFiltro!.add(r.jugador_id);
+            }
+          });
+        } else if (filtroTorneo.startsWith("cat_torneo:")) {
+          const targetCatTorneoId = filtroTorneo.slice("cat_torneo:".length);
+          validAllRankingRows.forEach((r) => {
+            if (!isAscenso(r.instancia) && r.categoria_id === targetCatTorneoId) {
+              jugadoresEnTorneoFiltro!.add(r.jugador_id);
+            }
+          });
+        } else if (filtroTorneo.startsWith("modalidad:")) {
+          const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
+          const matchingCatIds = new Set(
+            categoriasList
+              .filter((c) => c.nombre.toLowerCase().includes(modKey))
+              .map((c) => c.id)
+          );
+          validAllRankingRows.forEach((r) => {
+            if (!isAscenso(r.instancia) && r.categoria_id && matchingCatIds.has(r.categoria_id)) {
+              jugadoresEnTorneoFiltro!.add(r.jugador_id);
+            }
+          });
+        }
+      }
+
+      // Filtrar las filas que aplican a la vista actual (filtroCategoria / filtroGenero / filtroTorneo)
       const filteredRankingRows = validAllRankingRows.filter((r) => {
         if (!coincideFilaConCategoria(r, filtroCategoria)) return false;
         if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;
+        if (jugadoresEnTorneoFiltro && !jugadoresEnTorneoFiltro.has(r.jugador_id)) return false;
+        if (torneoEspecificoId && !isAscenso(r.instancia) && r.torneo_id !== torneoEspecificoId) {
+          return false;
+        }
         return true;
       });
 
@@ -443,7 +522,7 @@ export function useClubRanking(
   useEffect(() => {
     fetchRanking();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clubId, filtroCategoria, filtroGenero, filtroAnio, cupoOverride]);
+  }, [clubId, filtroCategoria, filtroGenero, filtroAnio, cupoOverride, filtroTorneo]);
 
-  return { rankingRows, loading, error, reload: fetchRanking };
+  return { rankingRows, torneosDisponibles, loading, error, reload: fetchRanking };
 }

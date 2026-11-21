@@ -85,6 +85,9 @@ export default function RankingPublico() {
   const [filtroCategoria, setFiltroCategoria] = useState<string>(() => {
     return searchParams.get("categoria") ?? "todas";
   });
+  const [filtroTorneo, setFiltroTorneo] = useState<string>(() => {
+    return searchParams.get("torneo") ?? "todos";
+  });
   const [filtroGenero, setFiltroGenero] = useState<string>(() => {
     return searchParams.get("genero") ?? "todos";
   });
@@ -107,12 +110,17 @@ export default function RankingPublico() {
     [categoriaSeleccionada]
   );
 
-  const { rankingRows: rows, loading: rankingLoading } = useClubRanking(
+  const {
+    rankingRows: rows,
+    torneosDisponibles,
+    loading: rankingLoading,
+  } = useClubRanking(
     clubId,
     filtroCategoria,
     filtroGenero,
     filtroAnio,
-    cupoActual
+    cupoActual,
+    filtroTorneo
   );
 
   const loading = loadingFiltros || rankingLoading;
@@ -478,10 +486,10 @@ export default function RankingPublico() {
 
         {/* Filters */}
         <div className="p-4 rounded-xl border bg-muted/20 space-y-4">
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
-                <Filter className="h-3 w-3" /> Categoría
+                <Filter className="h-3 w-3" /> Categoría del jugador
               </label>
               <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
                 <SelectTrigger className="bg-background">
@@ -489,14 +497,50 @@ export default function RankingPublico() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="todas">Todas las categorías</SelectItem>
-                  {categorias.map((c) => (
-                    <SelectItem key={c.id} value={c.id}>
-                      {c.genero === "caballeros"
-                        ? "Cab."
-                        : c.genero === "damas"
-                          ? "Dam."
-                          : "Mix."}{" "}
-                      {c.nombre}
+                  {categorias
+                    .filter((c) => !isCategoriaSuma(c.nombre))
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.genero === "caballeros"
+                          ? "Cab."
+                          : c.genero === "damas"
+                            ? "Dam."
+                            : "Mix."}{" "}
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                  {categorias
+                    .filter((c) => isCategoriaSuma(c.nombre))
+                    .map((c) => (
+                      <SelectItem key={c.id} value={c.id}>
+                        {c.genero === "caballeros"
+                          ? "Cab."
+                          : c.genero === "damas"
+                            ? "Dam."
+                            : "Mix."}{" "}
+                        {c.nombre}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground flex items-center gap-1">
+                <Trophy className="h-3 w-3" /> Torneo / Modalidad
+              </label>
+              <Select value={filtroTorneo} onValueChange={setFiltroTorneo}>
+                <SelectTrigger className="bg-background">
+                  <SelectValue placeholder="Todos los torneos" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="todos">Todos los torneos</SelectItem>
+                  <SelectItem value="modalidad:suma 6">Modalidad: Suma 6</SelectItem>
+                  <SelectItem value="modalidad:suma 7">Modalidad: Suma 7</SelectItem>
+                  <SelectItem value="modalidad:suma 8">Modalidad: Suma 8</SelectItem>
+                  {torneosDisponibles.map((t) => (
+                    <SelectItem key={t.id} value={`torneo:${t.id}`}>
+                      {t.nombre}
+                      {t.categoria_nombre ? ` (${t.categoria_nombre})` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
