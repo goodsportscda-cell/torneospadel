@@ -36,6 +36,10 @@ import {
 import { PlayerStats } from "@/components/jugador/PlayerStats";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
 import { stripPerfilTagsFromNotas } from "@/lib/perfilJugadorLink";
+import {
+  calcularAscensosEncadenadosJugador,
+  normalizarFilasRankingConSincronizacion,
+} from "@/lib/ranking";
 import type { Database } from "@/integrations/supabase/types";
 
 type Jugador = Database["public"]["Tables"]["jugadores"]["Row"] & { notas?: string | null };
@@ -160,17 +164,22 @@ export default function DetalleJugadorDialog({
 
         if (errInsc) throw errInsc;
 
-        // 2. Obtener puntos de ranking otorgados a este jugador
-        const { data: rankingPoints, error: errRank } = await supabase
+        // 2. Obtener puntos de ranking otorgados a este jugador (incluyendo ascensos para el cálculo encadenado)
+        const { data: rankingPointsRaw, error: errRank } = await supabase
           .from("ranking_jugadores")
-          .select("id, torneo_id, inscripcion_id, instancia, puntos")
-          .eq("jugador_id", jugador.id)
-          .in("torneo_id", clubTournamentIds);
+          .select("id, jugador_id, torneo_id, inscripcion_id, categoria_id, anio, instancia, puntos")
+          .eq("jugador_id", jugador.id);
 
         if (errRank) throw errRank;
 
+        const rankingPoints = normalizarFilasRankingConSincronizacion(
+          (rankingPointsRaw ?? []) as any[]
+        );
+
         const rankMap = new Map(
-          (rankingPoints ?? []).map((r) => [r.inscripcion_id || r.torneo_id, r])
+          rankingPoints
+            .filter((r) => r.torneo_id && clubTournamentIds.includes(r.torneo_id))
+            .map((r) => [r.inscripcion_id || r.torneo_id, r])
         );
 
         // 3. Procesar las inscripciones y unirlas al ranking de torneos
@@ -239,12 +248,13 @@ export default function DetalleJugadorDialog({
 
         setTorneosJugados(results);
 
-        // 4. Obtener ascensos del jugador
+        // 4. Obtener ascensos del jugador, deduplicarlos y recalcular el 50% encadenado real
         const { data: ascData } = await (supabase as any)
           .from("ascensos")
           .select("*")
           .eq("jugador_id", jugador.id)
-          .order("anio", { ascending: false });
+          .order("fecha", { ascending: true })
+          .order("created_at", { ascending: true });
 
         const { data: catsAll } = await (supabase as any).from("categorias").select("id, nombre, genero").eq("club_id", clubId);
         const { data: catsJugAll } = await (supabase as any).from("categorias_jugadores").select("id, nombre, genero").eq("club_id", clubId);
@@ -253,16 +263,54 @@ export default function DetalleJugadorDialog({
         (catsAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
         (catsJugAll ?? []).forEach((c: any) => catNameMap.set(c.id, `${c.nombre}${c.genero ? ' (' + c.genero + ')' : ''}`));
 
-        const ascResult: AscensoItem[] = (ascData ?? []).filter((a: any) => catNameMap.has(a.categoria_origen_id) && catNameMap.has(a.categoria_destino_id)).map((a: any) => ({
-          id: a.id,
-          catOrigenNombre: catNameMap.get(a.categoria_origen_id) || "Categoría Origen",
-          catDestinoNombre: catNameMap.get(a.categoria_destino_id) || "Categoría Destino",
-          puntosOrigen: a.puntos_origen || 0,
-          puntosTransferidos: a.puntos_transferidos || 0,
-          anio: a.anio,
-          fecha: a.fecha || a.created_at || null,
-          notas: a.notas || null,
-        }));
+        const clubAscData = (ascData ?? []).filter(
+          (a: any) => catNameMap.has(a.categoria_origen_id) && catNameMap.has(a.categoria_destino_id)
+        );
+
+        const { ascensosLimpios, idsDuplicados } = calcularAscensosEncadenadosJugador(
+          clubAscData,
+          rankingPoints as any[]
+        );
+
+        // Si había filas duplicadas o valores desactualizados en la tabla ascensos, sincronizarlos en segundo plano
+        if (idsDuplicados.length > 0) {
+          supabase
+            .from("ascensos")
+            .delete()
+            .in("id", idsDuplicados)
+            .then(() => {});
+        }
+        for (const calc of ascensosLimpios) {
+          const origRow = clubAscData.find((x: any) => x.id === calc.id);
+          if (
+            origRow &&
+            (origRow.puntos_origen !== calc.puntos_origen ||
+              origRow.puntos_transferidos !== calc.puntos_transferidos)
+          ) {
+            supabase
+              .from("ascensos")
+              .update({
+                puntos_origen: calc.puntos_origen,
+                puntos_transferidos: calc.puntos_transferidos,
+              })
+              .eq("id", calc.id)
+              .then(() => {});
+          }
+        }
+
+        // Mostrar los ascensos más recientes primero
+        const ascResult: AscensoItem[] = [...ascensosLimpios]
+          .reverse()
+          .map((a) => ({
+            id: a.id,
+            catOrigenNombre: catNameMap.get(a.categoria_origen_id) || "Categoría Origen",
+            catDestinoNombre: catNameMap.get(a.categoria_destino_id) || "Categoría Destino",
+            puntosOrigen: a.puntos_origen || 0,
+            puntosTransferidos: a.puntos_transferidos || 0,
+            anio: a.anio,
+            fecha: a.fecha || a.created_at || null,
+            notas: a.notas || null,
+          }));
 
         setAscensosHistorial(ascResult);
       } catch (err) {
@@ -278,13 +326,12 @@ export default function DetalleJugadorDialog({
   const categoriaLabel = () => {
     const c = categorias.find((c) => c.id === jugador.categoria_id);
     if (!c) return null;
-    return `${
-      c.genero === "caballeros"
+    return `${c.genero === "caballeros"
         ? "Caballeros"
         : c.genero === "damas"
-        ? "Damas"
-        : "Mixto"
-    } — ${c.nombre}`;
+          ? "Damas"
+          : "Mixto"
+      } — ${c.nombre}`;
   };
 
   const getInstanciaBadge = (instancia: string) => {

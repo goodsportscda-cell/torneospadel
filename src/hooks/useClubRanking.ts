@@ -208,16 +208,19 @@ export function useClubRanking(
         return true;
       });
 
-      // 5. Construcción de Desgloses y Puntos
+      // 5. Construcción de Desgloses y Puntos (separados estrictamente por categoría para no mezclar Suma 7/8 con categorías puras)
       const map = new Map<
         string,
         {
-          desglose: DesglosePunto[];
-          ptsTorneos: number;
-          ptsAscenso: number;
-          torneosDirectos: number;
           primaryCatId: string | null;
-          ptsPorCat: Map<string, number>;
+          porCat: Map<
+            string,
+            {
+              ptsTorneos: number;
+              ptsAscenso: number;
+              desglose: DesglosePunto[];
+            }
+          >;
         }
       >();
 
@@ -228,26 +231,25 @@ export function useClubRanking(
           return;
         }
 
+        const catKey = r.categoria_id ?? "sin_categoria";
         const cur = map.get(r.jugador_id) ?? {
-          desglose: [],
-          ptsTorneos: 0,
-          ptsAscenso: 0,
-          torneosDirectos: 0,
           primaryCatId: r.categoria_id ?? null,
-          ptsPorCat: new Map<string, number>(),
+          porCat: new Map(),
         };
 
-        if (r.categoria_id) {
-          cur.ptsPorCat.set(r.categoria_id, (cur.ptsPorCat.get(r.categoria_id) ?? 0) + r.puntos);
-        }
+        const catEntry = cur.porCat.get(catKey) ?? {
+          ptsTorneos: 0,
+          ptsAscenso: 0,
+          desglose: [],
+        };
 
         if (isAscenso(r.instancia)) {
-          cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos);
-          const existingAsc = cur.desglose.find((d) => d.tipo === "ascenso");
+          catEntry.ptsAscenso = Math.max(catEntry.ptsAscenso, r.puntos);
+          const existingAsc = catEntry.desglose.find((d) => d.tipo === "ascenso");
           if (existingAsc) {
             existingAsc.puntos = Math.max(existingAsc.puntos, r.puntos);
           } else {
-            cur.desglose.push({
+            catEntry.desglose.push({
               tipo: "ascenso",
               nombre: "Puntos por Ascenso",
               puntos: r.puntos,
@@ -256,9 +258,8 @@ export function useClubRanking(
           }
         } else {
           const tInfo = r.torneo_id ? torneosMap.get(r.torneo_id) : undefined;
-          cur.ptsTorneos += r.puntos;
-          cur.torneosDirectos += 1;
-          cur.desglose.push({
+          catEntry.ptsTorneos += r.puntos;
+          catEntry.desglose.push({
             tipo: "torneo",
             nombre: tInfo?.nombre || "Torneo Oficial",
             puntos: r.puntos,
@@ -266,6 +267,7 @@ export function useClubRanking(
           });
         }
 
+        cur.porCat.set(catKey, catEntry);
         map.set(r.jugador_id, cur);
       });
 
@@ -334,18 +336,31 @@ export function useClubRanking(
         // Determinar categoría efectiva de evaluación para este jugador
         let evalCatId: string | null =
           filtroCategoria !== "todas" ? filtroCategoria : m.primaryCatId;
-        if (filtroCategoria === "todas" && m.ptsPorCat.size > 0) {
-          let bestPts = -1;
-          m.ptsPorCat.forEach((pts, cId) => {
-            if (pts > bestPts) {
-              bestPts = pts;
-              evalCatId = cId;
-            }
-          });
+        if (filtroCategoria === "todas" && m.porCat.size > 0) {
+          const assignedCatId = categoryByPlayer.get(id)?.id ?? null;
+          if (assignedCatId && m.porCat.has(assignedCatId)) {
+            evalCatId = assignedCatId;
+          } else {
+            let bestPts = -1;
+            m.porCat.forEach((entry, cId) => {
+              const totalCat = entry.ptsTorneos + entry.ptsAscenso;
+              if (totalCat > bestPts) {
+                bestPts = totalCat;
+                evalCatId = cId === "sin_categoria" ? null : cId;
+              }
+            });
+          }
         }
 
+        const catStats = m.porCat.get(evalCatId ?? "sin_categoria") ??
+          Array.from(m.porCat.values())[0] ?? {
+            ptsTorneos: 0,
+            ptsAscenso: 0,
+            desglose: [],
+          };
+
         const metricasMaster = obtenerMetricasMasterJugador(id, evalCatId);
-        const desgloseSeguro = m.desglose || [];
+        const desgloseSeguro = [...(catStats.desglose || [])];
 
         desgloseSeguro.sort((a, b) => {
           if (!a.fecha) return 1;
@@ -353,7 +368,9 @@ export function useClubRanking(
           return new Date(b.fecha).getTime() - new Date(a.fecha).getTime();
         });
 
-        const puntos_totales = m.ptsTorneos + m.ptsAscenso;
+        const puntos_totales = catStats.ptsTorneos + catStats.ptsAscenso;
+        const evalCatInfo = evalCatId ? categoriasMap.get(evalCatId) : undefined;
+        const assignedCatInfo = categoryByPlayer.get(id);
 
         return {
           posicion: 0,
@@ -361,13 +378,13 @@ export function useClubRanking(
           jugador_nombre: j?.nombre ?? "?",
           jugador_apellido: j?.apellido ?? "?",
           jugador_club: j?.club ?? null,
-          jugador_categoria_id: categoryByPlayer.get(id)?.id ?? null,
-          jugador_categoria_nombre: categoryByPlayer.get(id)?.nombre ?? null,
-          jugador_categoria_genero: categoryByPlayer.get(id)?.genero ?? null,
+          jugador_categoria_id: evalCatInfo?.id ?? assignedCatInfo?.id ?? null,
+          jugador_categoria_nombre: evalCatInfo?.nombre ?? assignedCatInfo?.nombre ?? null,
+          jugador_categoria_genero: evalCatInfo?.genero ?? assignedCatInfo?.genero ?? null,
           categoria_ranking_id: evalCatId,
           puntos_totales,
-          puntos_torneos: m.ptsTorneos,
-          puntos_ascenso: m.ptsAscenso,
+          puntos_torneos: catStats.ptsTorneos,
+          puntos_ascenso: catStats.ptsAscenso,
           torneos_jugados: metricasMaster.torneos_jugados,
           torneos_en_categoria: metricasMaster.torneos_en_categoria,
           torneos_categoria_anterior: metricasMaster.torneos_categoria_anterior,

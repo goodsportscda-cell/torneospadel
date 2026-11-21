@@ -56,6 +56,7 @@ import {
   INSTANCIA_LABEL,
   type Instancia,
   recalcularTodosLosAscensos,
+  calcularAscensosEncadenadosJugador,
   isAscenso,
   construirContextoAscensosYTorneos,
   aplicarReglasMaster,
@@ -807,7 +808,7 @@ export default function Ranking() {
             .update({ instancia: "campeon", puntos: 600 })
             .eq("torneo_id", GS_6TA_DAMAS_TORNEO_ID)
             .eq("inscripcion_id", GS_6TA_DAMAS_CAMPEON_INSCRIPCION_ID)
-            .then(() => {});
+            .then(() => { });
         });
       }
     }
@@ -890,14 +891,12 @@ export default function Ranking() {
       return true;
     });
 
-    // Agrupar por jugador, excluyendo puntos de categorías desde las que ascendieron
+    // Agrupar por jugador separando estrictamente por categoría (nunca mezclar puntos de Suma 7/8 con categorías puras)
     const map = new Map<
       string,
       {
-        puntos: number;
-        ptsAscenso: number;
         primaryCatId: string | null;
-        ptsPorCat: Map<string, number>;
+        porCat: Map<string, { puntos: number; ptsAscenso: number }>;
       }
     >();
 
@@ -907,25 +906,20 @@ export default function Ranking() {
         return; // skip — ya ascendió de esta categoría
       }
 
+      const catKey = r.categoria_id ?? "sin_categoria";
       const cur = map.get(r.jugador_id) ?? {
-        puntos: 0,
-        ptsAscenso: 0,
         primaryCatId: r.categoria_id ?? null,
-        ptsPorCat: new Map<string, number>(),
+        porCat: new Map<string, { puntos: number; ptsAscenso: number }>(),
       };
 
-      if (r.categoria_id) {
-        cur.ptsPorCat.set(
-          r.categoria_id,
-          (cur.ptsPorCat.get(r.categoria_id) ?? 0) + r.puntos
-        );
-      }
+      const catEntry = cur.porCat.get(catKey) ?? { puntos: 0, ptsAscenso: 0 };
 
       if (isAscenso(r.instancia)) {
-        cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos);
+        catEntry.ptsAscenso = Math.max(catEntry.ptsAscenso, r.puntos);
       } else {
-        cur.puntos += r.puntos;
+        catEntry.puntos += r.puntos;
       }
+      cur.porCat.set(catKey, catEntry);
       map.set(r.jugador_id, cur);
     });
 
@@ -983,24 +977,34 @@ export default function Ranking() {
 
       let evalCatId: string | null =
         filtroCategoria !== "todas" ? filtroCategoria : m.primaryCatId;
-      if (filtroCategoria === "todas" && m.ptsPorCat.size > 0) {
-        let bestPts = -1;
-        m.ptsPorCat.forEach((pts, cId) => {
-          if (pts > bestPts) {
-            bestPts = pts;
-            evalCatId = cId;
-          }
-        });
+      if (filtroCategoria === "todas" && m.porCat.size > 0) {
+        const assignedCatId = playerCategory?.categoria_id ?? null;
+        if (assignedCatId && m.porCat.has(assignedCatId)) {
+          evalCatId = assignedCatId;
+        } else {
+          let bestPts = -1;
+          m.porCat.forEach((entry, cId) => {
+            const totalCat = entry.puntos + entry.ptsAscenso;
+            if (totalCat > bestPts) {
+              bestPts = totalCat;
+              evalCatId = cId === "sin_categoria" ? null : cId;
+            }
+          });
+        }
       }
 
+      const catStats = m.porCat.get(evalCatId ?? "sin_categoria") ??
+        Array.from(m.porCat.values())[0] ?? { puntos: 0, ptsAscenso: 0 };
+
       const metricasMaster = obtenerMetricasMasterJugador(id, evalCatId);
+      const evalCatInfo = evalCatId ? catById.get(evalCatId) : undefined;
 
       return {
         posicion: 0,
         jugador_id: id,
-        puntos_totales: m.puntos + m.ptsAscenso,
-        puntos_torneos: m.puntos,
-        puntos_ascenso: m.ptsAscenso,
+        puntos_totales: catStats.puntos + catStats.ptsAscenso,
+        puntos_torneos: catStats.puntos,
+        puntos_ascenso: catStats.ptsAscenso,
         torneos_jugados: metricasMaster.torneos_jugados,
         torneos_en_categoria: metricasMaster.torneos_en_categoria,
         torneos_categoria_anterior: metricasMaster.torneos_categoria_anterior,
@@ -1011,9 +1015,9 @@ export default function Ranking() {
         jugador_nombre: j?.nombre ?? "?",
         jugador_apellido: j?.apellido ?? "?",
         jugador_club: j?.club ?? null,
-        jugador_categoria_id: playerCategory?.categoria_id ?? null,
-        jugador_categoria_nombre: playerCategory?.categoria_nombre ?? null,
-        jugador_categoria_genero: playerCategory?.genero ?? null,
+        jugador_categoria_id: evalCatInfo?.id ?? playerCategory?.categoria_id ?? null,
+        jugador_categoria_nombre: evalCatInfo?.nombre ?? playerCategory?.categoria_nombre ?? null,
+        jugador_categoria_genero: evalCatInfo?.genero ?? playerCategory?.genero ?? null,
         desglose: [],
       };
     });
@@ -1299,6 +1303,11 @@ export default function Ranking() {
       const notasList = activeAscensos.map((a: any) => a.notas).filter(Boolean);
       setDetalleAscensoNotas(notasList.length > 0 ? notasList.join(" | ") : null);
 
+      const targetCatForDetail =
+        filtroCategoria !== "todas"
+          ? filtroCategoria
+          : jugador.categoria_ranking_id ?? null;
+
       let q = supabase
         .from("ranking_jugadores")
         .select("jugador_id, torneo_id, inscripcion_id, instancia, puntos, categoria_id")
@@ -1308,7 +1317,7 @@ export default function Ranking() {
           "categoria_id",
           categorias.map((c) => c.id)
         );
-      if (filtroCategoria !== "todas") q = q.eq("categoria_id", filtroCategoria);
+      if (targetCatForDetail) q = q.eq("categoria_id", targetCatForDetail);
       if (filtroGenero !== "todos") q = q.eq("genero", filtroGenero);
       const { data: rj, error } = await q;
       if (error) throw error;
@@ -1430,32 +1439,38 @@ export default function Ranking() {
     setAscensoJugadorBusqueda(`${j.apellido}, ${j.nombre}`);
     setAscensoJugadores([]);
 
-    const { data: rankData } = await supabase
-      .from("ranking_jugadores")
-      .select("categoria_id, puntos")
-      .eq("jugador_id", j.id)
-      .eq("anio", filtroAnio)
-      .in(
-        "categoria_id",
-        categorias.map((category) => category.id)
-      );
+    const [{ data: rankData }, { data: ascPrev }] = await Promise.all([
+      supabase
+        .from("ranking_jugadores")
+        .select("categoria_id, puntos, instancia, anio")
+        .eq("jugador_id", j.id)
+        .eq("anio", filtroAnio)
+        .in(
+          "categoria_id",
+          categorias.map((category) => category.id)
+        ),
+      supabase
+        .from("ascensos")
+        .select("*")
+        .eq("jugador_id", j.id)
+        .eq("anio", filtroAnio)
+        .in(
+          "categoria_destino_id",
+          categorias.map((category) => category.id)
+        ),
+    ]);
 
     const puntosXCat = new Map<string, number>();
-    (rankData ?? []).forEach((r) => {
-      if (!r.categoria_id) return;
+    (rankData ?? []).forEach((r: any) => {
+      if (!r.categoria_id || isAscenso(r.instancia)) return;
       puntosXCat.set(r.categoria_id, (puntosXCat.get(r.categoria_id) ?? 0) + r.puntos);
     });
 
-    const { data: ascPrev } = await supabase
-      .from("ascensos")
-      .select("categoria_destino_id, puntos_transferidos")
-      .eq("jugador_id", j.id)
-      .eq("anio", filtroAnio)
-      .in(
-        "categoria_destino_id",
-        categorias.map((category) => category.id)
-      );
-    (ascPrev ?? []).forEach((a) => {
+    const { ascensosLimpios } = calcularAscensosEncadenadosJugador(
+      (ascPrev ?? []) as any[],
+      (rankData ?? []) as any[]
+    );
+    ascensosLimpios.forEach((a) => {
       puntosXCat.set(
         a.categoria_destino_id,
         (puntosXCat.get(a.categoria_destino_id) ?? 0) + a.puntos_transferidos
@@ -1556,24 +1571,69 @@ export default function Ranking() {
       setAscensosList([]);
       return;
     }
-    const { data } = await (supabase as any)
-      .from("ascensos")
-      .select("*")
-      .eq("anio", filtroAnio)
-      .in(
-        "categoria_origen_id",
-        categorias.map((c) => c.id)
-      )
-      .in(
-        "categoria_destino_id",
-        categorias.map((c) => c.id)
-      )
-      .order("fecha", { ascending: false });
+    const catIds = categorias.map((c) => c.id);
+    const [{ data }, allRankYear] = await Promise.all([
+      (supabase as any)
+        .from("ascensos")
+        .select("*")
+        .eq("anio", filtroAnio)
+        .in("categoria_origen_id", catIds)
+        .in("categoria_destino_id", catIds)
+        .order("fecha", { ascending: false }),
+      fetchAllRankingRowsYear(filtroAnio, catIds),
+    ]);
     if (!data || (data as any[]).length === 0) {
       setAscensosList([]);
       return;
     }
-    const jugIds = Array.from(new Set((data as any[]).map((a: any) => a.jugador_id)));
+
+    const ascPorJugador = new Map<string, any[]>();
+    (data as any[]).forEach((a: any) => {
+      const list = ascPorJugador.get(a.jugador_id) ?? [];
+      list.push(a);
+      ascPorJugador.set(a.jugador_id, list);
+    });
+
+    const rkPorJugador = new Map<string, any[]>();
+    (allRankYear ?? []).forEach((r: any) => {
+      const list = rkPorJugador.get(r.jugador_id) ?? [];
+      list.push(r);
+      rkPorJugador.set(r.jugador_id, list);
+    });
+
+    const cleanedAscensos: any[] = [];
+    let needsDbRepair = false;
+
+    for (const [jId, pAscs] of ascPorJugador.entries()) {
+      const pRk = rkPorJugador.get(jId) ?? [];
+      const { ascensosLimpios, idsDuplicados } = calcularAscensosEncadenadosJugador(pAscs, pRk);
+      if (idsDuplicados.length > 0) needsDbRepair = true;
+      for (const calc of ascensosLimpios) {
+        const orig = pAscs.find((x) => x.id === calc.id);
+        if (
+          orig &&
+          (orig.puntos_origen !== calc.puntos_origen ||
+            orig.puntos_transferidos !== calc.puntos_transferidos)
+        ) {
+          needsDbRepair = true;
+        }
+        cleanedAscensos.push({
+          ...(orig ?? calc),
+          puntos_origen: calc.puntos_origen,
+          puntos_transferidos: calc.puntos_transferidos,
+        });
+      }
+    }
+
+    if (needsDbRepair) {
+      recalcularTodosLosAscensos(filtroAnio, clubId).then(() => { });
+    }
+
+    cleanedAscensos.sort((a, b) =>
+      String(b.fecha || b.created_at || "").localeCompare(String(a.fecha || a.created_at || ""))
+    );
+
+    const jugIds = Array.from(new Set(cleanedAscensos.map((a: any) => a.jugador_id)));
     const chunkSize = 100;
     const chunks = [];
     for (let i = 0; i < jugIds.length; i += chunkSize) {
@@ -1601,7 +1661,7 @@ export default function Ranking() {
     }
 
     setAscensosList(
-      (data as any[]).map((a: any) => {
+      cleanedAscensos.map((a: any) => {
         const j = jugs?.find((x) => x.id === a.jugador_id);
         return { ...a, jugador_nombre: j?.nombre, jugador_apellido: j?.apellido };
       })
@@ -2866,8 +2926,8 @@ export default function Ranking() {
                   item.genero === "damas"
                     ? "Damas"
                     : item.genero === "caballeros"
-                    ? "Caballeros"
-                    : "Mixto";
+                      ? "Caballeros"
+                      : "Mixto";
 
                 return (
                   <div
@@ -2984,8 +3044,8 @@ export default function Ranking() {
                                 {item.torneo_id === GS_6TA_DAMAS_TORNEO_ID
                                   ? "(Antes: Subcampeón · 400 pts)"
                                   : d.puntos_llave !== d.puntos_actuales
-                                  ? `(Antes: ${INSTANCIA_LABEL[d.instancia_llave]} · ${d.puntos_llave} pts)`
-                                  : ""}
+                                    ? `(Antes: ${INSTANCIA_LABEL[d.instancia_llave]} · ${d.puntos_llave} pts)`
+                                    : ""}
                               </span>
                             )}
                           </div>
@@ -3003,21 +3063,21 @@ export default function Ranking() {
               {syncAuditItems.some(
                 (i) => i.tiene_snapshot_reversible && !i.esta_revertido_manual
               ) && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  disabled={processingSyncTorneoId !== null}
-                  onClick={handleRevertirTodasLasSincronizaciones}
-                  className="gap-1.5"
-                >
-                  {processingSyncTorneoId === "ALL" ? (
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                  ) : (
-                    <RotateCcw className="h-4 w-4" />
-                  )}
-                  Revertir todas las correcciones
-                </Button>
-              )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    disabled={processingSyncTorneoId !== null}
+                    onClick={handleRevertirTodasLasSincronizaciones}
+                    className="gap-1.5"
+                  >
+                    {processingSyncTorneoId === "ALL" ? (
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4" />
+                    )}
+                    Revertir todas las correcciones
+                  </Button>
+                )}
             </div>
             <div className="flex gap-2">
               <Button

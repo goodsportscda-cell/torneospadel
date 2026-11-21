@@ -1091,6 +1091,100 @@ export async function calcularRankingTorneo(torneoId: string, skipAscensosRecalc
   }
 }
 
+export type AscensoCalculado = {
+  id: string;
+  jugador_id: string;
+  categoria_origen_id: string;
+  categoria_destino_id: string;
+  anio: number;
+  fecha: string | null;
+  created_at?: string | null;
+  notas: string | null;
+  puntos_origen: number;
+  puntos_transferidos: number;
+};
+
+/**
+ * Deduplica los ascensos de un jugador por `(anio, categoria_origen_id, categoria_destino_id)`
+ * y calcula en orden cronológico los puntos reales acumulados en la categoría origen
+ * (puntos de torneos en esa categoría + puntos transferidos desde un ascenso previo encadenado)
+ * y el 50% transferido (`Math.floor(puntos_origen / 2)`).
+ */
+export function calcularAscensosEncadenadosJugador(
+  ascensosRaw: any[],
+  rankingRowsJugador: Array<{
+    categoria_id: string | null;
+    puntos: number;
+    instancia: string;
+    anio?: number | null;
+  }>
+): {
+  ascensosLimpios: AscensoCalculado[];
+  idsDuplicados: string[];
+} {
+  if (!Array.isArray(ascensosRaw) || ascensosRaw.length === 0) {
+    return { ascensosLimpios: [], idsDuplicados: [] };
+  }
+
+  // Ordenar cronológicamente (más antiguos primero) para encadenar 6ta -> 5ta -> 4ta
+  const sorted = [...ascensosRaw].sort((a, b) => {
+    const da = a.fecha || a.created_at || "";
+    const db = b.fecha || b.created_at || "";
+    if (da !== db) return String(da).localeCompare(String(db));
+    return String(a.created_at || "").localeCompare(String(b.created_at || ""));
+  });
+
+  const seenKey = new Map<string, any>();
+  const idsDuplicados: string[] = [];
+
+  for (const asc of sorted) {
+    const anio = Number(asc.anio) || 2026;
+    const key = `${anio}_${asc.categoria_origen_id}_${asc.categoria_destino_id}`;
+    if (seenKey.has(key)) {
+      if (asc.id) idsDuplicados.push(asc.id);
+    } else {
+      seenKey.set(key, asc);
+    }
+  }
+
+  // Mapa de puntos por (anio, categoria_id) solo de torneos reales (excluyendo instancia='ascenso')
+  const puntosPorAnioYCat = new Map<string, number>();
+  (rankingRowsJugador || []).forEach((r) => {
+    if (!r.categoria_id || isAscenso(r.instancia)) return;
+    const anio = Number(r.anio) || 2026;
+    const k = `${anio}_${r.categoria_id}`;
+    puntosPorAnioYCat.set(k, (puntosPorAnioYCat.get(k) ?? 0) + (Number(r.puntos) || 0));
+  });
+
+  const ascensosLimpios: AscensoCalculado[] = [];
+  for (const asc of seenKey.values()) {
+    const anio = Number(asc.anio) || 2026;
+    const origKey = `${anio}_${asc.categoria_origen_id}`;
+    const destKey = `${anio}_${asc.categoria_destino_id}`;
+
+    const ptsOrigen = puntosPorAnioYCat.get(origKey) ?? 0;
+    const ptsTransferidos = Math.floor(ptsOrigen / 2);
+
+    // Encadenar hacia la categoría destino para futuros ascensos del mismo jugador en el año
+    puntosPorAnioYCat.set(destKey, (puntosPorAnioYCat.get(destKey) ?? 0) + ptsTransferidos);
+
+    ascensosLimpios.push({
+      id: asc.id,
+      jugador_id: asc.jugador_id,
+      categoria_origen_id: asc.categoria_origen_id,
+      categoria_destino_id: asc.categoria_destino_id,
+      anio,
+      fecha: asc.fecha ?? null,
+      created_at: asc.created_at ?? null,
+      notas: asc.notas ?? null,
+      puntos_origen: ptsOrigen,
+      puntos_transferidos: ptsTransferidos,
+    });
+  }
+
+  return { ascensosLimpios, idsDuplicados };
+}
+
 export async function recalcularTodosLosAscensos(anio: number, clubId?: string | null): Promise<void> {
   try {
     let categoryIds: string[] | null = null;
@@ -1106,7 +1200,7 @@ export async function recalcularTodosLosAscensos(anio: number, clubId?: string |
     // 1. Obtener todos los ascensos de este año ordenados cronológicamente
     let ascensosQuery = supabase
       .from("ascensos")
-      .select("id, jugador_id, categoria_origen_id, categoria_destino_id")
+      .select("id, jugador_id, categoria_origen_id, categoria_destino_id, anio, fecha, created_at, notas, puntos_origen, puntos_transferidos")
       .eq("anio", anio)
       .order("fecha", { ascending: true })
       .order("created_at", { ascending: true });
@@ -1116,62 +1210,71 @@ export async function recalcularTodosLosAscensos(anio: number, clubId?: string |
     if (errA) throw errA;
     if (!ascensos || ascensos.length === 0) return;
 
-    // 2. Obtener todos los puntos de ranking_jugadores del año
-    let rankingQuery = supabase
-      .from("ranking_jugadores")
-      .select("jugador_id, categoria_id, puntos")
-      .eq("anio", anio);
-    if (categoryIds) rankingQuery = rankingQuery.in("categoria_id", categoryIds);
-    const { data: rankingData, error: errR } = await rankingQuery;
+    // 2. Obtener TODOS los puntos de ranking_jugadores del año de forma paginada (superando el límite de 1.000 filas)
+    const rankingData = await fetchAllRankingRowsYear(anio, categoryIds ?? undefined);
 
-    if (errR) throw errR;
-
-    // Mapa de puntos acumulados por jugador y categoría: Map<jugador_id, Map<categoria_id, puntos>>
-    const puntosPorJugador = new Map<string, Map<string, number>>();
-
-    // Poblar con los puntos base de torneos
-    (rankingData ?? []).forEach((r) => {
-      if (!r.categoria_id) return;
-      if (!puntosPorJugador.has(r.jugador_id)) {
-        puntosPorJugador.set(r.jugador_id, new Map());
-      }
-      const catMap = puntosPorJugador.get(r.jugador_id)!;
-      catMap.set(r.categoria_id, (catMap.get(r.categoria_id) ?? 0) + r.puntos);
+    // Agrupar ascensos y filas de ranking por jugador
+    const ascPorJugador = new Map<string, any[]>();
+    (ascensos as any[]).forEach((a) => {
+      const list = ascPorJugador.get(a.jugador_id) ?? [];
+      list.push(a);
+      ascPorJugador.set(a.jugador_id, list);
     });
 
-    // 3. Procesar ascensos cronológicamente actualizando los puntos transferidos
-    const updatePromises = [];
-    for (const asc of ascensos) {
-      const pId = asc.jugador_id;
-      const catOrig = asc.categoria_origen_id;
-      const catDest = asc.categoria_destino_id;
+    const rkPorJugador = new Map<string, any[]>();
+    (rankingData ?? []).forEach((r: any) => {
+      const list = rkPorJugador.get(r.jugador_id) ?? [];
+      list.push(r);
+      rkPorJugador.set(r.jugador_id, list);
+    });
 
-      // Puntos actuales en la categoría origen (torneos + posibles transferencias previas)
-      const catMap = puntosPorJugador.get(pId) ?? new Map<string, number>();
-      const ptsOrigen = catMap.get(catOrig) ?? 0;
-      const ptsTransferidos = Math.floor(ptsOrigen / 2);
+    const updatePromises: Promise<any>[] = [];
+    const duplicateAscensoIdsToDelete: string[] = [];
 
-      // Actualizar en la base de datos (lo guardamos en un array para ejecutar en paralelo)
-      updatePromises.push(
-        supabase
-          .from("ascensos")
-          .update({
-            puntos_origen: ptsOrigen,
-            puntos_transferidos: ptsTransferidos,
-          })
-          .eq("id", asc.id)
+    for (const [jId, playerAscs] of ascPorJugador.entries()) {
+      const playerRk = rkPorJugador.get(jId) ?? [];
+      const { ascensosLimpios, idsDuplicados } = calcularAscensosEncadenadosJugador(
+        playerAscs,
+        playerRk
       );
 
-      // Sumar los puntos transferidos a la categoría destino para futuros ascensos encadenados
-      if (!puntosPorJugador.has(pId)) {
-        puntosPorJugador.set(pId, new Map());
+      if (idsDuplicados.length > 0) {
+        duplicateAscensoIdsToDelete.push(...idsDuplicados);
       }
-      const destCatMap = puntosPorJugador.get(pId)!;
-      destCatMap.set(catDest, (destCatMap.get(catDest) ?? 0) + ptsTransferidos);
+
+      for (const calc of ascensosLimpios) {
+        const origRow = playerAscs.find((x) => x.id === calc.id);
+        if (
+          !origRow ||
+          origRow.puntos_origen !== calc.puntos_origen ||
+          origRow.puntos_transferidos !== calc.puntos_transferidos
+        ) {
+          updatePromises.push(
+            Promise.resolve(
+              supabase
+                .from("ascensos")
+                .update({
+                  puntos_origen: calc.puntos_origen,
+                  puntos_transferidos: calc.puntos_transferidos,
+                })
+                .eq("id", calc.id)
+            )
+          );
+        }
+      }
     }
 
-    // Ejecutar todas las actualizaciones en paralelo para optimizar velocidad
-    await Promise.all(updatePromises);
+    if (duplicateAscensoIdsToDelete.length > 0) {
+      updatePromises.push(
+        Promise.resolve(
+          supabase.from("ascensos").delete().in("id", duplicateAscensoIdsToDelete)
+        )
+      );
+    }
+
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
+    }
   } catch (err) {
     console.error("Error en recalcularTodosLosAscensos:", err);
   }
