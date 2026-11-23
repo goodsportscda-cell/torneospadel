@@ -42,6 +42,8 @@ import { MasterPlacaModal, type PlacaJugadorItem } from "@/components/ranking/Ma
 import {
   getCupoDefaultCategoria,
   isCategoriaSuma,
+  getNumeroSumaCategoria,
+  formatSumaModalidadLabel,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
   formatTorneosMasterBadge,
@@ -94,8 +96,26 @@ export default function RankingPublico() {
   const [busqueda, setBusqueda] = useState("");
   const [copiado, setCopiado] = useState(false);
 
+  const esFiltroTorneoSuma = useMemo(() => {
+    if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
+      return true;
+    }
+    if (filtroTorneo.startsWith("cat_torneo:")) {
+      const cId = filtroTorneo.slice("cat_torneo:".length);
+      const cat = categorias.find((c) => c.id === cId);
+      if (cat && isCategoriaSuma(cat.nombre)) return true;
+    }
+    return false;
+  }, [filtroTorneo, categorias]);
+
+  useEffect(() => {
+    if (esFiltroTorneoSuma && filtroCategoria !== "todas") {
+      setFiltroCategoria("todas");
+    }
+  }, [esFiltroTorneoSuma, filtroCategoria]);
+
   const categoriaSeleccionada = useMemo(() => {
-    if (filtroCategoria !== "todas") {
+    if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
       return categorias.find((c) => c.id === filtroCategoria) ?? null;
     }
     if (filtroTorneo && filtroTorneo !== "todos") {
@@ -116,26 +136,48 @@ export default function RankingPublico() {
         return categorias.find((c) => c.id === cId) ?? null;
       }
     }
-    return null;
-  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero]);
-
-  const cupoActual = useMemo(() => {
-    if (!categoriaSeleccionada) {
-      if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
-        return 8;
-      }
-      return null;
+    if (filtroCategoria !== "todas") {
+      return categorias.find((c) => c.id === filtroCategoria) ?? null;
     }
-    const def = getCupoDefaultCategoria(categoriaSeleccionada.nombre);
-    return cuposMaster[categoriaSeleccionada.id] ?? def;
-  }, [categoriaSeleccionada, cuposMaster, filtroTorneo]);
+    return null;
+  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero, esFiltroTorneoSuma]);
 
   const esSuma8 = useMemo(
-    () =>
-      isCategoriaSuma(categoriaSeleccionada?.nombre) ||
-      (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")),
-    [categoriaSeleccionada, filtroTorneo]
+    () => isCategoriaSuma(categoriaSeleccionada?.nombre) || esFiltroTorneoSuma,
+    [categoriaSeleccionada, esFiltroTorneoSuma]
   );
+
+  const sumaLabelActiva = useMemo(() => {
+    if (filtroTorneo.startsWith("modalidad:")) {
+      return formatSumaModalidadLabel(filtroTorneo.slice("modalidad:".length));
+    }
+    if (categoriaSeleccionada?.nombre && isCategoriaSuma(categoriaSeleccionada.nombre)) {
+      return formatSumaModalidadLabel(categoriaSeleccionada.nombre);
+    }
+    return "Suma 7";
+  }, [filtroTorneo, categoriaSeleccionada]);
+
+  const numeroSumaActivo = useMemo(
+    () => getNumeroSumaCategoria(sumaLabelActiva) ?? 7,
+    [sumaLabelActiva]
+  );
+
+  const nombreCategoriaPlaca = useMemo(() => {
+    if (esSuma8) return sumaLabelActiva;
+    return categoriaSeleccionada?.nombre ?? "Categoría";
+  }, [esSuma8, sumaLabelActiva, categoriaSeleccionada]);
+
+  const cupoActual = useMemo(() => {
+    if (esSuma8) {
+      if (categoriaSeleccionada && cuposMaster[categoriaSeleccionada.id]) {
+        return Math.min(cuposMaster[categoriaSeleccionada.id], 8);
+      }
+      return 8;
+    }
+    if (!categoriaSeleccionada) return null;
+    const def = getCupoDefaultCategoria(categoriaSeleccionada.nombre);
+    return cuposMaster[categoriaSeleccionada.id] ?? def;
+  }, [categoriaSeleccionada, cuposMaster, esSuma8]);
 
   const {
     rankingRows: rows,
@@ -263,6 +305,9 @@ export default function RankingPublico() {
         catName = ` - ${cat.nombre} ${gen}`;
       }
     }
+    if (filtroTorneo !== "todos") {
+      params.torneo = filtroTorneo;
+    }
     if (filtroGenero !== "todos") {
       params.genero = filtroGenero;
     }
@@ -271,7 +316,7 @@ export default function RankingPublico() {
     }
     setSearchParams(params, { replace: true });
     document.title = `Ranking${catName} | Padel ID`;
-  }, [filtroAnio, filtroCategoria, filtroGenero, vistaModo, categorias, setSearchParams]);
+  }, [filtroAnio, filtroCategoria, filtroTorneo, filtroGenero, vistaModo, categorias, setSearchParams]);
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return rows;
@@ -333,20 +378,31 @@ export default function RankingPublico() {
     [rows]
   );
 
+  const elegirCategoriaConTorneosPorDefecto = (): string | null => {
+    const catIdsConTorneos = new Set(
+      torneosDisponibles.map((t) => t.categoria_id).filter(Boolean) as string[]
+    );
+    const catConTorneos = categorias.find((c) => catIdsConTorneos.has(c.id));
+    if (catConTorneos) return catConTorneos.id;
+    return categorias[0]?.id ?? null;
+  };
+
   const handleActivarVistaMaster = () => {
-    if (filtroCategoria === "todas" && categorias.length > 0) {
-      setFiltroCategoria(categorias[0].id);
+    if (filtroCategoria === "todas" && filtroTorneo === "todos") {
+      const defaultCatId = elegirCategoriaConTorneosPorDefecto();
+      if (defaultCatId) setFiltroCategoria(defaultCatId);
     }
     setVistaModo("master");
   };
 
   const handleAbrirPlaca = () => {
-    if (filtroCategoria === "todas") {
-      if (categorias.length > 0) {
-        setFiltroCategoria(categorias[0].id);
-        toast.info("Seleccionamos la primera categoría para generar la placa del Master.");
+    if (filtroCategoria === "todas" && filtroTorneo === "todos") {
+      const defaultCatId = elegirCategoriaConTorneosPorDefecto();
+      if (defaultCatId) {
+        setFiltroCategoria(defaultCatId);
+        toast.info("Seleccionamos la primera categoría activa para generar la placa del Master.");
       } else {
-        toast.error("Seleccioná una categoría primero para generar la placa.");
+        toast.error("Seleccioná una categoría o modalidad primero para generar la placa.");
         return;
       }
     }
@@ -465,7 +521,7 @@ export default function RankingPublico() {
             <p className="text-sm font-medium text-muted-foreground pt-1 max-w-2xl">
               Tabla oficial de posiciones. Clasifican al Master de Diciembre los mejores{" "}
               <strong>16 jugadores elegibles</strong> en Categorías Puras y los mejores{" "}
-              <strong>8 titulares elegibles</strong> en Suma 8 (con al menos{" "}
+              <strong>8 titulares elegibles</strong> en modalidades Suma (con al menos{" "}
               <strong>{TORNEOS_REQUERIDOS_MASTER} de los {TORNEOS_TOTALES_ANIO} torneos</strong>{" "}
               del año jugados).
             </p>
@@ -495,7 +551,7 @@ export default function RankingPublico() {
                 </Button>
               </div>
 
-              {(vistaModo === "master" || filtroCategoria !== "todas") && (
+              {(vistaModo === "master" || filtroCategoria !== "todas" || filtroTorneo !== "todos") && (
                 <Button
                   type="button"
                   size="sm"
@@ -519,7 +575,8 @@ export default function RankingPublico() {
                 <Filter className="h-3 w-3" /> Categoría del jugador
               </label>
               <Select
-                value={filtroCategoria}
+                value={esFiltroTorneoSuma ? "todas" : filtroCategoria}
+                disabled={esFiltroTorneoSuma}
                 onValueChange={(v) => {
                   setFiltroCategoria(v);
                   if (v !== "todas" && filtroTorneo !== "todos") {
@@ -644,7 +701,7 @@ export default function RankingPublico() {
                 </div>
                 <div>
                   <p className="font-bold text-base">
-                    Carrera al Master · {categoriaSeleccionada?.nombre}
+                    Carrera al Master · {nombreCategoriaPlaca}
                   </p>
                   <p className="text-muted-foreground text-xs mt-0.5">
                     Clasifican los mejores{" "}
@@ -670,7 +727,7 @@ export default function RankingPublico() {
               <div className="flex items-center gap-3 p-4 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs sm:text-sm font-semibold">
                 <Users className="h-5 w-5 shrink-0 text-amber-500" />
                 <span>
-                  Los 8 clasificados eligen compañero/a respetando la suma de categoría = 8.
+                  Regla {sumaLabelActiva}: Los {cupoActual ?? 8} clasificados titulares eligen/invitan a su compañero/a respetando que la suma de ambas categorías dé {numeroSumaActivo}.
                 </span>
               </div>
             )}
@@ -779,12 +836,12 @@ export default function RankingPublico() {
         ) : (
           /* VISTA 2: CLASIFICADOS AL MASTER + SECCIÓN SUPLENTES */
           <div className="space-y-6">
-            {filtroCategoria === "todas" && (
+            {filtroCategoria === "todas" && filtroTorneo === "todos" && (
               <div className="flex items-center gap-2 p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-xs font-medium">
                 <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
                 <span>
-                  Seleccioná una categoría específica arriba para ver los cupos exactos (16 en
-                  Categorías Puras / 8 en Suma 8) y generar la placa oficial.
+                  Seleccioná una categoría o modalidad específica arriba para ver los cupos exactos
+                  (16 en Categorías Puras / 8 en modalidades Suma) y generar la placa oficial.
                 </span>
               </div>
             )}
@@ -857,7 +914,7 @@ export default function RankingPublico() {
                                   variant="outline"
                                   className="w-fit text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400 bg-amber-500/10"
                                 >
-                                  + Compañero/a a confirmar (Suma 8)
+                                  + Compañero/a a confirmar ({sumaLabelActiva})
                                 </Badge>
                               )}
                             </div>
@@ -981,8 +1038,11 @@ export default function RankingPublico() {
       <MasterPlacaModal
         open={placaOpen}
         onOpenChange={setPlacaOpen}
-        categoriaNombre={categoriaSeleccionada?.nombre ?? "Categoría"}
-        categoriaGenero={categoriaSeleccionada?.genero ?? "caballeros"}
+        categoriaNombre={nombreCategoriaPlaca}
+        categoriaGenero={
+          categoriaSeleccionada?.genero ??
+          (filtroGenero !== "todos" ? filtroGenero : "caballeros")
+        }
         anio={filtroAnio}
         cupo={cupoActual ?? (esSuma8 ? 8 : 16)}
         clasificados={placaClasificados}

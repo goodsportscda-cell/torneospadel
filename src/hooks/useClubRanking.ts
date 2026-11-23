@@ -303,28 +303,31 @@ export function useClubRanking(
         categoriasTorneoFiltro && categoriasTorneoFiltro.size === 1
           ? Array.from(categoriasTorneoFiltro)[0]
           : null;
-      const effectiveFiltroCategoria =
-        filtroCategoria !== "todas"
+      const tieneFiltroTorneoActivo =
+        Boolean(categoriasTorneoFiltro && categoriasTorneoFiltro.size > 0) ||
+        Boolean(torneoEspecificoId);
+      const effectiveFiltroCategoria = tieneFiltroTorneoActivo
+        ? singleTorneoCatId ?? "todas"
+        : filtroCategoria !== "todas"
           ? filtroCategoria
-          : singleTorneoCatId ?? "todas";
+          : "todas";
 
-      // Filtrar las filas que aplican a la vista actual: si hay un torneo/modalidad seleccionado, SOLO entran filas de esa categoría de torneo
+      // Filtrar las filas que aplican a la vista actual:
+      // Si hay un torneo o modalidad Suma seleccionada en filtroTorneo, es independiente de filtroCategoria (no se cruza con Categoría del jugador)
       const filteredRankingRows = validAllRankingRows.filter((r) => {
-        if (filtroCategoria !== "todas" && !coincideFilaConCategoria(r, filtroCategoria)) {
-          return false;
-        }
-        if (
-          categoriasTorneoFiltro &&
-          categoriasTorneoFiltro.size > 0 &&
-          !Array.from(categoriasTorneoFiltro).some((cId) => coincideFilaConCategoria(r, cId))
-        ) {
-          return false;
-        }
-        if (
-          filtroCategoria === "todas" &&
-          (!categoriasTorneoFiltro || categoriasTorneoFiltro.size === 0) &&
-          !coincideFilaConCategoria(r, "todas")
-        ) {
+        if (tieneFiltroTorneoActivo) {
+          if (
+            categoriasTorneoFiltro &&
+            categoriasTorneoFiltro.size > 0 &&
+            !Array.from(categoriasTorneoFiltro).some((cId) => coincideFilaConCategoria(r, cId))
+          ) {
+            return false;
+          }
+        } else if (filtroCategoria !== "todas") {
+          if (!coincideFilaConCategoria(r, filtroCategoria)) {
+            return false;
+          }
+        } else if (!coincideFilaConCategoria(r, "todas")) {
           return false;
         }
         if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;

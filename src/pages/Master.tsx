@@ -12,6 +12,7 @@ import {
   aplicarReglasMaster,
   getCupoDefaultCategoria,
   isCategoriaSuma,
+  formatSumaModalidadLabel,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
   fetchAllRankingRowsYear,
@@ -444,7 +445,7 @@ export default function Master() {
                         </CardTitle>
                         {esSuma && (
                           <p className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold mt-0.5 flex items-center gap-1">
-                            <Users className="h-3 w-3" />8 titulares + compañero/a (Suma 8)
+                            <Users className="h-3 w-3" />8 titulares + compañero/a ({formatSumaModalidadLabel(d.categoria.nombre)})
                           </p>
                         )}
                       </div>

@@ -180,6 +180,21 @@ export function isCategoriaSuma(nombreCategoria: string | null | undefined): boo
   return n.includes("suma") || n.startsWith("suma");
 }
 
+export function getNumeroSumaCategoria(nombreCategoria: string | null | undefined): number | null {
+  if (!nombreCategoria) return null;
+  const match = nombreCategoria.toLowerCase().match(/suma\s*(\d+)/);
+  if (match && match[1]) {
+    const num = parseInt(match[1], 10);
+    if (!isNaN(num)) return num;
+  }
+  return isCategoriaSuma(nombreCategoria) ? 7 : null;
+}
+
+export function formatSumaModalidadLabel(nombreCategoria: string | null | undefined): string {
+  const num = getNumeroSumaCategoria(nombreCategoria);
+  return num !== null ? `Suma ${num}` : "Suma 7";
+}
+
 export function getNivelCategoriaPura(nombreCategoria: string | null | undefined): number | null {
   if (!nombreCategoria || isCategoriaSuma(nombreCategoria)) return null;
   const match = nombreCategoria.trim().match(/^(\d+)/);

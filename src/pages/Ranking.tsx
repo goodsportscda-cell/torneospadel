@@ -62,6 +62,8 @@ import {
   aplicarReglasMaster,
   getCupoDefaultCategoria,
   isCategoriaSuma,
+  getNumeroSumaCategoria,
+  formatSumaModalidadLabel,
   actualizarMasterStatusJugador,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
@@ -265,6 +267,9 @@ export default function Ranking() {
     }
     if (filtroCategoria !== "todas") {
       params.set("categoria", filtroCategoria);
+    }
+    if (filtroTorneo !== "todos") {
+      params.set("torneo", filtroTorneo);
     }
     if (filtroGenero !== "todos") {
       params.set("genero", filtroGenero);
@@ -723,9 +728,33 @@ export default function Ranking() {
     setLoading(false);
   };
 
+  const esFiltroTorneoSuma = useMemo(() => {
+    if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
+      return true;
+    }
+    if (filtroTorneo.startsWith("torneo:")) {
+      const tId = filtroTorneo.slice("torneo:".length);
+      const tObj = torneosVisibilidad.find((t) => t.id === tId);
+      if (tObj && isCategoriaSuma(tObj.categoria_nombre)) return true;
+    }
+    if (filtroTorneo.startsWith("cat_torneo:")) {
+      const cId = filtroTorneo.slice("cat_torneo:".length);
+      const cat = categorias.find((c) => c.id === cId);
+      if (cat && isCategoriaSuma(cat.nombre)) return true;
+    }
+    return false;
+  }, [filtroTorneo, torneosVisibilidad, categorias]);
+
+  // Si se activa una modalidad Suma en Torneo / Modalidad, Categoría del jugador pasa automáticamente a "todas"
+  useEffect(() => {
+    if (esFiltroTorneoSuma && filtroCategoria !== "todas") {
+      setFiltroCategoria("todas");
+    }
+  }, [esFiltroTorneoSuma, filtroCategoria]);
+
   // Cupos al Master en la categoría o modalidad filtrada (si aplica)
   const categoriaSeleccionada = useMemo(() => {
-    if (filtroCategoria !== "todas") {
+    if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
       return categorias.find((c) => c.id === filtroCategoria) ?? null;
     }
     if (filtroTorneo && filtroTorneo !== "todos") {
@@ -753,26 +782,48 @@ export default function Ranking() {
         }
       }
     }
-    return null;
-  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero, torneosVisibilidad]);
-
-  const cupoActual = useMemo(() => {
-    if (!categoriaSeleccionada) {
-      if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
-        return 8;
-      }
-      return null;
+    if (filtroCategoria !== "todas") {
+      return categorias.find((c) => c.id === filtroCategoria) ?? null;
     }
-    const def = getCupoDefaultCategoria(categoriaSeleccionada.nombre);
-    return cuposMaster[categoriaSeleccionada.id] ?? def;
-  }, [categoriaSeleccionada, cuposMaster, filtroTorneo]);
+    return null;
+  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero, torneosVisibilidad, esFiltroTorneoSuma]);
 
   const esSuma8 = useMemo(
-    () =>
-      isCategoriaSuma(categoriaSeleccionada?.nombre) ||
-      (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")),
-    [categoriaSeleccionada, filtroTorneo]
+    () => isCategoriaSuma(categoriaSeleccionada?.nombre) || esFiltroTorneoSuma,
+    [categoriaSeleccionada, esFiltroTorneoSuma]
   );
+
+  const sumaLabelActiva = useMemo(() => {
+    if (filtroTorneo.startsWith("modalidad:")) {
+      return formatSumaModalidadLabel(filtroTorneo.slice("modalidad:".length));
+    }
+    if (categoriaSeleccionada?.nombre && isCategoriaSuma(categoriaSeleccionada.nombre)) {
+      return formatSumaModalidadLabel(categoriaSeleccionada.nombre);
+    }
+    return "Suma 7";
+  }, [filtroTorneo, categoriaSeleccionada]);
+
+  const numeroSumaActivo = useMemo(
+    () => getNumeroSumaCategoria(sumaLabelActiva) ?? 7,
+    [sumaLabelActiva]
+  );
+
+  const nombreCategoriaPlaca = useMemo(() => {
+    if (esSuma8) return sumaLabelActiva;
+    return categoriaSeleccionada?.nombre ?? "Categoría";
+  }, [esSuma8, sumaLabelActiva, categoriaSeleccionada]);
+
+  const cupoActual = useMemo(() => {
+    if (esSuma8) {
+      if (categoriaSeleccionada && cuposMaster[categoriaSeleccionada.id]) {
+        return Math.min(cuposMaster[categoriaSeleccionada.id], 8);
+      }
+      return 8;
+    }
+    if (!categoriaSeleccionada) return null;
+    const def = getCupoDefaultCategoria(categoriaSeleccionada.nombre);
+    return cuposMaster[categoriaSeleccionada.id] ?? def;
+  }, [categoriaSeleccionada, cuposMaster, esSuma8]);
 
   const cargarRanking = async () => {
     if (!clubId) return;
@@ -994,28 +1045,31 @@ export default function Ranking() {
       categoriasTorneoFiltro && categoriasTorneoFiltro.size === 1
         ? Array.from(categoriasTorneoFiltro)[0]
         : null;
-    const effectiveFiltroCategoria =
-      filtroCategoria !== "todas"
+    const tieneFiltroTorneoActivo =
+      Boolean(categoriasTorneoFiltro && categoriasTorneoFiltro.size > 0) ||
+      Boolean(torneoEspecificoId);
+    const effectiveFiltroCategoria = tieneFiltroTorneoActivo
+      ? singleTorneoCatId ?? "todas"
+      : filtroCategoria !== "todas"
         ? filtroCategoria
-        : singleTorneoCatId ?? "todas";
+        : "todas";
 
-    // Filtrar para la vista seleccionada: si hay un torneo/modalidad seleccionado, SOLO entran filas de esa categoría de torneo
+    // Filtrar para la vista seleccionada:
+    // Si hay un torneo o modalidad Suma seleccionado en filtroTorneo, NO se cruza con filtroCategoria (Categoría del jugador)
     const data = allClubRankingData.filter((r) => {
-      if (filtroCategoria !== "todas" && !coincideFilaConCategoria(r, filtroCategoria)) {
-        return false;
-      }
-      if (
-        categoriasTorneoFiltro &&
-        categoriasTorneoFiltro.size > 0 &&
-        !Array.from(categoriasTorneoFiltro).some((cId) => coincideFilaConCategoria(r, cId))
-      ) {
-        return false;
-      }
-      if (
-        filtroCategoria === "todas" &&
-        (!categoriasTorneoFiltro || categoriasTorneoFiltro.size === 0) &&
-        !coincideFilaConCategoria(r, "todas")
-      ) {
+      if (tieneFiltroTorneoActivo) {
+        if (
+          categoriasTorneoFiltro &&
+          categoriasTorneoFiltro.size > 0 &&
+          !Array.from(categoriasTorneoFiltro).some((cId) => coincideFilaConCategoria(r, cId))
+        ) {
+          return false;
+        }
+      } else if (filtroCategoria !== "todas") {
+        if (!coincideFilaConCategoria(r, filtroCategoria)) {
+          return false;
+        }
+      } else if (!coincideFilaConCategoria(r, "todas")) {
         return false;
       }
       if (filtroGenero !== "todos" && r.genero !== filtroGenero) return false;
@@ -1343,13 +1397,23 @@ export default function Ranking() {
     );
   };
 
+  const elegirCategoriaConTorneosPorDefecto = (): string | null => {
+    const catIdsConTorneos = new Set(
+      torneosVisibilidad.map((t) => t.categoria_id).filter(Boolean) as string[]
+    );
+    const catConTorneos = categorias.find((c) => catIdsConTorneos.has(c.id));
+    if (catConTorneos) return catConTorneos.id;
+    return categorias[0]?.id ?? null;
+  };
+
   const handleAbrirPlaca = () => {
-    if (filtroCategoria === "todas") {
-      if (categorias.length > 0) {
-        setFiltroCategoria(categorias[0].id);
-        toast.info("Seleccionamos la primera categoría para generar la placa.");
+    if (filtroCategoria === "todas" && filtroTorneo === "todos") {
+      const defaultCatId = elegirCategoriaConTorneosPorDefecto();
+      if (defaultCatId) {
+        setFiltroCategoria(defaultCatId);
+        toast.info("Seleccionamos la primera categoría activa para generar la placa.");
       } else {
-        toast.error("Seleccioná una categoría primero para generar la placa.");
+        toast.error("Seleccioná una categoría o modalidad primero para generar la placa.");
         return;
       }
     }
@@ -2127,8 +2191,9 @@ export default function Ranking() {
             variant={vistaModo === "master" ? "default" : "ghost"}
             className="text-xs font-bold rounded-lg"
             onClick={() => {
-              if (filtroCategoria === "todas" && categorias.length > 0) {
-                setFiltroCategoria(categorias[0].id);
+              if (filtroCategoria === "todas" && filtroTorneo === "todos") {
+                const defaultCatId = elegirCategoriaConTorneosPorDefecto();
+                if (defaultCatId) setFiltroCategoria(defaultCatId);
               }
               setVistaModo("master");
             }}
@@ -2172,9 +2237,12 @@ export default function Ranking() {
             </Select>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Categoría del jugador</label>
+            <label className="text-xs text-muted-foreground">
+              Categoría del jugador{esFiltroTorneoSuma ? " (Unificado por Suma)" : ""}
+            </label>
             <Select
-              value={filtroCategoria}
+              value={esFiltroTorneoSuma ? "todas" : filtroCategoria}
+              disabled={esFiltroTorneoSuma}
               onValueChange={(v) => {
                 setFiltroCategoria(v);
                 if (v !== "todas" && filtroTorneo !== "todos") {
@@ -2275,7 +2343,15 @@ export default function Ranking() {
                 <Star className="h-4 w-4 text-primary" />
                 <span>
                   Clasifican al <strong>Master de Diciembre</strong> los primeros{" "}
-                  <strong>{cupoActual}</strong> jugadores elegibles de esta categoría (mínimo{" "}
+                  <strong>{cupoActual}</strong> jugadores elegibles de{" "}
+                  {esSuma8 ? (
+                    <>
+                      la modalidad <strong>{sumaLabelActiva}</strong>
+                    </>
+                  ) : (
+                    "esta categoría"
+                  )}{" "}
+                  (mínimo{" "}
                   <strong>
                     {TORNEOS_REQUERIDOS_MASTER}/{TORNEOS_TOTALES_ANIO} torneos
                   </strong>{" "}
@@ -2331,8 +2407,8 @@ export default function Ranking() {
               <div className="flex items-center gap-2 text-xs font-semibold text-amber-600 dark:text-amber-400 pt-1 border-t border-primary/10">
                 <Users className="h-4 w-4 shrink-0" />
                 <span>
-                  Regla Suma 8: Los 8 clasificados titulares eligen compañero/a respetando la suma
-                  de categoría = 8.
+                  Regla {sumaLabelActiva}: Los {cupoActual ?? 8} clasificados titulares eligen/invitan a
+                  su compañero/a respetando que la suma de ambas categorías dé {numeroSumaActivo}.
                 </span>
               </div>
             )}
@@ -2542,7 +2618,7 @@ export default function Ranking() {
                               variant="outline"
                               className="mt-1 text-[10px] border-amber-500/40 text-amber-600 dark:text-amber-400"
                             >
-                              + Compañero/a a confirmar (Suma 8)
+                              + Compañero/a a confirmar ({sumaLabelActiva})
                             </Badge>
                           )}
                         </TableCell>
@@ -3118,8 +3194,11 @@ export default function Ranking() {
       <MasterPlacaModal
         open={placaOpen}
         onOpenChange={setPlacaOpen}
-        categoriaNombre={categoriaSeleccionada?.nombre ?? "Categoría"}
-        categoriaGenero={categoriaSeleccionada?.genero ?? "caballeros"}
+        categoriaNombre={nombreCategoriaPlaca}
+        categoriaGenero={
+          categoriaSeleccionada?.genero ??
+          (filtroGenero !== "todos" ? filtroGenero : "caballeros")
+        }
         anio={filtroAnio}
         cupo={cupoActual ?? (esSuma8 ? 8 : 16)}
         clasificados={placaClasificados}

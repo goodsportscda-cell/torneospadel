@@ -39,6 +39,8 @@ import {
   aplicarReglasMaster,
   getCupoDefaultCategoria,
   isCategoriaSuma,
+  getNumeroSumaCategoria,
+  formatSumaModalidadLabel,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
   formatTorneosMasterBadge,
@@ -787,8 +789,9 @@ export default function PlayerDashboard() {
                           <div className="flex items-center gap-2 text-xs text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/30 rounded-lg p-2.5 font-medium">
                             <Users className="h-4 w-4 shrink-0" />
                             <span>
-                              En Suma 8 clasifican los Top 8 titulares y cada uno elige
-                              compañero/a respetando que sus categorías sumen 8.
+                              En {formatSumaModalidadLabel(r.categoria_nombre)} clasifican los Top 8
+                              titulares y cada uno elige compañero/a respetando que sus categorías
+                              sumen {getNumeroSumaCategoria(r.categoria_nombre) ?? 7}.
                             </span>
                           </div>
                         )}

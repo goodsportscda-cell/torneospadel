@@ -12,7 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Download, Loader2, Sparkles, Trophy, Users, Star, ShieldCheck } from "lucide-react";
 import { toPng } from "html-to-image";
 import { toast } from "sonner";
-import { isCategoriaSuma } from "@/lib/ranking";
+import {
+  isCategoriaSuma,
+  getNumeroSumaCategoria,
+  formatSumaModalidadLabel,
+} from "@/lib/ranking";
 import padelIdLogo from "@/assets/new-padel-id-logo.jpg";
 
 export type PlacaJugadorItem = {
@@ -65,6 +69,9 @@ export function MasterPlacaModal({
   );
 
   const esSuma = isCategoriaSuma(categoriaNombre);
+  const numSuma = getNumeroSumaCategoria(categoriaNombre) ?? 7;
+  const sumaLabel = formatSumaModalidadLabel(categoriaNombre);
+  const tituloCategoriaPlaca = esSuma ? sumaLabel.toUpperCase() : categoriaNombre.toUpperCase();
   const cupoEfectivo = esSuma ? Math.min(cupo || 8, 8) : cupo || 16;
   const topClasificados = clasificados.slice(0, cupoEfectivo);
   const top2Suplentes = suplentes.slice(0, 2);
@@ -77,8 +84,8 @@ export function MasterPlacaModal({
     categoriaGenero === "caballeros"
       ? "CABALLEROS"
       : categoriaGenero === "damas"
-      ? "DAMAS"
-      : "MIXTO";
+        ? "DAMAS"
+        : "MIXTO";
 
   const descargarPNG = async () => {
     if (!cardRef.current) return;
@@ -220,14 +227,14 @@ export function MasterPlacaModal({
                 <h2 className="text-2xl font-black tracking-tight uppercase text-white leading-tight mt-0.5">
                   {modo === "individual" && jugadorDestacado
                     ? "¡CLASIFICADO AL MASTER!"
-                    : `CLASIFICADOS · ${categoriaNombre}`}
+                    : `CLASIFICADOS · ${tituloCategoriaPlaca}`}
                 </h2>
                 <div className="inline-flex items-center gap-2 mt-1 px-3 py-0.5 rounded-full bg-white/5 border border-white/10">
                   <span className="text-[11px] font-extrabold tracking-widest uppercase text-slate-200">
-                    {generoLabel} · {categoriaNombre.toUpperCase()}
+                    {generoLabel} · {tituloCategoriaPlaca}
                   </span>
                   <span className="text-[10px] text-amber-400 font-bold">
-                    ({esSuma ? "TOP 8 TITULARES" : `TOP ${cupoEfectivo}`})
+                    ({esSuma ? `TOP ${cupoEfectivo} TITULARES` : `TOP ${cupoEfectivo}`})
                   </span>
                 </div>
               </div>
@@ -288,10 +295,10 @@ export function MasterPlacaModal({
                   {esSuma && (
                     <div className="rounded-xl bg-amber-500/15 border border-amber-400/40 p-3 text-center">
                       <p className="text-xs font-extrabold text-amber-300 uppercase tracking-wide flex items-center justify-center gap-1.5">
-                        <Users className="h-4 w-4" />+ Compañero/a a confirmar (Suma 8)
+                        <Users className="h-4 w-4" />+ Compañero/a a confirmar ({sumaLabel})
                       </p>
                       <p className="text-[10px] text-amber-200/80 mt-0.5">
-                        El titular clasificado elige compañero/a respetando que ambas categorías sumen 8.
+                        El titular clasificado elige compañero/a respetando que ambas categorías sumen {numSuma}.
                       </p>
                     </div>
                   )}
@@ -302,37 +309,35 @@ export function MasterPlacaModal({
                   </div>
                 </div>
               ) : esSuma ? (
-                /* DISEÑO SUMA 8: 1 COLUMNA CON LOS 8 CLASIFICADOS TITULARES + BADGE COMPAÑERO/A */
+                /* DISEÑO MODALIDAD SUMA (SUMA 7 / SUMA 8 / SUMA 6): 1 COLUMNA CON LOS 8 CLASIFICADOS TITULARES + BADGE COMPAÑERO/A */
                 <div className="space-y-2">
                   <div className="rounded-lg bg-amber-500/10 border border-amber-400/30 px-3 py-1.5 text-center mb-2">
                     <p className="text-[10px] font-bold text-amber-300">
-                      ★ Los 8 clasificados titulares eligen compañero/a respetando la suma de categoría = 8
+                      ★ Los {cupoEfectivo} clasificados titulares eligen compañero/a respetando la suma de categoría = {numSuma}
                     </p>
                   </div>
 
                   <div className="space-y-1.5">
-                    {Array.from({ length: 8 }).map((_, idx) => {
+                    {Array.from({ length: cupoEfectivo }).map((_, idx) => {
                       const item = topClasificados[idx];
                       const isHighlighted =
                         item && jugadorDestacadoId && item.jugador_id === jugadorDestacadoId;
                       return (
                         <div
                           key={item?.jugador_id ?? `empty-${idx}`}
-                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border ${
-                            isHighlighted
+                          className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl border ${isHighlighted
                               ? "bg-amber-500/25 border-amber-400"
                               : item
-                              ? "bg-white/[0.05] border-white/10"
-                              : "bg-white/[0.02] border-white/5 opacity-50"
-                          }`}
+                                ? "bg-white/[0.05] border-white/10"
+                                : "bg-white/[0.02] border-white/5 opacity-50"
+                            }`}
                         >
                           <div className="flex items-center gap-2.5 min-w-0 flex-1">
                             <span
-                              className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0 ${
-                                idx < 3
+                              className={`w-6 h-6 rounded-md flex items-center justify-center text-xs font-black shrink-0 ${idx < 3
                                   ? "bg-amber-400 text-slate-950"
                                   : "bg-white/10 text-amber-300"
-                              }`}
+                                }`}
                             >
                               {idx + 1}
                             </span>
@@ -342,7 +347,7 @@ export function MasterPlacaModal({
                               </p>
                               <div className="flex items-center gap-1.5 mt-0.5">
                                 <span className="inline-flex items-center px-1.5 py-0.2 rounded bg-amber-500/20 border border-amber-400/30 text-[9px] font-semibold text-amber-300">
-                                  + Compañero/a a confirmar (Suma 8)
+                                  + Compañero/a a confirmar ({sumaLabel})
                                 </span>
                               </div>
                             </div>
@@ -374,21 +379,19 @@ export function MasterPlacaModal({
                     return (
                       <div
                         key={item?.jugador_id ?? `empty-${idx}`}
-                        className={`flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border ${
-                          isHighlighted
+                        className={`flex items-center justify-between gap-1.5 px-2.5 py-1.5 rounded-lg border ${isHighlighted
                             ? "bg-amber-500/25 border-amber-400"
                             : item
-                            ? "bg-white/[0.05] border-white/10"
-                            : "bg-white/[0.02] border-white/5 opacity-45"
-                        }`}
+                              ? "bg-white/[0.05] border-white/10"
+                              : "bg-white/[0.02] border-white/5 opacity-45"
+                          }`}
                       >
                         <div className="flex items-center gap-1.5 min-w-0 flex-1">
                           <span
-                            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-black shrink-0 ${
-                              idx < 3
+                            className={`w-5 h-5 rounded flex items-center justify-center text-[10px] font-black shrink-0 ${idx < 3
                                 ? "bg-amber-400 text-slate-950"
                                 : "bg-white/10 text-amber-300"
-                            }`}
+                              }`}
                           >
                             {idx + 1}
                           </span>
