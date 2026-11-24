@@ -83,6 +83,24 @@ describe("master2026", () => {
     expect(res.find((r) => r.jugador_id === "no_asc")?.posicion_final).toBeNull();
   });
 
+  it("keeps confirmed/forced qualifiers even when they have 2 or 3 tournaments", () => {
+    const rows: MasterQualifierInput[] = [
+      {
+        jugador_id: "forced1",
+        ranking_posicion_original: 8,
+        puntos_anuales: 300,
+        torneos_jugados: 2,
+        torneos_categoria_anterior: 0,
+        ascenso_validado: false,
+        estado: "confirmado",
+        orden_manual: null,
+      },
+    ];
+    const res = computeMasterQualifiersOrder(rows, 16);
+    expect(res[0].elegible).toBe(true);
+    expect(res[0].posicion_final).toBe(1);
+  });
+
   it("forms 8 extreme-crossover pairs and seeds them by combined points", () => {
     const titulares = Array.from({ length: 16 }, (_, i) => ({
       jugador_id: `p${i + 1}`,

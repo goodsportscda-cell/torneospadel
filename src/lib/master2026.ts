@@ -211,7 +211,9 @@ export function computeMasterQualifiersOrder<T extends MasterQualifierInput>(
       ? r.torneos_jugados + r.torneos_categoria_anterior
       : r.torneos_jugados;
     const elegible =
-      torneos_computados >= TORNEOS_REQUERIDOS_MASTER || r.ascenso_validado;
+      torneos_computados >= TORNEOS_REQUERIDOS_MASTER ||
+      r.ascenso_validado ||
+      r.estado === "confirmado";
     return {
       ...r,
       torneos_computados,
