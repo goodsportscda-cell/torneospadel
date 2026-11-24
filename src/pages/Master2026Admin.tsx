@@ -488,20 +488,36 @@ export default function Master2026Admin() {
     match: MasterMatchDB,
     patch: { dia?: string | null; hora?: string | null; cancha?: number | null }
   ) => {
-    setBusy(true);
+    const nextDia = patch.dia !== undefined ? patch.dia : match.dia;
+    const nextHora = patch.hora !== undefined ? patch.hora : match.hora;
+    const nextCancha = patch.cancha !== undefined ? patch.cancha : match.cancha;
+    const nextEstado =
+      match.estado === "finalizado"
+        ? "finalizado"
+        : nextDia && nextHora && nextCancha
+          ? "programado"
+          : "pendiente";
+
+    // Actualización optimista inmediata para sincronizar Llaves y Cronograma al instante
+    setMatches((prev) =>
+      prev.map((m) =>
+        m.id === match.id
+          ? { ...m, dia: nextDia, hora: nextHora, cancha: nextCancha, estado: nextEstado }
+          : m
+      )
+    );
+
     try {
       await updateMatchSchedule({
         matchId: match.id,
-        dia: patch.dia !== undefined ? patch.dia : match.dia,
-        hora: patch.hora !== undefined ? patch.hora : match.hora,
-        cancha: patch.cancha !== undefined ? patch.cancha : match.cancha,
+        dia: nextDia,
+        hora: nextHora,
+        cancha: nextCancha,
         currentEstado: match.estado,
       });
-      await loadAll();
     } catch (err: any) {
-      toast.error(err?.message || "No se pudo actualizar el horario");
-    } finally {
-      setBusy(false);
+      toast.error(err?.message || "No se pudo guardar el horario en la base de datos");
+      await loadAll();
     }
   };
 
@@ -528,6 +544,15 @@ export default function Master2026Admin() {
     });
     return detectarConflictosCronograma(payload);
   }, [matches, catById, teamById]);
+
+  const conflictMatchIds = useMemo(() => {
+    const ids = new Set<string>();
+    scheduleConflicts.forEach((c) => {
+      ids.add(c.matchIdA);
+      ids.add(c.matchIdB);
+    });
+    return ids;
+  }, [scheduleConflicts]);
 
   const filteredScheduleMatches = useMemo(() => {
     return matches
@@ -1091,12 +1116,22 @@ export default function Master2026Admin() {
                         </Button>
                       </div>
                     </CardHeader>
-                    <CardContent>
+                    <CardContent className="space-y-4">
+                      {catMatches.some((m) => conflictMatchIds.has(m.id)) && (
+                        <div className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                          <AlertTriangle className="h-4 w-4 shrink-0" />
+                          <span>
+                            Aviso: Hay partidos de esta categoría con superposición de cancha u horario (puedes guardar igual o ajustarlo abajo).
+                          </span>
+                        </div>
+                      )}
                       <MasterBracketView
                         matches={catMatches}
                         teams={catTeams}
                         editable
                         onSelectMatch={openScoreDialog}
+                        onScheduleChange={handleScheduleChange}
+                        conflictMatchIds={conflictMatchIds}
                       />
                     </CardContent>
                   </Card>
@@ -1195,7 +1230,6 @@ export default function Master2026Admin() {
                             <TableCell>
                               <Select
                                 value={m.dia ?? "__none__"}
-                                disabled={busy}
                                 onValueChange={(val) =>
                                   void handleScheduleChange(m, { dia: val === "__none__" ? null : val })
                                 }
@@ -1204,7 +1238,7 @@ export default function Master2026Admin() {
                                   <SelectValue placeholder="Día" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="__none__">Sin día</SelectItem>
+                                  <SelectItem value="__none__">Sin asignar</SelectItem>
                                   {MASTER_DIAS.map((d) => (
                                     <SelectItem key={d.key} value={d.key}>
                                       {d.shortLabel}
@@ -1218,7 +1252,6 @@ export default function Master2026Admin() {
                                 type="time"
                                 className="h-8 text-xs"
                                 value={m.hora ?? ""}
-                                disabled={busy}
                                 onChange={(e) =>
                                   void handleScheduleChange(m, { hora: e.target.value || null })
                                 }
@@ -1227,7 +1260,6 @@ export default function Master2026Admin() {
                             <TableCell>
                               <Select
                                 value={m.cancha ? String(m.cancha) : "__none__"}
-                                disabled={busy}
                                 onValueChange={(val) =>
                                   void handleScheduleChange(m, {
                                     cancha: val === "__none__" ? null : parseInt(val, 10),
@@ -1238,7 +1270,7 @@ export default function Master2026Admin() {
                                   <SelectValue placeholder="Cancha" />
                                 </SelectTrigger>
                                 <SelectContent>
-                                  <SelectItem value="__none__">Sin cancha</SelectItem>
+                                  <SelectItem value="__none__">Sin asignar</SelectItem>
                                   {MASTER_CANCHAS.map((c) => (
                                     <SelectItem key={c} value={String(c)}>
                                       Cancha {c}

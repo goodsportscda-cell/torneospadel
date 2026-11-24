@@ -1,8 +1,12 @@
-import { Trophy, Calendar, Clock, MapPin } from "lucide-react";
+import { Trophy, Calendar, Clock, MapPin, AlertTriangle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { MASTER_DIAS, MASTER_RONDA_LABELS } from "@/lib/master2026";
+import { MASTER_CANCHAS, MASTER_DIAS, MASTER_RONDA_LABELS } from "@/lib/master2026";
 import { formatTeamDisplayName, type MasterMatchDB, type MasterTeamDB } from "@/lib/masterService";
+
+type SchedulePatch = { dia?: string | null; hora?: string | null; cancha?: number | null };
 
 type Props = {
   matches: MasterMatchDB[];
@@ -10,6 +14,8 @@ type Props = {
   tvMode?: boolean;
   editable?: boolean;
   onSelectMatch?: (match: MasterMatchDB) => void;
+  onScheduleChange?: (match: MasterMatchDB, patch: SchedulePatch) => void;
+  conflictMatchIds?: Set<string>;
 };
 
 function MatchScorePills({ match, side }: { match: MasterMatchDB; side: "local" | "visitante" }) {
@@ -54,6 +60,8 @@ function BracketMatchCard({
   tvMode,
   editable,
   onSelect,
+  onScheduleChange,
+  hasConflict,
   title,
 }: {
   match: MasterMatchDB | undefined;
@@ -61,6 +69,8 @@ function BracketMatchCard({
   tvMode?: boolean;
   editable?: boolean;
   onSelect?: (m: MasterMatchDB) => void;
+  onScheduleChange?: (m: MasterMatchDB, patch: SchedulePatch) => void;
+  hasConflict?: boolean;
   title: string;
 }) {
   if (!match) {
@@ -102,13 +112,21 @@ function BracketMatchCard({
           ? "border-white/15 bg-white/[0.04] text-white"
           : "bg-card text-card-foreground shadow-sm",
         canClick && "cursor-pointer hover:border-primary/60 hover:shadow-md",
-        match.ronda === "final" && (tvMode ? "border-amber-400/50 bg-amber-500/[0.06]" : "border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20")
+        match.ronda === "final" && (tvMode ? "border-amber-400/50 bg-amber-500/[0.06]" : "border-amber-400/60 bg-amber-50/40 dark:bg-amber-950/20"),
+        hasConflict && !tvMode && "border-amber-500/80 bg-amber-50/30 dark:bg-amber-950/20"
       )}
     >
       <div className="flex items-center justify-between gap-2 mb-2">
-        <span className={cn("text-[11px] font-bold uppercase tracking-wider", tvMode ? "text-white/60" : "text-muted-foreground")}>
-          {title}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className={cn("text-[11px] font-bold uppercase tracking-wider", tvMode ? "text-white/60" : "text-muted-foreground")}>
+            {title}
+          </span>
+          {hasConflict && (
+            <Badge variant="destructive" className="text-[9px] px-1 py-0 h-4 gap-0.5">
+              <AlertTriangle className="h-2.5 w-2.5" /> Superposición
+            </Badge>
+          )}
+        </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
           {match.cancha && (
             <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", tvMode && "border-white/20 text-white/80")}>
@@ -183,16 +201,82 @@ function BracketMatchCard({
         </div>
       </div>
 
-      {!match.hora && diaObj && (
-        <div className={cn("mt-2 flex items-center gap-1 text-[11px]", tvMode ? "text-white/50" : "text-muted-foreground")}>
-          <Calendar className="h-3 w-3" /> {diaObj.shortLabel} · Horario a confirmar
+      {editable && onScheduleChange ? (
+        <div
+          className="mt-2.5 pt-2 border-t grid grid-cols-3 gap-1.5"
+          onClick={(e) => e.stopPropagation()}
+          onKeyDown={(e) => e.stopPropagation()}
+        >
+          <Select
+            value={match.dia ?? "__none__"}
+            onValueChange={(val) =>
+              onScheduleChange(match, { dia: val === "__none__" ? null : val })
+            }
+          >
+            <SelectTrigger className="h-7 text-[11px] px-2">
+              <SelectValue placeholder="Día" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sin día</SelectItem>
+              {MASTER_DIAS.map((d) => (
+                <SelectItem key={d.key} value={d.key}>
+                  {d.shortLabel}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          <Input
+            type="time"
+            className="h-7 text-[11px] px-1.5"
+            value={match.hora ?? ""}
+            onChange={(e) =>
+              onScheduleChange(match, { hora: e.target.value || null })
+            }
+          />
+
+          <Select
+            value={match.cancha ? String(match.cancha) : "__none__"}
+            onValueChange={(val) =>
+              onScheduleChange(match, {
+                cancha: val === "__none__" ? null : parseInt(val, 10),
+              })
+            }
+          >
+            <SelectTrigger className="h-7 text-[11px] px-2">
+              <SelectValue placeholder="Cancha" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">Sin asignar</SelectItem>
+              {MASTER_CANCHAS.map((c) => (
+                <SelectItem key={c} value={String(c)}>
+                  Cancha {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
+      ) : (
+        !match.hora &&
+        diaObj && (
+          <div className={cn("mt-2 flex items-center gap-1 text-[11px]", tvMode ? "text-white/50" : "text-muted-foreground")}>
+            <Calendar className="h-3 w-3" /> {diaObj.shortLabel} · Horario a confirmar
+          </div>
+        )
       )}
     </div>
   );
 }
 
-export function MasterBracketView({ matches, teams, tvMode = false, editable = false, onSelectMatch }: Props) {
+export function MasterBracketView({
+  matches,
+  teams,
+  tvMode = false,
+  editable = false,
+  onSelectMatch,
+  onScheduleChange,
+  conflictMatchIds,
+}: Props) {
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const byNum = new Map(matches.map((m) => [m.numero_partido, m]));
 
@@ -225,6 +309,8 @@ export function MasterBracketView({ matches, teams, tvMode = false, editable = f
               tvMode={tvMode}
               editable={editable}
               onSelect={onSelectMatch}
+              onScheduleChange={onScheduleChange}
+              hasConflict={Boolean(byNum.get(num)?.id && conflictMatchIds?.has(byNum.get(num)!.id))}
               title={`Cuartos ${num} (QF${num})`}
             />
           ))}
@@ -245,6 +331,8 @@ export function MasterBracketView({ matches, teams, tvMode = false, editable = f
               tvMode={tvMode}
               editable={editable}
               onSelect={onSelectMatch}
+              onScheduleChange={onScheduleChange}
+              hasConflict={Boolean(byNum.get(num)?.id && conflictMatchIds?.has(byNum.get(num)!.id))}
               title={`Semifinal ${idx + 1} (SF${idx + 1})`}
             />
           ))}
@@ -262,6 +350,8 @@ export function MasterBracketView({ matches, teams, tvMode = false, editable = f
           tvMode={tvMode}
           editable={editable}
           onSelect={onSelectMatch}
+          onScheduleChange={onScheduleChange}
+          hasConflict={Boolean(byNum.get(7)?.id && conflictMatchIds?.has(byNum.get(7)!.id))}
           title="Final · Domingo 6/12"
         />
       </div>
