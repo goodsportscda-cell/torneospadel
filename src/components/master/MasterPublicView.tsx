@@ -360,11 +360,7 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
                                   {q.puntos_anuales}
                                 </TableCell>
                                 <TableCell className="text-right">
-                                  {isBaja ? (
-                                    <Badge variant="destructive" className="text-[10px]">Baja</Badge>
-                                  ) : q.es_suplente ? (
-                                    <Badge variant="outline" className="text-[10px]">Suplente</Badge>
-                                  ) : q.estado === "confirmado" ? (
+                                  {q.estado === "confirmado" ? (
                                     <Badge className="bg-emerald-600 text-white text-[10px]">Titular Confirmado</Badge>
                                   ) : (
                                     <Badge variant="secondary" className="text-[10px]">Titular</Badge>
