@@ -156,6 +156,8 @@ const Configuracion = lazyWithRetry(() => import("./pages/Configuracion.tsx"));
 const NotFound = lazyWithRetry(() => import("./pages/NotFound.tsx"));
 const Marcador = lazyWithRetry(() => import("./pages/Marcador.tsx"));
 const DraftPublico = lazyWithRetry(() => import("./pages/DraftPublico.tsx"));
+const Master2026Admin = lazyWithRetry(() => import("./pages/Master2026Admin.tsx"));
+const MasterPublico = lazyWithRetry(() => import("./pages/MasterPublico.tsx"));
 
 const queryClient = new QueryClient();
 
@@ -203,6 +205,8 @@ const App = () => (
                           <Route path="/tv/:id" element={<TorneoTvRouter />} />
                           <Route path="/tv/canchas" element={<TorneoTvCanchas />} />
                           <Route path="/ranking-publico" element={<RankingPublico />} />
+                          <Route path="/master" element={<MasterPublico />} />
+                          <Route path="/master/tv" element={<MasterPublico />} />
                           <Route path="/inscribirse/:torneoId" element={<InscripcionPublica />} />
                           <Route path="/draft/:id" element={<DraftPublico />} />
                         </Routes>
@@ -266,7 +270,7 @@ const App = () => (
                     <Route path="/llaves" element={<Llaves />} />
                     <Route path="/posiciones" element={<Navigate to="/ranking" replace />} />
                     <Route path="/ranking" element={<Ranking />} />
-                    <Route path="/master" element={<Navigate to="/ranking" replace />} />
+                    <Route path="/master" element={<Master2026Admin />} />
                     <Route path="/configuracion" element={<Configuracion />} />
                     <Route path="/marcador" element={<Marcador />} />
                     <Route path="/admin/torneo-individual/:id" element={<TorneoIndividualDashboard />} />

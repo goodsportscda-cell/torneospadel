@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/lib/estadoTorneo";
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
+import { MasterPublicView } from "@/components/master/MasterPublicView";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { isAscenso, isCategoriaSuma, normalizarFiltroTorneoParam } from "@/lib/ranking";
 
@@ -357,13 +358,16 @@ export default function ClubHome() {
         </div>
 
         <Tabs defaultValue="torneos" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12">
-            <TabsTrigger value="torneos" className="text-xs sm:text-sm font-bold">Torneos</TabsTrigger>
-            <TabsTrigger value="rankings" className="text-xs sm:text-sm font-bold">Ranking</TabsTrigger>
-            <TabsTrigger value="inscripciones" className="text-xs sm:text-sm font-bold relative">
+          <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 gap-1">
+            <TabsTrigger value="torneos" className="text-xs sm:text-sm font-bold py-2.5">Torneos</TabsTrigger>
+            <TabsTrigger value="rankings" className="text-xs sm:text-sm font-bold py-2.5">Ranking</TabsTrigger>
+            <TabsTrigger value="master" className="text-xs sm:text-sm font-bold py-2.5 text-amber-600 dark:text-amber-400">
+              Master Dic 2026
+            </TabsTrigger>
+            <TabsTrigger value="inscripciones" className="text-xs sm:text-sm font-bold py-2.5 relative">
               Inscripciones
               {inscripcionesAbiertas.length > 0 && (
-                <span className="absolute top-1 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
+                <span className="absolute top-1.5 right-2 w-2.5 h-2.5 bg-red-500 rounded-full animate-pulse" />
               )}
             </TabsTrigger>
           </TabsList>
@@ -625,6 +629,11 @@ export default function ClubHome() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          {/* TAB: MASTER DICIEMBRE 2026 */}
+          <TabsContent value="master" className="mt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <MasterPublicView clubId={club.id} clubNombre={club.nombre} />
           </TabsContent>
 
           {/* TAB: INSCRIPCIONES */}
