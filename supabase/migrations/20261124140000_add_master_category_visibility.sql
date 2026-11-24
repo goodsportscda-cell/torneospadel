@@ -23,9 +23,11 @@ CREATE TRIGGER trg_master_visibility_updated
 
 ALTER TABLE public.master_category_visibility ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Master visibility visible para todos" ON public.master_category_visibility;
 CREATE POLICY "Master visibility visible para todos"
   ON public.master_category_visibility FOR SELECT TO anon, authenticated USING (true);
 
+DROP POLICY IF EXISTS "Admins gestionan master_category_visibility" ON public.master_category_visibility;
 CREATE POLICY "Admins gestionan master_category_visibility"
   ON public.master_category_visibility FOR ALL TO authenticated
   USING (

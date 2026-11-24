@@ -127,24 +127,30 @@ ALTER TABLE public.master_teams ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.master_matches ENABLE ROW LEVEL SECURITY;
 
 -- Lectura pública (para Link Público del Club y Modo TV)
+DROP POLICY IF EXISTS "Master editions visibles para todos" ON public.master_editions;
 CREATE POLICY "Master editions visibles para todos"
   ON public.master_editions FOR SELECT TO anon, authenticated USING (true);
 
+DROP POLICY IF EXISTS "Master qualifiers visibles para todos" ON public.master_qualifiers;
 CREATE POLICY "Master qualifiers visibles para todos"
   ON public.master_qualifiers FOR SELECT TO anon, authenticated USING (true);
 
+DROP POLICY IF EXISTS "Master teams visibles para todos" ON public.master_teams;
 CREATE POLICY "Master teams visibles para todos"
   ON public.master_teams FOR SELECT TO anon, authenticated USING (true);
 
+DROP POLICY IF EXISTS "Master matches visibles para todos" ON public.master_matches;
 CREATE POLICY "Master matches visibles para todos"
   ON public.master_matches FOR SELECT TO anon, authenticated USING (true);
 
 -- Escritura restringida a administradores del club
+DROP POLICY IF EXISTS "Admins gestionan master_editions" ON public.master_editions;
 CREATE POLICY "Admins gestionan master_editions"
   ON public.master_editions FOR ALL TO authenticated
   USING (public.can_manage_club(club_id))
   WITH CHECK (public.can_manage_club(club_id));
 
+DROP POLICY IF EXISTS "Admins gestionan master_qualifiers" ON public.master_qualifiers;
 CREATE POLICY "Admins gestionan master_qualifiers"
   ON public.master_qualifiers FOR ALL TO authenticated
   USING (
@@ -160,6 +166,7 @@ CREATE POLICY "Admins gestionan master_qualifiers"
     )
   );
 
+DROP POLICY IF EXISTS "Admins gestionan master_teams" ON public.master_teams;
 CREATE POLICY "Admins gestionan master_teams"
   ON public.master_teams FOR ALL TO authenticated
   USING (
@@ -175,6 +182,7 @@ CREATE POLICY "Admins gestionan master_teams"
     )
   );
 
+DROP POLICY IF EXISTS "Admins gestionan master_matches" ON public.master_matches;
 CREATE POLICY "Admins gestionan master_matches"
   ON public.master_matches FOR ALL TO authenticated
   USING (
