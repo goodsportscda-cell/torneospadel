@@ -692,3 +692,206 @@ export function formatTeamDisplayName(team: MasterTeamDB | undefined | null): st
       : "Invitado";
   return `${j1} / ${j2}`;
 }
+
+export type PlayerMasterMatchItem = {
+  id: string;
+  ronda: MasterRonda;
+  numero_partido: number;
+  rivalNombre: string;
+  dia: string | null;
+  hora: string | null;
+  cancha: number | null;
+  marcador: string | null;
+  gano: boolean | null;
+  estado: MasterMatchEstado;
+};
+
+export type PlayerMasterCategoryParticipation = {
+  categoria_id: string;
+  categoria_label: string;
+  clasificado: boolean;
+  posicion_final: number | null;
+  publicar_clasificados: boolean;
+  publicar_parejas: boolean;
+  publicar_llaves: boolean;
+  team: {
+    seed: number;
+    cruce_label: string;
+    companeroNombre: string;
+    puntos_combinados: number;
+  } | null;
+  matches: PlayerMasterMatchItem[];
+};
+
+export async function fetchPlayerMasterParticipation(
+  clubId: string,
+  jugadorId: string
+): Promise<PlayerMasterCategoryParticipation[]> {
+  if (!clubId || !jugadorId) return [];
+
+  const edition = await getOrCreateMasterEdition(clubId, 2026, false);
+  if (!edition) return [];
+
+  const [cats, { data: visRows }, { data: qualRows }, { data: myTeams }] = await Promise.all([
+    fetchClubMasterCategories(clubId),
+    (supabase as any).from("master_category_visibility").select("*").eq("edition_id", edition.id),
+    (supabase as any)
+      .from("master_qualifiers")
+      .select("*")
+      .eq("edition_id", edition.id)
+      .eq("jugador_id", jugadorId),
+    (supabase as any)
+      .from("master_teams")
+      .select("*")
+      .eq("edition_id", edition.id)
+      .or(`jugador1_id.eq.${jugadorId},jugador2_id.eq.${jugadorId}`),
+  ]);
+
+  const catMap = new Map(cats.map((c) => [c.categoria_id, c]));
+  const visMap = new Map<string, MasterCategoryVisibilityDB>(
+    (visRows ?? []).map((v: any) => [v.categoria_id, v])
+  );
+
+  const relevantCatIds = new Set<string>();
+  (qualRows ?? []).forEach((q: any) => {
+    if (!q.es_suplente && q.estado !== "baja" && q.posicion_final !== null) {
+      relevantCatIds.add(q.categoria_id);
+    }
+  });
+  (myTeams ?? []).forEach((t: any) => relevantCatIds.add(t.categoria_id));
+
+  if (relevantCatIds.size === 0) return [];
+
+  const catIdsArr = Array.from(relevantCatIds);
+  const [{ data: allCatTeams }, { data: allCatMatches }] = await Promise.all([
+    (supabase as any)
+      .from("master_teams")
+      .select("*")
+      .eq("edition_id", edition.id)
+      .in("categoria_id", catIdsArr),
+    (supabase as any)
+      .from("master_matches")
+      .select("*")
+      .eq("edition_id", edition.id)
+      .in("categoria_id", catIdsArr)
+      .order("numero_partido", { ascending: true }),
+  ]);
+
+  const playerIds = new Set<string>();
+  (allCatTeams ?? []).forEach((t: any) => {
+    if (t.jugador1_id) playerIds.add(t.jugador1_id);
+    if (t.jugador2_id) playerIds.add(t.jugador2_id);
+  });
+
+  const jugadoresMap =
+    playerIds.size > 0 ? await fetchJugadoresBasicosMap(clubId, Array.from(playerIds)) : new Map();
+
+  const teamWithPlayersMap = new Map<string, MasterTeamDB>();
+  (allCatTeams ?? []).forEach((t: any) => {
+    teamWithPlayersMap.set(t.id, {
+      ...t,
+      jugador1: jugadoresMap.get(t.jugador1_id) ?? null,
+      jugador2: t.jugador2_id ? jugadoresMap.get(t.jugador2_id) ?? null : null,
+    });
+  });
+
+  const result: PlayerMasterCategoryParticipation[] = [];
+
+  for (const catId of catIdsArr) {
+    const catInfo = catMap.get(catId);
+    if (!catInfo) continue;
+
+    const vis = visMap.get(catId);
+    const publicar_clasificados = Boolean(vis?.publicar_clasificados);
+    const publicar_parejas = Boolean(vis?.publicar_parejas);
+    const publicar_llaves = Boolean(vis?.publicar_llaves);
+
+    if (!publicar_clasificados && !publicar_parejas && !publicar_llaves) continue;
+
+    const qual = (qualRows ?? []).find(
+      (q: any) => q.categoria_id === catId && !q.es_suplente && q.estado !== "baja"
+    );
+    const rawMyTeam = (myTeams ?? []).find((t: any) => t.categoria_id === catId);
+    const myTeam = rawMyTeam ? teamWithPlayersMap.get(rawMyTeam.id) : undefined;
+
+    let teamInfo: PlayerMasterCategoryParticipation["team"] = null;
+    if (publicar_parejas && myTeam) {
+      const isJ1 = myTeam.jugador1_id === jugadorId;
+      const partner = isJ1 ? myTeam.jugador2 : myTeam.jugador1;
+      const partnerName = partner
+        ? `${partner.apellido}, ${partner.nombre}`
+        : !isJ1
+          ? "Compañero"
+          : myTeam.jugador2_nombre_manual || "Invitado";
+      teamInfo = {
+        seed: myTeam.seed,
+        cruce_label: myTeam.cruce_label,
+        companeroNombre: partnerName,
+        puntos_combinados: myTeam.puntos_combinados,
+      };
+    }
+
+    const matchItems: PlayerMasterMatchItem[] = [];
+    if (publicar_llaves && myTeam) {
+      const myMatches = (allCatMatches ?? []).filter(
+        (m: any) =>
+          m.categoria_id === catId &&
+          (m.team_local_id === myTeam.id || m.team_visitante_id === myTeam.id)
+      );
+
+      for (const m of myMatches) {
+        const isLocal = m.team_local_id === myTeam.id;
+        const rivalTeamId = isLocal ? m.team_visitante_id : m.team_local_id;
+        const rivalTeam = rivalTeamId ? teamWithPlayersMap.get(rivalTeamId) : undefined;
+        const rivalNombre = rivalTeam
+          ? formatTeamDisplayName(rivalTeam)
+          : (isLocal ? m.ref_visitante : m.ref_local) || "Por definir";
+
+        const sets = [
+          m.set1_local !== null && m.set1_visitante !== null
+            ? isLocal
+              ? `${m.set1_local}-${m.set1_visitante}`
+              : `${m.set1_visitante}-${m.set1_local}`
+            : null,
+          m.set2_local !== null && m.set2_visitante !== null
+            ? isLocal
+              ? `${m.set2_local}-${m.set2_visitante}`
+              : `${m.set2_visitante}-${m.set2_local}`
+            : null,
+          m.set3_local !== null && m.set3_visitante !== null
+            ? isLocal
+              ? `${m.set3_local}-${m.set3_visitante}`
+              : `${m.set3_visitante}-${m.set3_local}`
+            : null,
+        ].filter(Boolean);
+
+        matchItems.push({
+          id: m.id,
+          ronda: m.ronda,
+          numero_partido: m.numero_partido,
+          rivalNombre,
+          dia: m.dia,
+          hora: m.hora,
+          cancha: m.cancha,
+          marcador: sets.length > 0 ? sets.join(" / ") : null,
+          gano: m.ganador_team_id ? m.ganador_team_id === myTeam.id : null,
+          estado: m.estado,
+        });
+      }
+    }
+
+    result.push({
+      categoria_id: catId,
+      categoria_label: catInfo.spec.label,
+      clasificado: Boolean(qual) || Boolean(myTeam),
+      posicion_final: qual?.posicion_final ?? null,
+      publicar_clasificados,
+      publicar_parejas,
+      publicar_llaves,
+      team: teamInfo,
+      matches: matchItems,
+    });
+  }
+
+  return result;
+}

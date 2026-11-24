@@ -6,17 +6,20 @@ import {
 } from "@/components/ui/dialog";
 import { ArrowUpCircle, Trophy } from "lucide-react";
 import type { RankingRowUnified } from "@/hooks/useClubRanking";
+import { PlayerMasterProfileSection } from "@/components/master/PlayerMasterProfileSection";
 
 interface DesglosePuntosModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   jugador: RankingRowUnified | null;
+  clubId?: string | null;
 }
 
 export function DesglosePuntosModal({
   open,
   onOpenChange,
   jugador,
+  clubId,
 }: DesglosePuntosModalProps) {
   if (!jugador) return null;
 
@@ -33,6 +36,7 @@ export function DesglosePuntosModal({
         </DialogHeader>
 
         <div className="space-y-6 mt-4">
+          <PlayerMasterProfileSection clubId={clubId} jugadorId={jugador.jugador_id} />
           <div className="flex items-center justify-between rounded-lg bg-primary/10 p-4 border border-primary/20">
             <div>
               <p className="text-sm font-medium text-muted-foreground">Puntos Totales</p>

@@ -55,6 +55,7 @@ import { PlayerInscriptions } from "@/components/jugador/PlayerInscriptions";
 import { PlayerPerformanceChart } from "@/components/jugador/PlayerPerformanceChart";
 import { PlayerMatchHistory } from "@/components/jugador/PlayerMatchHistory";
 import { PlayerUpcomingMatches } from "@/components/jugador/PlayerUpcomingMatches";
+import { PlayerMasterProfileSection } from "@/components/master/PlayerMasterProfileSection";
 import LegalLinks from "@/components/LegalLinks";
 
 type Torneo = {
@@ -100,7 +101,7 @@ type RankingEntry = {
 };
 
 export default function PlayerDashboard() {
-  const { user, signOut, isAdmin, isOperador, loading: authLoading } = useAuth();
+  const { user, signOut, isAdmin, isOperador, clubId, loading: authLoading } = useAuth();
   const [loading, setLoading] = useState(true);
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [jugadorId, setJugadorId] = useState<string | null>(null);
@@ -826,6 +827,11 @@ export default function PlayerDashboard() {
 
             {/* Active Inscriptions and Matches */}
             {jugadorId && <PlayerInscriptions jugadorId={jugadorId} />}
+
+            {/* Master Diciembre 2026 */}
+            {jugadorId && clubId && (
+              <PlayerMasterProfileSection clubId={clubId} jugadorId={jugadorId} />
+            )}
 
             {/* Historial Completo de Partidos */}
             {jugadorId && <PlayerMatchHistory jugadorId={jugadorId} />}

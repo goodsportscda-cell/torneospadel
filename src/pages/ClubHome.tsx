@@ -15,6 +15,7 @@ import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
 import { MasterPublicView } from "@/components/master/MasterPublicView";
+import { PlayerMasterProfileSection } from "@/components/master/PlayerMasterProfileSection";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { isAscenso, isCategoriaSuma, normalizarFiltroTorneoParam } from "@/lib/ranking";
 
@@ -687,6 +688,7 @@ export default function ClubHome() {
               Desglose de puntos por torneo en {filtroAnio}
             </DialogDescription>
           </DialogHeader>
+          <PlayerMasterProfileSection clubId={club?.id} jugadorId={detalleJugador?.jugador_id} />
           {loadingDetalle ? (
             <p className="text-sm text-muted-foreground py-4 text-center">Cargando...</p>
           ) : detalleData.length === 0 && (!detalleJugador || detalleJugador.puntos_ascenso === 0) ? (

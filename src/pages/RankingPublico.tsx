@@ -1119,6 +1119,7 @@ export default function RankingPublico() {
         open={modalOpen}
         onOpenChange={setModalOpen}
         jugador={jugadorModal}
+        clubId={clubId}
       />
 
       <MasterPlacaModal
