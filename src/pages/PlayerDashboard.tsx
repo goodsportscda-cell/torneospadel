@@ -113,6 +113,8 @@ export default function PlayerDashboard() {
   const [linkMessage, setLinkMessage] = useState<string | null>(null);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
+  const [resolvedClubId, setResolvedClubId] = useState<string | null>(clubId);
+  const [resolvedClubSlug, setResolvedClubSlug] = useState<string>("goodsports");
   const [profile, setProfile] = useState({
     nombre: "",
     apellido: "",
@@ -173,6 +175,43 @@ export default function PlayerDashboard() {
           return ultimaFecha >= hoyArgentina;
         })
       );
+
+      // Resolver club activo para el Master 2026 (si perfiles.club_id es null, buscar edición activa o club principal)
+      if (clubId) {
+        setResolvedClubId(clubId);
+        const { data: clubRow } = await supabase
+          .from("clubes")
+          .select("slug")
+          .eq("id", clubId)
+          .maybeSingle();
+        if (clubRow?.slug) setResolvedClubSlug(clubRow.slug);
+      } else {
+        const { data: edRow } = await (supabase as any)
+          .from("master_editions")
+          .select("club_id")
+          .eq("anio", 2026)
+          .limit(1)
+          .maybeSingle();
+        if (edRow?.club_id) {
+          setResolvedClubId(edRow.club_id);
+          const { data: clubRow } = await supabase
+            .from("clubes")
+            .select("slug")
+            .eq("id", edRow.club_id)
+            .maybeSingle();
+          if (clubRow?.slug) setResolvedClubSlug(clubRow.slug);
+        } else {
+          const { data: firstClub } = await supabase
+            .from("clubes")
+            .select("id, slug")
+            .limit(1)
+            .maybeSingle();
+          if (firstClub) {
+            setResolvedClubId(firstClub.id);
+            setResolvedClubSlug(firstClub.slug);
+          }
+        }
+      }
 
       // If linked, get performance data & Master Race progress
       if (jId) {
@@ -590,6 +629,16 @@ export default function PlayerDashboard() {
 
               {jugadorId && (
                 <div className="flex items-center justify-end gap-2 flex-wrap">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1.5 text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
+                    asChild
+                  >
+                    <Link to={`/c/${resolvedClubSlug}/master`}>
+                      <Trophy className="h-3.5 w-3.5" /> Master Dic 2026
+                    </Link>
+                  </Button>
                   {miRanking.length > 0 && (
                     <Button
                       variant="outline"
@@ -829,8 +878,8 @@ export default function PlayerDashboard() {
             {jugadorId && <PlayerInscriptions jugadorId={jugadorId} />}
 
             {/* Master Diciembre 2026 */}
-            {jugadorId && clubId && (
-              <PlayerMasterProfileSection clubId={clubId} jugadorId={jugadorId} />
+            {jugadorId && resolvedClubId && (
+              <PlayerMasterProfileSection clubId={resolvedClubId} jugadorId={jugadorId} />
             )}
 
             {/* Historial Completo de Partidos */}
