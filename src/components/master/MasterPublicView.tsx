@@ -14,6 +14,7 @@ import {
   formatTeamDisplayName,
   getOrCreateMasterEdition,
   type MasterCategoryMapping,
+  type MasterCategoryVisibilityDB,
   type MasterEditionRow,
   type MasterMatchDB,
   type MasterQualifierDB,
@@ -36,6 +37,7 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
   const [qualifiers, setQualifiers] = useState<MasterQualifierDB[]>([]);
   const [teams, setTeams] = useState<MasterTeamDB[]>([]);
   const [matches, setMatches] = useState<MasterMatchDB[]>([]);
+  const [visibilityRows, setVisibilityRows] = useState<MasterCategoryVisibilityDB[]>([]);
   const [diaFiltro, setDiaFiltro] = useState<string>("todos");
   const [soloCatCronograma, setSoloCatCronograma] = useState<boolean>(false);
 
@@ -57,6 +59,7 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
         setQualifiers(data.qualifiers);
         setTeams(data.teams);
         setMatches(data.matches);
+        setVisibilityRows(data.visibility);
       }
     } catch (err) {
       console.error("Error cargando Master 2026:", err);
@@ -82,10 +85,43 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
     [categories, selectedCatId]
   );
 
-  const catQualifiers = useMemo(
-    () => qualifiers.filter((q) => q.categoria_id === selectedCatId),
-    [qualifiers, selectedCatId]
+  const visibilityByCatId = useMemo(
+    () => new Map(visibilityRows.map((v) => [v.categoria_id, v])),
+    [visibilityRows]
   );
+
+  const activeVisibility = useMemo(() => {
+    const found = visibilityByCatId.get(selectedCatId);
+    return (
+      found ?? {
+        edition_id: edition?.id ?? "",
+        categoria_id: selectedCatId,
+        publicar_clasificados: false,
+        publicar_parejas: false,
+        publicar_llaves: false,
+      }
+    );
+  }, [visibilityByCatId, selectedCatId, edition?.id]);
+
+  const anySectionPublishedInClub = useMemo(
+    () =>
+      visibilityRows.some(
+        (v) => v.publicar_clasificados || v.publicar_parejas || v.publicar_llaves
+      ),
+    [visibilityRows]
+  );
+
+  const catQualifiers = useMemo(() => {
+    if (!activeCategory) return [];
+    return qualifiers.filter(
+      (q) =>
+        q.categoria_id === selectedCatId &&
+        !q.es_suplente &&
+        q.estado !== "baja" &&
+        q.posicion_final !== null &&
+        q.posicion_final <= activeCategory.spec.cupos
+    );
+  }, [qualifiers, selectedCatId, activeCategory]);
 
   const catTeams = useMemo(
     () => teams.filter((t) => t.categoria_id === selectedCatId).sort((a, b) => a.seed - b.seed),
@@ -103,6 +139,8 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
   const scheduleMatches = useMemo(() => {
     return matches
       .filter((m) => {
+        const vis = visibilityByCatId.get(m.categoria_id);
+        if (!vis?.publicar_llaves) return false;
         if (soloCatCronograma && m.categoria_id !== selectedCatId) return false;
         if (diaFiltro !== "todos" && m.dia !== diaFiltro) return false;
         return Boolean(m.dia || m.hora || m.cancha);
@@ -182,13 +220,13 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
         </div>
       </div>
 
-      {!edition ? (
+      {!edition || !anySectionPublishedInClub ? (
         <Card className={cn("border-dashed", tvMode && "bg-white/[0.03] border-white/15 text-white")}>
           <CardContent className="py-12 text-center space-y-2">
-            <Trophy className="h-10 w-10 mx-auto text-amber-500/60" />
-            <p className="font-bold">El Master Diciembre 2026 aún no fue publicado</p>
+            <Trophy className="h-10 w-10 mx-auto text-amber-500/70" />
+            <p className="text-lg font-black">Próximamente · Good Padel Master 2026</p>
             <p className={cn("text-sm", tvMode ? "text-white/60" : "text-muted-foreground")}>
-              Cuando la organización cargue los clasificados y llaves, aparecerán aquí en tiempo real.
+              Estamos preparando los clasificados, parejas y llaves oficiales (3 al 6 de diciembre).
             </p>
           </CardContent>
         </Card>
@@ -214,32 +252,63 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
             </div>
           </div>
 
-          <Tabs defaultValue="llaves" className="w-full">
-            <TabsList className={cn("grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1", tvMode && "bg-white/10")}>
-              <TabsTrigger value="clasificados" className="text-xs sm:text-sm font-bold py-2">
-                Clasificados
-              </TabsTrigger>
-              <TabsTrigger value="parejas" className="text-xs sm:text-sm font-bold py-2">
-                Parejas (8)
-              </TabsTrigger>
-              <TabsTrigger value="llaves" className="text-xs sm:text-sm font-bold py-2">
-                Llaves
-              </TabsTrigger>
-              <TabsTrigger value="cronograma" className="text-xs sm:text-sm font-bold py-2">
-                Orden de Juego
-              </TabsTrigger>
-            </TabsList>
+          {!activeVisibility.publicar_clasificados &&
+          !activeVisibility.publicar_parejas &&
+          !activeVisibility.publicar_llaves ? (
+            <Card className={cn("border-dashed", tvMode && "bg-white/[0.03] border-white/15 text-white")}>
+              <CardContent className="py-12 text-center space-y-2">
+                <Trophy className="h-9 w-9 mx-auto text-amber-500/60" />
+                <p className="font-bold">Próximamente · {activeCategory?.spec.label}</p>
+                <p className={cn("text-sm", tvMode ? "text-white/60" : "text-muted-foreground")}>
+                  La información de esta categoría se publicará muy pronto.
+                </p>
+              </CardContent>
+            </Card>
+          ) : (
+            <Tabs
+              key={selectedCatId}
+              defaultValue={
+                activeVisibility.publicar_llaves
+                  ? "llaves"
+                  : activeVisibility.publicar_parejas
+                    ? "parejas"
+                    : "clasificados"
+              }
+              className="w-full"
+            >
+              <TabsList className={cn("flex flex-wrap w-full h-auto p-1 gap-1", tvMode && "bg-white/10")}>
+                {activeVisibility.publicar_clasificados && (
+                  <TabsTrigger value="clasificados" className="flex-1 min-w-[110px] text-xs sm:text-sm font-bold py-2">
+                    Clasificados
+                  </TabsTrigger>
+                )}
+                {activeVisibility.publicar_parejas && (
+                  <TabsTrigger value="parejas" className="flex-1 min-w-[110px] text-xs sm:text-sm font-bold py-2">
+                    Parejas (8)
+                  </TabsTrigger>
+                )}
+                {activeVisibility.publicar_llaves && (
+                  <TabsTrigger value="llaves" className="flex-1 min-w-[110px] text-xs sm:text-sm font-bold py-2">
+                    Llaves
+                  </TabsTrigger>
+                )}
+                {activeVisibility.publicar_llaves && (
+                  <TabsTrigger value="cronograma" className="flex-1 min-w-[110px] text-xs sm:text-sm font-bold py-2">
+                    Orden de Juego
+                  </TabsTrigger>
+                )}
+              </TabsList>
 
-            {/* 1. CLASIFICADOS Y SUPLENTES */}
+            {/* 1. CLASIFICADOS */}
             <TabsContent value="clasificados" className="mt-4">
               <Card className={cn(tvMode && "bg-white/[0.03] border-white/15 text-white")}>
                 <CardHeader className="pb-3 flex-row items-center justify-between">
                   <CardTitle className="text-base flex items-center gap-2">
                     <Users className="h-4 w-4 text-primary" />
-                    Clasificados y Suplentes · {activeCategory?.spec.label}
+                    Clasificados · {activeCategory?.spec.label}
                   </CardTitle>
                   <Badge variant="outline" className={cn(tvMode && "border-white/20 text-white")}>
-                    Cupo: Top {activeCategory?.spec.cupos ?? 16}
+                    {activeCategory?.spec.isSuma ? "8 Titulares + 8 Invitados" : `Top ${activeCategory?.spec.cupos ?? 16}`}
                   </Badge>
                 </CardHeader>
                 <CardContent className="p-0">
@@ -264,30 +333,28 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
                             const totalTorneos = q.ascenso_validado
                               ? q.torneos_jugados + q.torneos_categoria_anterior
                               : q.torneos_jugados;
-                            const isBaja = q.estado === "baja";
+                            const teamSuma7 = activeCategory?.spec.isSuma
+                              ? catTeams.find((tm) => tm.jugador1_id === q.jugador_id)
+                              : undefined;
+                            const invitadoNombre = teamSuma7?.jugador2
+                              ? `${teamSuma7.jugador2.apellido}, ${teamSuma7.jugador2.nombre}`
+                              : teamSuma7?.jugador2_nombre_manual;
+
                             return (
-                              <TableRow key={q.id} className={cn(tvMode && "border-white/10", isBaja && "opacity-50")}>
+                              <TableRow key={q.id} className={cn(tvMode && "border-white/10")}>
                                 <TableCell className="text-center font-black">
-                                  {q.posicion_final ? (
-                                    q.es_suplente ? (
-                                      <Badge variant="secondary" className="text-[10px]">
-                                        Sup #{q.posicion_final - (activeCategory?.spec.cupos ?? 16)}
-                                      </Badge>
-                                    ) : (
-                                      <span className="text-primary">{q.posicion_final}°</span>
-                                    )
-                                  ) : (
-                                    "-"
-                                  )}
+                                  <span className="text-primary">{q.posicion_final}°</span>
                                 </TableCell>
                                 <TableCell className="font-semibold">
-                                  {q.jugador ? `${q.jugador.apellido}, ${q.jugador.nombre}` : "Jugador"}
+                                  <div>{q.jugador ? `${q.jugador.apellido}, ${q.jugador.nombre}` : "Jugador"}</div>
+                                  {invitadoNombre && (
+                                    <div className="text-xs text-emerald-500 font-medium">
+                                      + Invitado: {invitadoNombre}
+                                    </div>
+                                  )}
                                 </TableCell>
                                 <TableCell className="text-center text-xs">
                                   {totalTorneos}/7
-                                  {q.ascenso_validado && q.torneos_categoria_anterior > 0 && (
-                                    <span className="ml-1 text-[10px] text-primary">(Asc.)</span>
-                                  )}
                                 </TableCell>
                                 <TableCell className="text-right font-bold tabular-nums">
                                   {q.puntos_anuales}
@@ -480,7 +547,8 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
                 </div>
               )}
             </TabsContent>
-          </Tabs>
+            </Tabs>
+          )}
         </>
       )}
     </div>

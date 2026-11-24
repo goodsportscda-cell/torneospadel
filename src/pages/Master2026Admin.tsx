@@ -27,6 +27,8 @@ import {
   Check,
   Copy,
   ExternalLink,
+  Eye,
+  EyeOff,
   GitBranch,
   Loader2,
   RefreshCw,
@@ -60,8 +62,10 @@ import {
   saveSuma7TeamsForCategory,
   syncQualifiersFromAnnualRanking,
   updateMatchSchedule,
+  upsertCategoryVisibility,
   type JugadorBasic,
   type MasterCategoryMapping,
+  type MasterCategoryVisibilityDB,
   type MasterEditionRow,
   type MasterMatchDB,
   type MasterQualifierDB,
@@ -103,6 +107,7 @@ export default function Master2026Admin() {
   const [qualifiers, setQualifiers] = useState<MasterQualifierDB[]>([]);
   const [teams, setTeams] = useState<MasterTeamDB[]>([]);
   const [matches, setMatches] = useState<MasterMatchDB[]>([]);
+  const [visibilityRows, setVisibilityRows] = useState<MasterCategoryVisibilityDB[]>([]);
   const [allPlayers, setAllPlayers] = useState<JugadorBasic[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -142,6 +147,7 @@ export default function Master2026Admin() {
         setQualifiers(data.qualifiers);
         setTeams(data.teams);
         setMatches(data.matches);
+        setVisibilityRows(data.visibility);
       }
     } catch (err: any) {
       console.error(err);
@@ -160,10 +166,25 @@ export default function Master2026Admin() {
     [categories, selectedCatId]
   );
 
+  const activeVisibility = useMemo(() => {
+    const found = visibilityRows.find((v) => v.categoria_id === selectedCatId);
+    return (
+      found ?? {
+        edition_id: edition?.id ?? "",
+        categoria_id: selectedCatId,
+        publicar_clasificados: false,
+        publicar_parejas: false,
+        publicar_llaves: false,
+      }
+    );
+  }, [visibilityRows, selectedCatId, edition?.id]);
+
   const catQualifiers = useMemo(() => {
     if (!activeCategory) return [];
     const list = qualifiers.filter((q) => q.categoria_id === activeCategory.categoria_id);
-    return computeMasterQualifiersOrder(list, activeCategory.spec.cupos);
+    return computeMasterQualifiersOrder(list, activeCategory.spec.cupos).filter(
+      (q) => !q.es_suplente && q.posicion_final !== null && q.posicion_final <= activeCategory.spec.cupos
+    );
   }, [qualifiers, activeCategory]);
 
   const catTeams = useMemo(
@@ -219,6 +240,28 @@ export default function Master2026Admin() {
       );
     } catch (err: any) {
       toast.error(err?.message || "No se pudo sincronizar desde el ranking");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleToggleVisibility = async (
+    field: "publicar_clasificados" | "publicar_parejas" | "publicar_llaves",
+    value: boolean
+  ) => {
+    if (!edition || !activeCategory) return;
+    setBusy(true);
+    try {
+      await upsertCategoryVisibility({
+        editionId: edition.id,
+        categoriaId: activeCategory.categoria_id,
+        patch: { [field]: value },
+        current: activeVisibility,
+      });
+      await loadAll();
+      toast.success("Visibilidad pública actualizada");
+    } catch (err: any) {
+      toast.error(err?.message || "No se pudo actualizar la visibilidad (¿falta correr la migración SQL?)");
     } finally {
       setBusy(false);
     }
@@ -589,431 +632,477 @@ export default function Master2026Admin() {
           </div>
 
           {activeCategory && (
-            <Tabs value={catTab} onValueChange={(v) => setCatTab(v as any)}>
-              <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="clasificados" className="font-bold text-xs sm:text-sm">
-                  1. Clasificados ({activeCategory.spec.cupos})
-                </TabsTrigger>
-                <TabsTrigger value="parejas" className="font-bold text-xs sm:text-sm">
-                  2. Parejas ({catTeams.length}/8)
-                </TabsTrigger>
-                <TabsTrigger value="llaves" className="font-bold text-xs sm:text-sm">
-                  3. Llaves ({catMatches.length}/7)
-                </TabsTrigger>
-              </TabsList>
-
-              {/* PASO 1: CLASIFICADOS Y SUPLENTES */}
-              <TabsContent value="clasificados" className="mt-4 space-y-4">
-                <Card>
-                  <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Users className="h-4 w-4 text-primary" />
-                        {activeCategory.spec.label} · Clasificados y Suplentes
-                      </CardTitle>
-                      <CardDescription>
-                        Mínimo 4 de 7 torneos jugados (o ascenso validado). Las bajas suben correlativamente a los suplentes.
-                      </CardDescription>
-                    </div>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      disabled={busy}
-                      onClick={() => void handleSyncAll(activeCategory.categoria_id)}
-                      className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
-                    >
-                      <RotateCcw className="h-3.5 w-3.5" /> Resetear Clasificados
-                    </Button>
-                  </CardHeader>
-                  <CardContent className="p-0">
-                    {catQualifiers.length === 0 ? (
-                      <div className="py-12 text-center space-y-3">
-                        <p className="text-sm text-muted-foreground">
-                          No hay clasificados cargados todavía para {activeCategory.spec.label}.
-                        </p>
-                        <Button size="sm" onClick={() => void handleSyncAll(activeCategory.categoria_id)} disabled={busy}>
-                          Cargar desde Ranking Anual
-                        </Button>
-                      </div>
+            <>
+              {/* Control de Visibilidad Pública por Categoría */}
+              <Card className="border-primary/20 bg-muted/20">
+                <CardContent className="py-3 px-4 flex flex-col md:flex-row md:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    {activeVisibility.publicar_clasificados ||
+                      activeVisibility.publicar_parejas ||
+                      activeVisibility.publicar_llaves ? (
+                      <Eye className="h-4 w-4 text-emerald-600 shrink-0" />
                     ) : (
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-20 text-center">Puesto</TableHead>
-                              <TableHead>Jugador</TableHead>
-                              <TableHead className="text-center">Torneos</TableHead>
-                              <TableHead className="text-center">Validar Ascenso</TableHead>
-                              <TableHead className="text-right">Puntos</TableHead>
-                              <TableHead className="w-44">Estado</TableHead>
-                              <TableHead className="w-24 text-center">Orden</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {catQualifiers.map((q) => {
-                              const activos = catQualifiers.filter((x) => x.elegible && x.estado !== "baja");
-                              const activeIdx = activos.findIndex((x) => x.id === q.id);
+                      <EyeOff className="h-4 w-4 text-muted-foreground shrink-0" />
+                    )}
+                    <div>
+                      <div className="text-xs font-bold flex items-center gap-2">
+                        Visibilidad en Link Público · {activeCategory.spec.label}
+                        {!activeVisibility.publicar_clasificados &&
+                          !activeVisibility.publicar_parejas &&
+                          !activeVisibility.publicar_llaves ? (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Borrador / Oculto
+                          </Badge>
+                        ) : (
+                          <Badge className="bg-emerald-600 text-white text-[10px]">
+                            Publicado
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-muted-foreground">
+                        Todo inicia oculto ("Próximamente"). Activá cada sección cuando esté lista.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4">
+                    <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                      <Switch
+                        checked={activeVisibility.publicar_clasificados}
+                        disabled={busy}
+                        onCheckedChange={(v) => void handleToggleVisibility("publicar_clasificados", v)}
+                      />
+                      Publicar Clasificados
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                      <Switch
+                        checked={activeVisibility.publicar_parejas}
+                        disabled={busy}
+                        onCheckedChange={(v) => void handleToggleVisibility("publicar_parejas", v)}
+                      />
+                      Publicar Parejas Armadas
+                    </label>
+                    <label className="flex items-center gap-2 text-xs font-semibold cursor-pointer">
+                      <Switch
+                        checked={activeVisibility.publicar_llaves}
+                        disabled={busy}
+                        onCheckedChange={(v) => void handleToggleVisibility("publicar_llaves", v)}
+                      />
+                      Publicar Llaves y Cronograma
+                    </label>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Tabs value={catTab} onValueChange={(v) => setCatTab(v as any)}>
+                <TabsList className="grid w-full grid-cols-3">
+                  <TabsTrigger value="clasificados" className="font-bold text-xs sm:text-sm">
+                    1. Clasificados ({activeCategory.spec.cupos})
+                  </TabsTrigger>
+                  <TabsTrigger value="parejas" className="font-bold text-xs sm:text-sm">
+                    2. Parejas ({catTeams.length}/8)
+                  </TabsTrigger>
+                  <TabsTrigger value="llaves" className="font-bold text-xs sm:text-sm">
+                    3. Llaves ({catMatches.length}/7)
+                  </TabsTrigger>
+                </TabsList>
+
+                {/* PASO 1: CLASIFICADOS Y SUPLENTES */}
+                <TabsContent value="clasificados" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Users className="h-4 w-4 text-primary" />
+                          {activeCategory.spec.label} · Clasificados Confirmados ({activeCategory.spec.isSuma ? "8 Titulares + 8 Invitados" : "16 Titulares"})
+                        </CardTitle>
+                        <CardDescription>
+                          Solo se muestran los jugadores confirmados que juegan el Master. Si hubo bajas en el Ranking general, presioná "Sincronizar Todo desde Ranking" o "Resetear Clasificados".
+                        </CardDescription>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => void handleSyncAll(activeCategory.categoria_id)}
+                        className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10 shrink-0"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" /> Resetear Clasificados
+                      </Button>
+                    </CardHeader>
+                    <CardContent className="p-0">
+                      {catQualifiers.length === 0 ? (
+                        <div className="py-12 text-center space-y-3">
+                          <p className="text-sm text-muted-foreground">
+                            No hay clasificados cargados todavía para {activeCategory.spec.label}.
+                          </p>
+                          <Button size="sm" onClick={() => void handleSyncAll(activeCategory.categoria_id)} disabled={busy}>
+                            Cargar desde Ranking Anual
+                          </Button>
+                        </div>
+                      ) : (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-20 text-center">Puesto</TableHead>
+                                <TableHead>Jugador</TableHead>
+                                <TableHead className="text-center">Torneos</TableHead>
+                                <TableHead className="text-right">Puntos</TableHead>
+                                <TableHead className="w-44">Estado</TableHead>
+                                <TableHead className="w-24 text-center">Orden</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {catQualifiers.map((q) => {
+                                const activos = catQualifiers.filter((x) => x.elegible && x.estado !== "baja");
+                                const activeIdx = activos.findIndex((x) => x.id === q.id);
+                                const teamSuma7 = activeCategory.spec.isSuma
+                                  ? catTeams.find((tm) => tm.jugador1_id === q.jugador_id)
+                                  : undefined;
+                                const invitadoNombre = teamSuma7?.jugador2
+                                  ? `${teamSuma7.jugador2.apellido}, ${teamSuma7.jugador2.nombre}`
+                                  : teamSuma7?.jugador2_nombre_manual;
+
+                                return (
+                                  <TableRow key={q.id}>
+                                    <TableCell className="text-center font-black">
+                                      <Badge className="bg-primary text-primary-foreground text-xs">
+                                        {q.posicion_final}°
+                                      </Badge>
+                                    </TableCell>
+                                    <TableCell>
+                                      <div className="font-semibold text-sm">
+                                        {q.jugador ? `${q.jugador.apellido}, ${q.jugador.nombre}` : q.jugador_id}
+                                      </div>
+                                      {invitadoNombre && (
+                                        <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">
+                                          + Invitado: {invitadoNombre}
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-center text-xs font-medium">
+                                      {q.torneos_computados}/7
+                                    </TableCell>
+                                    <TableCell className="text-right font-bold tabular-nums">
+                                      {q.puntos_anuales}
+                                    </TableCell>
+                                    <TableCell>
+                                      <Select
+                                        value={q.estado}
+                                        disabled={busy}
+                                        onValueChange={(val) =>
+                                          void handleUpdateQualifier(q, { estado: val as MasterQualifierEstado })
+                                        }
+                                      >
+                                        <SelectTrigger className="h-8 text-xs">
+                                          <SelectValue />
+                                        </SelectTrigger>
+                                        <SelectContent>
+                                          <SelectItem value="confirmado">Titular Confirmado</SelectItem>
+                                          <SelectItem value="pendiente">Pendiente</SelectItem>
+                                          <SelectItem value="baja">Baja</SelectItem>
+                                        </SelectContent>
+                                      </Select>
+                                    </TableCell>
+                                    <TableCell className="text-center">
+                                      {activeIdx >= 0 && (
+                                        <div className="flex items-center justify-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            disabled={busy || activeIdx === 0}
+                                            onClick={() => void handleMoveQualifier(activeIdx, -1)}
+                                          >
+                                            <ArrowUp className="h-3.5 w-3.5" />
+                                          </Button>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="h-7 w-7"
+                                            disabled={busy || activeIdx === activos.length - 1}
+                                            onClick={() => void handleMoveQualifier(activeIdx, 1)}
+                                          >
+                                            <ArrowDown className="h-3.5 w-3.5" />
+                                          </Button>
+                                        </div>
+                                      )}
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              })}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* PASO 2: PAREJAS & SEEDING */}
+                <TabsContent value="parejas" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <Sparkles className="h-4 w-4 text-amber-500" />
+                          Armado de Parejas y Siembra · {activeCategory.spec.label}
+                        </CardTitle>
+                        <CardDescription>
+                          {activeCategory.spec.isSuma
+                            ? "Cada uno de los 8 titulares invita 1 compañero validando Cat_Titular + Cat_Invitado >= 7."
+                            : "Cruce automático de extremos (1°+16°, 2°+15°, ..., 8°+9°) ordenado por suma de puntos (Seed #1 a #8)."}
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {catTeams.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void handleResetParejas()}
+                            className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" /> Resetear Parejas
+                          </Button>
+                        )}
+                        {!activeCategory.spec.isSuma && (
+                          <Button size="sm" disabled={busy} onClick={() => void handleFormarParejasPuras()}>
+                            Armar 8 Parejas Automáticamente
+                          </Button>
+                        )}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {activeCategory.spec.isSuma && (
+                        <div className="space-y-3 rounded-xl border p-4 bg-muted/20">
+                          <div className="text-sm font-bold">Asignar Invitados de Suma 7 (8 Titulares)</div>
+                          {Object.values(suma7Drafts)
+                            .sort((a, b) => a.titular_pos - b.titular_pos)
+                            .map((d) => {
+                              const titular = catQualifiers.find((q) => q.jugador_id === d.titular_id);
+                              const guestObj = d.invitado_jugador_id
+                                ? allPlayers.find((p) => p.id === d.invitado_jugador_id)
+                                : null;
+                              const guestLevelNum = d.invitado_nivel
+                                ? parseInt(d.invitado_nivel, 10)
+                                : guestObj?.categoria_nivel ?? null;
+                              const check = validarSuma7(d.titular_nivel, guestLevelNum);
+
                               return (
-                                <TableRow key={q.id} className={q.estado === "baja" ? "opacity-55 bg-muted/30" : ""}>
-                                  <TableCell className="text-center font-black">
-                                    {q.posicion_final ? (
-                                      q.es_suplente ? (
-                                        <Badge variant="secondary" className="text-[10px]">
-                                          Sup #{q.orden_suplente}
-                                        </Badge>
-                                      ) : (
-                                        <Badge className="bg-primary text-primary-foreground text-xs">
-                                          {q.posicion_final}°
-                                        </Badge>
-                                      )
-                                    ) : (
-                                      <span className="text-xs text-muted-foreground">-</span>
-                                    )}
-                                  </TableCell>
-                                  <TableCell>
-                                    <div className="font-semibold text-sm">
-                                      {q.jugador ? `${q.jugador.apellido}, ${q.jugador.nombre}` : q.jugador_id}
+                                <div
+                                  key={d.titular_id}
+                                  className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center rounded-lg border bg-card p-3"
+                                >
+                                  <div className="md:col-span-4">
+                                    <div className="text-xs font-black text-primary">Titular #{d.titular_pos}</div>
+                                    <div className="text-sm font-bold">
+                                      {titular?.jugador
+                                        ? `${titular.jugador.apellido}, ${titular.jugador.nombre}`
+                                        : d.titular_id}
                                     </div>
                                     <div className="text-[11px] text-muted-foreground">
-                                      Ranking orig: #{q.ranking_posicion_original}
-                                      {!q.elegible && " · No alcanza 4 torneos"}
+                                      {d.titular_pts} pts · Cat:{" "}
+                                      {d.titular_nivel ? `${d.titular_nivel}ta/ma` : "Sin asignar"}
                                     </div>
-                                  </TableCell>
-                                  <TableCell className="text-center text-xs font-medium">
-                                    {q.torneos_computados}/7
-                                    {q.torneos_categoria_anterior > 0 && (
-                                      <div className="text-[10px] text-muted-foreground">
-                                        ({q.torneos_jugados} + {q.torneos_categoria_anterior} ant.)
-                                      </div>
-                                    )}
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    <Switch
-                                      checked={q.ascenso_validado}
-                                      disabled={busy}
-                                      onCheckedChange={(checked) =>
-                                        void handleUpdateQualifier(q, { ascenso_validado: checked })
+                                  </div>
+                                  <div className="md:col-span-3">
+                                    <Label className="text-[10px]">Buscar jugador del club</Label>
+                                    <Select
+                                      value={d.invitado_jugador_id || "__manual__"}
+                                      onValueChange={(val) => {
+                                        const pid = val === "__manual__" ? "" : val;
+                                        const found = allPlayers.find((p) => p.id === pid);
+                                        setSuma7Drafts((prev) => ({
+                                          ...prev,
+                                          [d.titular_id]: {
+                                            ...prev[d.titular_id],
+                                            invitado_jugador_id: pid,
+                                            invitado_nivel: found?.categoria_nivel
+                                              ? String(found.categoria_nivel)
+                                              : prev[d.titular_id].invitado_nivel,
+                                          },
+                                        }));
+                                      }}
+                                    >
+                                      <SelectTrigger className="h-8 text-xs">
+                                        <SelectValue placeholder="Manual / Seleccionar" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__manual__">Ingresar nombre manual</SelectItem>
+                                        {allPlayers.slice(0, 200).map((p) => (
+                                          <SelectItem key={p.id} value={p.id}>
+                                            {p.apellido}, {p.nombre}
+                                            {p.categoria_nombre ? ` (${p.categoria_nombre})` : ""}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+                                  <div className="md:col-span-2">
+                                    <Label className="text-[10px]">Nombre manual</Label>
+                                    <Input
+                                      className="h-8 text-xs"
+                                      placeholder="Apellido, Nombre"
+                                      disabled={Boolean(d.invitado_jugador_id)}
+                                      value={d.invitado_nombre_manual}
+                                      onChange={(e) =>
+                                        setSuma7Drafts((prev) => ({
+                                          ...prev,
+                                          [d.titular_id]: {
+                                            ...prev[d.titular_id],
+                                            invitado_nombre_manual: e.target.value,
+                                          },
+                                        }))
                                       }
                                     />
-                                  </TableCell>
-                                  <TableCell className="text-right font-bold tabular-nums">
-                                    {q.puntos_anuales}
-                                  </TableCell>
-                                  <TableCell>
+                                  </div>
+                                  <div className="md:col-span-2">
+                                    <Label className="text-[10px]">Cat. Invitado</Label>
                                     <Select
-                                      value={q.estado}
-                                      disabled={busy}
+                                      value={d.invitado_nivel}
                                       onValueChange={(val) =>
-                                        void handleUpdateQualifier(q, { estado: val as MasterQualifierEstado })
+                                        setSuma7Drafts((prev) => ({
+                                          ...prev,
+                                          [d.titular_id]: {
+                                            ...prev[d.titular_id],
+                                            invitado_nivel: val,
+                                          },
+                                        }))
                                       }
                                     >
                                       <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue />
+                                        <SelectValue placeholder="Cat." />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="confirmado">Titular Confirmado</SelectItem>
-                                        <SelectItem value="pendiente">Pendiente</SelectItem>
-                                        <SelectItem value="baja">Baja</SelectItem>
+                                        {NIVELES_CATEGORIA.map((nv) => (
+                                          <SelectItem key={nv.value} value={nv.value}>
+                                            {nv.label}
+                                          </SelectItem>
+                                        ))}
                                       </SelectContent>
                                     </Select>
-                                  </TableCell>
-                                  <TableCell className="text-center">
-                                    {activeIdx >= 0 && (
-                                      <div className="flex items-center justify-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-7 w-7"
-                                          disabled={busy || activeIdx === 0}
-                                          onClick={() => void handleMoveQualifier(activeIdx, -1)}
-                                        >
-                                          <ArrowUp className="h-3.5 w-3.5" />
-                                        </Button>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="h-7 w-7"
-                                          disabled={busy || activeIdx === activos.length - 1}
-                                          onClick={() => void handleMoveQualifier(activeIdx, 1)}
-                                        >
-                                          <ArrowDown className="h-3.5 w-3.5" />
-                                        </Button>
-                                      </div>
+                                  </div>
+                                  <div className="md:col-span-1 text-right">
+                                    {check.ok ? (
+                                      <Badge className="bg-emerald-600 text-white text-[10px]">
+                                        Σ {check.suma} ✓
+                                      </Badge>
+                                    ) : (
+                                      <Badge variant="destructive" className="text-[10px]">
+                                        {check.suma ? `Σ ${check.suma}` : "Falta"}
+                                      </Badge>
                                     )}
-                                  </TableCell>
-                                </TableRow>
+                                  </div>
+                                </div>
                               );
                             })}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* PASO 2: PAREJAS & SEEDING */}
-              <TabsContent value="parejas" className="mt-4 space-y-4">
-                <Card>
-                  <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <Sparkles className="h-4 w-4 text-amber-500" />
-                        Armado de Parejas y Siembra · {activeCategory.spec.label}
-                      </CardTitle>
-                      <CardDescription>
-                        {activeCategory.spec.isSuma
-                          ? "Cada uno de los 8 titulares invita 1 compañero validando Cat_Titular + Cat_Invitado >= 7."
-                          : "Cruce automático de extremos (1°+16°, 2°+15°, ..., 8°+9°) ordenado por suma de puntos (Seed #1 a #8)."}
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {catTeams.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void handleResetParejas()}
-                          className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" /> Resetear Parejas
-                        </Button>
-                      )}
-                      {!activeCategory.spec.isSuma && (
-                        <Button size="sm" disabled={busy} onClick={() => void handleFormarParejasPuras()}>
-                          Armar 8 Parejas Automáticamente
-                        </Button>
-                      )}
-                    </div>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {activeCategory.spec.isSuma && (
-                      <div className="space-y-3 rounded-xl border p-4 bg-muted/20">
-                        <div className="text-sm font-bold">Asignar Invitados de Suma 7 (8 Titulares)</div>
-                        {Object.values(suma7Drafts)
-                          .sort((a, b) => a.titular_pos - b.titular_pos)
-                          .map((d) => {
-                            const titular = catQualifiers.find((q) => q.jugador_id === d.titular_id);
-                            const guestObj = d.invitado_jugador_id
-                              ? allPlayers.find((p) => p.id === d.invitado_jugador_id)
-                              : null;
-                            const guestLevelNum = d.invitado_nivel
-                              ? parseInt(d.invitado_nivel, 10)
-                              : guestObj?.categoria_nivel ?? null;
-                            const check = validarSuma7(d.titular_nivel, guestLevelNum);
-
-                            return (
-                              <div
-                                key={d.titular_id}
-                                className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center rounded-lg border bg-card p-3"
-                              >
-                                <div className="md:col-span-4">
-                                  <div className="text-xs font-black text-primary">Titular #{d.titular_pos}</div>
-                                  <div className="text-sm font-bold">
-                                    {titular?.jugador
-                                      ? `${titular.jugador.apellido}, ${titular.jugador.nombre}`
-                                      : d.titular_id}
-                                  </div>
-                                  <div className="text-[11px] text-muted-foreground">
-                                    {d.titular_pts} pts · Cat:{" "}
-                                    {d.titular_nivel ? `${d.titular_nivel}ta/ma` : "Sin asignar"}
-                                  </div>
-                                </div>
-                                <div className="md:col-span-3">
-                                  <Label className="text-[10px]">Buscar jugador del club</Label>
-                                  <Select
-                                    value={d.invitado_jugador_id || "__manual__"}
-                                    onValueChange={(val) => {
-                                      const pid = val === "__manual__" ? "" : val;
-                                      const found = allPlayers.find((p) => p.id === pid);
-                                      setSuma7Drafts((prev) => ({
-                                        ...prev,
-                                        [d.titular_id]: {
-                                          ...prev[d.titular_id],
-                                          invitado_jugador_id: pid,
-                                          invitado_nivel: found?.categoria_nivel
-                                            ? String(found.categoria_nivel)
-                                            : prev[d.titular_id].invitado_nivel,
-                                        },
-                                      }));
-                                    }}
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue placeholder="Manual / Seleccionar" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      <SelectItem value="__manual__">Ingresar nombre manual</SelectItem>
-                                      {allPlayers.slice(0, 200).map((p) => (
-                                        <SelectItem key={p.id} value={p.id}>
-                                          {p.apellido}, {p.nombre}
-                                          {p.categoria_nombre ? ` (${p.categoria_nombre})` : ""}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="md:col-span-2">
-                                  <Label className="text-[10px]">Nombre manual</Label>
-                                  <Input
-                                    className="h-8 text-xs"
-                                    placeholder="Apellido, Nombre"
-                                    disabled={Boolean(d.invitado_jugador_id)}
-                                    value={d.invitado_nombre_manual}
-                                    onChange={(e) =>
-                                      setSuma7Drafts((prev) => ({
-                                        ...prev,
-                                        [d.titular_id]: {
-                                          ...prev[d.titular_id],
-                                          invitado_nombre_manual: e.target.value,
-                                        },
-                                      }))
-                                    }
-                                  />
-                                </div>
-                                <div className="md:col-span-2">
-                                  <Label className="text-[10px]">Cat. Invitado</Label>
-                                  <Select
-                                    value={d.invitado_nivel}
-                                    onValueChange={(val) =>
-                                      setSuma7Drafts((prev) => ({
-                                        ...prev,
-                                        [d.titular_id]: {
-                                          ...prev[d.titular_id],
-                                          invitado_nivel: val,
-                                        },
-                                      }))
-                                    }
-                                  >
-                                    <SelectTrigger className="h-8 text-xs">
-                                      <SelectValue placeholder="Cat." />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                      {NIVELES_CATEGORIA.map((nv) => (
-                                        <SelectItem key={nv.value} value={nv.value}>
-                                          {nv.label}
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-                                <div className="md:col-span-1 text-right">
-                                  {check.ok ? (
-                                    <Badge className="bg-emerald-600 text-white text-[10px]">
-                                      Σ {check.suma} ✓
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="destructive" className="text-[10px]">
-                                      {check.suma ? `Σ ${check.suma}` : "Falta"}
-                                    </Badge>
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        <div className="flex justify-end pt-2">
-                          <Button onClick={() => void handleGuardarSuma7()} disabled={busy}>
-                            Guardar Parejas Suma 7 y Calcular Seeds
-                          </Button>
+                          <div className="flex justify-end pt-2">
+                            <Button onClick={() => void handleGuardarSuma7()} disabled={busy}>
+                              Guardar Parejas Suma 7 y Calcular Seeds
+                            </Button>
+                          </div>
                         </div>
-                      </div>
-                    )}
-
-                    {catTeams.length > 0 && (
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-20 text-center">Seed</TableHead>
-                              <TableHead>Pareja</TableHead>
-                              <TableHead>Cruce</TableHead>
-                              <TableHead className="text-right">Pts Combinados</TableHead>
-                              <TableHead className="w-24 text-center">Ajustar Seed</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {catTeams.map((team, idx) => (
-                              <TableRow key={team.id}>
-                                <TableCell className="text-center font-black text-primary">
-                                  Seed #{team.seed}
-                                </TableCell>
-                                <TableCell className="font-bold">{formatTeamDisplayName(team)}</TableCell>
-                                <TableCell className="text-xs text-muted-foreground">{team.cruce_label}</TableCell>
-                                <TableCell className="text-right font-black tabular-nums">
-                                  {team.puntos_combinados}
-                                </TableCell>
-                                <TableCell className="text-center">
-                                  <div className="flex items-center justify-center gap-1">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7"
-                                      disabled={busy || idx === 0}
-                                      onClick={() => void handleSwapSeed(idx, -1)}
-                                    >
-                                      <ArrowUp className="h-3.5 w-3.5" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="h-7 w-7"
-                                      disabled={busy || idx === catTeams.length - 1}
-                                      onClick={() => void handleSwapSeed(idx, 1)}
-                                    >
-                                      <ArrowDown className="h-3.5 w-3.5" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-              </TabsContent>
-
-              {/* PASO 3: LLAVES ELIMINATORIAS */}
-              <TabsContent value="llaves" className="mt-4 space-y-4">
-                <Card>
-                  <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                    <div>
-                      <CardTitle className="text-base flex items-center gap-2">
-                        <GitBranch className="h-4 w-4 text-primary" />
-                        Cuadro Eliminatorio · {activeCategory.spec.label}
-                      </CardTitle>
-                      <CardDescription>
-                        QF1 (1v8), QF2 (4v5), QF3 (3v6), QF4 (2v7) → Semifinales → Final. Hacé clic en un partido para cargar el resultado (al mejor de 3 sets).
-                      </CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 shrink-0">
-                      {catMatches.length > 0 && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          disabled={busy}
-                          onClick={() => void handleResetLlaves()}
-                          className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
-                        >
-                          <RotateCcw className="h-3.5 w-3.5" /> Resetear Llaves
-                        </Button>
                       )}
-                      <Button size="sm" disabled={busy || catTeams.length < 8} onClick={() => void handleGenerarLlaves()}>
-                        Generar Llaves desde Cuartos
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <MasterBracketView
-                      matches={catMatches}
-                      teams={catTeams}
-                      editable
-                      onSelectMatch={openScoreDialog}
-                    />
-                  </CardContent>
-                </Card>
-              </TabsContent>
-            </Tabs>
+
+                      {catTeams.length > 0 && (
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-20 text-center">Seed</TableHead>
+                                <TableHead>Pareja</TableHead>
+                                <TableHead>Cruce</TableHead>
+                                <TableHead className="text-right">Pts Combinados</TableHead>
+                                <TableHead className="w-24 text-center">Ajustar Seed</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {catTeams.map((team, idx) => (
+                                <TableRow key={team.id}>
+                                  <TableCell className="text-center font-black text-primary">
+                                    Seed #{team.seed}
+                                  </TableCell>
+                                  <TableCell className="font-bold">{formatTeamDisplayName(team)}</TableCell>
+                                  <TableCell className="text-xs text-muted-foreground">{team.cruce_label}</TableCell>
+                                  <TableCell className="text-right font-black tabular-nums">
+                                    {team.puntos_combinados}
+                                  </TableCell>
+                                  <TableCell className="text-center">
+                                    <div className="flex items-center justify-center gap-1">
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        disabled={busy || idx === 0}
+                                        onClick={() => void handleSwapSeed(idx, -1)}
+                                      >
+                                        <ArrowUp className="h-3.5 w-3.5" />
+                                      </Button>
+                                      <Button
+                                        size="icon"
+                                        variant="ghost"
+                                        className="h-7 w-7"
+                                        disabled={busy || idx === catTeams.length - 1}
+                                        onClick={() => void handleSwapSeed(idx, 1)}
+                                      >
+                                        <ArrowDown className="h-3.5 w-3.5" />
+                                      </Button>
+                                    </div>
+                                  </TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      )}
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+
+                {/* PASO 3: LLAVES ELIMINATORIAS */}
+                <TabsContent value="llaves" className="mt-4 space-y-4">
+                  <Card>
+                    <CardHeader className="pb-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div>
+                        <CardTitle className="text-base flex items-center gap-2">
+                          <GitBranch className="h-4 w-4 text-primary" />
+                          Cuadro Eliminatorio · {activeCategory.spec.label}
+                        </CardTitle>
+                        <CardDescription>
+                          QF1 (1v8), QF2 (4v5), QF3 (3v6), QF4 (2v7) → Semifinales → Final. Hacé clic en un partido para cargar el resultado (al mejor de 3 sets).
+                        </CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        {catMatches.length > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            disabled={busy}
+                            onClick={() => void handleResetLlaves()}
+                            className="gap-1.5 text-destructive border-destructive/30 hover:bg-destructive/10"
+                          >
+                            <RotateCcw className="h-3.5 w-3.5" /> Resetear Llaves
+                          </Button>
+                        )}
+                        <Button size="sm" disabled={busy || catTeams.length < 8} onClick={() => void handleGenerarLlaves()}>
+                          Generar Llaves desde Cuartos
+                        </Button>
+                      </div>
+                    </CardHeader>
+                    <CardContent>
+                      <MasterBracketView
+                        matches={catMatches}
+                        teams={catTeams}
+                        editable
+                        onSelectMatch={openScoreDialog}
+                      />
+                    </CardContent>
+                  </Card>
+                </TabsContent>
+              </Tabs>
+            </>
           )}
         </TabsContent>
 

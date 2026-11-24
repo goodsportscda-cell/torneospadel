@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import {
+  aplicarReglasMaster,
   construirContextoAscensosYTorneos,
   fetchAllRankingRowsYear,
   getNivelCategoriaPura,
@@ -105,6 +106,15 @@ export type MasterMatchDB = {
   dia: string | null;
   hora: string | null;
   cancha: number | null;
+};
+
+export type MasterCategoryVisibilityDB = {
+  id?: string;
+  edition_id: string;
+  categoria_id: string;
+  publicar_clasificados: boolean;
+  publicar_parejas: boolean;
+  publicar_llaves: boolean;
 };
 
 export async function fetchClubMasterCategories(clubId: string): Promise<MasterCategoryMapping[]> {
@@ -231,28 +241,39 @@ export async function fetchJugadoresBasicosMap(
 }
 
 export async function fetchMasterEditionData(editionId: string, clubId: string) {
-  const [{ data: qualifiers, error: qErr }, { data: teams, error: tErr }, { data: matches, error: mErr }] =
-    await Promise.all([
-      (supabase as any)
-        .from("master_qualifiers")
-        .select("*")
-        .eq("edition_id", editionId)
-        .order("posicion_final", { ascending: true, nullsFirst: false }),
-      (supabase as any)
-        .from("master_teams")
-        .select("*")
-        .eq("edition_id", editionId)
-        .order("seed", { ascending: true }),
-      (supabase as any)
-        .from("master_matches")
-        .select("*")
-        .eq("edition_id", editionId)
-        .order("numero_partido", { ascending: true }),
-    ]);
+  const [
+    { data: qualifiers, error: qErr },
+    { data: teams, error: tErr },
+    { data: matches, error: mErr },
+    { data: visibility, error: vErr },
+  ] = await Promise.all([
+    (supabase as any)
+      .from("master_qualifiers")
+      .select("*")
+      .eq("edition_id", editionId)
+      .order("posicion_final", { ascending: true, nullsFirst: false }),
+    (supabase as any)
+      .from("master_teams")
+      .select("*")
+      .eq("edition_id", editionId)
+      .order("seed", { ascending: true }),
+    (supabase as any)
+      .from("master_matches")
+      .select("*")
+      .eq("edition_id", editionId)
+      .order("numero_partido", { ascending: true }),
+    (supabase as any)
+      .from("master_category_visibility")
+      .select("*")
+      .eq("edition_id", editionId),
+  ]);
 
   if (qErr) throw qErr;
   if (tErr) throw tErr;
   if (mErr) throw mErr;
+  if (vErr) {
+    console.warn("master_category_visibility no disponible aún:", vErr.message);
+  }
 
   const ids = new Set<string>();
   (qualifiers ?? []).forEach((q: any) => ids.add(q.jugador_id));
@@ -278,7 +299,30 @@ export async function fetchMasterEditionData(editionId: string, clubId: string) 
     qualifiers: qualifiersWithPlayers,
     teams: teamsWithPlayers,
     matches: (matches ?? []) as MasterMatchDB[],
+    visibility: (visibility ?? []) as MasterCategoryVisibilityDB[],
   };
+}
+
+export async function upsertCategoryVisibility(params: {
+  editionId: string;
+  categoriaId: string;
+  patch: Partial<Pick<MasterCategoryVisibilityDB, "publicar_clasificados" | "publicar_parejas" | "publicar_llaves">>;
+  current?: MasterCategoryVisibilityDB | null;
+}) {
+  const { editionId, categoriaId, patch, current } = params;
+  const payload = {
+    edition_id: editionId,
+    categoria_id: categoriaId,
+    publicar_clasificados: patch.publicar_clasificados ?? current?.publicar_clasificados ?? false,
+    publicar_parejas: patch.publicar_parejas ?? current?.publicar_parejas ?? false,
+    publicar_llaves: patch.publicar_llaves ?? current?.publicar_llaves ?? false,
+  };
+
+  const { error } = await (supabase as any)
+    .from("master_category_visibility")
+    .upsert(payload, { onConflict: "edition_id,categoria_id" });
+
+  if (error) throw error;
 }
 
 /**
@@ -355,28 +399,25 @@ export async function syncQualifiersFromAnnualRanking(params: {
         const puntos_anuales = pObj.ptsTorneos + pObj.ptsAscenso;
         const torneosBase = metricas.torneos_en_categoria + metricas.torneos_categoria_superior;
         const torneosAnt = metricas.torneos_categoria_anterior;
-        const ascensoValidado = metricas.es_ascendido || metricas.master_status === "ascendido_habilitado";
-        const estadoInicial: MasterQualifierEstado =
-          metricas.master_status === "baja_master" ? "baja" : "pendiente";
 
         return {
           jugador_id,
           puntos_anuales,
-          torneos_jugados: torneosBase,
+          torneos_jugados: metricas.torneos_jugados,
+          torneos_base: torneosBase,
           torneos_categoria_anterior: torneosAnt,
-          ascenso_validado: ascensoValidado,
-          estado: estadoInicial,
+          es_ascendido: metricas.es_ascendido,
+          master_status: metricas.master_status,
         };
       })
-      .sort((a, b) => b.puntos_anuales - a.puntos_anuales);
+      .sort((a, b) => b.puntos_anuales - a.puntos_anuales)
+      .map((r, idx) => ({
+        ...r,
+        ranking_posicion_original: idx + 1,
+      }));
 
-    const withOriginalPos = rawList.map((r, idx) => ({
-      ...r,
-      ranking_posicion_original: idx + 1,
-      orden_manual: null as number | null,
-    }));
-
-    const computed = computeMasterQualifiersOrder(withOriginalPos, mapping.spec.cupos);
+    const conReglas = aplicarReglasMaster(rawList, mapping.spec.cupos);
+    const soloTitulares = conReglas.filter((r) => r.clasifica_master);
 
     // Borrar clasificados anteriores de esa categoría antes de reinsertar limpio
     await (supabase as any)
@@ -385,23 +426,20 @@ export async function syncQualifiersFromAnnualRanking(params: {
       .eq("edition_id", editionId)
       .eq("categoria_id", catId);
 
-    const rowsToInsert = computed
-      .filter((r) => r.elegible || r.torneos_jugados > 0 || r.torneos_categoria_anterior > 0)
-      .slice(0, 40) // guardamos titulares + amplia lista de suplentes/elegibles
-      .map((r) => ({
-        edition_id: editionId,
-        categoria_id: catId,
-        jugador_id: r.jugador_id,
-        ranking_posicion_original: r.ranking_posicion_original,
-        puntos_anuales: r.puntos_anuales,
-        torneos_jugados: r.torneos_jugados,
-        torneos_categoria_anterior: r.torneos_categoria_anterior,
-        ascenso_validado: r.ascenso_validado,
-        estado: r.estado,
-        orden_manual: r.orden_manual,
-        posicion_final: r.posicion_final,
-        es_suplente: r.es_suplente,
-      }));
+    const rowsToInsert = soloTitulares.map((r, idx) => ({
+      edition_id: editionId,
+      categoria_id: catId,
+      jugador_id: r.jugador_id,
+      ranking_posicion_original: r.ranking_posicion_original,
+      puntos_anuales: r.puntos_anuales,
+      torneos_jugados: r.torneos_base,
+      torneos_categoria_anterior: r.torneos_categoria_anterior,
+      ascenso_validado: r.es_ascendido || r.master_status === "ascendido_habilitado",
+      estado: "confirmado" as MasterQualifierEstado,
+      orden_manual: null,
+      posicion_final: r.posicion_master ?? idx + 1,
+      es_suplente: false,
+    }));
 
     if (rowsToInsert.length > 0) {
       const { error: insErr } = await (supabase as any)
