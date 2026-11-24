@@ -254,7 +254,7 @@ export default function Ranking() {
     }
     const { data: club, error } = await supabase
       .from("clubes")
-      .select("slug")
+      .select("id, slug")
       .eq("id", clubId)
       .maybeSingle();
     if (error || !club) {
@@ -262,10 +262,11 @@ export default function Ranking() {
       return null;
     }
     const params = new URLSearchParams();
+    params.set("club_id", club.id);
     if (filtroAnio !== new Date().getFullYear()) {
       params.set("anio", String(filtroAnio));
     }
-    if (filtroCategoria !== "todas") {
+    if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
       params.set("categoria", filtroCategoria);
     }
     if (filtroTorneo !== "todos") {
@@ -278,10 +279,7 @@ export default function Ranking() {
       params.set("vista", "master");
     }
     const queryString = params.toString();
-    const ruta =
-      club.slug === "goodsports"
-        ? "/ranking-publico"
-        : `/c/${club.slug}/ranking-publico`;
+    const ruta = `/c/${club.slug}/ranking-publico`;
     return `${window.location.origin}${ruta}${queryString ? "?" + queryString : ""}`;
   };
 
@@ -760,12 +758,17 @@ export default function Ranking() {
     if (filtroTorneo && filtroTorneo !== "todos") {
       if (filtroTorneo.startsWith("modalidad:")) {
         const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
+        const catIdsConTorneos = new Set(
+          torneosVisibilidad.map((t) => t.categoria_id).filter(Boolean) as string[]
+        );
+        const candidates = categorias.filter(
+          (c) =>
+            c.nombre.toLowerCase().includes(modKey) &&
+            (filtroGenero === "todos" || c.genero === filtroGenero)
+        );
         return (
-          categorias.find(
-            (c) =>
-              c.nombre.toLowerCase().includes(modKey) &&
-              (filtroGenero === "todos" || c.genero === filtroGenero)
-          ) ??
+          candidates.find((c) => catIdsConTorneos.has(c.id)) ??
+          candidates[0] ??
           categorias.find((c) => c.nombre.toLowerCase().includes(modKey)) ??
           null
         );

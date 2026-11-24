@@ -15,7 +15,7 @@ import { ESTADO_TORNEO_BADGE, ESTADO_TORNEO_LABELS, type EstadoTorneo } from "@/
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
-import { isAscenso } from "@/lib/ranking";
+import { isAscenso, isCategoriaSuma, normalizarFiltroTorneoParam } from "@/lib/ranking";
 
 type Torneo = {
   id: string;
@@ -66,13 +66,30 @@ export default function ClubHome() {
   // Rankings state
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [filtroCategoria, setFiltroCategoria] = useState<string>("todas");
+  const [filtroTorneo, setFiltroTorneo] = useState<string>("todos");
   const [filtroGenero, setFiltroGenero] = useState<string>("todos");
   const [filtroAnio, setFiltroAnio] = useState<number>(new Date().getFullYear());
   const [aniosDisp, setAniosDisp] = useState<number[]>([new Date().getFullYear()]);
   const [copiado, setCopiado] = useState(false);
   const [busqueda, setBusqueda] = useState("");
 
-  const { rankingRows, loading: loadingRankings } = useClubRanking(club?.id, filtroCategoria, filtroGenero, filtroAnio);
+  const esFiltroTorneoSuma = useMemo(() => {
+    const norm = normalizarFiltroTorneoParam(filtroTorneo);
+    return norm.startsWith("modalidad:") && norm.includes("suma");
+  }, [filtroTorneo]);
+
+  const {
+    rankingRows,
+    torneosDisponibles,
+    loading: loadingRankings,
+  } = useClubRanking(
+    club?.id,
+    esFiltroTorneoSuma ? "todas" : filtroCategoria,
+    filtroGenero,
+    filtroAnio,
+    null,
+    filtroTorneo
+  );
 
   const rankingFiltrado = useMemo(() => {
     if (!busqueda.trim()) return rankingRows;
@@ -239,9 +256,28 @@ export default function ClubHome() {
     return torneos.filter(t => t.estado === "en_curso");
   }, [torneos]);
 
+  const construirUrlRankingPublico = (): string => {
+    const slug = club?.slug || "goodsports";
+    const params = new URLSearchParams();
+    if (club?.id) params.set("club_id", club.id);
+    if (filtroAnio !== new Date().getFullYear()) params.set("anio", String(filtroAnio));
+    if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
+      params.set("categoria", filtroCategoria);
+    }
+    const normTorneo = normalizarFiltroTorneoParam(filtroTorneo);
+    if (normTorneo !== "todos") {
+      params.set("torneo", normTorneo);
+    }
+    if (filtroGenero !== "todos") {
+      params.set("genero", filtroGenero);
+    }
+    const qs = params.toString();
+    return `${window.location.origin}/c/${slug}/ranking-publico${qs ? `?${qs}` : ""}`;
+  };
+
   const copiarEnlace = () => {
-    const textoCompartir = `🏆 Portal Público de ${club?.nombre || "Club"} - Padel ID\nMirá los torneos y el ranking oficial acá:\n${window.location.href}`;
-    navigator.clipboard.writeText(textoCompartir);
+    const url = construirUrlRankingPublico();
+    navigator.clipboard.writeText(url);
     setCopiado(true);
     setTimeout(() => setCopiado(false), 2000);
   };
@@ -396,19 +432,37 @@ export default function ClubHome() {
           <TabsContent value="rankings" className="mt-6 animate-in fade-in slide-in-from-bottom-2 duration-300">
             <Card className="border-none shadow-md overflow-hidden bg-card">
               <CardHeader className="bg-muted/30 pb-4 border-b">
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between flex-wrap gap-2">
                   <CardTitle className="text-lg">Ranking Interno</CardTitle>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={copiarEnlace}
-                    disabled={torneosEnCurso.length > 0}
-                    title={torneosEnCurso.length > 0 ? "El ranking estará disponible para compartir cuando finalicen los torneos en curso" : ""}
-                    className="h-8 text-xs font-bold gap-1"
-                  >
-                    {copiado ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
-                    Compartir Ranking
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      asChild
+                      className="h-8 text-xs font-bold gap-1"
+                    >
+                      <Link
+                        to={`/c/${club.slug}/ranking-publico?club_id=${club.id}${filtroTorneo !== "todos"
+                            ? `&torneo=${encodeURIComponent(normalizarFiltroTorneoParam(filtroTorneo))}`
+                            : !esFiltroTorneoSuma && filtroCategoria !== "todas"
+                              ? `&categoria=${encodeURIComponent(filtroCategoria)}`
+                              : ""
+                          }`}
+                      >
+                        <Trophy className="h-3 w-3" />
+                        Ver Ranking Completo / Master
+                      </Link>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={copiarEnlace}
+                      className="h-8 text-xs font-bold gap-1"
+                    >
+                      {copiado ? <Check className="h-3 w-3" /> : <Share2 className="h-3 w-3" />}
+                      Compartir Ranking
+                    </Button>
+                  </div>
                 </div>
                 {torneosEnCurso.length > 0 && (
                   <div className="mt-4 bg-blue-50 border border-blue-200 text-blue-800 dark:bg-blue-900/20 dark:border-blue-800 dark:text-blue-200 rounded-md p-3 flex items-start gap-2">
@@ -416,7 +470,7 @@ export default function ClubHome() {
                     <p className="text-xs sm:text-sm">Ranking en actualización. Se actualizará oficialmente al finalizar la fecha en curso.</p>
                   </div>
                 )}
-                <div className="grid gap-3 sm:grid-cols-4 mt-4">
+                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5 mt-4">
                   <div className="space-y-1.5">
                     <label className="text-[10px] font-bold uppercase text-muted-foreground">Buscar Jugador</label>
                     <div className="relative">
@@ -430,16 +484,56 @@ export default function ClubHome() {
                     </div>
                   </div>
                   <div className="space-y-1.5">
-                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Categoría</label>
-                    <Select value={filtroCategoria} onValueChange={setFiltroCategoria}>
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Categoría del jugador</label>
+                    <Select
+                      value={esFiltroTorneoSuma ? "todas" : filtroCategoria}
+                      disabled={esFiltroTorneoSuma}
+                      onValueChange={(v) => {
+                        setFiltroCategoria(v);
+                        if (v !== "todas" && filtroTorneo !== "todos") {
+                          setFiltroTorneo("todos");
+                        }
+                      }}
+                    >
                       <SelectTrigger className="h-8 text-xs bg-background">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
                         <SelectItem value="todas">Todas las categorías</SelectItem>
-                        {categorias.map((c) => (
-                          <SelectItem key={c.id} value={c.id}>
-                            {c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} {c.nombre}
+                        {categorias
+                          .filter((c) => !isCategoriaSuma(c.nombre))
+                          .map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.genero === "caballeros" ? "Cab." : c.genero === "damas" ? "Dam." : "Mix."} {c.nombre}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-bold uppercase text-muted-foreground">Torneo / Modalidad</label>
+                    <Select
+                      value={normalizarFiltroTorneoParam(filtroTorneo)}
+                      onValueChange={(v) => {
+                        const norm = normalizarFiltroTorneoParam(v);
+                        setFiltroTorneo(norm);
+                        if (norm !== "todos" && filtroCategoria !== "todas") {
+                          setFiltroCategoria("todas");
+                        }
+                      }}
+                    >
+                      <SelectTrigger className="h-8 text-xs bg-background">
+                        <SelectValue placeholder="Todos los torneos" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="todos">Todos los torneos</SelectItem>
+                        <SelectItem value="modalidad:suma 6">Modalidad: Suma 6</SelectItem>
+                        <SelectItem value="modalidad:suma 7">Modalidad: Suma 7</SelectItem>
+                        <SelectItem value="modalidad:suma 8">Modalidad: Suma 8</SelectItem>
+                        {torneosDisponibles.map((t) => (
+                          <SelectItem key={t.id} value={`torneo:${t.id}`}>
+                            {t.nombre}
+                            {t.categoria_nombre ? ` (${t.categoria_nombre})` : ""}
                           </SelectItem>
                         ))}
                       </SelectContent>

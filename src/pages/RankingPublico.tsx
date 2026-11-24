@@ -44,6 +44,7 @@ import {
   isCategoriaSuma,
   getNumeroSumaCategoria,
   formatSumaModalidadLabel,
+  normalizarFiltroTorneoParam,
   TORNEOS_REQUERIDOS_MASTER,
   TORNEOS_TOTALES_ANIO,
   formatTorneosMasterBadge,
@@ -62,8 +63,9 @@ const GENEROS = [
 
 export default function RankingPublico() {
   const { clubSlug } = useParams<{ clubSlug?: string }>();
-  const activeClubSlug = clubSlug || "goodsports";
   const [searchParams, setSearchParams] = useSearchParams();
+  const activeClubSlug = clubSlug || searchParams.get("club") || "goodsports";
+  const clubIdFromUrl = searchParams.get("club_id");
   const [loadingFiltros, setLoadingFiltros] = useState(true);
 
   const [jugadorModal, setJugadorModal] = useState<RankingRowUnified | null>(null);
@@ -72,7 +74,8 @@ export default function RankingPublico() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [aniosDisp, setAniosDisp] = useState<number[]>([]);
   const [cuposMaster, setCuposMaster] = useState<Record<string, number>>({});
-  const [clubId, setClubId] = useState<string | null>(null);
+  const [clubId, setClubId] = useState<string | null>(() => searchParams.get("club_id"));
+  const [resolvedSlug, setResolvedSlug] = useState<string>(activeClubSlug);
   const [clubNombre, setClubNombre] = useState<string>("GOOD PADEL");
   const [clubLogoUrl, setClubLogoUrl] = useState<string | null>(null);
 
@@ -84,24 +87,38 @@ export default function RankingPublico() {
     const yr = searchParams.get("anio");
     return yr ? parseInt(yr, 10) : new Date().getFullYear();
   });
-  const [filtroCategoria, setFiltroCategoria] = useState<string>(() => {
-    return searchParams.get("categoria") ?? "todas";
-  });
   const [filtroTorneo, setFiltroTorneo] = useState<string>(() => {
-    return searchParams.get("torneo") ?? "todos";
+    const rawTorneo = searchParams.get("torneo");
+    if (rawTorneo) return normalizarFiltroTorneoParam(rawTorneo);
+    const rawCat = searchParams.get("categoria");
+    if (rawCat && isCategoriaSuma(rawCat)) {
+      return normalizarFiltroTorneoParam(rawCat);
+    }
+    return "todos";
+  });
+  const [filtroCategoria, setFiltroCategoria] = useState<string>(() => {
+    const rawTorneo = searchParams.get("torneo");
+    const normTorneo = normalizarFiltroTorneoParam(rawTorneo);
+    if (normTorneo.startsWith("modalidad:") && normTorneo.includes("suma")) {
+      return "todas";
+    }
+    const rawCat = searchParams.get("categoria");
+    if (!rawCat || isCategoriaSuma(rawCat)) return "todas";
+    return rawCat;
   });
   const [filtroGenero, setFiltroGenero] = useState<string>(() => {
-    return searchParams.get("genero") ?? "todos";
+    return (searchParams.get("genero") ?? "todos").toLowerCase();
   });
   const [busqueda, setBusqueda] = useState("");
   const [copiado, setCopiado] = useState(false);
 
   const esFiltroTorneoSuma = useMemo(() => {
-    if (filtroTorneo.startsWith("modalidad:") && filtroTorneo.toLowerCase().includes("suma")) {
+    const norm = normalizarFiltroTorneoParam(filtroTorneo);
+    if (norm.startsWith("modalidad:") && norm.toLowerCase().includes("suma")) {
       return true;
     }
-    if (filtroTorneo.startsWith("cat_torneo:")) {
-      const cId = filtroTorneo.slice("cat_torneo:".length);
+    if (norm.startsWith("cat_torneo:")) {
+      const cId = norm.slice("cat_torneo:".length);
       const cat = categorias.find((c) => c.id === cId);
       if (cat && isCategoriaSuma(cat.nombre)) return true;
     }
@@ -114,33 +131,60 @@ export default function RankingPublico() {
     }
   }, [esFiltroTorneoSuma, filtroCategoria]);
 
+  const {
+    rankingRows: rows,
+    torneosDisponibles,
+    loading: rankingLoading,
+  } = useClubRanking(
+    clubId,
+    esFiltroTorneoSuma ? "todas" : filtroCategoria,
+    filtroGenero,
+    filtroAnio,
+    null,
+    filtroTorneo
+  );
+
   const categoriaSeleccionada = useMemo(() => {
+    const normTorneo = normalizarFiltroTorneoParam(filtroTorneo);
     if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
       return categorias.find((c) => c.id === filtroCategoria) ?? null;
     }
-    if (filtroTorneo && filtroTorneo !== "todos") {
-      if (filtroTorneo.startsWith("modalidad:")) {
-        const modKey = filtroTorneo.slice("modalidad:".length).toLowerCase().trim();
+    if (normTorneo && normTorneo !== "todos") {
+      if (normTorneo.startsWith("modalidad:")) {
+        const modKey = normTorneo.slice("modalidad:".length).toLowerCase().trim();
+        const catIdsConTorneos = new Set(
+          torneosDisponibles.map((t) => t.categoria_id).filter(Boolean) as string[]
+        );
+        const candidates = categorias.filter(
+          (c) =>
+            c.nombre.toLowerCase().trim().includes(modKey) &&
+            (filtroGenero === "todos" || c.genero === filtroGenero)
+        );
         return (
-          categorias.find(
-            (c) =>
-              c.nombre.toLowerCase().includes(modKey) &&
-              (filtroGenero === "todos" || c.genero === filtroGenero)
-          ) ??
-          categorias.find((c) => c.nombre.toLowerCase().includes(modKey)) ??
+          candidates.find((c) => catIdsConTorneos.has(c.id)) ??
+          candidates.find((c) => c.genero === "caballeros") ??
+          candidates[0] ??
+          categorias.find((c) => c.nombre.toLowerCase().trim().includes(modKey)) ??
           null
         );
       }
-      if (filtroTorneo.startsWith("cat_torneo:")) {
-        const cId = filtroTorneo.slice("cat_torneo:".length);
+      if (normTorneo.startsWith("cat_torneo:")) {
+        const cId = normTorneo.slice("cat_torneo:".length);
         return categorias.find((c) => c.id === cId) ?? null;
+      }
+      if (normTorneo.startsWith("torneo:")) {
+        const tId = normTorneo.slice("torneo:".length);
+        const tObj = torneosDisponibles.find((t) => t.id === tId);
+        if (tObj?.categoria_id) {
+          return categorias.find((c) => c.id === tObj.categoria_id) ?? null;
+        }
       }
     }
     if (filtroCategoria !== "todas") {
       return categorias.find((c) => c.id === filtroCategoria) ?? null;
     }
     return null;
-  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero, esFiltroTorneoSuma]);
+  }, [categorias, filtroCategoria, filtroTorneo, filtroGenero, esFiltroTorneoSuma, torneosDisponibles]);
 
   const esSuma8 = useMemo(
     () => isCategoriaSuma(categoriaSeleccionada?.nombre) || esFiltroTorneoSuma,
@@ -148,8 +192,9 @@ export default function RankingPublico() {
   );
 
   const sumaLabelActiva = useMemo(() => {
-    if (filtroTorneo.startsWith("modalidad:")) {
-      return formatSumaModalidadLabel(filtroTorneo.slice("modalidad:".length));
+    const normTorneo = normalizarFiltroTorneoParam(filtroTorneo);
+    if (normTorneo.startsWith("modalidad:")) {
+      return formatSumaModalidadLabel(normTorneo.slice("modalidad:".length));
     }
     if (categoriaSeleccionada?.nombre && isCategoriaSuma(categoriaSeleccionada.nombre)) {
       return formatSumaModalidadLabel(categoriaSeleccionada.nombre);
@@ -179,24 +224,37 @@ export default function RankingPublico() {
     return cuposMaster[categoriaSeleccionada.id] ?? def;
   }, [categoriaSeleccionada, cuposMaster, esSuma8]);
 
-  const {
-    rankingRows: rows,
-    torneosDisponibles,
-    loading: rankingLoading,
-  } = useClubRanking(
-    clubId,
-    filtroCategoria,
-    filtroGenero,
-    filtroAnio,
-    cupoActual,
-    filtroTorneo
-  );
-
   const loading = loadingFiltros || rankingLoading;
 
+  const construirUrlPublicaCompartir = (): string => {
+    const slug = resolvedSlug || activeClubSlug || "goodsports";
+    const params = new URLSearchParams();
+    if (clubId) {
+      params.set("club_id", clubId);
+    }
+    if (filtroAnio !== new Date().getFullYear()) {
+      params.set("anio", String(filtroAnio));
+    }
+    if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
+      params.set("categoria", filtroCategoria);
+    }
+    const normTorneo = normalizarFiltroTorneoParam(filtroTorneo);
+    if (normTorneo !== "todos") {
+      params.set("torneo", normTorneo);
+    }
+    if (filtroGenero !== "todos") {
+      params.set("genero", filtroGenero);
+    }
+    if (vistaModo === "master") {
+      params.set("vista", "master");
+    }
+    const qs = params.toString();
+    return `${window.location.origin}/c/${slug}/ranking-publico${qs ? `?${qs}` : ""}`;
+  };
+
   const copiarEnlace = () => {
-    const texto = `🏆 Portal Público de Ranking - Padel ID\nMirá las posiciones actualizadas acá:\n${window.location.href}`;
-    navigator.clipboard.writeText(texto);
+    const url = construirUrlPublicaCompartir();
+    navigator.clipboard.writeText(url);
     setCopiado(true);
     toast.success("¡Enlace copiado al portapapeles! Listo para compartir en WhatsApp.");
     setTimeout(() => setCopiado(false), 2000);
@@ -204,96 +262,117 @@ export default function RankingPublico() {
 
   const cargarFiltros = async () => {
     setLoadingFiltros(true);
-    const { data: club } = await supabase
-      .from("clubes")
-      .select("id, nombre, logo_url")
-      .eq("slug", activeClubSlug)
-      .maybeSingle();
-    if (!club) {
-      setCategorias([]);
-      setLoadingFiltros(false);
-      return;
-    }
-    setClubId(club.id);
-    if (club.nombre) setClubNombre(club.nombre);
-    setClubLogoUrl(club.logo_url ?? null);
+    try {
+      let clubQuery = supabase
+        .from("clubes")
+        .select("id, nombre, slug, logo_url");
+      if (clubIdFromUrl) {
+        clubQuery = clubQuery.eq("id", clubIdFromUrl);
+      } else {
+        clubQuery = clubQuery.eq("slug", activeClubSlug);
+      }
+      let { data: club } = await clubQuery.maybeSingle();
+      if (!club && clubIdFromUrl) {
+        const fallback = await supabase
+          .from("clubes")
+          .select("id, nombre, slug, logo_url")
+          .eq("slug", activeClubSlug)
+          .maybeSingle();
+        club = fallback.data;
+      }
+      if (!club) {
+        setCategorias([]);
+        setLoadingFiltros(false);
+        return;
+      }
+      setClubId(club.id);
+      if (club.slug) setResolvedSlug(club.slug);
+      if (club.nombre) setClubNombre(club.nombre);
+      setClubLogoUrl(club.logo_url ?? null);
 
-    const { data: cats } = await supabase
-      .from("categorias")
-      .select("id, nombre, genero")
-      .eq("activa", true)
-      .eq("club_id", club.id)
-      .order("orden");
-    const categoryIds = (cats ?? []).map((category) => category.id);
-    const { data: tournaments } = await supabase
-      .from("torneos")
-      .select("id")
-      .eq("club_id", club.id);
-    const tournamentIds = (tournaments ?? []).map((tournament) => tournament.id);
-    const [{ data: anios }, { data: cupos }] = await Promise.all([
-      tournamentIds.length
-        ? supabase.from("ranking_jugadores").select("anio").in("torneo_id", tournamentIds)
-        : Promise.resolve({ data: [] as { anio: number }[] }),
-      categoryIds.length
-        ? supabase
+      const { data: cats } = await supabase
+        .from("categorias")
+        .select("id, nombre, genero")
+        .eq("activa", true)
+        .eq("club_id", club.id)
+        .order("orden");
+      const activeCats = (cats ?? []) as Categoria[];
+      setCategorias(activeCats);
+
+      const categoryIds = activeCats.map((category) => category.id);
+      const { data: cupos } = categoryIds.length
+        ? await supabase
           .from("cupos_master")
           .select("categoria_id, cupos")
           .in("categoria_id", categoryIds)
-        : Promise.resolve({ data: [] as { categoria_id: string; cupos: number }[] }),
-    ]);
+        : { data: [] as { categoria_id: string; cupos: number }[] };
 
-    const activeCats = (cats ?? []) as Categoria[];
-    setCategorias(activeCats);
-    const anioSet = new Set<number>();
-    (anios ?? []).forEach((a: { anio: number }) => anioSet.add(a.anio));
-    anioSet.add(new Date().getFullYear());
-    setAniosDisp(Array.from(anioSet).sort((a, b) => b - a));
+      const anioSet = new Set<number>([new Date().getFullYear()]);
+      setAniosDisp(Array.from(anioSet).sort((a, b) => b - a));
 
-    const cuposMap: Record<string, number> = {};
-    (cupos ?? []).forEach((c: { categoria_id: string; cupos: number }) => {
-      cuposMap[c.categoria_id] = c.cupos;
-    });
-    setCuposMaster(cuposMap);
+      const cuposMap: Record<string, number> = {};
+      (cupos ?? []).forEach((c: { categoria_id: string; cupos: number }) => {
+        cuposMap[c.categoria_id] = c.cupos;
+      });
+      setCuposMaster(cuposMap);
 
-    // Resolver categoria si viene de la URL como texto o uuid
-    const catParam = searchParams.get("categoria");
-    const genParam = searchParams.get("genero");
+      // Resolver categoria si viene de la URL como texto o uuid (y no hay modalidad Suma activa)
+      const catParam = searchParams.get("categoria");
+      const genParam = searchParams.get("genero");
+      const rawTorneoParam = searchParams.get("torneo");
+      const normTorneoParam = normalizarFiltroTorneoParam(rawTorneoParam);
 
-    if (catParam && catParam !== "todas") {
-      const matchById = activeCats.find((c) => c.id === catParam);
-      if (matchById) {
-        setFiltroCategoria(matchById.id);
-      } else {
-        const normalized = catParam.toLowerCase().trim().replace(/[-_]/g, " ");
-        let matches = activeCats.filter((c) => c.nombre.toLowerCase().includes(normalized));
-        if (genParam && genParam !== "todos") {
-          matches = matches.filter((c) => c.genero === genParam);
-        }
-        if (matches.length > 0) {
-          setFiltroCategoria(matches[0].id);
-          if (!genParam) {
-            setFiltroGenero(matches[0].genero);
+      if (normTorneoParam.startsWith("modalidad:") && normTorneoParam.includes("suma")) {
+        setFiltroTorneo(normTorneoParam);
+        setFiltroCategoria("todas");
+      } else if (catParam && catParam !== "todas") {
+        if (isCategoriaSuma(catParam)) {
+          setFiltroTorneo(normalizarFiltroTorneoParam(catParam));
+          setFiltroCategoria("todas");
+        } else {
+          const matchById = activeCats.find((c) => c.id === catParam);
+          if (matchById) {
+            setFiltroCategoria(matchById.id);
+          } else {
+            const normalized = catParam.toLowerCase().trim().replace(/[-_]/g, " ");
+            let matches = activeCats.filter((c) => c.nombre.toLowerCase().includes(normalized));
+            if (genParam && genParam !== "todos") {
+              matches = matches.filter((c) => c.genero === genParam.toLowerCase());
+            }
+            if (matches.length > 0) {
+              setFiltroCategoria(matches[0].id);
+              if (!genParam) {
+                setFiltroGenero(matches[0].genero);
+              }
+            }
           }
         }
       }
+    } catch (err) {
+      console.error("Error cargando filtros de ranking público:", err);
+    } finally {
+      setLoadingFiltros(false);
     }
-    setLoadingFiltros(false);
   };
 
   useEffect(() => {
     cargarFiltros();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeClubSlug]);
+  }, [activeClubSlug, clubIdFromUrl]);
 
   useEffect(() => {
-    // Sincronizar filtros con la URL
-    const params: Record<string, string> = {};
+    // Sincronizar filtros con la URL sin generar bucle de re-renderizado
+    const params = new URLSearchParams();
+    if (clubIdFromUrl) {
+      params.set("club_id", clubIdFromUrl);
+    }
     if (filtroAnio !== new Date().getFullYear()) {
-      params.anio = filtroAnio.toString();
+      params.set("anio", filtroAnio.toString());
     }
     let catName = "";
-    if (filtroCategoria !== "todas") {
-      params.categoria = filtroCategoria;
+    const normTorneo = normalizarFiltroTorneoParam(filtroTorneo);
+    if (!esFiltroTorneoSuma && filtroCategoria !== "todas") {
+      params.set("categoria", filtroCategoria);
       const cat = categorias.find((c) => c.id === filtroCategoria);
       if (cat) {
         const gen =
@@ -305,18 +384,24 @@ export default function RankingPublico() {
         catName = ` - ${cat.nombre} ${gen}`;
       }
     }
-    if (filtroTorneo !== "todos") {
-      params.torneo = filtroTorneo;
+    if (normTorneo !== "todos") {
+      params.set("torneo", normTorneo);
+      if (esFiltroTorneoSuma) {
+        catName = ` - ${sumaLabelActiva}`;
+      }
     }
     if (filtroGenero !== "todos") {
-      params.genero = filtroGenero;
+      params.set("genero", filtroGenero);
     }
     if (vistaModo === "master") {
-      params.vista = "master";
+      params.set("vista", "master");
     }
-    setSearchParams(params, { replace: true });
+    if (params.toString() !== searchParams.toString()) {
+      setSearchParams(params, { replace: true });
+    }
     document.title = `Ranking${catName} | Padel ID`;
-  }, [filtroAnio, filtroCategoria, filtroTorneo, filtroGenero, vistaModo, categorias, setSearchParams]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtroAnio, filtroCategoria, filtroTorneo, filtroGenero, vistaModo, esFiltroTorneoSuma, sumaLabelActiva]);
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return rows;
@@ -621,10 +706,11 @@ export default function RankingPublico() {
                 <Trophy className="h-3 w-3" /> Torneo / Modalidad
               </label>
               <Select
-                value={filtroTorneo}
+                value={normalizarFiltroTorneoParam(filtroTorneo)}
                 onValueChange={(v) => {
-                  setFiltroTorneo(v);
-                  if (v !== "todos" && filtroCategoria !== "todas") {
+                  const norm = normalizarFiltroTorneoParam(v);
+                  setFiltroTorneo(norm);
+                  if (norm !== "todos" && filtroCategoria !== "todas") {
                     setFiltroCategoria("todas");
                   }
                 }}

@@ -195,6 +195,41 @@ export function formatSumaModalidadLabel(nombreCategoria: string | null | undefi
   return num !== null ? `Suma ${num}` : "Suma 7";
 }
 
+/**
+ * Normaliza el parámetro o valor de filtro de torneo/modalidad (mayúsculas/minúsculas, prefijos, espacios).
+ * Ejemplos:
+ * - "modalidad:Suma 7", "Modalidad:suma 7", "Suma 7", "suma 7" -> "modalidad:suma 7"
+ * - "torneo:<uuid>" -> "torneo:<uuid>"
+ * - "cat_torneo:<uuid>" -> "cat_torneo:<uuid>"
+ * - null / "" / "todos" -> "todos"
+ */
+export function normalizarFiltroTorneoParam(raw: string | null | undefined): string {
+  if (!raw) return "todos";
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.toLowerCase() === "todos") return "todos";
+
+  const lower = trimmed.toLowerCase().replace(/\+/g, " ").replace(/\s+/g, " ");
+  if (lower.startsWith("modalidad:")) {
+    const rest = lower.slice("modalidad:".length).trim();
+    const sumaNum = getNumeroSumaCategoria(rest);
+    if (sumaNum !== null) {
+      return `modalidad:suma ${sumaNum}`;
+    }
+    return `modalidad:${rest}`;
+  }
+  if (lower.startsWith("torneo:")) {
+    return `torneo:${trimmed.slice("torneo:".length).trim()}`;
+  }
+  if (lower.startsWith("cat_torneo:")) {
+    return `cat_torneo:${trimmed.slice("cat_torneo:".length).trim()}`;
+  }
+  if (isCategoriaSuma(lower)) {
+    const sumaNum = getNumeroSumaCategoria(lower) ?? 7;
+    return `modalidad:suma ${sumaNum}`;
+  }
+  return trimmed;
+}
+
 export function getNivelCategoriaPura(nombreCategoria: string | null | undefined): number | null {
   if (!nombreCategoria || isCategoriaSuma(nombreCategoria)) return null;
   const match = nombreCategoria.trim().match(/^(\d+)/);
