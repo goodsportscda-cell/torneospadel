@@ -588,16 +588,28 @@ export default function PlayerDashboard() {
           <>
             {/* Welcome + Profile Link */}
             <div className="space-y-3">
-              <div className="flex items-center gap-3">
-                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                  <User className="h-5 w-5 text-primary" />
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <User className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-muted-foreground">¡Hola!</p>
+                    <p className="font-semibold truncate">
+                      {jugadorNombre || user?.email?.split("@")[0] || "Jugador"}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm text-muted-foreground">¡Hola!</p>
-                  <p className="font-semibold truncate">
-                    {jugadorNombre || user?.email?.split("@")[0] || "Jugador"}
-                  </p>
-                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="h-8 gap-1.5 text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10 shrink-0"
+                  asChild
+                >
+                  <Link to={`/c/${resolvedClubSlug}/master`}>
+                    <Trophy className="h-3.5 w-3.5" /> Master Dic 2026
+                  </Link>
+                </Button>
               </div>
 
               {!jugadorId && (
@@ -629,16 +641,6 @@ export default function PlayerDashboard() {
 
               {jugadorId && (
                 <div className="flex items-center justify-end gap-2 flex-wrap">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-8 gap-1.5 text-xs font-bold border-amber-500/40 text-amber-600 dark:text-amber-400 hover:bg-amber-500/10"
-                    asChild
-                  >
-                    <Link to={`/c/${resolvedClubSlug}/master`}>
-                      <Trophy className="h-3.5 w-3.5" /> Master Dic 2026
-                    </Link>
-                  </Button>
                   {miRanking.length > 0 && (
                     <Button
                       variant="outline"
