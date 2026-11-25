@@ -1,5 +1,8 @@
-import { Trophy, Calendar, Clock, MapPin, AlertTriangle } from "lucide-react";
+import { useState } from "react";
+import { Trophy, Calendar, Clock, MapPin, AlertTriangle, Camera, Download } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
@@ -70,6 +73,7 @@ function BracketMatchCard({
   editable?: boolean;
   onSelect?: (m: MasterMatchDB) => void;
   onScheduleChange?: (m: MasterMatchDB, patch: SchedulePatch) => void;
+  onViewPhoto?: (m: MasterMatchDB, label: string) => void;
   hasConflict?: boolean;
   title: string;
 }) {
@@ -128,6 +132,24 @@ function BracketMatchCard({
           )}
         </div>
         <div className="flex items-center gap-1.5 flex-wrap justify-end">
+          {match.photo_url && onViewPhoto && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onViewPhoto(match, title);
+              }}
+              className={cn(
+                "inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-bold transition hover:border-primary",
+                tvMode
+                  ? "border-amber-400/40 bg-amber-500/15 text-amber-300"
+                  : "border-primary/30 bg-primary/10 text-primary"
+              )}
+              title="Ver foto del partido"
+            >
+              <Camera className="h-3 w-3" /> Foto
+            </button>
+          )}
           {match.cancha && (
             <Badge variant="outline" className={cn("text-[10px] px-1.5 py-0", tvMode && "border-white/20 text-white/80")}>
               <MapPin className="h-2.5 w-2.5 mr-0.5" /> Cancha {match.cancha}
@@ -277,6 +299,7 @@ export function MasterBracketView({
   onScheduleChange,
   conflictMatchIds,
 }: Props) {
+  const [photoModal, setPhotoModal] = useState<{ match: MasterMatchDB; title: string } | null>(null);
   const teamMap = new Map(teams.map((t) => [t.id, t]));
   const byNum = new Map(matches.map((m) => [m.numero_partido, m]));
 
@@ -310,6 +333,7 @@ export function MasterBracketView({
               editable={editable}
               onSelect={onSelectMatch}
               onScheduleChange={onScheduleChange}
+              onViewPhoto={(m, t) => setPhotoModal({ match: m, title: t })}
               hasConflict={Boolean(byNum.get(num)?.id && conflictMatchIds?.has(byNum.get(num)!.id))}
               title={`Cuartos ${num} (QF${num})`}
             />
@@ -332,6 +356,7 @@ export function MasterBracketView({
               editable={editable}
               onSelect={onSelectMatch}
               onScheduleChange={onScheduleChange}
+              onViewPhoto={(m, t) => setPhotoModal({ match: m, title: t })}
               hasConflict={Boolean(byNum.get(num)?.id && conflictMatchIds?.has(byNum.get(num)!.id))}
               title={`Semifinal ${idx + 1} (SF${idx + 1})`}
             />
@@ -351,10 +376,55 @@ export function MasterBracketView({
           editable={editable}
           onSelect={onSelectMatch}
           onScheduleChange={onScheduleChange}
+          onViewPhoto={(m, t) => setPhotoModal({ match: m, title: t })}
           hasConflict={Boolean(byNum.get(7)?.id && conflictMatchIds?.has(byNum.get(7)!.id))}
           title="Final · Domingo 6/12"
         />
       </div>
+
+      {/* Lightbox de Foto del Partido */}
+      <Dialog open={Boolean(photoModal)} onOpenChange={(open) => !open && setPhotoModal(null)}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Camera className="h-4 w-4 text-primary" />
+              Foto del Partido · {photoModal?.title}
+            </DialogTitle>
+          </DialogHeader>
+          {photoModal?.match.photo_url && (
+            <div className="space-y-3">
+              <div className="text-xs text-muted-foreground font-medium">
+                {formatTeamDisplayName(
+                  photoModal.match.team_local_id ? teamMap.get(photoModal.match.team_local_id) : undefined
+                )}{" "}
+                vs{" "}
+                {formatTeamDisplayName(
+                  photoModal.match.team_visitante_id ? teamMap.get(photoModal.match.team_visitante_id) : undefined
+                )}
+              </div>
+              <div className="overflow-hidden rounded-xl border bg-black/5">
+                <img
+                  src={photoModal.match.photo_url}
+                  alt={`Foto ${photoModal.title}`}
+                  className="max-h-[70vh] w-full object-contain"
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button variant="outline" size="sm" asChild className="gap-1.5">
+                  <a
+                    href={photoModal.match.photo_url}
+                    download={`master-2026-partido-${photoModal.match.numero_partido}.jpg`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <Download className="h-3.5 w-3.5" /> Descargar Foto
+                  </a>
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

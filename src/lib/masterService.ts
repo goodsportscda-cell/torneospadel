@@ -115,6 +115,7 @@ export type MasterMatchDB = {
   dia: string | null;
   hora: string | null;
   cancha: number | null;
+  photo_url?: string | null;
 };
 
 export type MasterCategoryVisibilityDB = {
@@ -191,22 +192,28 @@ export async function fetchJugadoresBasicosMap(
   clubId: string,
   jugadorIds?: string[]
 ): Promise<Map<string, JugadorBasic>> {
-  const [{ data: cats }, { data: playerCats }] = await Promise.all([
+  const [{ data: cats }, { data: catsJugadores }, { data: playerCats }] = await Promise.all([
     supabase.from("categorias").select("id, nombre, genero").eq("club_id", clubId),
+    supabase.from("categorias_jugadores").select("id, nombre, genero"),
     (supabase as any)
       .from("jugador_categorias_publicas")
-      .select("jugador_id, categoria_id, categoria_nombre, genero"),
+      .select("club_id, jugador_id, categoria_id, categoria_nombre, genero"),
   ]);
 
   const catNameById = new Map<string, string>();
+  (catsJugadores ?? []).forEach((c) => catNameById.set(c.id, c.nombre));
   (cats ?? []).forEach((c) => catNameById.set(c.id, c.nombre));
 
   const playerCatMap = new Map<string, { categoria_id: string | null; categoria_nombre: string | null }>();
   (playerCats ?? []).forEach((pc: any) => {
-    if (pc.jugador_id && (!pc.categoria_id || catNameById.has(pc.categoria_id))) {
+    if (!pc.jugador_id) return;
+    if (pc.club_id && pc.club_id !== clubId) return;
+    const resolvedName =
+      pc.categoria_nombre ?? (pc.categoria_id ? catNameById.get(pc.categoria_id) ?? null : null);
+    if (resolvedName || pc.categoria_id) {
       playerCatMap.set(pc.jugador_id, {
         categoria_id: pc.categoria_id ?? null,
-        categoria_nombre: pc.categoria_nombre ?? (pc.categoria_id ? catNameById.get(pc.categoria_id) ?? null : null),
+        categoria_nombre: resolvedName,
       });
     }
   });
@@ -709,6 +716,14 @@ export async function saveMatchScoreAndAdvance(params: {
       if (advErr) throw advErr;
     }
   }
+}
+
+export async function updateMatchPhoto(matchId: string, photoUrl: string | null) {
+  const { error } = await (supabase as any)
+    .from("master_matches")
+    .update({ photo_url: photoUrl })
+    .eq("id", matchId);
+  if (error) throw error;
 }
 
 export async function updateMatchSchedule(params: {

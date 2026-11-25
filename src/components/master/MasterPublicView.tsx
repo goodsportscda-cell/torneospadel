@@ -40,6 +40,7 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
   const [visibilityRows, setVisibilityRows] = useState<MasterCategoryVisibilityDB[]>([]);
   const [diaFiltro, setDiaFiltro] = useState<string>("todos");
   const [soloCatCronograma, setSoloCatCronograma] = useState<boolean>(false);
+  const [tvHighlightIdx, setTvHighlightIdx] = useState(0);
 
   const loadData = useCallback(async (silent = false) => {
     if (!clubId) return;
@@ -135,6 +136,23 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
 
   const teamById = useMemo(() => new Map(teams.map((t) => [t.id, t])), [teams]);
   const catById = useMemo(() => new Map(categories.map((c) => [c.categoria_id, c])), [categories]);
+
+  // Partidos publicados con resultado o foto para rotar en Modo Pantalla TV
+  const tvHighlightMatches = useMemo(() => {
+    return matches.filter((m) => {
+      const vis = visibilityByCatId.get(m.categoria_id);
+      if (!vis?.publicar_llaves) return false;
+      return Boolean(m.photo_url || m.estado === "finalizado");
+    });
+  }, [matches, visibilityByCatId]);
+
+  useEffect(() => {
+    if (!tvMode || tvHighlightMatches.length <= 1) return;
+    const timer = window.setInterval(() => {
+      setTvHighlightIdx((prev) => (prev + 1) % tvHighlightMatches.length);
+    }, 8000);
+    return () => window.clearInterval(timer);
+  }, [tvMode, tvHighlightMatches.length]);
 
   const scheduleMatches = useMemo(() => {
     return matches
@@ -232,6 +250,59 @@ export function MasterPublicView({ clubId, clubNombre, initialTvMode = false }: 
         </Card>
       ) : (
         <>
+          {/* Destacado Rotativo en Modo Pantalla TV (Resultados + Fotos) */}
+          {tvMode && tvHighlightMatches.length > 0 && (() => {
+            const hm = tvHighlightMatches[tvHighlightIdx % tvHighlightMatches.length];
+            const hCat = catById.get(hm.categoria_id);
+            const tL = hm.team_local_id ? teamById.get(hm.team_local_id) : undefined;
+            const tV = hm.team_visitante_id ? teamById.get(hm.team_visitante_id) : undefined;
+            const scoreStr = [
+              hm.set1_local !== null && hm.set1_visitante !== null ? `${hm.set1_local}-${hm.set1_visitante}` : null,
+              hm.set2_local !== null && hm.set2_visitante !== null ? `${hm.set2_local}-${hm.set2_visitante}` : null,
+              hm.set3_local !== null && hm.set3_visitante !== null ? `${hm.set3_local}-${hm.set3_visitante}` : null,
+            ]
+              .filter(Boolean)
+              .join(" / ");
+            return (
+              <div className="rounded-2xl border border-amber-400/30 bg-white/[0.04] p-4 grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
+                <div className={cn("space-y-2", hm.photo_url ? "md:col-span-7" : "md:col-span-12")}>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Badge className="bg-amber-500 text-slate-950 font-black">
+                      {hCat?.spec.label ?? "Master 2026"}
+                    </Badge>
+                    <Badge variant="outline" className="border-white/25 text-white">
+                      {MASTER_RONDA_LABELS[hm.ronda]}
+                    </Badge>
+                    {tvHighlightMatches.length > 1 && (
+                      <span className="text-[11px] text-white/50 ml-auto">
+                        {(tvHighlightIdx % tvHighlightMatches.length) + 1} / {tvHighlightMatches.length}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-lg sm:text-xl font-black tracking-tight">
+                    <span>{tL ? formatTeamDisplayName(tL) : hm.ref_local || "Por definir"}</span>
+                    <span className="mx-2 text-sm text-white/50 font-normal">vs</span>
+                    <span>{tV ? formatTeamDisplayName(tV) : hm.ref_visitante || "Por definir"}</span>
+                  </div>
+                  {scoreStr && (
+                    <div className="text-base font-black text-emerald-400">
+                      Marcador: {scoreStr}
+                    </div>
+                  )}
+                </div>
+                {hm.photo_url && (
+                  <div className="md:col-span-5 overflow-hidden rounded-xl border border-white/15 bg-black/40">
+                    <img
+                      src={hm.photo_url}
+                      alt="Foto del partido Master 2026"
+                      className="h-44 w-full object-cover"
+                    />
+                  </div>
+                )}
+              </div>
+            );
+          })()}
+
           {/* Selector de Categoría */}
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-2 flex-wrap">

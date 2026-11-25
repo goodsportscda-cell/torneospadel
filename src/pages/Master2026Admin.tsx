@@ -24,6 +24,7 @@ import {
   ArrowDown,
   ArrowUp,
   Calendar,
+  Camera,
   Check,
   Copy,
   ExternalLink,
@@ -34,6 +35,7 @@ import {
   RefreshCw,
   RotateCcw,
   Sparkles,
+  Trash2,
   Trophy,
   Tv,
   Users,
@@ -61,6 +63,7 @@ import {
   saveMatchScoreAndAdvance,
   saveSuma7TeamsForCategory,
   syncQualifiersFromAnnualRanking,
+  updateMatchPhoto,
   updateMatchSchedule,
   upsertCategoryVisibility,
   type MasterCategoryMapping,
@@ -72,12 +75,13 @@ import {
   type Suma7RankingPlayerOption,
 } from "@/lib/masterService";
 import { MasterBracketView } from "@/components/master/MasterBracketView";
+import { uploadPartidoPhoto } from "@/lib/partidoPhotoUpload";
 
 type Suma7Draft = {
   titular_id: string;
   titular_pos: number;
   titular_pts: number;
-  titular_nivel: number | null;
+  titular_nivel: string;
   invitado_jugador_id: string;
   invitado_nombre_manual: string;
   invitado_nivel: string;
@@ -123,6 +127,7 @@ export default function Master2026Admin() {
   const [s2V, setS2V] = useState("");
   const [s3L, setS3L] = useState("");
   const [s3V, setS3V] = useState("");
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
 
   // Schedule filter
   const [diaFiltro, setDiaFiltro] = useState<string>("todos");
@@ -226,7 +231,7 @@ export default function Master2026Admin() {
         titular_id: t.jugador_id,
         titular_pos: t.posicion_final!,
         titular_pts: t.puntos_anuales,
-        titular_nivel: t.jugador?.categoria_nivel ?? null,
+        titular_nivel: t.jugador?.categoria_nivel ? String(t.jugador.categoria_nivel) : "",
         invitado_jugador_id: existingTeam?.jugador2_id ?? "",
         invitado_nombre_manual: existingTeam?.jugador2_nombre_manual ?? "",
         invitado_nivel: existingTeam?.jugador2_categoria_nivel
@@ -358,15 +363,16 @@ export default function Master2026Admin() {
     }
 
     const pairsToSave = [];
+    let hasSumaWarning = false;
     for (const d of drafts) {
       const guestPlayer = d.invitado_jugador_id
         ? suma7Players.find((p) => p.id === d.invitado_jugador_id) ?? null
         : null;
+      const titularLevel = d.titular_nivel ? parseInt(d.titular_nivel, 10) : null;
       const guestLevel = d.invitado_nivel ? parseInt(d.invitado_nivel, 10) : guestPlayer?.categoria_nivel ?? null;
-      const check = validarSuma7(d.titular_nivel, guestLevel);
+      const check = validarSuma7(titularLevel, guestLevel);
       if (!check.ok) {
-        toast.error(`Titular #${d.titular_pos}: ${check.error}`);
-        return;
+        hasSumaWarning = true;
       }
       if (!guestPlayer && !d.invitado_nombre_manual.trim()) {
         toast.error(`Titular #${d.titular_pos}: seleccioná un jugador de Suma 7 o escribí el nombre del invitado.`);
@@ -392,7 +398,11 @@ export default function Master2026Admin() {
         pairs: pairsToSave,
       });
       await loadAll();
-      toast.success("Parejas de Suma 7 guardadas y sembradas");
+      toast.success(
+        hasSumaWarning
+          ? "Parejas de Suma 7 guardadas (con alertas de suma < 7 o categoría faltante)."
+          : "Parejas de Suma 7 guardadas y sembradas"
+      );
     } catch (err: any) {
       toast.error(err?.message || "Error al guardar parejas Suma 7");
     } finally {
@@ -930,28 +940,51 @@ export default function Master2026Admin() {
                               const guestObj = d.invitado_jugador_id
                                 ? suma7Players.find((p) => p.id === d.invitado_jugador_id)
                                 : null;
+                              const titularLevelNum = d.titular_nivel ? parseInt(d.titular_nivel, 10) : null;
                               const guestLevelNum = d.invitado_nivel
                                 ? parseInt(d.invitado_nivel, 10)
                                 : guestObj?.categoria_nivel ?? null;
                               const guestPtsNum = Math.max(0, parseInt(d.invitado_puntos || "0", 10) || 0);
-                              const check = validarSuma7(d.titular_nivel, guestLevelNum);
+                              const check = validarSuma7(titularLevelNum, guestLevelNum);
 
                               return (
                                 <div
                                   key={d.titular_id}
                                   className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center rounded-lg border bg-card p-3"
                                 >
-                                  <div className="md:col-span-3">
-                                    <div className="text-xs font-black text-primary">Titular #{d.titular_pos}</div>
+                                  <div className="md:col-span-3 space-y-1">
+                                    <div className="text-xs font-black text-primary">
+                                      Titular #{d.titular_pos} · {d.titular_pts} pts
+                                    </div>
                                     <div className="text-sm font-bold truncate">
                                       {titular?.jugador
                                         ? `${titular.jugador.apellido}, ${titular.jugador.nombre}`
                                         : d.titular_id}
                                     </div>
-                                    <div className="text-[11px] text-muted-foreground">
-                                      {d.titular_pts} pts · Cat:{" "}
-                                      {d.titular_nivel ? `${d.titular_nivel}ta/ma` : "Sin asignar"}
-                                    </div>
+                                    <Select
+                                      value={d.titular_nivel || "__none__"}
+                                      onValueChange={(val) =>
+                                        setSuma7Drafts((prev) => ({
+                                          ...prev,
+                                          [d.titular_id]: {
+                                            ...prev[d.titular_id],
+                                            titular_nivel: val === "__none__" ? "" : val,
+                                          },
+                                        }))
+                                      }
+                                    >
+                                      <SelectTrigger className="h-7 text-[11px] w-32">
+                                        <SelectValue placeholder="Cat. Titular" />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        <SelectItem value="__none__">Sin asignar</SelectItem>
+                                        {NIVELES_CATEGORIA.map((nv) => (
+                                          <SelectItem key={nv.value} value={nv.value}>
+                                            Cat. {nv.label}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
                                   </div>
                                   <div className="md:col-span-3">
                                     <Label className="text-[10px]">Jugador de Suma 7 ({suma7Players.length})</Label>
@@ -1388,6 +1421,83 @@ export default function Master2026Admin() {
                   />
                 </div>
               ))}
+
+              {/* Foto del Partido (mismo bucket fotos-partidos y compresión) */}
+              <div className="pt-2 border-t space-y-2">
+                <Label className="text-xs font-bold flex items-center gap-1.5">
+                  <Camera className="h-3.5 w-3.5 text-primary" /> Foto del Partido (Opcional)
+                </Label>
+                {scoreMatch.photo_url && (
+                  <div className="relative overflow-hidden rounded-lg border bg-black/5">
+                    <img
+                      src={scoreMatch.photo_url}
+                      alt="Foto del partido"
+                      className="max-h-44 w-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-semibold hover:bg-muted transition">
+                    {uploadingPhoto ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Camera className="h-3.5 w-3.5" />
+                    )}
+                    {scoreMatch.photo_url ? "Reemplazar Foto" : "Subir Foto"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingPhoto || busy}
+                      onChange={async (e) => {
+                        const file = e.target.files?.[0];
+                        e.target.value = "";
+                        if (!file || !edition) return;
+                        setUploadingPhoto(true);
+                        try {
+                          const url = await uploadPartidoPhoto(file, `master_${edition.id}`, scoreMatch.id);
+                          await updateMatchPhoto(scoreMatch.id, url);
+                          setScoreMatch((prev) => (prev ? { ...prev, photo_url: url } : null));
+                          setMatches((prev) =>
+                            prev.map((m) => (m.id === scoreMatch.id ? { ...m, photo_url: url } : m))
+                          );
+                          toast.success("Foto del partido guardada");
+                        } catch (err: any) {
+                          toast.error(err?.message || "No se pudo subir la foto");
+                        } finally {
+                          setUploadingPhoto(false);
+                        }
+                      }}
+                    />
+                  </label>
+                  {scoreMatch.photo_url && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-8 text-xs text-destructive gap-1"
+                      disabled={uploadingPhoto || busy}
+                      onClick={async () => {
+                        setUploadingPhoto(true);
+                        try {
+                          await updateMatchPhoto(scoreMatch.id, null);
+                          setScoreMatch((prev) => (prev ? { ...prev, photo_url: null } : null));
+                          setMatches((prev) =>
+                            prev.map((m) => (m.id === scoreMatch.id ? { ...m, photo_url: null } : m))
+                          );
+                          toast.success("Foto eliminada");
+                        } catch (err: any) {
+                          toast.error(err?.message || "No se pudo eliminar la foto");
+                        } finally {
+                          setUploadingPhoto(false);
+                        }
+                      }}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" /> Eliminar Foto
+                    </Button>
+                  )}
+                </div>
+              </div>
             </div>
           )}
           <DialogFooter>
