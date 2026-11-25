@@ -50,6 +50,15 @@ export type JugadorBasic = {
   categoria_nombre: string | null;
 };
 
+export type Suma7RankingPlayerOption = {
+  id: string;
+  nombre: string;
+  apellido: string;
+  categoria_nombre: string | null;
+  categoria_nivel: number | null;
+  puntos_suma7: number;
+};
+
 export type MasterQualifierDB = {
   id: string;
   edition_id: string;
@@ -238,6 +247,55 @@ export async function fetchJugadoresBasicosMap(
   });
 
   return map;
+}
+
+/**
+ * Consulta liviana: trae únicamente los jugadores que tienen registro/puntaje
+ * en el ranking de la categoría Suma 7 Caballeros del año indicado.
+ */
+export async function fetchSuma7RankingPlayers(
+  clubId: string,
+  suma7CategoriaId: string,
+  anio: number
+): Promise<Suma7RankingPlayerOption[]> {
+  if (!clubId || !suma7CategoriaId) return [];
+
+  const rows = await fetchAllRankingRowsYear(anio, [suma7CategoriaId]);
+  const puntosMap = new Map<string, { ptsTorneos: number; ptsAscenso: number }>();
+
+  (rows ?? []).forEach((r) => {
+    if (!r.jugador_id) return;
+    const cur = puntosMap.get(r.jugador_id) ?? { ptsTorneos: 0, ptsAscenso: 0 };
+    if (isAscenso(r.instancia)) {
+      cur.ptsAscenso = Math.max(cur.ptsAscenso, r.puntos ?? 0);
+    } else {
+      cur.ptsTorneos += r.puntos ?? 0;
+    }
+    puntosMap.set(r.jugador_id, cur);
+  });
+
+  const ids = Array.from(puntosMap.keys());
+  if (ids.length === 0) return [];
+
+  const jugadoresMap = await fetchJugadoresBasicosMap(clubId, ids);
+
+  return ids
+    .map((id) => {
+      const j = jugadoresMap.get(id);
+      const p = puntosMap.get(id)!;
+      return {
+        id,
+        nombre: j?.nombre ?? "",
+        apellido: j?.apellido ?? "",
+        categoria_nombre: j?.categoria_nombre ?? null,
+        categoria_nivel: j?.categoria_nivel ?? null,
+        puntos_suma7: p.ptsTorneos + p.ptsAscenso,
+      };
+    })
+    .sort((a, b) => {
+      if (b.puntos_suma7 !== a.puntos_suma7) return b.puntos_suma7 - a.puntos_suma7;
+      return `${a.apellido} ${a.nombre}`.localeCompare(`${b.apellido} ${b.nombre}`);
+    });
 }
 
 export async function fetchMasterEditionData(editionId: string, clubId: string) {

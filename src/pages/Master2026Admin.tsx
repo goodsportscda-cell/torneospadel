@@ -49,8 +49,8 @@ import {
 } from "@/lib/master2026";
 import {
   fetchClubMasterCategories,
-  fetchJugadoresBasicosMap,
   fetchMasterEditionData,
+  fetchSuma7RankingPlayers,
   formatTeamDisplayName,
   generateBracketForCategory,
   generatePurasTeamsForCategory,
@@ -63,13 +63,13 @@ import {
   syncQualifiersFromAnnualRanking,
   updateMatchSchedule,
   upsertCategoryVisibility,
-  type JugadorBasic,
   type MasterCategoryMapping,
   type MasterCategoryVisibilityDB,
   type MasterEditionRow,
   type MasterMatchDB,
   type MasterQualifierDB,
   type MasterTeamDB,
+  type Suma7RankingPlayerOption,
 } from "@/lib/masterService";
 import { MasterBracketView } from "@/components/master/MasterBracketView";
 
@@ -81,6 +81,7 @@ type Suma7Draft = {
   invitado_jugador_id: string;
   invitado_nombre_manual: string;
   invitado_nivel: string;
+  invitado_puntos: string;
 };
 
 const NIVELES_CATEGORIA = [
@@ -108,7 +109,7 @@ export default function Master2026Admin() {
   const [teams, setTeams] = useState<MasterTeamDB[]>([]);
   const [matches, setMatches] = useState<MasterMatchDB[]>([]);
   const [visibilityRows, setVisibilityRows] = useState<MasterCategoryVisibilityDB[]>([]);
-  const [allPlayers, setAllPlayers] = useState<JugadorBasic[]>([]);
+  const [suma7Players, setSuma7Players] = useState<Suma7RankingPlayerOption[]>([]);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Suma 7 drafts
@@ -130,24 +131,33 @@ export default function Master2026Admin() {
     if (!clubId) return;
     setLoading(true);
     try {
-      const [cats, ed, playersMap] = await Promise.all([
+      const [cats, ed] = await Promise.all([
         fetchClubMasterCategories(clubId),
         getOrCreateMasterEdition(clubId, 2026, true),
-        fetchJugadoresBasicosMap(clubId),
       ]);
       setCategories(cats);
       setEdition(ed);
-      setAllPlayers(Array.from(playersMap.values()));
+
+      const suma7Cat = cats.find((c) => c.spec.isSuma);
+      const suma7Promise = suma7Cat
+        ? fetchSuma7RankingPlayers(clubId, suma7Cat.categoria_id, ed?.anio ?? 2026)
+        : Promise.resolve([]);
 
       if (cats.length > 0) {
         setSelectedCatId((prev) => (prev && cats.some((c) => c.categoria_id === prev) ? prev : cats[0].categoria_id));
       }
       if (ed) {
-        const data = await fetchMasterEditionData(ed.id, clubId);
+        const [data, s7List] = await Promise.all([
+          fetchMasterEditionData(ed.id, clubId),
+          suma7Promise,
+        ]);
         setQualifiers(data.qualifiers);
         setTeams(data.teams);
         setMatches(data.matches);
         setVisibilityRows(data.visibility);
+        setSuma7Players(s7List);
+      } else {
+        setSuma7Players(await suma7Promise);
       }
     } catch (err: any) {
       console.error(err);
@@ -204,6 +214,14 @@ export default function Master2026Admin() {
     const next: Record<string, Suma7Draft> = {};
     titulares.forEach((t) => {
       const existingTeam = catTeams.find((tm) => tm.jugador1_id === t.jugador_id);
+      const s7Match = existingTeam?.jugador2_id
+        ? suma7Players.find((p) => p.id === existingTeam.jugador2_id)
+        : undefined;
+      const derivedGuestPts = existingTeam
+        ? Math.max(0, existingTeam.puntos_combinados - t.puntos_anuales)
+        : s7Match
+          ? s7Match.puntos_suma7
+          : 0;
       next[t.jugador_id] = {
         titular_id: t.jugador_id,
         titular_pos: t.posicion_final!,
@@ -216,10 +234,11 @@ export default function Master2026Admin() {
           : existingTeam?.jugador2?.categoria_nivel
             ? String(existingTeam.jugador2.categoria_nivel)
             : "",
+        invitado_puntos: String(derivedGuestPts),
       };
     });
     setSuma7Drafts(next);
-  }, [activeCategory, catQualifiers, catTeams]);
+  }, [activeCategory, catQualifiers, catTeams, suma7Players]);
 
   const handleSyncAll = async (onlyCategoryId?: string) => {
     if (!edition || !clubId) return;
@@ -341,7 +360,7 @@ export default function Master2026Admin() {
     const pairsToSave = [];
     for (const d of drafts) {
       const guestPlayer = d.invitado_jugador_id
-        ? allPlayers.find((p) => p.id === d.invitado_jugador_id) ?? null
+        ? suma7Players.find((p) => p.id === d.invitado_jugador_id) ?? null
         : null;
       const guestLevel = d.invitado_nivel ? parseInt(d.invitado_nivel, 10) : guestPlayer?.categoria_nivel ?? null;
       const check = validarSuma7(d.titular_nivel, guestLevel);
@@ -350,16 +369,17 @@ export default function Master2026Admin() {
         return;
       }
       if (!guestPlayer && !d.invitado_nombre_manual.trim()) {
-        toast.error(`Titular #${d.titular_pos}: seleccioná un jugador o escribí el nombre del invitado.`);
+        toast.error(`Titular #${d.titular_pos}: seleccioná un jugador de Suma 7 o escribí el nombre del invitado.`);
         return;
       }
+      const guestPts = Math.max(0, parseInt(d.invitado_puntos || "0", 10) || 0);
       pairsToSave.push({
         cruce_label: `Titular #${d.titular_pos} + Invitado`,
         jugador1_id: d.titular_id,
         jugador2_id: guestPlayer ? guestPlayer.id : null,
         jugador2_nombre_manual: guestPlayer ? null : d.invitado_nombre_manual.trim(),
         jugador2_categoria_nivel: guestLevel,
-        puntos_combinados: d.titular_pts,
+        puntos_combinados: d.titular_pts + guestPts,
         mejor_ranking_individual: d.titular_pos,
       });
     }
@@ -908,11 +928,12 @@ export default function Master2026Admin() {
                             .map((d) => {
                               const titular = catQualifiers.find((q) => q.jugador_id === d.titular_id);
                               const guestObj = d.invitado_jugador_id
-                                ? allPlayers.find((p) => p.id === d.invitado_jugador_id)
+                                ? suma7Players.find((p) => p.id === d.invitado_jugador_id)
                                 : null;
                               const guestLevelNum = d.invitado_nivel
                                 ? parseInt(d.invitado_nivel, 10)
                                 : guestObj?.categoria_nivel ?? null;
+                              const guestPtsNum = Math.max(0, parseInt(d.invitado_puntos || "0", 10) || 0);
                               const check = validarSuma7(d.titular_nivel, guestLevelNum);
 
                               return (
@@ -920,9 +941,9 @@ export default function Master2026Admin() {
                                   key={d.titular_id}
                                   className="grid grid-cols-1 md:grid-cols-12 gap-2 items-center rounded-lg border bg-card p-3"
                                 >
-                                  <div className="md:col-span-4">
+                                  <div className="md:col-span-3">
                                     <div className="text-xs font-black text-primary">Titular #{d.titular_pos}</div>
-                                    <div className="text-sm font-bold">
+                                    <div className="text-sm font-bold truncate">
                                       {titular?.jugador
                                         ? `${titular.jugador.apellido}, ${titular.jugador.nombre}`
                                         : d.titular_id}
@@ -933,12 +954,12 @@ export default function Master2026Admin() {
                                     </div>
                                   </div>
                                   <div className="md:col-span-3">
-                                    <Label className="text-[10px]">Buscar jugador del club</Label>
+                                    <Label className="text-[10px]">Jugador de Suma 7 ({suma7Players.length})</Label>
                                     <Select
                                       value={d.invitado_jugador_id || "__manual__"}
                                       onValueChange={(val) => {
                                         const pid = val === "__manual__" ? "" : val;
-                                        const found = allPlayers.find((p) => p.id === pid);
+                                        const found = suma7Players.find((p) => p.id === pid);
                                         setSuma7Drafts((prev) => ({
                                           ...prev,
                                           [d.titular_id]: {
@@ -947,18 +968,19 @@ export default function Master2026Admin() {
                                             invitado_nivel: found?.categoria_nivel
                                               ? String(found.categoria_nivel)
                                               : prev[d.titular_id].invitado_nivel,
+                                            invitado_puntos: found ? String(found.puntos_suma7) : "0",
                                           },
                                         }));
                                       }}
                                     >
                                       <SelectTrigger className="h-8 text-xs">
-                                        <SelectValue placeholder="Manual / Seleccionar" />
+                                        <SelectValue placeholder="Manual / Suma 7" />
                                       </SelectTrigger>
                                       <SelectContent>
-                                        <SelectItem value="__manual__">Ingresar nombre manual</SelectItem>
-                                        {allPlayers.slice(0, 200).map((p) => (
+                                        <SelectItem value="__manual__">Carga manual (sin registro)</SelectItem>
+                                        {suma7Players.map((p) => (
                                           <SelectItem key={p.id} value={p.id}>
-                                            {p.apellido}, {p.nombre}
+                                            {p.apellido}, {p.nombre} — {p.puntos_suma7} pts
                                             {p.categoria_nombre ? ` (${p.categoria_nombre})` : ""}
                                           </SelectItem>
                                         ))}
@@ -969,7 +991,7 @@ export default function Master2026Admin() {
                                     <Label className="text-[10px]">Nombre manual</Label>
                                     <Input
                                       className="h-8 text-xs"
-                                      placeholder="Apellido, Nombre"
+                                      placeholder="Nombre y Apellido"
                                       disabled={Boolean(d.invitado_jugador_id)}
                                       value={d.invitado_nombre_manual}
                                       onChange={(e) =>
@@ -978,6 +1000,24 @@ export default function Master2026Admin() {
                                           [d.titular_id]: {
                                             ...prev[d.titular_id],
                                             invitado_nombre_manual: e.target.value,
+                                          },
+                                        }))
+                                      }
+                                    />
+                                  </div>
+                                  <div className="md:col-span-1">
+                                    <Label className="text-[10px]">Pts Inv.</Label>
+                                    <Input
+                                      type="number"
+                                      min={0}
+                                      className="h-8 text-xs px-2"
+                                      value={d.invitado_puntos}
+                                      onChange={(e) =>
+                                        setSuma7Drafts((prev) => ({
+                                          ...prev,
+                                          [d.titular_id]: {
+                                            ...prev[d.titular_id],
+                                            invitado_puntos: e.target.value,
                                           },
                                         }))
                                       }
@@ -1009,7 +1049,7 @@ export default function Master2026Admin() {
                                       </SelectContent>
                                     </Select>
                                   </div>
-                                  <div className="md:col-span-1 text-right">
+                                  <div className="md:col-span-1 text-right space-y-1">
                                     {check.ok ? (
                                       <Badge className="bg-emerald-600 text-white text-[10px]">
                                         Σ {check.suma} ✓
@@ -1019,6 +1059,9 @@ export default function Master2026Admin() {
                                         {check.suma ? `Σ ${check.suma}` : "Falta"}
                                       </Badge>
                                     )}
+                                    <div className="text-[10px] font-bold text-primary tabular-nums">
+                                      {d.titular_pts + guestPtsNum} pts
+                                    </div>
                                   </div>
                                 </div>
                               );
