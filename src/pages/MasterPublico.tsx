@@ -1,9 +1,11 @@
+import { useEffect } from "react";
 import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
 import { MasterPublicView } from "@/components/master/MasterPublicView";
+import { updateDocumentMeta } from "@/lib/seo";
 import { AlertCircle, ArrowLeft, Loader2 } from "lucide-react";
 
 export default function MasterPublico() {
@@ -11,6 +13,20 @@ export default function MasterPublico() {
   const [searchParams] = useSearchParams();
   const location = useLocation();
   const initialTvMode = location.pathname.endsWith("/tv") || searchParams.get("tv") === "1";
+
+  useEffect(() => {
+    if (club) {
+      updateDocumentMeta({
+        title: `Good Padel Master 2026 - ${club.nombre} | Padel ID`,
+        description: `Clasificados, parejas, llaves eliminatorias y orden de juego del Master Diciembre 2026 en ${club.nombre}.`,
+      });
+    } else {
+      updateDocumentMeta({
+        title: "Good Padel Master 2026 | Padel ID",
+        description: "Seguí el Master Diciembre 2026 en vivo en Padel ID.",
+      });
+    }
+  }, [club]);
 
   if (loading) {
     return (

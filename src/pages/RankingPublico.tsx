@@ -51,6 +51,7 @@ import {
 } from "@/lib/ranking";
 import { toast } from "sonner";
 import PublicFooter from "@/components/PublicFooter";
+import { updateDocumentMeta } from "@/lib/seo";
 
 type Categoria = { id: string; nombre: string; genero: string };
 
@@ -399,9 +400,14 @@ export default function RankingPublico() {
     if (params.toString() !== searchParams.toString()) {
       setSearchParams(params, { replace: true });
     }
-    document.title = `Ranking${catName} | Padel ID`;
+    const clubPart = clubNombre ? ` - ${clubNombre}` : "";
+    const title = `Ranking${catName}${clubPart} | Padel ID`;
+    updateDocumentMeta({
+      title,
+      description: `Consultá la tabla de posiciones y puntos del Ranking${catName}${clubPart} en Padel ID.`,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtroAnio, filtroCategoria, filtroTorneo, filtroGenero, vistaModo, esFiltroTorneoSuma, sumaLabelActiva]);
+  }, [filtroAnio, filtroCategoria, filtroTorneo, filtroGenero, vistaModo, esFiltroTorneoSuma, sumaLabelActiva, clubNombre, categorias]);
 
   const filtradas = useMemo(() => {
     if (!busqueda.trim()) return rows;

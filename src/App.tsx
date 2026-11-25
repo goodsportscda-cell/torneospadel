@@ -27,9 +27,18 @@ function isChunkLoadError(err: unknown): boolean {
 
 async function clearCachesAndReloadOnce() {
   const reloadKey = "padel_lazy_reload_ts";
-  const lastReload = Number(sessionStorage.getItem(reloadKey) || "0");
+  let lastReload = 0;
+  try {
+    lastReload = Number(sessionStorage.getItem(reloadKey) || "0");
+  } catch {
+    lastReload = 0;
+  }
   if (Date.now() - lastReload > 10_000) {
-    sessionStorage.setItem(reloadKey, String(Date.now()));
+    try {
+      sessionStorage.setItem(reloadKey, String(Date.now()));
+    } catch {
+      // ignore storage errors on restricted mobile browsers
+    }
     try {
       if ("serviceWorker" in navigator) {
         const regs = await navigator.serviceWorker.getRegistrations();

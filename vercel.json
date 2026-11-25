@@ -6,12 +6,44 @@
   },
   "rewrites": [
     {
+      "source": "/c/:clubSlug",
+      "destination": "/api/seo-preview?type=club&clubSlug=:clubSlug"
+    },
+    {
+      "source": "/c/:clubSlug/master",
+      "destination": "/api/seo-preview?type=master&clubSlug=:clubSlug"
+    },
+    {
+      "source": "/c/:clubSlug/master/tv",
+      "destination": "/api/seo-preview?type=master&clubSlug=:clubSlug"
+    },
+    {
+      "source": "/c/:clubSlug/ranking-publico",
+      "destination": "/api/seo-preview?type=ranking&clubSlug=:clubSlug"
+    },
+    {
+      "source": "/c/:clubSlug/inscribirse/:torneoId",
+      "destination": "/api/seo-preview?type=inscribirse&id=:torneoId&clubSlug=:clubSlug"
+    },
+    {
+      "source": "/c/:clubSlug/torneo/:slug",
+      "destination": "/api/seo-preview?type=torneo&slug=:slug&clubSlug=:clubSlug"
+    },
+    {
+      "source": "/c/:clubSlug/torneo-individual/:id",
+      "destination": "/api/seo-preview?type=torneo&slug=:id&clubSlug=:clubSlug"
+    },
+    {
       "source": "/inscribirse/:torneoId",
       "destination": "/api/seo-preview?type=inscribirse&id=:torneoId"
     },
     {
       "source": "/torneo/:slug",
       "destination": "/api/seo-preview?type=torneo&slug=:slug"
+    },
+    {
+      "source": "/torneo-individual/:id",
+      "destination": "/api/seo-preview?type=torneo&slug=:id"
     },
     {
       "source": "/ranking-publico",

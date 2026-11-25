@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import { ModeToggle } from "@/components/mode-toggle";
 import PublicFooter from "@/components/PublicFooter";
 import { MasterPublicView } from "@/components/master/MasterPublicView";
 import { PlayerMasterProfileSection } from "@/components/master/PlayerMasterProfileSection";
+import { updateDocumentMeta } from "@/lib/seo";
 import { useClubRanking, type RankingRowUnified } from "@/hooks/useClubRanking";
 import { isAscenso, isCategoriaSuma, normalizarFiltroTorneoParam } from "@/lib/ranking";
 
@@ -62,6 +63,11 @@ const GENEROS = [
 
 export default function ClubHome() {
   const { club, loading: tenantLoading } = useTenant();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const t = searchParams.get("tab");
+    return t === "master" || t === "rankings" || t === "inscripciones" ? t : "torneos";
+  });
   const [torneos, setTorneos] = useState<Torneo[]>([]);
   const [loadingTorneos, setLoadingTorneos] = useState(false);
 
@@ -110,11 +116,35 @@ export default function ClubHome() {
 
   useEffect(() => {
     if (club) {
-      document.title = `${club.nombre} | Padel ID`;
       cargarTorneos();
       cargarFiltrosRanking();
     }
   }, [club]);
+
+  useEffect(() => {
+    if (!club) return;
+    if (activeTab === "master") {
+      updateDocumentMeta({
+        title: `Good Padel Master 2026 - ${club.nombre} | Padel ID`,
+        description: `Clasificados, parejas, llaves y cronograma del Master Diciembre 2026 en ${club.nombre}.`,
+      });
+    } else if (activeTab === "rankings") {
+      updateDocumentMeta({
+        title: `Ranking Oficial - ${club.nombre} | Padel ID`,
+        description: `Consultá el ranking oficial y puntos por categoría de ${club.nombre} en Padel ID.`,
+      });
+    } else if (activeTab === "inscripciones") {
+      updateDocumentMeta({
+        title: `Inscripciones - ${club.nombre} | Padel ID`,
+        description: `Inscribite a los próximos torneos de ${club.nombre} en Padel ID.`,
+      });
+    } else {
+      updateDocumentMeta({
+        title: `${club.nombre} · Torneos y Ranking | Padel ID`,
+        description: `Torneos en vivo, resultados y ranking oficial de ${club.nombre} en Padel ID.`,
+      });
+    }
+  }, [club, activeTab]);
 
   const cargarTorneos = async () => {
     if (!club) return;
@@ -358,7 +388,17 @@ export default function ClubHome() {
           </div>
         </div>
 
-        <Tabs defaultValue="torneos" className="w-full">
+        <Tabs
+          value={activeTab}
+          onValueChange={(val) => {
+            setActiveTab(val);
+            const next = new URLSearchParams(searchParams);
+            if (val === "torneos") next.delete("tab");
+            else next.set("tab", val);
+            setSearchParams(next, { replace: true });
+          }}
+          className="w-full"
+        >
           <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4 h-auto p-1 gap-1">
             <TabsTrigger value="torneos" className="text-xs sm:text-sm font-bold py-2.5">Torneos</TabsTrigger>
             <TabsTrigger value="rankings" className="text-xs sm:text-sm font-bold py-2.5">Ranking</TabsTrigger>
@@ -448,10 +488,10 @@ export default function ClubHome() {
                     >
                       <Link
                         to={`/c/${club.slug}/ranking-publico?club_id=${club.id}${filtroTorneo !== "todos"
-                            ? `&torneo=${encodeURIComponent(normalizarFiltroTorneoParam(filtroTorneo))}`
-                            : !esFiltroTorneoSuma && filtroCategoria !== "todas"
-                              ? `&categoria=${encodeURIComponent(filtroCategoria)}`
-                              : ""
+                          ? `&torneo=${encodeURIComponent(normalizarFiltroTorneoParam(filtroTorneo))}`
+                          : !esFiltroTorneoSuma && filtroCategoria !== "todas"
+                            ? `&categoria=${encodeURIComponent(filtroCategoria)}`
+                            : ""
                           }`}
                       >
                         <Trophy className="h-3 w-3" />

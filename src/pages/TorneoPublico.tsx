@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { updateDocumentMeta } from "@/lib/seo";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -153,9 +154,12 @@ export default function TorneoPublico() {
     if (torneo) {
       const catText = torneo.categoria_libre || categoriaNombre ? ` (${torneo.categoria_libre || categoriaNombre})` : "";
       const fechaTxt = torneo.numero_fecha ? ` - Fecha ${torneo.numero_fecha}` : "";
-      document.title = `${torneo.nombre}${fechaTxt}${catText} | Padel ID`;
+      updateDocumentMeta({
+        title: `${torneo.nombre}${fechaTxt}${catText} | Padel ID`,
+        description: `Seguí los resultados, zonas, llaves y posiciones en vivo de ${torneo.nombre} en Padel ID.`,
+      });
     } else {
-      document.title = "Padel ID - Torneo";
+      updateDocumentMeta({ title: "Padel ID - Torneo" });
     }
   }, [torneo, categoriaNombre]);
 
